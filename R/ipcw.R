@@ -1,7 +1,8 @@
 #' @title Inverse Probability of Censoring Weights (IPCW) Method
 #' for Treatment Switching
-#' @description Uses the IPCW method to obtain the hazard ratio estimate 
-#' of the Cox model to account for treatment switching.
+#' @description Uses the inverse probability of censoring weights (IPCW) 
+#' method to obtain the hazard ratio estimate of the Cox model to 
+#' account for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #'
@@ -32,11 +33,11 @@
 #'   * \code{base_cov}: The baseline covariates (excluding treat) used in
 #'     the outcome model.
 #'
-#'   * \code{numerator}: The baseline covariates used in the switching
-#'     model for the numerator for stabilized weights.
+#'   * \code{numerator}: The baseline covariates (excluding treat) used in 
+#'     the switching model for the numerator for stabilized weights.
 #'
-#'   * \code{denominator}: The baseline and time-dependent covariates
-#'     used in the switching model for the denominator.
+#'   * \code{denominator}: The baseline and time-dependent covariates 
+#'     (excluding treat) used in the switching model for the denominator.
 #'
 #' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
@@ -50,12 +51,14 @@
 #'   the input data.
 #' @param swtrt_time_upper The name of the swtrt_time_upper variable in 
 #'   the input data. 
-#' @param base_cov The vector of names of base_cov variables (excluding
+#' @param base_cov The vector of names of baseline covariates (excluding
 #'   treat) in the input data for the Cox model.
-#' @param numerator The vector of names of variables in the input data
-#'   for the numerator switching model for stabilized weights.
-#' @param denominator The vector of names of variables in the input data
-#'   for the denominator switching model.
+#' @param numerator The vector of names of baseline covariates 
+#'   (excluding treat) in the input data for the numerator switching 
+#'   model for stabilized weights.
+#' @param denominator The vector of names of baseline and time-dependent
+#'   covariates (excluding treat) in the input data for the denominator 
+#'   switching model.
 #' @param logistic_switching_model Whether a pooled logistic regression 
 #'   switching model is used.
 #' @param strata_main_effect_only Whether to only include the strata main
@@ -66,7 +69,8 @@
 #'   should be used. The default is \code{FALSE}.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities. The default is \code{FALSE}.
-#' @param ns_df Degrees of freedom for the natural cubic spline. 
+#' @param ns_df Degrees of freedom for the natural cubic spline for 
+#'   visit-specific intercepts of the pooled logistic regression model. 
 #'   Defaults to 3 for two inner knots at the 33 and 67 percentiles
 #'   of the artificial censoring times due to treatment switching.
 #' @param stabilized_weights Whether to use the stabilized weights.
@@ -99,7 +103,11 @@
 #' * Fit the denominator switching model (and the numerator switching model
 #'   for stabilized weights) to obtain the inverse probability
 #'   of censoring weights. This can be a Cox model with time-dependent 
-#'   covariates or a pooled logistic regression model.
+#'   covariates or a pooled logistic regression model. For pooled logistic
+#'   regression switching model, the probability of remaining uncensored
+#'   (i.e., not switching) will be calculated by subtracting the 
+#'   predicted probability of switching from 1 and then multiplied over 
+#'   time up to the current time point.
 #'
 #' * Fit the weighted Cox model to the censored outcome survival times
 #'   to obtain the hazard ratio estimate.
@@ -164,7 +172,7 @@
 #'
 #'     - \code{n_boot}: The number of bootstrap samples.
 #'
-#'     - \code{seed}: The seed to reproduce the simulation results.
+#'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
 #' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
 #'   \code{TRUE}.

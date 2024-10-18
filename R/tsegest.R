@@ -43,7 +43,7 @@
 #' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param tstart The name of the tstart variable in the input data.
-#' @param tstop The name of tstop variable in the input data.
+#' @param tstop The name of the tstop variable in the input data.
 #' @param event The name of the event variable in the input data.
 #' @param treat The name of the treatment variable in the input data.
 #' @param censor_time The name of the censor_time variable in the input data.
@@ -185,14 +185,15 @@
 #'
 #'     - \code{ties}: The method for handling ties in the Cox model.
 #'     
-#'     - \code{tol}: The desired accuracy (convergence tolerance).
+#'     - \code{tol}: The desired accuracy (convergence tolerance) 
+# '      for \code{psi}.
 #'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.
 #'
 #'     - \code{n_boot}: The number of bootstrap samples.
 #'
-#'     - \code{seed}: The seed to reproduce the simulation results.
+#'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
 #' * \code{psi_trt}: The estimated causal parameter for the treatment group 
 #'   if \code{swtrt_control_only} is \code{FALSE}.
@@ -220,6 +221,8 @@
 #'
 #' @examples
 #'
+#' # Example 1: one-way treatment switching (control to active)
+#' 
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 #'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
@@ -244,6 +247,8 @@
 #'   tol = 1.0e-6, boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI)
+#'
+#' # Example 2: two-way treatment switching
 #'
 #' sim2 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 

@@ -53,15 +53,16 @@
 #'   the confidence interval will be constructed to match the log-rank
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the simulation results.
+#' @param seed The seed to reproduce the bootstrap results.
 #'   The seed from the environment will be used if left unspecified.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
 #'
 #' * Use IPE to estimate the causal parameter \eqn{\psi} based on the AFT 
-#'   model for counter-factual survival times for both arms:
+#'   model for the counter-factual untreated survival times
 #'   \eqn{U_{i,\psi} = T_{C_i} + e^{\psi}T_{E_i}} for the control arm, and
+#'   the counter-factual treated survival times
 #'   \eqn{V_{i,\psi} = T_{E_i} + e^{-\psi}T_{C_i}} for the experimental arm.
 #'
 #' * Fit the Cox proportional hazards model to the counter-factual survival
@@ -124,7 +125,8 @@
 #'
 #'     - \code{ties}: The method for handling ties in the Cox model.
 #'
-#'     - \code{tol}: The desired accuracy (convergence tolerance).
+#'     - \code{tol}: The desired accuracy (convergence tolerance) 
+#'       for \code{psi}.
 #'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.

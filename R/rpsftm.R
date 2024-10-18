@@ -112,7 +112,8 @@
 #'     - \code{hi_psi}: The upper limit of the causal parameter.
 #'     
 #'     - \code{n_eval_z}: The number of points between \code{low_psi} and 
-#'       \code{hi_psi} at which to evaluate the log-rank Z-statistics.
+#'       \code{hi_psi} (inclusive) at which to evaluate the log-rank 
+#'       Z-statistics.
 #'
 #'     - \code{treat_modifier}: The sensitivity parameter for the
 #'       constant treatment effect assumption.
@@ -134,14 +135,15 @@
 #'
 #'     - \code{ties}: The method for handling ties in the Cox model.
 #'
-#'     - \code{tol}: The desired accuracy (convergence tolerance).
+#'     - \code{tol}: The desired accuracy (convergence tolerance) 
+#'       for \code{psi}.
 #'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.
 #'
 #'     - \code{n_boot}: The number of bootstrap samples.
 #'
-#'     - \code{seed}: The seed to reproduce the simulation results.
+#'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
 #' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
 #'   \code{TRUE}.

@@ -520,7 +520,7 @@ List tsesimpcpp(const DataFrame data,
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
   if (!boot) { // use Cox model to construct CI for HR if no boot
-    hr_CI_type = "model";
+    hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
     if (seed != NA_INTEGER) set_seed(seed);
 

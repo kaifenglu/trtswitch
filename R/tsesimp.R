@@ -72,7 +72,7 @@
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
 #'
-#' * Use an AFT model to estimate the causal parameter \eqn{psi} based on 
+#' * Use an AFT model to estimate the causal parameter \eqn{\psi} based on 
 #'   the patients in the control group who had disease progression.
 #'
 #' * Derive the counter-factual survival times for control patients
@@ -105,7 +105,7 @@
 #' * \code{hr_CI}: The confidence interval for hazard ratio.
 #'
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
-#'   either "model" or "bootstrap".
+#'   either "Cox model" or "bootstrap".
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -137,7 +137,7 @@
 #'
 #'     - \code{n_boot}: The number of bootstrap samples.
 #'
-#'     - \code{seed}: The seed to reproduce the simulation results.
+#'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
 #' * \code{psi_trt}: The estimated causal parameter for the treatment group 
 #'   if \code{swtrt_control_only} is \code{FALSE}.
