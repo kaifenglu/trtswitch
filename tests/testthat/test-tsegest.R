@@ -1,0 +1,99 @@
+library(dplyr, warn.conflicts = FALSE)
+library(survival)
+library(geepack)
+
+test_that("tsegest: logistic g-estimation", {
+  sim1 <- tsegestsim(
+    n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
+    trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
+    scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+    pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
+    pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
+    catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
+    ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
+    milestone = 546, swtrt_control_only = TRUE,
+    outputRawDataset = 1, seed = 2000)
+  
+  fit1 <- tsegest(
+    data = sim1$paneldata, id = "id", 
+    tstart = "tstart", tstop = "tstop", event = "died", 
+    treat = "trtrand", censor_time = "censor_time", 
+    pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
+    swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+    base_cov = "bprog", conf_cov = "bprog*catlag", 
+    low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+    recensor = TRUE, admin_recensor_only = FALSE, 
+    swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
+    tol = 1.0e-6, boot = FALSE)
+  
+  # last observation within each subject
+  data1 <- sim1$paneldata %>%
+    group_by(id) %>%
+    slice(n()) %>%
+    mutate(os = died, ostime = tstop) %>% 
+    select(id, trtrand, progressed, timePFSobs, os, ostime, 
+           censor_time, xo, xotime, bprog)
+  
+  # post progression data up to switching 
+  data2 <- sim1$paneldata %>%
+    filter(trtrand == 0 & progressed == 1 & tstop >= timePFSobs & 
+             ((xo == 0 & tstop <= xotime_upper) | 
+                (xo == 1 & tstop <= xotime)))
+  
+  # re-baseline
+  data3a <- data2 %>% 
+    left_join(data1 %>% select(id, os, ostime), by = "id") %>%
+    group_by(id) %>%
+    slice(1) %>%
+    mutate(ostime = ostime - timePFSobs,
+           censor_time = censor_time - timePFSobs,
+           xotime = xotime - timePFSobs) %>%
+    ungroup()
+  
+  # setup treatment switching indicators
+  data3b <- data2 %>%
+    left_join(data1 %>% select(id, os, ostime), by = "id") %>%
+    mutate(y = ifelse(xo == 1 & tstop == xotime, 1, 0))
+  
+  g <- function(psi, target) {
+    data4a <- data3a %>%
+      mutate(u = ifelse(xo==1, xotime + (ostime-xotime)*exp(psi), ostime), 
+             c = pmin(censor_time, censor_time*exp(psi)),
+             time_ts = pmin(u, c),
+             event_ts = os*(u <= c))
+    
+    fit_cox <- coxph(Surv(time_ts, event_ts) ~ 1, data = data4a)
+    resid <- residuals(fit_cox)
+    
+    data4b <- data3b %>%
+      left_join(data4a %>% mutate(resid = resid) %>%
+                  select(id, resid), by = "id")
+    
+    fit_lgs <- geeglm(y ~ resid + bprog*catlag,
+                      family = binomial, data = data4b, id = id)
+    
+    z_lgs <- coefficients(fit_lgs)/sqrt(diag(vcov(fit_lgs)))
+    
+    as.numeric(z_lgs["resid"]) - target
+  }
+  
+  psi <- uniroot(g, c(-3, 3), 0, tol = 1.0e-6)$root
+  
+  data4 <- data1 %>%
+    filter(trtrand == 0) %>%
+    mutate(u = ifelse(xo==1, xotime + (ostime-xotime)*exp(psi), ostime), 
+           c = pmin(censor_time, censor_time*exp(psi)),
+           time_ts = pmin(u, c),
+           event_ts = os*(u <= c)) %>%
+    select(id, time_ts, event_ts, trtrand, bprog) %>%
+    bind_rows(data1 %>% 
+                filter(trtrand == 1) %>%
+                mutate(time_ts = ostime, event_ts = os) %>%
+                select(id, time_ts, event_ts, trtrand, bprog))
+  
+  fit <- coxph(Surv(time_ts, event_ts) ~ trtrand + bprog, 
+               data = data4, ties = "efron")
+  
+  hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
+  expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
+})
