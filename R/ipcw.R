@@ -2,7 +2,7 @@
 #' for Treatment Switching
 #' @description Uses the inverse probability of censoring weights (IPCW) 
 #' method to obtain the hazard ratio estimate of the Cox model to 
-#' account for treatment switching.
+#' adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #'

@@ -1,7 +1,7 @@
 #' @title The Simple Two-Stage Estimation (TSE) Method for Treatment 
 #' Switching
 #' @description Obtains the causal parameter estimate of the AFT model 
-#' and the hazard ratio estimate of the Cox model to account for 
+#' and the hazard ratio estimate of the Cox model to adjust for 
 #' treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:

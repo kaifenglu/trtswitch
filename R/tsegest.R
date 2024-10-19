@@ -2,7 +2,7 @@
 #' for Treatment Switching
 #' @description Obtains the causal parameter estimate of the logistic
 #' regression switching model and the hazard ratio estimate of 
-#' the Cox model to account for treatment switching.
+#' the Cox model to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #'

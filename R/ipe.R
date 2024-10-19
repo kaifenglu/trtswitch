@@ -1,7 +1,7 @@
 #' @title Iterative Parameter Estimation (IPE) for Treatment Switching
 #' @description Obtains the causal parameter estimate from the
 #' accelerated failure-time (AFT) model and the hazard ratio estimate
-#' from the Cox model to account for treatment switching.
+#' from the Cox model to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #'
