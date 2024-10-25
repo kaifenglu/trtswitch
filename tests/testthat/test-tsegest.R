@@ -22,7 +22,7 @@ test_that("tsegest: logistic g-estimation", {
     swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
     base_cov = "bprog", conf_cov = "bprog*catlag", 
     low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
-    recensor = TRUE, admin_recensor_only = FALSE, 
+    recensor = TRUE, admin_recensor_only = TRUE, 
     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
     tol = 1.0e-6, boot = FALSE)
   

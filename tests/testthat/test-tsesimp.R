@@ -36,8 +36,7 @@ test_that("tsesimp: weibull aft", {
   # numeric code of treatment and apply administrative censoring
   data1 <- shilong3 %>% 
     mutate(treat = ifelse(bras.f == "CT", 0, 1),
-           swtrt = 1*co,
-           censor_time = ifelse(event == 1, dcut, tstop))
+           swtrt = 1*co)
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data1 %>% 
@@ -56,7 +55,7 @@ test_that("tsesimp: weibull aft", {
       mutate(u = ifelse(swtrt == 1, 
                         ifelse(pd == 1, dpd-1 + (tstop-dpd+1)*exp(psi), 
                                dco-1 + (tstop-dco+1)*exp(psi)), tstop),
-             c = pmin(censor_time, censor_time*exp(psi)),
+             c = pmin(dcut, dcut*exp(psi)),
              time_ts = pmin(u, c),
              event_ts = event*(u <= c))
   })

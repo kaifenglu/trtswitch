@@ -27,7 +27,7 @@ List tsegestcpp(
     const bool firth = 0,
     const bool flic = 0,
     const bool recensor = 1,
-    const bool admin_recensor_only = 0,
+    const bool admin_recensor_only = 1,
     const bool swtrt_control_only = 1,
     const double alpha = 0.05,
     const std::string ties = "efron",
@@ -240,7 +240,7 @@ List tsegestcpp(
   
   StringVector covariates(p_base+1);
   NumericMatrix zbasen(n,p_base+1);
-  covariates[0] = "treat";
+  covariates[0] = "treated";
   zbasen(_,0) = treatn;
   for (j=0; j<p_base; j++) {
     String zj = base_cov[j];
@@ -396,7 +396,8 @@ List tsegestcpp(
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
   k = -1;
-  auto f = [&k, q, p_base, p_conf, covariates, covariates_lgs, 
+  auto f = [&k, data, q, p_base, p_conf, covariates, covariates_lgs,
+            treat, treatwi, treatwn, treatwc,
             low_psi, hi_psi, recensor, firth, flic, 
             swtrt_control_only, alpha, zcrit, ties, tol] (
                 IntegerVector idb, IntegerVector stratumb, 
@@ -407,7 +408,7 @@ List tsegestcpp(
                 IntegerVector pdb, NumericVector pd_timeb, 
                 IntegerVector swtrtb, NumericVector swtrt_timeb, 
                 NumericVector swtrt_time_upperb,
-                NumericMatrix zbaseb, NumericMatrix zlgs1b)->NumericVector {
+                NumericMatrix zbaseb, NumericMatrix zlgs1b)->List {
                   
                   int h, i, j;
                   int n = static_cast<int>(idb.size());
@@ -472,6 +473,86 @@ List tsegestcpp(
                   double psihat = 0, psilower = 0, psiupper = 0;
                   double psi0hat = 0, psi0lower = 0, psi0upper = 0;
                   double psi1hat = 0, psi1lower = 0, psi1upper = 0;
+                  
+                  // initialize data_nullcox and data_logis
+                  List data_nullcox(2), data_logis(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List data_logisx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_logisx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_logisx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_logisx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_logis[h] = data_logisx;
+                      
+                      
+                      List data_nullcoxx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_nullcoxx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_nullcoxx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_nullcoxx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_nullcox[h] = data_nullcoxx;
+                    }
+                  }
+                  
+                  // initialize fit_nullcox and fit_logis
+                  List fit_nullcox(2), fit_logis(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List fit_nullcoxx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_nullcoxx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_nullcoxx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_nullcoxx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_nullcox[h] = fit_nullcoxx;
+                      
+                      
+                      List fit_logisx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_logisx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_logisx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_logisx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_logis[h] = fit_logisx;
+                    }
+                  }
+                  
+                  DataFrame data_outcome;
                   
                   // treat arms that include patients who switched treatment
                   IntegerVector treats(1);
@@ -578,19 +659,19 @@ List tsegestcpp(
                                 }
                                 
                                 // martingale residuals from the null model
-                                DataFrame phdata = DataFrame::create(
+                                DataFrame data1 = DataFrame::create(
                                   Named("time") = time_ts,
                                   Named("event") = event_ts,
                                   Named("stratum") = stratumn3
                                 );
                                 
-                                List fit_cox = phregcpp(
-                                  phdata, "", "stratum", "time", "", "event",
+                                List fit1 = phregcpp(
+                                  data1, "", "stratum", "time", "", "event",
                                   "", "", "", "", ties, 0,0,1,0,0, alpha);
                                 
                                 // replicate counter-factual residuals 
                                 // within subjects
-                                NumericVector resid3 = fit_cox["residuals"];
+                                NumericVector resid3 = fit1["residuals"];
                                 NumericVector resid(n2);
                                 for (i=0; i<nids2; i++) {
                                   for (j=idx2[i]; j<idx2[i+1]; j++) {
@@ -599,7 +680,7 @@ List tsegestcpp(
                                 }
                                 
                                 // logistic regression switching model
-                                DataFrame lgsdata = DataFrame::create(
+                                DataFrame data2 = DataFrame::create(
                                   Named("event") = y,
                                   Named("counterfactual") = resid,
                                   Named("id") = idn2);
@@ -607,14 +688,14 @@ List tsegestcpp(
                                 for (int j=0; j<q+p_conf; j++) {
                                   String zj = covariates_lgs[j+1];
                                   NumericVector u = zlgs1n2(_,j);
-                                  lgsdata.push_back(u, zj);
+                                  data2.push_back(u, zj);
                                 }
                                 
-                                List fit = logisregcpp(
-                                  lgsdata, "", "event", covariates_lgs, "", 
+                                List fit2 = logisregcpp(
+                                  data2, "", "event", covariates_lgs, "", 
                                   "", "", "id", 1, firth, flic, 0, alpha);
                                 
-                                DataFrame parest = DataFrame(fit["parest"]);
+                                DataFrame parest = DataFrame(fit2["parest"]);
                                 NumericVector z = parest["z"];
                                 return z[1] - target;
                               };
@@ -666,6 +747,139 @@ List tsegestcpp(
                         psi1upper = psiupper;
                       }
                     }
+                    
+                    
+                    // update data and fit for null cox and logistic models
+                    if (k == -1) {
+                      double a = exp(psihat);
+                      
+                      // counter-factual survival times and 
+                      // event indicators
+                      NumericVector time_ts(nids2);
+                      IntegerVector event_ts(nids2);
+                      for (i=0; i<nids2; i++) {
+                        double u_star, c_star;
+                        if (swtrtn3[i] == 1) {
+                          u_star = swtrt_timen3[i] + 
+                            (os_timen3[i] - swtrt_timen3[i])*a;
+                        } else {
+                          u_star = os_timen3[i];
+                        }
+                        
+                        if (recensor) {
+                          c_star = std::min(
+                            censor_timen3[i], censor_timen3[i]*a);
+                          time_ts[i] = std::min(u_star, c_star);
+                          event_ts[i] = osn3[i]*(u_star <= c_star);
+                        } else {
+                          time_ts[i] = u_star;
+                          event_ts[i] = osn3[i];
+                        }
+                      }
+                      
+                      // martingale residuals from the null model
+                      DataFrame data1 = DataFrame::create(
+                        Named("time") = time_ts,
+                        Named("event") = event_ts,
+                        Named("stratum") = stratumn3
+                      );
+                      
+                      List fit1 = phregcpp(
+                        data1, "", "stratum", "time", "", "event",
+                        "", "", "", "", ties, 0,0,1,0,0, alpha);
+                      
+                      // replicate counter-factual residuals 
+                      // within subjects
+                      NumericVector resid3 = fit1["residuals"];
+                      NumericVector resid(n2);
+                      for (i=0; i<nids2; i++) {
+                        for (j=idx2[i]; j<idx2[i+1]; j++) {
+                          resid[j] = resid3[i];
+                        }
+                      }
+                      
+                      // logistic regression switching model
+                      DataFrame data2 = DataFrame::create(
+                        Named("event") = y,
+                        Named("counterfactual") = resid,
+                        Named("id") = idn2);
+                      
+                      for (int j=0; j<q+p_conf; j++) {
+                        String zj = covariates_lgs[j+1];
+                        NumericVector u = zlgs1n2(_,j);
+                        data2.push_back(u, zj);
+                      }
+                      
+                      List fit2 = logisregcpp(
+                        data2, "", "event", covariates_lgs, "", 
+                        "", "", "id", 1, firth, flic, 0, alpha);
+                      
+                      
+                      // update data_nullcox and data_logis
+                      List data_nullcoxx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = data1);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_nullcoxx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_nullcoxx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_nullcoxx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_nullcox[h] = data_nullcoxx;
+                      
+                      
+                      List data_logisx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = data2);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_logisx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_logisx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_logisx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_logis[h] = data_logisx;
+                      
+                      
+                      // update fit_nullcox and fit_logis
+                      List fit_nullcoxx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = fit1);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_nullcoxx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_nullcoxx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_nullcoxx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_nullcox[h] = fit_nullcoxx;
+                      
+                      
+                      List fit_logisx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = fit2);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_logisx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_logisx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_logisx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_logis[h] = fit_logisx;
+                    }
                   }
                   
                   // rename control-arm causal parameter estimates
@@ -674,23 +888,23 @@ List tsegestcpp(
                   psiupper = psi0upper;
                   
                   // Cox model for hypothetical treatment effect estimate
-                  DataFrame phdata = DataFrame::create(
+                  data_outcome = DataFrame::create(
                     Named("stratum") = stratumn1,
                     Named("time") = time_ts,
                     Named("event") = event_ts,
-                    Named("treat") = treatn1);
+                    Named("treated") = treatn1);
                   
                   for (j=0; j<p_base; j++) {
                     String zj = covariates[j+1];
                     NumericVector u = zbasen1(_,j+1);
-                    phdata.push_back(u, zj);
+                    data_outcome.push_back(u, zj);
                   }
                   
-                  List fit = phregcpp(
-                    phdata, "", "stratum", "time", "", "event",
+                  List fit_outcome = phregcpp(
+                    data_outcome, "", "stratum", "time", "", "event",
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
                   
-                  DataFrame parest = DataFrame(fit["parest"]);
+                  DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
                   NumericVector z = parest["z"];
@@ -699,29 +913,74 @@ List tsegestcpp(
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
                   double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
                   
-                  NumericVector out = NumericVector::create(
-                    psihat, psilower, psiupper, psi1hat, psi1lower, 
-                    psi1upper, hrhat, hrlower, hrupper, pvalue);
+                  List out;
+                  
+                  if (k == -1) {
+                    out = List::create(
+                      Named("data_nullcox") = data_nullcox,
+                      Named("fit_nullcox") = fit_nullcox,
+                      Named("data_logis") = data_logis,
+                      Named("fit_logis") = fit_logis,
+                      Named("data_outcome") = data_outcome,
+                      Named("fit_outcome") = fit_outcome,
+                      Named("psihat") = psihat,
+                      Named("psilower") = psilower,
+                      Named("psiupper") = psiupper,
+                      Named("psi1hat") = psi1hat,
+                      Named("psi1lower") = psi1lower,
+                      Named("psi1upper") = psi1upper,
+                      Named("hrhat") = hrhat,
+                      Named("hrlower") = hrlower,
+                      Named("hrupper") = hrupper,
+                      Named("pvalue") = pvalue);
+                  } else {
+                    out = List::create(
+                      Named("psihat") = psihat,
+                      Named("psilower") = psilower,
+                      Named("psiupper") = psiupper,
+                      Named("psi1hat") = psi1hat,
+                      Named("psi1lower") = psi1lower,
+                      Named("psi1upper") = psi1upper,
+                      Named("hrhat") = hrhat,
+                      Named("hrlower") = hrlower,
+                      Named("hrupper") = hrupper,
+                      Named("pvalue") = pvalue);
+                  }
                   
                   return out;
                 };
   
-  NumericVector out = f(idn, stratumn, tstartn, tstopn, eventn, treatn,
-                        osn, os_timen, censor_timen, pdn, pd_timen, 
-                        swtrtn, swtrt_timen, swtrt_time_uppern, 
-                        zbasen, zlgs1n);
+  List out = f(idn, stratumn, tstartn, tstopn, eventn, treatn,
+               osn, os_timen, censor_timen, pdn, pd_timen, 
+               swtrtn, swtrt_timen, swtrt_time_uppern, 
+               zbasen, zlgs1n);
   
-  double psihat = out[0];
-  double psilower = out[1];
-  double psiupper = out[2];
-  double psi1hat = out[3];
-  double psi1lower = out[4];
-  double psi1upper = out[5];
-  double hrhat = out[6];
-  double hrlower = out[7];
-  double hrupper = out[8];
-  double pvalue = out[9];
+  List data_nullcox = out["data_nullcox"];
+  List fit_nullcox = out["fit_nullcox"];
+  List data_logis = out["data_logis"];
+  List fit_logis = out["fit_logis"];
+  DataFrame data_outcome = DataFrame(out["data_outcome"]);
+  List fit_outcome = out["fit_outcome"];
+  double psihat = out["psihat"];
+  double psilower = out["psilower"];
+  double psiupper = out["psiupper"];
+  double psi1hat = out["psi1hat"];
+  double psi1lower = out["psi1lower"];
+  double psi1upper = out["psi1upper"];
+  double hrhat = out["hrhat"];
+  double hrlower = out["hrlower"];
+  double hrupper = out["hrupper"];
+  double pvalue = out["pvalue"];
   String psi_CI_type = "logistic model";
+  
+  IntegerVector treated = data_outcome["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    data_outcome.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    data_outcome.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    data_outcome.push_back(treatwc[1-treated], treat);
+  }
   
   // construct the confidence interval for HR
   String hr_CI_type;
@@ -808,9 +1067,9 @@ List tsegestcpp(
               swtrtb, swtrt_timeb, swtrt_time_upperb, 
               zbaseb, zlgs1b);
 
-      hrhats[k] = out[6];
-      psihats[k] = out[0];
-      psi1hats[k] = out[3];
+      hrhats[k] = out["hrhat"];
+      psihats[k] = out["psihat"];
+      psi1hats[k] = out["psi1hat"];
     }
 
     // obtain bootstrap confidence interval for HR
@@ -859,8 +1118,14 @@ List tsegestcpp(
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("data_nullcox") = data_nullcox,
+    Named("fit_nullcox") = fit_nullcox,
+    Named("data_logis") = data_logis,
+    Named("fit_logis") = fit_logis,
+    Named("data_outcome") = data_outcome,
+    Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
-
+  
   if (!swtrt_control_only) {
     result.push_back(psi1hat, "psi_trt");
     NumericVector psi1_CI = NumericVector::create(psi1lower, psi1upper);

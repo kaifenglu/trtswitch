@@ -20,7 +20,7 @@ List tsesimpcpp(const DataFrame data,
                 const std::string aft_dist = "weibull",
                 const bool strata_main_effect_only = 1,
                 const bool recensor = 1,
-                const bool admin_recensor_only = 0,
+                const bool admin_recensor_only = 1,
                 const bool swtrt_control_only = 1,
                 const double alpha = 0.05,
                 const std::string ties = "efron",
@@ -102,10 +102,14 @@ List tsesimpcpp(const DataFrame data,
   }
 
   // create the numeric treat variable
+  if (!has_treat) stop("data must contain the treat variable");
   IntegerVector treatn(n);
+  IntegerVector treatwi;
+  NumericVector treatwn;
+  StringVector treatwc;
   if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
     IntegerVector treatv = data[treat];
-    IntegerVector treatwi = unique(treatv);
+    treatwi = unique(treatv);
     if (treatwi.size() != 2) {
       stop("treat must have two and only two distinct values");
     }
@@ -119,7 +123,7 @@ List tsesimpcpp(const DataFrame data,
     }
   } else if (TYPEOF(data[treat]) == REALSXP) {
     NumericVector treatv = data[treat];
-    NumericVector treatwn = unique(treatv);
+    treatwn = unique(treatv);
     if (treatwn.size() != 2) {
       stop("treat must have two and only two distinct values");
     }
@@ -133,7 +137,7 @@ List tsesimpcpp(const DataFrame data,
     }
   } else if (TYPEOF(data[treat]) == STRSXP) {
     StringVector treatv = data[treat];
-    StringVector treatwc = unique(treatv);
+    treatwc = unique(treatv);
     if (treatwc.size() != 2) {
       stop("treat must have two and only two distinct values");
     }
@@ -142,9 +146,9 @@ List tsesimpcpp(const DataFrame data,
   } else {
     stop("incorrect type for the treat variable in the input data");
   }
-
+  
   treatn = 2 - treatn; // use the 1/0 treatment coding
-
+  
   if (!has_censor_time) {
     stop("data must contain the censor_time variable");
   }
@@ -250,7 +254,7 @@ List tsesimpcpp(const DataFrame data,
   // covariates for the Cox model containing treat and base_cov
   StringVector covariates(p+1);
   NumericMatrix zn(n,p+1);
-  covariates[0] = "treat";
+  covariates[0] = "treated";
   zn(_,0) = treatn;
   for (j=0; j<p; j++) {
     String zj = base_cov[j];
@@ -348,14 +352,16 @@ List tsesimpcpp(const DataFrame data,
   double logRankPValue = as<double>(lr["logRankPValue"]);
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
 
-  auto f = [n, q, p, p2, covariates, covariates_aft, dist1, recensor, 
-            swtrt_control_only, alpha, zcrit, ties, offset](
+  k = -1; // indicate the observed data
+  auto f = [&k, data, n, q, p, p2, covariates, covariates_aft, dist1, 
+            treat, treatwi, treatwn, treatwc,
+            recensor, swtrt_control_only, alpha, zcrit, ties, offset](
                 IntegerVector stratumb, NumericVector timeb,
                 IntegerVector eventb, IntegerVector treatb,
                 NumericVector censor_timeb, IntegerVector pdb,
                 NumericVector pd_timeb, IntegerVector swtrtb,
                 NumericVector swtrt_timeb, NumericMatrix zb,
-                NumericMatrix zb_aft1)->NumericVector {
+                NumericMatrix zb_aft1)->List {
                   int h, i, j;
                   
                   // order data by treat
@@ -384,6 +390,53 @@ List tsesimpcpp(const DataFrame data,
                   double psi0hat = 0, psi0lower = 0, psi0upper = 0;
                   double psi1hat = 0, psi1lower = 0, psi1upper = 0;
                   
+                  // initialize data_aft
+                  List data_aft(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List data_aftx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_aftx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_aftx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_aftx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_aft[h] = data_aftx;
+                    }
+                  }
+                  
+                  
+                  // initialize fit_aft
+                  List fit_aft(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List fit_aftx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_aftx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_aftx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_aftx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_aft[h] = fit_aftx;
+                    }
+                  }
+                  
+                  DataFrame data_outcome;
+                  
                   // treat arms that include patients who switched treatment
                   IntegerVector treats(1);
                   treats[0] = 0;
@@ -406,7 +459,7 @@ List tsesimpcpp(const DataFrame data,
                       swtrt2[i] = swtrtb[j];
                     }
                     
-                    DataFrame aftdata = DataFrame::create(
+                    DataFrame data1 = DataFrame::create(
                       Named("time") = time2,
                       Named("event") = event2,
                       Named("swtrt") = swtrt2);
@@ -414,19 +467,19 @@ List tsesimpcpp(const DataFrame data,
                     for (j=0; j<q+p2; j++) {
                       String zj = covariates_aft[j+1];
                       NumericVector u = zb_aft1(_,j);
-                      aftdata.push_back(u[sub], zj);
+                      data1.push_back(u[sub], zj);
                     }
                     
-                    List fit_aft = liferegcpp(
-                      aftdata, "", "", "time", "", "event", 
+                    List fit1 = liferegcpp(
+                      data1, "", "", "time", "", "event", 
                       covariates_aft, "", "", "", dist1, 0, 0, alpha);
                     
-                    DataFrame parest_aft = DataFrame(fit_aft["parest"]);
-                    NumericVector beta_aft = parest_aft["beta"];
-                    NumericVector sebeta_aft = parest_aft["sebeta"];
-                    double psihat = -beta_aft[1];
-                    double psilower = -(beta_aft[1] + zcrit*sebeta_aft[1]);
-                    double psiupper = -(beta_aft[1] - zcrit*sebeta_aft[1]);
+                    DataFrame parest1 = DataFrame(fit1["parest"]);
+                    NumericVector beta1 = parest1["beta"];
+                    NumericVector sebeta1 = parest1["sebeta"];
+                    double psihat = -beta1[1];
+                    double psilower = -(beta1[1] + zcrit*sebeta1[1]);
+                    double psiupper = -(beta1[1] - zcrit*sebeta1[1]);
                     
                     for (i=0; i<n; i++) {
                       if (treatb[i] == h) {
@@ -461,31 +514,66 @@ List tsesimpcpp(const DataFrame data,
                       psi1lower = psilower;
                       psi1upper = psiupper;
                     }
+                    
+                    // update data_aft and fit_aft
+                    if (k == -1) {
+                      List data_aftx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = data1);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_aftx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_aftx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_aftx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_aft[h] = data_aftx;
+                      
+                      
+                      List fit_aftx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit") = fit1);
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_aftx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_aftx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_aftx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_aft[h] = fit_aftx;
+                    }
                   }
                   
                   // rename control-arm causal parameter estimates
                   psihat = psi0hat;
                   psilower = psi0lower;
                   psiupper = psi0upper;
+         
                   
                   // Cox model for hypothetical treatment effect estimate
-                  DataFrame phdata = DataFrame::create(
+                  data_outcome = DataFrame::create(
                     Named("stratum") = stratumb,
                     Named("time") = time_ts,
                     Named("event") = event_ts,
-                    Named("treat") = treatb);
+                    Named("treated") = treatb);
 
                   for (j=0; j<p; j++) {
                     String zj = covariates[j+1];
                     NumericVector u = zb(_,j+1);
-                    phdata.push_back(u, zj);
+                    data_outcome.push_back(u, zj);
                   }
                   
-                  List fit = phregcpp(
-                    phdata, "", "stratum", "time", "", "event",
+                  List fit_outcome = phregcpp(
+                    data_outcome, "", "stratum", "time", "", "event",
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
-                  DataFrame parest = DataFrame(fit["parest"]);
+                  DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
                   NumericVector z = parest["z"];
@@ -494,27 +582,68 @@ List tsesimpcpp(const DataFrame data,
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
                   double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
 
-                  NumericVector out = NumericVector::create(
-                    psihat, psilower, psiupper, psi1hat, psi1lower,
-                    psi1upper, hrhat, hrlower, hrupper, pvalue);
+                  List out;
+                  
+                  if (k == -1) {
+                    out = List::create(
+                      Named("data_aft") = data_aft,
+                      Named("fit_aft") = fit_aft,
+                      Named("data_outcome") = data_outcome,
+                      Named("fit_outcome") = fit_outcome,
+                      Named("psihat") = psihat,
+                      Named("psilower") = psilower,
+                      Named("psiupper") = psiupper,
+                      Named("psi1hat") = psi1hat,
+                      Named("psi1lower") = psi1lower,
+                      Named("psi1upper") = psi1upper,
+                      Named("hrhat") = hrhat,
+                      Named("hrlower") = hrlower,
+                      Named("hrupper") = hrupper,
+                      Named("pvalue") = pvalue);
+                  } else {
+                    out = List::create(
+                      Named("psihat") = psihat,
+                      Named("psilower") = psilower,
+                      Named("psiupper") = psiupper,
+                      Named("psi1hat") = psi1hat,
+                      Named("psi1lower") = psi1lower,
+                      Named("psi1upper") = psi1upper,
+                      Named("hrhat") = hrhat,
+                      Named("hrlower") = hrlower,
+                      Named("hrupper") = hrupper,
+                      Named("pvalue") = pvalue);
+                  }
 
                   return out;
                 };
 
-  NumericVector out = f(stratumn, timen, eventn, treatn, censor_timen,
-                        pdn, pd_timen, swtrtn, swtrt_timen, zn, zn_aft1);
+  List out = f(stratumn, timen, eventn, treatn, censor_timen,
+               pdn, pd_timen, swtrtn, swtrt_timen, zn, zn_aft1);
 
-  double psihat = out[0];
-  double psilower = out[1];
-  double psiupper = out[2];
-  double psi1hat = out[3];
-  double psi1lower = out[4];
-  double psi1upper = out[5];
-  double hrhat = out[6];
-  double hrlower = out[7];
-  double hrupper = out[8];
-  double pvalue = out[9];
+  List data_aft = out["data_aft"];
+  List fit_aft = out["fit_aft"];
+  DataFrame data_outcome = DataFrame(out["data_outcome"]);
+  List fit_outcome = out["fit_outcome"];
+  double psihat = out["psihat"];
+  double psilower = out["psilower"];
+  double psiupper = out["psiupper"];
+  double psi1hat = out["psi1hat"];
+  double psi1lower = out["psi1lower"];
+  double psi1upper = out["psi1upper"];
+  double hrhat = out["hrhat"];
+  double hrlower = out["hrlower"];
+  double hrupper = out["hrupper"];
+  double pvalue = out["pvalue"];
   String psi_CI_type = "AFT model";
+  
+  IntegerVector treated = data_outcome["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    data_outcome.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    data_outcome.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    data_outcome.push_back(treatwc[1-treated], treat);
+  }
   
   // construct the confidence interval for HR
   String hr_CI_type;
@@ -586,8 +715,9 @@ List tsesimpcpp(const DataFrame data,
       out = f(stratumb, timeb, eventb, treatb, censor_timeb,
               pdb, pd_timeb, swtrtb, swtrt_timeb, zb, zb_aft1);
 
-      hrhats[k] = out[6];
-      psihats[k] = out[0];
+      hrhats[k] = out["hrhat"];
+      psihats[k] = out["psihat"];
+      psi1hats[k] = out["psi1hat"];
     }
 
     // obtain bootstrap confidence interval for HR
@@ -633,6 +763,10 @@ List tsesimpcpp(const DataFrame data,
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("data_aft") = data_aft,
+    Named("fit_aft") = fit_aft,
+    Named("data_outcome") = data_outcome,
+    Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
 
   if (!swtrt_control_only) {

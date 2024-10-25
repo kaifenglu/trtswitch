@@ -53,7 +53,7 @@
 #' @param recensor Whether to apply recensoring to counter-factual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{FALSE}, in which case,
+#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
 #'   recensoring will be applied to the actual censoring time for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group.
@@ -106,6 +106,15 @@
 #'
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
+#'
+#' * \code{data_aft}: A list of input data for the AFT model by treatment 
+#'   group.
+#' 
+#' * \code{fit_aft}: A list of fitted AFT models by treatment group.
+#' 
+#' * \code{data_outcome}: The input data for the outcome Cox model. 
+#' 
+#' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -208,7 +217,7 @@ tsesimp <- function(data, stratum = "", time = "time", event = "event",
                     swtrt = "swtrt", swtrt_time = "swtrt_time",
                     base_cov = "", base2_cov = "",
                     aft_dist = "weibull", strata_main_effect_only = TRUE,
-                    recensor = TRUE, admin_recensor_only = FALSE,
+                    recensor = TRUE, admin_recensor_only = TRUE,
                     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron",
                     offset = 1, boot = TRUE, n_boot = 1000, seed = NA) {
 

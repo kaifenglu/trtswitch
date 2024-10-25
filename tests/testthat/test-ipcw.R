@@ -22,7 +22,8 @@ test_that("ipcw: pooled logistic regression switching model", {
     swtrt_time_upper = "xotime_upper", base_cov = "bprog", 
     numerator = "bprog", denominator = "bprog*catlag", 
     logistic_switching_model = TRUE, ns_df = 3,
-    swtrt_control_only = TRUE, boot = FALSE)
+    relative_time = TRUE, swtrt_control_only = TRUE, 
+    boot = FALSE)
   
   # exclude observations after treatment switch
   data1 <- sim1$paneldata %>%
@@ -35,10 +36,11 @@ test_that("ipcw: pooled logistic regression switching model", {
   
   # fit pooled logistic regression switching models
   data2 <- data1 %>%
-    filter(trtrand == 0 & tstop >= timePFSobs & tstop <= xotime_upper)
+    filter(trtrand == 0 & tstop >= timePFSobs & tstop <= xotime_upper) %>%
+    mutate(x0 = tstop - timePFSobs)
   
-  ns1 <- ns(data2$tstop[data2$cross == 1], df = 3)
-  ns2 <- ns(data2$tstop, knots = attr(ns1, "knots"), 
+  ns1 <- ns(data2$x0[data2$cross == 1], df = 3)
+  ns2 <- ns(data2$x0, knots = attr(ns1, "knots"), 
             Boundary.knots = attr(ns1, "Boundary.knots"))
   switch1 <- glm(cross ~ bprog*catlag + ns2, family = binomial, data = data2)
   phat1 <- as.numeric(predict(switch1, newdata = data2, type = "response"))
@@ -69,7 +71,7 @@ test_that("ipcw: pooled logistic regression switching model", {
                ties = "efron", cluster = id)
   hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
   
-  expect_equal(data3$stabilized_weight, fit1$df_outcome$stabilized_weight)
+  expect_equal(data3$stabilized_weight, fit1$data_outcome$stabilized_weight)
   expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
 
@@ -129,6 +131,6 @@ test_that("ipcw: time-dependent covariates Cox switching model", {
                ties = "efron", cluster = id)
   hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
   
-  expect_equal(data4$stabilized_weight, fit2$df_outcome$stabilized_weight)
+  expect_equal(data4$stabilized_weight, fit2$data_outcome$stabilized_weight)
   expect_equal(hr1, c(fit2$hr, fit2$hr_CI))
 })

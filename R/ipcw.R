@@ -73,6 +73,9 @@
 #'   visit-specific intercepts of the pooled logistic regression model. 
 #'   Defaults to 3 for two inner knots at the 33 and 67 percentiles
 #'   of the artificial censoring times due to treatment switching.
+#' @param relative_time Whether to use the time relative to 
+#'   \code{swtrt_time_lower} as the intercepts for the pooled logistic
+#'   regression model.
 #' @param stabilized_weights Whether to use the stabilized weights.
 #' @param trunc The pre-specified fraction of the weights. Defaults to 0
 #'   for no truncation in weights.
@@ -130,13 +133,16 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
 #'
-#' * \code{fit_switch}: A list of the fitted switching models for the
+#' * \code{data_switch}: A list of input data for the switching models by 
+#'   treatment group.
+#'
+#' * \code{fit_switch}: A list of fitted switching models for the
 #'   denominator and numerator by treatment group.
 #'
-#' * \code{df_outcome}: The input data frame for the outcome Cox model
+#' * \code{data_outcome}: The input data for the outcome Cox model
 #'   including the inverse probability of censoring weights.
 #'
-#' * \code{fit_outcome}: The fitted outcome model.
+#' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -151,6 +157,11 @@
 #'       
 #'     - \code{flic}: Whether to apply intercept correction to obtain more
 #'       accurate predicted probabilities.
+#'       
+#'     - \code{ns_df}: Degrees of freedom for the natural cubic spline.
+#'     
+#'     - \code{relative_time}: Whether to use the relative time as the 
+#'       intercepts.
 #'   
 #'     - \code{stabilized_weights}: Whether to use the stabilized weights.
 #'
@@ -210,7 +221,8 @@
 #'   swtrt_time_upper = "xotime_upper", base_cov = "bprog", 
 #'   numerator = "bprog", denominator = "bprog*catlag", 
 #'   logistic_switching_model = TRUE, ns_df = 3,
-#'   swtrt_control_only = TRUE, boot = FALSE)
+#'   relative_time = TRUE, swtrt_control_only = TRUE, 
+#'   boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI) 
 #' 
@@ -238,7 +250,8 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
                  base_cov = "", numerator = "", denominator = "",
                  logistic_switching_model = FALSE, 
                  strata_main_effect_only = TRUE, firth = FALSE, 
-                 flic = FALSE, ns_df = 3, stabilized_weights = TRUE, 
+                 flic = FALSE, ns_df = 3, relative_time = TRUE,
+                 stabilized_weights = TRUE, 
                  trunc = 0, trunc_upper_only = TRUE,
                  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
                  boot = TRUE, n_boot = 1000, seed = NA) {
@@ -347,11 +360,12 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
                  logistic_switching_model = logistic_switching_model,
                  strata_main_effect_only = strata_main_effect_only,
                  firth = firth, flic = flic, ns_df = ns_df,
+                 relative_time = relative_time,
                  stabilized_weights = stabilized_weights, 
                  trunc = trunc, trunc_upper_only = trunc_upper_only,
                  swtrt_control_only = swtrt_control_only, alpha = alpha,
                  ties = ties, boot = boot, n_boot = n_boot, seed = seed)
 
-  fit$df_outcome$uid <- NULL
+  fit$data_outcome$uid <- NULL
   fit
 }

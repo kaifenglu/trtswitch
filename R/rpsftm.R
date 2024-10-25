@@ -39,7 +39,7 @@
 #' @param recensor Whether to apply recensoring to counter-factual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{FALSE}, in which case,
+#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
 #'   recensoring will be applied to the actual censoring time for dropouts.
 #' @param autoswitch Whether to exclude recensoring for treatment arms
 #'   with no switching. Defaults to \code{TRUE}.
@@ -81,12 +81,6 @@
 #' * \code{psi_CI_type}: The type of confidence interval for \code{psi},
 #'   i.e., "grid search", "root finding", or "bootstrap".
 #'
-#' * \code{Sstar}: A data frame containing the counter-factual untreated
-#'   survival times and the event indicators.
-#'
-#' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
-#'   based on the counter-factual untreated survival times by treatment arm.
-#'
 #' * \code{eval_z}: A data frame containing the log-rank test Z-statistics
 #'   evaluated at a sequence of \code{psi} values. Used to plot and check
 #'   if the range of \code{psi} values to search for the solution and
@@ -104,6 +98,17 @@
 #'
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "log-rank p-value" or "bootstrap".
+#'
+#' * \code{Sstar}: A data frame containing the counter-factual untreated
+#'   survival times and the event indicators for each treatment group.
+#'
+#' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
+#'   based on the counter-factual untreated survival times by treatment arm.
+#'
+#' * \code{data_outcome}: The input data for the outcome Cox model
+#'   including the inverse probability of censoring weights.
+#'
+#' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -206,7 +211,7 @@ rpsftm <- function(data, stratum = "", time = "time", event = "event",
                    treat = "treat", rx = "rx", censor_time = "censor_time",
                    base_cov = "", low_psi = -1, hi_psi = 1,
                    n_eval_z = 100, treat_modifier = 1,
-                   recensor = TRUE, admin_recensor_only = FALSE,
+                   recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = FALSE,
                    alpha = 0.05, ties = "efron", tol = 1.0e-6,
                    boot = FALSE, n_boot = 1000, seed = NA) {

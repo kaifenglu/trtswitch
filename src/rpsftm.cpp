@@ -34,7 +34,8 @@ DataFrame untreated(
 
   DataFrame result = DataFrame::create(
     Named("t_star") = t_star,
-    Named("d_star") = d_star
+    Named("d_star") = d_star,
+    Named("treat") = treat
   );
 
   return result;
@@ -87,7 +88,7 @@ List rpsftmcpp(const DataFrame data,
                const int n_eval_z = 100,
                const double treat_modifier = 1,
                const bool recensor = 1,
-               const bool admin_recensor_only = 0,
+               const bool admin_recensor_only = 1,
                const bool autoswitch = 1,
                const bool gridsearch = 0,
                const double alpha = 0.05,
@@ -404,7 +405,7 @@ List rpsftmcpp(const DataFrame data,
                     }
                   }
 
-                  DataFrame phdata = DataFrame::create(
+                  DataFrame data_outcome = DataFrame::create(
                     Named("stratum") = stratumb,
                     Named("time") = timewb,
                     Named("event") = eventwb,
@@ -413,14 +414,14 @@ List rpsftmcpp(const DataFrame data,
                   for (j=0; j<p; j++) {
                     String zj = covariates[j+1];
                     NumericVector u = zb(_,j+1);
-                    phdata.push_back(u, zj);
+                    data_outcome.push_back(u, zj);
                   }
 
-                  List fit = phregcpp(phdata, "", "stratum", "time", "", 
-                                      "event", covariates, "", "", "", 
-                                      ties, 0, 0, 0, 0, 0, alpha);
+                  List fit_outcome = phregcpp(
+                    data_outcome, "", "stratum", "time", "", "event", 
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
-                  DataFrame parest = DataFrame(fit["parest"]);
+                  DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector z = parest["z"];
                   double hrhat = exp(beta[0]);
@@ -435,6 +436,8 @@ List rpsftmcpp(const DataFrame data,
                       Named("psi_CI_type") = psi_CI_type,
                       Named("Sstar") = Sstar,
                       Named("kmstar") = kmstar,
+                      Named("data_outcome") = data_outcome,
+                      Named("fit_outcome") = fit_outcome,
                       Named("hrhat") = hrhat,
                       Named("pvalue") = pvalue);
                   } else {
@@ -450,12 +453,14 @@ List rpsftmcpp(const DataFrame data,
 
   List out = f(stratumn, timen, eventn, treatn, rxn, censor_timen, zn);
 
+  DataFrame Sstar = DataFrame(out["Sstar"]);
+  DataFrame kmstar = DataFrame(out["kmstar"]);
+  DataFrame data_outcome = DataFrame(out["data_outcome"]);
+  List fit_outcome = out["fit_outcome"];
   double psihat = out["psihat"];
   double psilower = out["psilower"];
   double psiupper = out["psiupper"];
   String psi_CI_type = out["psi_CI_type"];
-  DataFrame Sstar = DataFrame(out["Sstar"]);
-  DataFrame kmstar = DataFrame(out["kmstar"]);
   double hrhat = out["hrhat"];
   double pvalue = out["pvalue"];
 
@@ -562,14 +567,16 @@ List rpsftmcpp(const DataFrame data,
     Named("psi") = psihat,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
     Named("psi_CI_type") = psi_CI_type,
-    Named("Sstar") = Sstar,
-    Named("kmstar") = kmstar,
     Named("eval_z") = eval_z,
     Named("logrank_pvalue") = 2*std::min(logRankPValue, 1-logRankPValue),
     Named("cox_pvalue") = pvalue,
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("Sstar") = Sstar,
+    Named("kmstar") = kmstar,
+    Named("data_outcome") = data_outcome,
+    Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
 
   if (boot) {

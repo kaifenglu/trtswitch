@@ -70,7 +70,7 @@
 #' @param recensor Whether to apply recensoring to counter-factual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{FALSE}, in which case,
+#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
 #'   recensoring will be applied to the actual censoring time for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group.
@@ -157,6 +157,23 @@
 #'
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
+#'   
+#' * \code{data_nullcox}: The list of input data for counterfactual 
+#'   survival times for the null Cox model by treatment group.
+#'   
+#' * \code{fit_nullcox}: The list of fitted null Cox models for 
+#'   counterfactual survival times by treatment group.
+#' 
+#' * \code{data_logis}: The list of input data for pooled logistic 
+#'   regression models for treatment switching using g-estimation
+#'   
+#' * \code{fit_logis}: The list of fitted pooled logistic regression 
+#'   models for treatment switching using g-estimation.
+#'   
+#' * \code{data_outcome}: The input data for the outcome Cox model
+#'   including the inverse probability of censoring weights.
+#'
+#' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -242,7 +259,7 @@
 #'   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
 #'   base_cov = "bprog", conf_cov = "bprog*catlag", 
 #'   low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
-#'   recensor = TRUE, admin_recensor_only = FALSE, 
+#'   recensor = TRUE, admin_recensor_only = TRUE, 
 #'   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
 #'   tol = 1.0e-6, boot = FALSE)
 #'   
@@ -269,7 +286,7 @@
 #'   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
 #'   base_cov = "bprog", conf_cov = "bprog*catlag", 
 #'   low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
-#'   recensor = TRUE, admin_recensor_only = FALSE, 
+#'   recensor = TRUE, admin_recensor_only = TRUE, 
 #'   swtrt_control_only = FALSE, alpha = 0.05, ties = "efron", 
 #'   tol = 1.0e-6, boot = FALSE)
 #'   
@@ -285,7 +302,7 @@ tsegest <- function(data, id = "id", stratum = "",
                     low_psi = -3, hi_psi = 3, 
                     strata_main_effect_only = TRUE,
                     firth = FALSE, flic = FALSE,
-                    recensor = TRUE, admin_recensor_only = FALSE,
+                    recensor = TRUE, admin_recensor_only = TRUE,
                     swtrt_control_only = TRUE, alpha = 0.05, 
                     ties = "efron", tol = 1.0e-6,  
                     boot = TRUE, n_boot = 1000, seed = NA) {

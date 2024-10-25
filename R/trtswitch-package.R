@@ -12,18 +12,13 @@
 #' limited to Kaplan-Meier estimates of the survival curves, log-rank tests, 
 #' accelerate failure time models, and Cox proportional hazards models. 
 #' 
-#' All three treatment switching adjustment methods allow treatment switching
+#' All treatment switching adjustment methods allow treatment switching
 #' in both treatment arms, stratification and covariates adjustment. 
 #' For the AFT models, stratification factors are included as covariates 
 #' (main effects only or all-way interactions) because SAS PROC LIFEREG 
 #' does not have the strata statement. The RPSFTM, IPE and TSE methods 
 #' can be used with or without recensoring. The IPCW method can produce 
 #' stabilized and truncated weights. 
-#' 
-#' Currently, for the IPCW method, only the Cox model with time-dependent 
-#' covariates is used to fit the switching model. For the TSE method, only 
-#' the simple method assuming no gap between disease progression and 
-#' treatment switching is implemented.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'

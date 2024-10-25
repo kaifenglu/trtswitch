@@ -4,6 +4,44 @@
 using namespace Rcpp;
 
 
+DataFrame funtreated(
+    const double psi,
+    const NumericVector& time,
+    const IntegerVector& event,
+    const IntegerVector& treat,
+    const NumericVector& rx,
+    const NumericVector& censor_time,
+    const bool recensor,
+    const bool autoswitch) {
+  
+  NumericVector u = time*((1 - rx) + rx*exp(psi));
+  NumericVector t_star = clone(u);
+  IntegerVector d_star = clone(event);
+  
+  if (recensor) {
+    NumericVector c_star = pmin(censor_time, censor_time*exp(psi));
+    
+    if (autoswitch) {
+      NumericVector rx1 = rx[treat == 1];
+      NumericVector rx0 = rx[treat == 0];
+      if (is_true(all(rx1 == 1.0))) c_star[treat == 1] = R_PosInf;
+      if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
+    }
+    
+    t_star = pmin(u, c_star);
+    d_star[c_star < u] = 0;
+  }
+  
+  DataFrame result = DataFrame::create(
+    Named("t_star") = t_star,
+    Named("d_star") = d_star,
+    Named("treat") = treat
+  );
+  
+  return result;
+}
+
+
 // hypothetical survival times in the absence of treatment switching
 DataFrame hypothetical(
     const double psi,
@@ -52,7 +90,8 @@ DataFrame hypothetical(
 
   DataFrame result = DataFrame::create(
     Named("t_star") = t_star,
-    Named("d_star") = d_star
+    Named("d_star") = d_star,
+    Named("treat") = treat
   );
 
   return result;
@@ -118,7 +157,7 @@ List ipecpp(const DataFrame data,
             const bool strata_main_effect_only = 1,
             const double treat_modifier = 1,
             const bool recensor = 1,
-            const bool admin_recensor_only = 0,
+            const bool admin_recensor_only = 1,
             const bool autoswitch = 1,
             const double alpha = 0.05,
             const std::string ties = "efron",
@@ -392,8 +431,8 @@ List ipecpp(const DataFrame data,
                   double psihat = brent(g, -3, 3, tol);
 
                   // construct the counter-factual survival times
-                  DataFrame Sstar = hypothetical(
-                    psihat*treat_modifier, n, timeb, eventb, treatb,
+                  DataFrame Sstar = funtreated(
+                    psihat*treat_modifier, timeb, eventb, treatb,
                     rxb, censor_timeb, recensor, autoswitch);
 
                   NumericVector t_star = Sstar["t_star"];
@@ -410,9 +449,16 @@ List ipecpp(const DataFrame data,
                     kmstar = kmest(kmdata, "", "treat", "time",
                                    "event", "log-log", 1-alpha);
                   }
-
+                  
                   // run Cox model to obtain the hazard ratio estimate
-                  DataFrame phdata = DataFrame::create(
+                  DataFrame unswitched = hypothetical(
+                    psihat*treat_modifier, n, timeb, eventb, treatb,
+                    rxb, censor_timeb, recensor, autoswitch);
+                  
+                  t_star = unswitched["t_star"];
+                  d_star = unswitched["d_star"];
+                  
+                  DataFrame data_outcome = DataFrame::create(
                     Named("stratum") = stratumb,
                     Named("time") = t_star,
                     Named("event") = d_star,
@@ -421,14 +467,14 @@ List ipecpp(const DataFrame data,
                   for (int j=0; j<p; j++) {
                     String zj = covariates[j+1];
                     NumericVector u = zb(_,j+1);
-                    phdata.push_back(u, zj);
+                    data_outcome.push_back(u, zj);
                   }
 
-                  List fit = phregcpp(phdata, "", "stratum", "time", "", 
-                                      "event", covariates, "", "", "", 
-                                      ties, 0, 0, 0, 0, 0, alpha);
+                  List fit_outcome = phregcpp(
+                    data_outcome, "", "stratum", "time", "", "event", 
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
-                  DataFrame parest = DataFrame(fit["parest"]);
+                  DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector z = parest["z"];
                   double hrhat = exp(beta[0]/treat_modifier);
@@ -437,9 +483,11 @@ List ipecpp(const DataFrame data,
                   List out;
                   if (k == -1) {
                     out = List::create(
-                      Named("psihat") = psihat,
                       Named("Sstar") = Sstar,
                       Named("kmstar") = kmstar,
+                      Named("data_outcome") = data_outcome,
+                      Named("fit_outcome") = fit_outcome,
+                      Named("psihat") = psihat,
                       Named("hrhat") = hrhat,
                       Named("pvalue") = pvalue);
                   } else {
@@ -455,15 +503,17 @@ List ipecpp(const DataFrame data,
   List out = f(stratumn, timen, eventn, treatn, rxn, censor_timen, zn,
                zn_aft1);
 
+  
+  DataFrame Sstar = DataFrame(out["Sstar"]);
+  DataFrame kmstar = DataFrame(out["kmstar"]);
+  DataFrame data_outcome = DataFrame(out["data_outcome"]);
+  List fit_outcome = out["fit_outcome"];
   double psihat = out["psihat"];
   double zipe = R::qnorm(logRankPValue, 0, 1, 1, 0);
   double sepsi = psihat/zipe;
   double psilower = psihat - zcrit*sepsi;
   double psiupper = psihat + zcrit*sepsi;
   String psi_CI_type = "log-rank p-value";
-  
-  DataFrame Sstar = DataFrame(out["Sstar"]);
-  DataFrame kmstar = DataFrame(out["kmstar"]);
   double hrhat = out["hrhat"];
   double pvalue = out["pvalue"];
 
@@ -575,13 +625,15 @@ List ipecpp(const DataFrame data,
     Named("psi") = psihat,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
     Named("psi_CI_type") = psi_CI_type,
-    Named("Sstar") = Sstar,
-    Named("kmstar") = kmstar,
     Named("logrank_pvalue") = 2*std::min(logRankPValue, 1-logRankPValue),
     Named("cox_pvalue") = pvalue,
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("Sstar") = Sstar,
+    Named("kmstar") = kmstar,
+    Named("data_outcome") = data_outcome,
+    Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
 
   if (boot) {

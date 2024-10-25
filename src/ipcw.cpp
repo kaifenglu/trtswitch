@@ -26,6 +26,7 @@ List ipcwcpp(
     const bool firth = 0,
     const bool flic = 0,
     const int ns_df = 3,
+    const bool relative_time = 0,
     const bool stabilized_weights = 1,
     const double trunc = 0,
     const bool trunc_upper_only = 1,
@@ -393,7 +394,7 @@ List ipcwcpp(
             treat, treatwi, treatwn, treatwc, base_cov, numerator, 
             denominator, p_base, p_num, p_den, covariates, 
             covariates_lgs_num, covariates_lgs_den, 
-            logistic_switching_model, firth, flic, ns_df, 
+            logistic_switching_model, firth, flic, ns_df, relative_time,
             stabilized_weights, trunc, trunc_upper_only, 
             swtrt_control_only, alpha, zcrit, ties](
                 IntegerVector idb, IntegerVector stratumb,
@@ -462,28 +463,53 @@ List ipcwcpp(
                     }
                   }
                   
-                  // initialize fit_switch
-                  List fit_switch(2);
-                  for (h=0; h<2; h++) {
-                    List fit_switchx = List::create(
-                      Named(treat) = R_NilValue,
-                      Named("fit_den") = R_NilValue,
-                      Named("fit_num") = R_NilValue        
-                    );
-                    
-                    if (TYPEOF(data[treat]) == LGLSXP ||
-                        TYPEOF(data[treat]) == INTSXP) {
-                      fit_switchx[treat] = treatwi[1-h];
-                    } else if (TYPEOF(data[treat]) == REALSXP) {
-                      fit_switchx[treat] = treatwn[1-h];
-                    } else if (TYPEOF(data[treat]) == STRSXP) {
-                      fit_switchx[treat] = treatwc[1-h];
+                  // initialize data_switch
+                  List data_switch(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List data_switchx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("data") = R_NilValue
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        data_switchx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        data_switchx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        data_switchx[treat] = treatwc[1-h];
+                      }
+                      
+                      data_switch[h] = data_switchx;
                     }
-                    
-                    fit_switch[h] = fit_switchx;
                   }
                   
-                  DataFrame df_outcome;
+                  
+                  // initialize fit_switch
+                  List fit_switch(2);
+                  if (k == -1) {
+                    for (h=0; h<2; h++) {
+                      List fit_switchx = List::create(
+                        Named(treat) = R_NilValue,
+                        Named("fit_den") = R_NilValue,
+                        Named("fit_num") = R_NilValue        
+                      );
+                      
+                      if (TYPEOF(data[treat]) == LGLSXP ||
+                          TYPEOF(data[treat]) == INTSXP) {
+                        fit_switchx[treat] = treatwi[1-h];
+                      } else if (TYPEOF(data[treat]) == REALSXP) {
+                        fit_switchx[treat] = treatwn[1-h];
+                      } else if (TYPEOF(data[treat]) == STRSXP) {
+                        fit_switchx[treat] = treatwc[1-h];
+                      }
+                      
+                      fit_switch[h] = fit_switchx;
+                    }
+                  }
+                  
+                  DataFrame data_outcome;
                   
                   // treat arms with patients who switched treatment
                   IntegerVector treats(1);
@@ -615,7 +641,7 @@ List ipcwcpp(
                       int n3 = static_cast<int>(q.size());
                       
                       // prepare the data for fitting the switching model
-                      DataFrame df1 = DataFrame::create(
+                      DataFrame data1 = DataFrame::create(
                         Named("id") = id3,
                         Named("stratum") = stratum3,
                         Named("tstart") = tstart3,
@@ -625,12 +651,12 @@ List ipcwcpp(
                       for (j=0; j<p_den; j++) {
                         String zj = denominator[j];
                         NumericVector u = zden3(_,j);
-                        df1.push_back(u,zj);
+                        data1.push_back(u,zj);
                       }
                       
                       // fit the denominator model for crossover
                       List fit_den = phregcpp(
-                        df1, "", "stratum", "tstart", "tstop", "event",
+                        data1, "", "stratum", "tstart", "tstop", "event",
                         denominator, "", "", "id", ties, 1,1,0,0,0, alpha);
                       
                       // obtain the survival probabilities for crossover
@@ -640,7 +666,7 @@ List ipcwcpp(
                       DataFrame basehaz_den = DataFrame(fit_den["basehaz"]);
                       
                       DataFrame km_den = survfit_phregcpp(
-                        p_den, beta_den, vbeta_den, basehaz_den, df1,
+                        p_den, beta_den, vbeta_den, basehaz_den, data1,
                         denominator, "stratum", "", "id", "tstart", "tstop", 
                         0, "log-log", 1-alpha);
                       
@@ -648,7 +674,7 @@ List ipcwcpp(
                       int m = km_den.nrows();
                       
                       List fit_num = phregcpp(
-                        df1, "", "stratum", "tstart", "tstop", "event", 
+                        data1, "", "stratum", "tstart", "tstop", "event", 
                         numerator, "", "", "id", ties, 1,1,0,0,0, alpha);
                       
                       NumericVector surv_num(m);
@@ -659,7 +685,7 @@ List ipcwcpp(
                         DataFrame basehaz_num= DataFrame(fit_num["basehaz"]);
                         
                         DataFrame km_num = survfit_phregcpp(
-                          p_num, beta_num, vbeta_num, basehaz_num, df1,
+                          p_num, beta_num, vbeta_num, basehaz_num, data1,
                           numerator, "stratum", "", "id", "tstart", "tstop", 
                           0, "log-log", 1-alpha);
                         
@@ -670,7 +696,7 @@ List ipcwcpp(
                         DataFrame basehaz_num= DataFrame(fit_num["basehaz"]);
                         
                         DataFrame km_num = survfit_phregcpp(
-                          p_num, beta_num, vbeta_num, basehaz_num, df1,
+                          p_num, beta_num, vbeta_num, basehaz_num, data1,
                           numerator, "stratum", "", "id", "tstart", "tstop", 
                           0, "log-log", 1-alpha);
                         
@@ -720,13 +746,29 @@ List ipcwcpp(
                         }
                       }
                       
-                      // update fit_switch
-                      List fit_switchx = List::create(
-                        Named(treat) = R_NilValue,
-                        Named("fit_den") = fit_den,
-                        Named("fit_num") = fit_num);
-                      
+                      // update data_switch and fit_switch
                       if (k == -1) {
+                        List data_switchx = List::create(
+                          Named(treat) = R_NilValue,
+                          Named("data") = data1);
+                        
+                        if (TYPEOF(data[treat]) == LGLSXP ||
+                            TYPEOF(data[treat]) == INTSXP) {
+                          data_switchx[treat] = treatwi[1-h];
+                        } else if (TYPEOF(data[treat]) == REALSXP) {
+                          data_switchx[treat] = treatwn[1-h];
+                        } else if (TYPEOF(data[treat]) == STRSXP) {
+                          data_switchx[treat] = treatwc[1-h];
+                        }
+                        
+                        data_switch[h] = data_switchx;
+                        
+                        
+                        List fit_switchx = List::create(
+                          Named(treat) = R_NilValue,
+                          Named("fit_den") = fit_den,
+                          Named("fit_num") = fit_num);
+                        
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
                           fit_switchx[treat] = treatwi[1-h];
@@ -783,7 +825,7 @@ List ipcwcpp(
                     }
                     
                     // prepare data for the outcome model
-                    df_outcome = DataFrame::create(
+                    data_outcome = DataFrame::create(
                       Named("uid") = id2,
                       Named("tstart") = tstart2,
                       Named("tstop") = tstop2,
@@ -797,13 +839,13 @@ List ipcwcpp(
                         String s = stratum[i];
                         if (TYPEOF(data[s]) == INTSXP) {
                           IntegerVector stratumwi = u_stratum[s];
-                          df_outcome.push_back(stratumwi[stratum2-1], s);
+                          data_outcome.push_back(stratumwi[stratum2-1], s);
                         } else if (TYPEOF(data[s]) == REALSXP) {
                           NumericVector stratumwn = u_stratum[s];
-                          df_outcome.push_back(stratumwn[stratum2-1], s);
+                          data_outcome.push_back(stratumwn[stratum2-1], s);
                         } else if (TYPEOF(data[s]) == STRSXP) {
                           StringVector stratumwc = u_stratum[s];
-                          df_outcome.push_back(stratumwc[stratum2-1], s);
+                          data_outcome.push_back(stratumwc[stratum2-1], s);
                         }
                       }
                     }
@@ -811,7 +853,7 @@ List ipcwcpp(
                     for (j=0; j<p_base; j++) {
                       NumericVector u = zbase2(_,j);
                       String zj = base_cov[j];
-                      df_outcome.push_back(u,zj);
+                      data_outcome.push_back(u,zj);
                     }
                   } else {
                     // initialize weights
@@ -824,6 +866,7 @@ List ipcwcpp(
                         (tstop1 <= swtrt_time_upper1));
                       IntegerVector id2 = id1[q];
                       NumericVector tstop2 = tstop1[q];
+                      NumericVector swtrt_time_lower2 = swtrt_time_lower1[q];
                       IntegerVector cross2 = cross1[q];
                       NumericMatrix zlgs_den2 = 
                         subset_matrix_by_row(zlgs_den1, q);
@@ -832,34 +875,40 @@ List ipcwcpp(
                       // obtain natural cubic spline knots
                       NumericMatrix s(n2, ns_df);
                       if (ns_df > 0) {
-                        NumericVector x = tstop2[cross2 == 1];
+                        NumericVector x0(n2);
+                        if (relative_time) {
+                          x0 = tstop2 - swtrt_time_lower2;
+                        } else {
+                          x0 = tstop2;
+                        }
+                        NumericVector x = x0[cross2 == 1];
                         NumericVector knots(1, NA_REAL);
                         NumericVector boundary_knots(1, NA_REAL);
                         s = nscpp(x, ns_df, knots, 0, boundary_knots);
                         knots = s.attr("knots");
                         boundary_knots = s.attr("boundary_knots");
-                        s = nscpp(tstop2, NA_INTEGER, knots, 0, 
+                        s = nscpp(x0, NA_INTEGER, knots, 0, 
                                   boundary_knots);
                       }
                       
                       // prepare the data for fitting the switching model
-                      DataFrame lgsdata = DataFrame::create(
+                      DataFrame data1 = DataFrame::create(
                         Named("id") = id2,
                         Named("event") = cross2);
                       
                       for (j=0; j<r+p_den; j++) {
                         String zj = covariates_lgs_den[j];
                         NumericVector u = zlgs_den2(_,j);
-                        lgsdata.push_back(u,zj);
+                        data1.push_back(u,zj);
                       }
                       for (j=0; j<ns_df; j++) {
                         String zj = covariates_lgs_den[r+p_den+j];
                         NumericVector u = s(_,j);
-                        lgsdata.push_back(u,zj);
+                        data1.push_back(u,zj);
                       }
                       
                       List fit_den = logisregcpp(
-                        lgsdata, "", "event", covariates_lgs_den, 
+                        data1, "", "event", covariates_lgs_den, 
                         "", "", "", "id", 1, firth, flic, 0, alpha);
                       
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
@@ -908,7 +957,7 @@ List ipcwcpp(
                       }
                       
                       List fit_num = logisregcpp(
-                        lgsdata, "", "event", covariates_lgs_num, 
+                        data1, "", "event", covariates_lgs_num, 
                         "", "", "", "id", 1, firth, flic, 0, alpha);
                       
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
@@ -970,13 +1019,29 @@ List ipcwcpp(
                         }
                       }
                       
-                      // update fit_switch
-                      List fit_switchx = List::create(
-                        Named(treat) = R_NilValue,
-                        Named("fit_den") = fit_den,
-                        Named("fit_num") = fit_num);
-                      
+                      // update data_switch and fit_switch
                       if (k == -1) {
+                        List data_switchx = List::create(
+                          Named(treat) = R_NilValue,
+                          Named("data") = data1);
+                        
+                        if (TYPEOF(data[treat]) == LGLSXP ||
+                            TYPEOF(data[treat]) == INTSXP) {
+                          data_switchx[treat] = treatwi[1-h];
+                        } else if (TYPEOF(data[treat]) == REALSXP) {
+                          data_switchx[treat] = treatwn[1-h];
+                        } else if (TYPEOF(data[treat]) == STRSXP) {
+                          data_switchx[treat] = treatwc[1-h];
+                        }
+                        
+                        data_switch[h] = data_switchx;
+                        
+                        
+                        List fit_switchx = List::create(
+                          Named(treat) = R_NilValue,
+                          Named("fit_den") = fit_den,
+                          Named("fit_num") = fit_num);
+                        
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
                           fit_switchx[treat] = treatwi[1-h];
@@ -994,7 +1059,7 @@ List ipcwcpp(
                     }
                     
                     // prepare data for the outcome model
-                    df_outcome = DataFrame::create(
+                    data_outcome = DataFrame::create(
                       Named("uid") = id1,
                       Named("tstart") = tstart1,
                       Named("tstop") = tstop1,
@@ -1008,13 +1073,13 @@ List ipcwcpp(
                         String s = stratum[i];
                         if (TYPEOF(data[s]) == INTSXP) {
                           IntegerVector stratumwi = u_stratum[s];
-                          df_outcome.push_back(stratumwi[stratum1-1], s);
+                          data_outcome.push_back(stratumwi[stratum1-1], s);
                         } else if (TYPEOF(data[s]) == REALSXP) {
                           NumericVector stratumwn = u_stratum[s];
-                          df_outcome.push_back(stratumwn[stratum1-1], s);
+                          data_outcome.push_back(stratumwn[stratum1-1], s);
                         } else if (TYPEOF(data[s]) == STRSXP) {
                           StringVector stratumwc = u_stratum[s];
-                          df_outcome.push_back(stratumwc[stratum1-1], s);
+                          data_outcome.push_back(stratumwc[stratum1-1], s);
                         }
                       }
                     }
@@ -1022,7 +1087,7 @@ List ipcwcpp(
                     for (j=0; j<p_base; j++) {
                       NumericVector u = zbase1(_,j);
                       String zj = base_cov[j];
-                      df_outcome.push_back(u,zj);
+                      data_outcome.push_back(u,zj);
                     }
                   }
                   
@@ -1030,12 +1095,12 @@ List ipcwcpp(
                   List fit_outcome;
                   if (stabilized_weights) {
                     fit_outcome = phregcpp(
-                      df_outcome, "", stratum, "tstart", "tstop",
+                      data_outcome, "", stratum, "tstart", "tstop",
                       "event", covariates, "stabilized_weight", "",
                       "uid", ties, 1, 1, 0, 0, 0, alpha);
                   } else {
                     fit_outcome = phregcpp(
-                      df_outcome, "", stratum, "tstart", "tstop",
+                      data_outcome, "", stratum, "tstart", "tstop",
                       "event", covariates, "unstabilized_weight", "",
                       "uid", ties, 1, 1, 0, 0, 0, alpha);
                   }
@@ -1052,8 +1117,9 @@ List ipcwcpp(
                   List out;
                   if (k == -1) {
                     out = List::create(
+                      Named("data_switch") = data_switch,
                       Named("fit_switch") = fit_switch,
-                      Named("df_outcome") = df_outcome,
+                      Named("data_outcome") = data_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
@@ -1074,30 +1140,31 @@ List ipcwcpp(
                swtrtn, swtrt_timen, swtrt_time_lowern, 
                swtrt_time_uppern, zbasen, zdenn, zlgs_denn);
   
+  List data_switch = out["data_switch"];
   List fit_switch = out["fit_switch"];
-  DataFrame df_outcome = DataFrame(out["df_outcome"]);
+  DataFrame data_outcome = DataFrame(out["data_outcome"]);
   List fit_outcome = out["fit_outcome"];
   double hrhat = out["hrhat"];
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
   
-  IntegerVector uid = df_outcome["uid"];
+  IntegerVector uid = data_outcome["uid"];
   if (TYPEOF(data[id]) == INTSXP) {
-    df_outcome.push_front(idwi[uid-1], id);
+    data_outcome.push_front(idwi[uid-1], id);
   } else if (TYPEOF(data[id]) == REALSXP) {
-    df_outcome.push_front(idwn[uid-1], id);
+    data_outcome.push_front(idwn[uid-1], id);
   } else if (TYPEOF(data[id]) == STRSXP) {
-    df_outcome.push_front(idwc[uid-1], id);
+    data_outcome.push_front(idwc[uid-1], id);
   }
   
-  IntegerVector treated = df_outcome["treated"];
+  IntegerVector treated = data_outcome["treated"];
   if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
-    df_outcome.push_back(treatwi[1-treated], treat);
+    data_outcome.push_back(treatwi[1-treated], treat);
   } else if (TYPEOF(data[treat]) == REALSXP) {
-    df_outcome.push_back(treatwn[1-treated], treat);
+    data_outcome.push_back(treatwn[1-treated], treat);
   } else if (TYPEOF(data[treat]) == STRSXP) {
-    df_outcome.push_back(treatwc[1-treated], treat);
+    data_outcome.push_back(treatwc[1-treated], treat);
   }
   
   // construct the confidence interval for HR
@@ -1200,6 +1267,8 @@ List ipcwcpp(
     Named("strata_main_effect_only") = strata_main_effect_only,
     Named("firth") = firth,
     Named("flic") = flic,
+    Named("ns_df") = ns_df,
+    Named("relative_time") = relative_time,
     Named("stabilized_weights") = stabilized_weights,
     Named("trunc") = trunc,
     Named("trunc_upper_only") = trunc_upper_only,
@@ -1216,8 +1285,9 @@ List ipcwcpp(
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("data_switch") = data_switch,
     Named("fit_switch") = fit_switch,
-    Named("df_outcome") = df_outcome,
+    Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
   
