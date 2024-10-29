@@ -3,8 +3,7 @@ library(survival)
 
 test_that("ipe: control to active switch", {
   data1 <- immdef %>%
-    mutate(rx = 1-xoyrs/progyrs,
-           censyrs = ifelse(prog == 1, censyrs, progyrs)) %>%
+    mutate(rx = 1-xoyrs/progyrs) %>%
     arrange(imm)
   
   fit1 <- ipe(

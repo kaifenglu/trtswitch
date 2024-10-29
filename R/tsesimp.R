@@ -26,9 +26,9 @@
 #'
 #'   * \code{swtrt_time}: The time from randomization to treatment switch.
 #'
-#'   * \code{base_cov}: The values of baseline covariates (excluding treat).
+#'   * \code{base_cov}: The baseline covariates (excluding treat).
 #'
-#'   * \code{base2_cov}: The values of baseline and secondary baseline
+#'   * \code{base2_cov}: The baseline and secondary baseline
 #'     covariates (excluding swtrt).
 #'
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
@@ -40,29 +40,30 @@
 #' @param pd_time The name of the pd_time variable in the input data.
 #' @param swtrt The name of the swtrt variable in the input data.
 #' @param swtrt_time The name of the swtrt_time variable in the input data.
-#' @param base_cov The vector of names of base_cov variables (excluding
-#'   treat) in the input data for the Cox model.
-#' @param base2_cov The vector of the names of base2_cov variables
-#'   (excluding swtrt) in the input data for the AFT model.
+#' @param base_cov The names of baseline covariates (excluding
+#'   treat) in the input data for the outcome Cox model.
+#' @param base2_cov The names of secondary baseline covariates
+#'   (excluding swtrt) in the input data for the AFT model for 
+#'   post-progression survival.
 #' @param aft_dist The assumed distribution for time to event for the AFT
 #'   model. Options include "exponential", "weibull", "loglogistic", and
 #'   "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
 #'   possible strata combinations will be considered in the AFT model.
-#' @param recensor Whether to apply recensoring to counter-factual
+#' @param recensor Whether to apply recensoring to counterfactual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
-#'   recensoring will be applied to the actual censoring time for dropouts.
+#'   censoring times only. Defaults to \code{TRUE}. If \code{FALSE},
+#'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group.
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
-#' @param offset The offset to calculate the time to event, PD, and treatment
-#'   switch. We can set offset equal to 1 (default), 1/30.4375, or 1/365.25
-#'   if the time unit is day, month, or year.
+#' @param offset The offset to calculate the time to event, PD, and 
+#'   treatment switch. We can set \code{offset} equal to 1 (default), 
+#'   1/30.4375, or 1/365.25 if the time unit is day, month, or year.
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
@@ -72,16 +73,17 @@
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
 #'
-#' * Use an AFT model to estimate the causal parameter \eqn{\psi} based on 
-#'   the patients in the control group who had disease progression.
+#' * Fit an AFT model to post-progression survival data to estimate 
+#'   the causal parameter \eqn{\psi} based on the patients 
+#'   in the control group who had disease progression.
 #'
-#' * Derive the counter-factual survival times for control patients
+#' * Derive the counterfactual survival times for control patients
 #'   had there been no treatment switching.
 #'
-#' * Fit the Cox model to the observed survival times on the treatment arm
-#'   and the counter-factual untreated survival times on the control arm
-#'   to obtain the hazard ratio estimate.
-#'
+#' * Fit the Cox proportional hazards model to the observed survival times
+#'   for the experimental group and the counterfactual survival times 
+#'   for the control group to obtain the hazard ratio estimate.
+#'   
 #' * Use bootstrap to construct the p-value and confidence interval for
 #'   hazard ratio.
 #'
@@ -95,7 +97,7 @@
 #'   i.e., "AFT model" or "bootstrap".
 #'   
 #' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   based on the treatment policy strategy.
+#'   for an intention-to-treat (ITT) analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model.
@@ -124,11 +126,11 @@
 #'     - \code{strata_main_effect_only}: Whether to only include the strata
 #'       main effects in the AFT model.
 #'
-#'     - \code{recensor}: Whether to apply recensoring to counter-factual
+#'     - \code{recensor}: Whether to apply recensoring to counterfactual
 #'       survival times.
 #'
 #'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring time only.
+#'       administrative censoring times only.
 #'
 #'     - \code{swtrt_control_only}: Whether treatment switching occurred
 #'       only in the control group.
@@ -148,8 +150,8 @@
 #'
 #'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
-#' * \code{psi_trt}: The estimated causal parameter for the treatment group 
-#'   if \code{swtrt_control_only} is \code{FALSE}.
+#' * \code{psi_trt}: The estimated causal parameter for the experimental 
+#'   group if \code{swtrt_control_only} is \code{FALSE}.
 #'
 #' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} if
 #'   \code{swtrt_control_only} is \code{FALSE}.
@@ -181,7 +183,7 @@
 #' shilong1 <- shilong %>%
 #'   arrange(bras.f, id, tstop) %>%
 #'   group_by(bras.f, id) %>%
-#'   filter(row_number() == n()) %>%
+#'   slice(n()) %>%
 #'   select(-c("ps", "ttc", "tran"))
 #'
 #' # the last value of time-dependent covariates before pd
@@ -189,7 +191,7 @@
 #'   filter(pd == 0 | tstart <= dpd) %>%
 #'   arrange(bras.f, id, tstop) %>%
 #'   group_by(bras.f, id) %>%
-#'   filter(row_number() == n()) %>%
+#'   slice(n()) %>%
 #'   select(bras.f, id, ps, ttc, tran)
 #'
 #' # combine baseline and time-dependent covariates
@@ -197,18 +199,19 @@
 #'   left_join(shilong2, by = c("bras.f", "id"))
 #'
 #' # apply the two-stage method
-#' fit <- tsesimp(
+#' fit1 <- tsesimp(
 #'   data = shilong3, time = "tstop", event = "event",
 #'   treat = "bras.f", censor_time = "dcut", pd = "pd",
 #'   pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
-#'   base_cov = "",
+#'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
+#'                 "pathway.f"),
 #'   base2_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
 #'                 "pathway.f", "ps", "ttc", "tran"),
 #'   aft_dist = "weibull", alpha = 0.05,
 #'   recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
 #'   boot = FALSE)
 #'
-#' c(fit$hr, fit$hr_CI)
+#' c(fit1$hr, fit1$hr_CI)
 #'
 #' @export
 tsesimp <- function(data, stratum = "", time = "time", event = "event",

@@ -44,4 +44,25 @@ NumericVector house(NumericVector x);
 void row_house(NumericMatrix A, NumericVector v);
 List qrcpp(NumericMatrix x, double tol);
 
+DataFrame untreated(
+    const double psi,
+    const NumericVector& time,
+    const IntegerVector& event,
+    const IntegerVector& treat,
+    const NumericVector& rx,
+    const NumericVector& censor_time,
+    const bool recensor,
+    const bool autoswitch);
+
+DataFrame unswitched(
+    const double psi,
+    const int n,
+    const NumericVector& time,
+    const IntegerVector& event,
+    const IntegerVector& treat,
+    const NumericVector& rx,
+    const NumericVector& censor_time,
+    const bool recensor,
+    const bool autoswitch);
+
 #endif // __UTILITIES__

@@ -28,19 +28,20 @@
 #' @param treat The name of the treatment variable in the input data.
 #' @param rx The name of the rx variable in the input data.
 #' @param censor_time The name of the censor_time variable in the input data.
-#' @param base_cov The vector of names of baseline covariates (excluding
-#'   treat) in the input data.
+#' @param base_cov The names of baseline covariates (excluding
+#'   treat) in the input data for the outcome Cox model.
 #' @param low_psi The lower limit of the causal parameter.
 #' @param hi_psi The upper limit of the causal parameter.
-#' @param n_eval_z The number of points between low_psi and hi_psi 
-#'   (inclusive) at which to evaluate the log-rank Z-statistics.
+#' @param n_eval_z The number of points between \code{low_psi} and 
+#'   \code{hi_psi} (inclusive) at which to evaluate the log-rank 
+#'   Z-statistics.
 #' @param treat_modifier The optional sensitivity parameter for the
 #'   constant treatment effect assumption.
-#' @param recensor Whether to apply recensoring to counter-factual
+#' @param recensor Whether to apply recensoring to counterfactual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
-#'   recensoring will be applied to the actual censoring time for dropouts.
+#'   censoring times only. Defaults to \code{TRUE}. If \code{FALSE},
+#'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param autoswitch Whether to exclude recensoring for treatment arms
 #'   with no switching. Defaults to \code{TRUE}.
 #' @param gridsearch Whether to use grid search to estimate the causal
@@ -62,15 +63,16 @@
 #' and confidence interval had there been no treatment switching:
 #'
 #' * Use RPSFTM to estimate the causal parameter \eqn{\psi} based on the 
-#'   log-rank test for counter-factual untreated survival times for 
-#'   both arms: \eqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}.
+#'   log-rank test for counterfactual untreated survival times for 
+#'   both arms: \deqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}
 #'
 #' * Fit the Cox proportional hazards model to the observed survival times
-#'   on the treatment arm and the counter-factual untreated survival times
-#'   on the control arm to obtain the hazard ratio estimate.
+#'   for the experimental group and the counterfactual survival times
+#'   for the control group to obtain the hazard ratio estimate.
 #'
-#' * Use either the log-rank test p-value for the treatment policy strategy
-#'   or bootstrap to construct the confidence interval for hazard ratio.
+#' * Use either the log-rank test p-value for the intention-to-treat (ITT) 
+#'   analysis or bootstrap to construct the confidence interval for 
+#'   hazard ratio.
 #'
 #' @return A list with the following components:
 #'
@@ -81,13 +83,8 @@
 #' * \code{psi_CI_type}: The type of confidence interval for \code{psi},
 #'   i.e., "grid search", "root finding", or "bootstrap".
 #'
-#' * \code{eval_z}: A data frame containing the log-rank test Z-statistics
-#'   evaluated at a sequence of \code{psi} values. Used to plot and check
-#'   if the range of \code{psi} values to search for the solution and
-#'   limits of confidence interval of \code{psi} need be modified.
-#'
 #' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   based on the treatment policy strategy.
+#'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model.
@@ -99,14 +96,18 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "log-rank p-value" or "bootstrap".
 #'
-#' * \code{Sstar}: A data frame containing the counter-factual untreated
-#'   survival times and the event indicators for each treatment group.
+#' * \code{eval_z}: A data frame containing the log-rank test Z-statistics
+#'   evaluated at a sequence of \code{psi} values. Used to plot and check
+#'   if the range of \code{psi} values to search for the solution and
+#'   limits of confidence interval of \code{psi} need be modified.
+#'
+#' * \code{Sstar}: A data frame containing the counterfactual untreated
+#'   survival times and event indicators for each treatment group.
 #'
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
-#'   based on the counter-factual untreated survival times by treatment arm.
+#'   based on the counterfactual untreated survival times by treatment arm.
 #'
-#' * \code{data_outcome}: The input data for the outcome Cox model
-#'   including the inverse probability of censoring weights.
+#' * \code{data_outcome}: The input data for the outcome Cox model.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -123,11 +124,11 @@
 #'     - \code{treat_modifier}: The sensitivity parameter for the
 #'       constant treatment effect assumption.
 #'
-#'     - \code{recensor}: Whether to apply recensoring to counter-factual
+#'     - \code{recensor}: Whether to apply recensoring to counterfactual
 #'       survival times.
 #'
 #'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring time only.
+#'       administrative censoring times only.
 #'
 #'     - \code{autoswitch}: Whether to exclude recensoring for treatment 
 #'       arms with no switching.
@@ -189,7 +190,7 @@
 #' shilong1 <- shilong %>%
 #'   arrange(bras.f, id, tstop) %>%
 #'   group_by(bras.f, id) %>%
-#'   filter(row_number() == n()) %>%
+#'   slice(n()) %>%
 #'   select(-c("ps", "ttc", "tran"))
 #'
 #' shilong2 <- shilong1 %>%

@@ -35,9 +35,9 @@
 #'   
 #'   * \code{swtrt_time_upper}: The upper bound of treatment switching time.
 #'
-#'   * \code{base_cov}: The values of baseline covariates (excluding treat).
+#'   * \code{base_cov}: The baseline covariates (excluding treat).
 #'
-#'   * \code{conf_cov}: The values of confounding variables for predicting
+#'   * \code{conf_cov}: The confounding variables for predicting
 #'     treatment switching (excluding treat).
 #'
 #' @param id The name of the id variable in the input data.
@@ -53,25 +53,29 @@
 #' @param swtrt_time The name of the swtrt_time variable in the input data.
 #' @param swtrt_time_upper The name of the swtrt_time_upper variable in the 
 #'   input data.
-#' @param base_cov The vector of names of base_cov variables (excluding
+#' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the Cox model.
-#' @param conf_cov The vector of the names of conf_cov variables (excluding 
+#' @param conf_cov The names of confounding variables (excluding 
 #'   treat) in the input data for the logistic regression switching model.
 #' @param low_psi The lower limit of the causal parameter.
 #' @param hi_psi The upper limit of the causal parameter.
+#' @param n_eval_z The number of points between \code{low_psi} and 
+#'   \code{hi_psi} (inclusive) at which to evaluate the Wald 
+#'   statistics for the coefficient of the counterfactual in the logistic
+#'   regression switching model.
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the logistic regression switching model. Defaults to 
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
 #'   considered in the switching model.
-#' @param firth Whether the firth's bias reducing penalized likelihood
+#' @param firth Whether the Firth's bias reducing penalized likelihood
 #'   should be used. The default is \code{FALSE}.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities. The default is \code{FALSE}.
-#' @param recensor Whether to apply recensoring to counter-factual
+#' @param recensor Whether to apply recensoring to counterfactual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
-#'   censoring time only. Defaults to \code{TRUE}. If \code{FALSE},
-#'   recensoring will be applied to the actual censoring time for dropouts.
+#'   censoring times only. Defaults to \code{TRUE}. If \code{FALSE},
+#'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group.
 #' @param alpha The significance level to calculate confidence intervals.
@@ -92,31 +96,17 @@
 #'   control group  who had disease progression:
 #'   \deqn{\textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + 
 #'   \sum_{j} \beta_j x_{ijk}}
-#'   where \eqn{E_{ik}} is observed switch status for individual \eqn{i}
-#'   at observation \eqn{k}, \deqn{U_{i,\psi} = T_{C_i} + e^{\psi}T_{E_i}}
+#'   where \eqn{E_{ik}} is the observed switch indicator for individual 
+#'   \eqn{i} at observation \eqn{k}, 
+#'   \deqn{U_{i,\psi} = T_{C_i} + e^{\psi}T_{E_i}}
 #'   is the counterfactual survival time for individual \eqn{i} given a 
-#'   specific value for \eqn{\psi}, and \eqn{x_{ijk}} are all confounders
-#'   for individual \eqn{i} at observation \eqn{k}. The visit-specific 
-#'   intercepts can be modeled using a natural cubic spline with 
-#'   specified degrees of freedom. The boundary knots and inner knots 
-#'   can be based on the range and percentiles of treatment switching
-#'   times. When applied from a secondary baseline, \eqn{U_{i,\psi}} 
+#'   specific value for \eqn{\psi}, and \eqn{x_{ijk}} are the confounders
+#'   for individual \eqn{i} at observation \eqn{k}. 
+#'   When applied from a secondary baseline, \eqn{U_{i,\psi}} 
 #'   refers to post-secondary baseline counterfactual survival, where 
-#'   \eqn{T_{C_i}} refers to the time spent after the secondary baseline 
-#'   on control treatment, and \eqn{T_{E_i}} refers to the time spent 
+#'   \eqn{T_{C_i}} corresponds to the time spent after the secondary baseline 
+#'   on control treatment, and \eqn{T_{E_i}} corresponds to the time spent 
 #'   after the secondary baseline on the experimental treatment.
-#'   
-#'   In the presence of censoring, let \eqn{U_{i,\psi} = T_{C_i} + 
-#'   e^{\psi} T_{E_i}} and \eqn{V_{i,\psi} = \min(\tau_i, e^{\psi}\tau_i)},
-#'   where \eqn{\tau_i} is the administrative censoring time for the 
-#'   subject. In addition, let \eqn{\Delta_i} denote the observed event
-#'   indicators, and let \eqn{W_{i,\psi} = \min(U_{i,\psi}, V_{i,\psi})} 
-#'   and \eqn{\Delta_{i,\psi} = \Delta_i I(U_{i,\psi} \leq V_{i,\psi})} 
-#'   be the recensored survival times and event indicators. Fit a null Cox 
-#'   model to \eqn{(W_{i,\psi}, \Delta_{i,\psi})} to control patients with 
-#'   disease progression, and use the martingale residuals to replace
-#'   the counterfactual survival times \eqn{U_{i,\psi}} in the 
-#'   pooled logistic regression switching model.
 #'   
 #' * Search for \eqn{\psi} such that the estimate of \eqn{\alpha} is close
 #'   to zero. This will be the estimate of the caual parameter. The 
@@ -125,14 +115,13 @@
 #'   testing \eqn{H_0:\alpha = 0} in the switching model is equal to the 
 #'   nominal significance level.   
 #'
-#' * Derive the counter-factual survival times for control patients
-#'   had there been no treatment switching. The counter-factual survival
-#'   times are relative to randomization.
+#' * Derive the counterfactual survival times for control patients
+#'   had there been no treatment switching.
 #'
-#' * Fit the Cox model to the observed survival times on the treatment arm
-#'   and the counter-factual untreated survival times on the control arm
-#'   to obtain the hazard ratio estimate.
-#'
+#' * Fit the Cox proportional hazards model to the observed survival times
+#'   for the experimental group and the counterfactual survival times 
+#'   for the control group to obtain the hazard ratio estimate.
+#'   
 #' * Use bootstrap to construct the p-value and confidence interval for
 #'   hazard ratio.
 #'
@@ -146,7 +135,7 @@
 #'   i.e., "logistic model" or "bootstrap".
 #'   
 #' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   based on the treatment policy strategy.
+#'   for an intention-to-treat (ITT) analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model.
@@ -158,20 +147,39 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
 #'   
-#' * \code{data_nullcox}: The list of input data for counterfactual 
-#'   survival times for the null Cox model by treatment group.
+#' * \code{analysis_switch}: A list of data and analysis results related to  
+#'   treatment switching. 
 #'   
-#' * \code{fit_nullcox}: The list of fitted null Cox models for 
-#'   counterfactual survival times by treatment group.
+#'     - \code{data_switch}: The list of input data for the time from 
+#'       secondary baseline to switch by treatment group. The variables 
+#'       include \code{id}, \code{stratum}, \code{swtrt}, and 
+#'       \code{swtrt_time}. If \code{swtrt == 0}, then \code{swtrt_time} 
+#'       is censored at the time from secondary baseline to either 
+#'       death or censoring.
+#'   
+#'     - \code{km_switch}: The list of Kaplan-Meier plots for the time 
+#'       from secondary baseline to switch by stratum and treatment group.
+#'   
+#'     - \code{eval_z}: The list of data containing the Wald statistics
+#'       for the coefficient of the counterfactual in the logistic 
+#'       regression switching model, evaluated at a sequence of \code{psi} 
+#'       values. Used to plot and check if the range of \code{psi} values 
+#'       to search for the solution and limits of confidence interval of 
+#'       \code{psi} need be modified.
+#'   
+#'     - \code{data_nullcox}: The list of input data for counterfactual 
+#'       survival times for the null Cox model by treatment group.
+#'   
+#'     - \code{fit_nullcox}: The list of fitted null Cox models for 
+#'       counterfactual survival times by treatment group.
 #' 
-#' * \code{data_logis}: The list of input data for pooled logistic 
-#'   regression models for treatment switching using g-estimation
+#'     - \code{data_logis}: The list of input data for pooled logistic 
+#'       regression models for treatment switching using g-estimation.
 #'   
-#' * \code{fit_logis}: The list of fitted pooled logistic regression 
-#'   models for treatment switching using g-estimation.
+#'     - \code{fit_logis}: The list of fitted pooled logistic regression 
+#'       models for treatment switching using g-estimation.
 #'   
-#' * \code{data_outcome}: The input data for the outcome Cox model
-#'   including the inverse probability of censoring weights.
+#' * \code{data_outcome}: The input data for the outcome Cox model.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -180,19 +188,24 @@
 #'     - \code{low_psi}: The lower limit of the causal parameter.
 #'     
 #'     - \code{hi_psi}: The upper limit of the causal parameter.
+#'     
+#'     - \code{n_eval_z}: The number of points between \code{low_psi} and 
+#'       \code{hi_psi} (inclusive) at which to evaluate the Wald statistics 
+#'       for the coefficient for the counterfactual in the logistic 
+#'       regression switching model.
 #'
 #'     - \code{strata_main_effect_only}: Whether to only include the strata
 #'       main effects in the logistic regression switching model.
 #'       
-#'     - \code{firth}: Whether the firth's penalized likelihood is used.
+#'     - \code{firth}: Whether the Firth's penalized likelihood is used.
 #'
 #'     - \code{flic}: Whether to apply intercept correction.
 #'
-#'     - \code{recensor}: Whether to apply recensoring to counter-factual
+#'     - \code{recensor}: Whether to apply recensoring to counterfactual
 #'       survival times.
 #'
 #'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring time only.
+#'       administrative censoring times only.
 #'
 #'     - \code{swtrt_control_only}: Whether treatment switching occurred
 #'       only in the control group.
@@ -203,7 +216,7 @@
 #'     - \code{ties}: The method for handling ties in the Cox model.
 #'     
 #'     - \code{tol}: The desired accuracy (convergence tolerance) 
-# '      for \code{psi}.
+#'       for \code{psi}.
 #'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.
@@ -212,8 +225,8 @@
 #'
 #'     - \code{seed}: The seed to reproduce the bootstrap results.
 #'
-#' * \code{psi_trt}: The estimated causal parameter for the treatment group 
-#'   if \code{swtrt_control_only} is \code{FALSE}.
+#' * \code{psi_trt}: The estimated causal parameter for the experimental 
+#'   group if \code{swtrt_control_only} is \code{FALSE}.
 #'
 #' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} if
 #'   \code{swtrt_control_only} is \code{FALSE}.
@@ -299,7 +312,7 @@ tsegest <- function(data, id = "id", stratum = "",
                     pd = "pd", pd_time = "pd_time",
                     swtrt = "swtrt", swtrt_time = "swtrt_time",
                     swtrt_time_upper = "", base_cov = "", conf_cov = "",
-                    low_psi = -3, hi_psi = 3, 
+                    low_psi = -3, hi_psi = 3, n_eval_z = 100,
                     strata_main_effect_only = TRUE,
                     firth = FALSE, flic = FALSE,
                     recensor = TRUE, admin_recensor_only = TRUE,
@@ -378,7 +391,7 @@ tsegest <- function(data, id = "id", stratum = "",
              pd_time = pd_time, swtrt = swtrt, swtrt_time = swtrt_time,
              swtrt_time_upper = swtrt_time_upper,
              base_cov = varnames, conf_cov = varnames2,
-             low_psi = low_psi, hi_psi = hi_psi,
+             low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
              strata_main_effect_only = strata_main_effect_only,
              firth = firth, flic = flic,
              recensor = recensor, admin_recensor_only = admin_recensor_only,

@@ -2,7 +2,7 @@ Package: trtswitch
 Type: Package
 Title: Treatment Switching
 Version: 0.1.1
-Date: 2024-10-25
+Date: 2024-10-28
 Authors@R: 
     person("Kaifeng", "Lu", , "kaifenglu@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6160-7119"))

@@ -732,3 +732,100 @@ List qrcpp(NumericMatrix x, double tol = 1e-12) {
   
   return result;
 }
+
+
+// counterfactual untreated survival times and event indicators
+DataFrame untreated(
+    const double psi,
+    const NumericVector& time,
+    const IntegerVector& event,
+    const IntegerVector& treat,
+    const NumericVector& rx,
+    const NumericVector& censor_time,
+    const bool recensor,
+    const bool autoswitch) {
+  
+  double a = exp(psi);
+  NumericVector u = time*((1 - rx) + rx*a);
+  NumericVector t_star = clone(u);
+  IntegerVector d_star = clone(event);
+  
+  if (recensor) {
+    NumericVector c_star = censor_time*std::min(1.0, a);
+    
+    if (autoswitch) {
+      NumericVector rx1 = rx[treat == 1];
+      NumericVector rx0 = rx[treat == 0];
+      if (is_true(all(rx1 == 1.0))) c_star[treat == 1] = R_PosInf;
+      if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
+    }
+    
+    t_star = pmin(u, c_star);
+    d_star[c_star < u] = 0;
+  }
+  
+  DataFrame result = DataFrame::create(
+    Named("t_star") = t_star,
+    Named("d_star") = d_star,
+    Named("treat") = treat
+  );
+  
+  return result;
+}
+
+
+// counterfactual unswitched survival times and event indicators
+DataFrame unswitched(
+    const double psi,
+    const int n,
+    const NumericVector& time,
+    const IntegerVector& event,
+    const IntegerVector& treat,
+    const NumericVector& rx,
+    const NumericVector& censor_time,
+    const bool recensor,
+    const bool autoswitch) {
+  
+  int i;
+  double a = exp(psi), a1 = exp(-psi);
+  NumericVector u(n), t_star(n);
+  IntegerVector d_star(n);
+  for (i=0; i<n; i++) {
+    if (treat[i] == 0) {
+      u[i] = time[i]*((1 - rx[i]) + rx[i]*a);
+    } else {
+      u[i] = time[i]*(rx[i] + (1 - rx[i])*a1);
+    }
+    t_star[i] = u[i];
+    d_star[i] = event[i];
+  }
+  
+  if (recensor) {
+    NumericVector c_star(n);
+    for (i=0; i<n; i++) {
+      if (treat[i] == 0) {
+        c_star[i] = censor_time[i]*std::min(1.0, a);
+      } else {
+        c_star[i] = censor_time[i]*std::min(1.0, a1);
+      }
+    }
+    
+    if (autoswitch) {
+      NumericVector rx1 = rx[treat == 1];
+      NumericVector rx0 = rx[treat == 0];
+      if (is_true(all(rx1 == 1.0))) c_star[treat == 1] = R_PosInf;
+      if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
+    }
+    
+    t_star = pmin(u, c_star);
+    d_star[c_star < u] = 0;
+  }
+  
+  DataFrame result = DataFrame::create(
+    Named("t_star") = t_star,
+    Named("d_star") = d_star,
+    Named("treat") = treat
+  );
+  
+  return result;
+}

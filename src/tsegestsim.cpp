@@ -39,8 +39,8 @@ using namespace Rcpp;
 //'   on active treatment with good baseline prognosis.
 //' @param catmult The impact of metastatic disease on shortening remaining 
 //'   survival time.
-//' @param tdxo whether treatment crossover occurs immediately after 
-//'   disease progression.
+//' @param tdxo Whether treatment crossover depends on time-dependent 
+//'   covariates between disease progression and treatment switching.
 //' @param ppoor The probability of switching for poor baseline prognosis
 //'   with no metastatic disease.
 //' @param pgood The probability of switching for good baseline prognosis
@@ -55,7 +55,7 @@ using namespace Rcpp;
 //'   time.
 //' @param swtrt_control_only Whether treatment switching occurred only in
 //'   the control group.
-//' @param outputRawDataset whether to output the raw data set
+//' @param outputRawDataset Whether to output the raw data set
 //' @param seed The seed to reproduce the simulation results.
 //'   The seed from the environment will be used if left unspecified.
 //'

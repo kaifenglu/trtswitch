@@ -3,8 +3,7 @@ library(survival)
 
 test_that("rpsftm: control to active switch", {
   data1 <- immdef %>%
-    mutate(rx = 1-xoyrs/progyrs,
-           censyrs = ifelse(prog == 1, censyrs, progyrs)) %>%
+    mutate(rx = 1-xoyrs/progyrs) %>%
     arrange(imm)
   
   fit1 <- rpsftm(
@@ -32,7 +31,7 @@ test_that("rpsftm: control to active switch", {
   # psi based on log-rank test
   psi <- uniroot(g, c(-3,3), tol = 1e-6)$root
   
-  # observed on treated and counter-factual on control
+  # observed on treated and counterfactual on control
   data2 <- data1 %>%
     filter(imm == 0) %>%
     mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),

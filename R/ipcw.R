@@ -51,12 +51,12 @@
 #'   the input data.
 #' @param swtrt_time_upper The name of the swtrt_time_upper variable in 
 #'   the input data. 
-#' @param base_cov The vector of names of baseline covariates (excluding
+#' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the Cox model.
-#' @param numerator The vector of names of baseline covariates 
+#' @param numerator The names of baseline covariates 
 #'   (excluding treat) in the input data for the numerator switching 
 #'   model for stabilized weights.
-#' @param denominator The vector of names of baseline and time-dependent
+#' @param denominator The names of baseline and time-dependent
 #'   covariates (excluding treat) in the input data for the denominator 
 #'   switching model.
 #' @param logistic_switching_model Whether a pooled logistic regression 
@@ -65,22 +65,22 @@
 #'   effects in the logistic regression switching model. Defaults to 
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
 #'   considered in the switching model.
-#' @param firth Whether the firth's bias reducing penalized likelihood
+#' @param firth Whether the Firth's bias reducing penalized likelihood
 #'   should be used. The default is \code{FALSE}.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities. The default is \code{FALSE}.
 #' @param ns_df Degrees of freedom for the natural cubic spline for 
 #'   visit-specific intercepts of the pooled logistic regression model. 
-#'   Defaults to 3 for two inner knots at the 33 and 67 percentiles
+#'   Defaults to 3 for two internal knots at the 33 and 67 percentiles
 #'   of the artificial censoring times due to treatment switching.
 #' @param relative_time Whether to use the time relative to 
 #'   \code{swtrt_time_lower} as the intercepts for the pooled logistic
 #'   regression model.
 #' @param stabilized_weights Whether to use the stabilized weights.
-#' @param trunc The pre-specified fraction of the weights. Defaults to 0
-#'   for no truncation in weights.
+#' @param trunc The truncation fraction of the weight distribution. 
+#'   Defaults to 0 for no truncation in weights.
 #' @param trunc_upper_only Whether to truncate the weights from the upper
-#'   end of the distribution only. Defaults to \code{TRUE}, otherwise
+#'   end of the weight distribution only. Defaults to \code{TRUE}, otherwise
 #'   the weights will be truncated from both the lower and upper ends of
 #'   the distribution.
 #' @param swtrt_control_only Whether treatment switching occurred only in
@@ -97,8 +97,10 @@
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
 #'
-#' * Exclude observations after treatment switch and set up the crossover
-#'   and event indicators for the last time interval for each subject.
+#' * Exclude observations after treatment switch.
+#' 
+#' * Set up the crossover and event indicators for the last time interval 
+#'   for each subject.
 #'
 #' * For time-dependent covariates Cox switching models, replicate unique 
 #'   event times across treatment arms within each subject.
@@ -120,8 +122,8 @@
 #'
 #' @return A list with the following components:
 #'
-#' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   based on the treatment policy strategy.
+#' * \code{logrank_pvalue}:  The two-sided p-value of the log-rank test 
+#'   for an intention-to-treat (ITT) analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model.
@@ -152,7 +154,7 @@
 #'     - \code{strata_main_effect_only}: Whether to only include the 
 #'       strata main effects in the logistic regression switching model. 
 #'       
-#'     - \code{firth}: Whether the firth's bias reducing penalized likelihood
+#'     - \code{firth}: Whether the Firth's bias reducing penalized likelihood
 #'       should be used.
 #'       
 #'     - \code{flic}: Whether to apply intercept correction to obtain more
@@ -199,8 +201,6 @@
 #' @examples
 #'
 #' # Example 1: pooled logistic regression switching model
-#' 
-#' library(dplyr)
 #' 
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
