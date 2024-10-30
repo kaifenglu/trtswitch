@@ -746,8 +746,8 @@ DataFrame untreated(
     const bool autoswitch) {
   
   double a = exp(psi);
-  NumericVector u = time*((1 - rx) + rx*a);
-  NumericVector t_star = clone(u);
+  NumericVector u_star = time*((1 - rx) + rx*a);
+  NumericVector t_star = clone(u_star);
   IntegerVector d_star = clone(event);
   
   if (recensor) {
@@ -760,8 +760,8 @@ DataFrame untreated(
       if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
     }
     
-    t_star = pmin(u, c_star);
-    d_star[c_star < u] = 0;
+    t_star = pmin(u_star, c_star);
+    d_star[c_star < u_star] = 0;
   }
   
   DataFrame result = DataFrame::create(
@@ -788,15 +788,15 @@ DataFrame unswitched(
   
   int i;
   double a = exp(psi), a1 = exp(-psi);
-  NumericVector u(n), t_star(n);
+  NumericVector u_star(n), t_star(n);
   IntegerVector d_star(n);
   for (i=0; i<n; i++) {
     if (treat[i] == 0) {
-      u[i] = time[i]*((1 - rx[i]) + rx[i]*a);
+      u_star[i] = time[i]*((1 - rx[i]) + rx[i]*a);
     } else {
-      u[i] = time[i]*(rx[i] + (1 - rx[i])*a1);
+      u_star[i] = time[i]*(rx[i] + (1 - rx[i])*a1);
     }
-    t_star[i] = u[i];
+    t_star[i] = u_star[i];
     d_star[i] = event[i];
   }
   
@@ -817,8 +817,8 @@ DataFrame unswitched(
       if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
     }
     
-    t_star = pmin(u, c_star);
-    d_star[c_star < u] = 0;
+    t_star = pmin(u_star, c_star);
+    d_star[c_star < u_star] = 0;
   }
   
   DataFrame result = DataFrame::create(
