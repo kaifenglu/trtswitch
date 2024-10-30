@@ -767,7 +767,7 @@ DataFrame untreated(
   DataFrame result = DataFrame::create(
     Named("t_star") = t_star,
     Named("d_star") = d_star,
-    Named("treat") = treat
+    Named("treated") = treat
   );
   
   return result;
@@ -824,7 +824,7 @@ DataFrame unswitched(
   DataFrame result = DataFrame::create(
     Named("t_star") = t_star,
     Named("d_star") = d_star,
-    Named("treat") = treat
+    Named("treated") = treat
   );
   
   return result;

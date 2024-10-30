@@ -436,8 +436,9 @@ List ipcwcpp(
     Named("time") = tstopn1,
     Named("event") = eventn1);
   
-  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event",0,0);
-  double logRankPValue = as<double>(lr["logRankPValue"]);
+  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event", 
+                        0, 0);
+  double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
@@ -518,23 +519,23 @@ List ipcwcpp(
                   List data_switch(2), fit_switch(2);
                   if (k == -1) {
                     for (h=0; h<2; h++) {
-                      List data_switchx = List::create(
+                      List data_x = List::create(
                         Named("data") = R_NilValue,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        data_switchx[treat] = treatwi[1-h];
+                        data_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_switchx[treat] = treatwn[1-h];
+                        data_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_switchx[treat] = treatwc[1-h];
+                        data_x[treat] = treatwc[1-h];
                       }
                       
-                      data_switch[h] = data_switchx;
+                      data_switch[h] = data_x;
                       
-                      List fit_switchx = List::create(
+                      List fit_x = List::create(
                         Named("fit_den") = R_NilValue,
                         Named("fit_num") = R_NilValue,        
                         Named(treat) = R_NilValue
@@ -542,14 +543,14 @@ List ipcwcpp(
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        fit_switchx[treat] = treatwi[1-h];
+                        fit_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        fit_switchx[treat] = treatwn[1-h];
+                        fit_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        fit_switchx[treat] = treatwc[1-h];
+                        fit_x[treat] = treatwc[1-h];
                       }
                       
-                      fit_switch[h] = fit_switchx;
+                      fit_switch[h] = fit_x;
                     }
                   }
                   
@@ -564,7 +565,7 @@ List ipcwcpp(
                   
                   int K = static_cast<int>(treats.size());
                   
-                  if (!logistic_switching_model) {
+                  if (!logistic_switching_model) { // time-dependent Cox
                     // obtain the unique event times across treatment groups
                     NumericVector cut = tstop1[event1 == 1];
                     cut = unique(cut);
@@ -694,7 +695,7 @@ List ipcwcpp(
                         Named("stratum") = stratum3,
                         Named("tstart") = tstart3,
                         Named("tstop") = tstop3,
-                        Named("event") = cross3);
+                        Named("cross") = cross3);
                       
                       for (j=0; j<p2; j++) {
                         String zj = denominator[j];
@@ -704,8 +705,9 @@ List ipcwcpp(
                       
                       // fit the denominator model for crossover
                       List fit_den = phregcpp(
-                        data1, "", "stratum", "tstart", "tstop", "event",
-                        denominator, "", "", "id", ties, 1,1,0,0,0, alpha);
+                        data1, "", "stratum", "tstart", "tstop", "cross",
+                        denominator, "", "", "id", ties, 
+                        1, 1, 0, 0, 0, alpha);
                       
                       // obtain the survival probabilities for crossover
                       DataFrame parest_den = DataFrame(fit_den["parest"]);
@@ -722,8 +724,9 @@ List ipcwcpp(
                       int m = km_den.nrows();
                       
                       List fit_num = phregcpp(
-                        data1, "", "stratum", "tstart", "tstop", "event", 
-                        numerator, "", "", "id", ties, 1,1,0,0,0, alpha);
+                        data1, "", "stratum", "tstart", "tstop", "cross", 
+                        numerator, "", "", "id", ties, 
+                        1, 1, 0, 0, 0, alpha);
                       
                       NumericVector surv_num(m);
                       if (p1 > 0) {
@@ -796,23 +799,23 @@ List ipcwcpp(
                       
                       // update data_switch and fit_switch
                       if (k == -1) {
-                        List data_switchx = List::create(
+                        List data_x = List::create(
                           Named("data") = data1,
                           Named(treat) = R_NilValue
                         );
                         
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
-                          data_switchx[treat] = treatwi[1-h];
+                          data_x[treat] = treatwi[1-h];
                         } else if (TYPEOF(data[treat]) == REALSXP) {
-                          data_switchx[treat] = treatwn[1-h];
+                          data_x[treat] = treatwn[1-h];
                         } else if (TYPEOF(data[treat]) == STRSXP) {
-                          data_switchx[treat] = treatwc[1-h];
+                          data_x[treat] = treatwc[1-h];
                         }
                         
-                        data_switch[h] = data_switchx;
+                        data_switch[h] = data_x;
                         
-                        List fit_switchx = List::create(
+                        List fit_x = List::create(
                           Named("fit_den") = fit_den,
                           Named("fit_num") = fit_num,
                           Named(treat) = R_NilValue
@@ -820,14 +823,14 @@ List ipcwcpp(
                         
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
-                          fit_switchx[treat] = treatwi[1-h];
+                          fit_x[treat] = treatwi[1-h];
                         } else if (TYPEOF(data[treat]) == REALSXP) {
-                          fit_switchx[treat] = treatwn[1-h];
+                          fit_x[treat] = treatwn[1-h];
                         } else if (TYPEOF(data[treat]) == STRSXP) {
-                          fit_switchx[treat] = treatwc[1-h];
+                          fit_x[treat] = treatwc[1-h];
                         }
                         
-                        fit_switch[h] = fit_switchx;
+                        fit_switch[h] = fit_x;
                       }
                       
                       // weights in the outcome model by matching id and time
@@ -943,7 +946,7 @@ List ipcwcpp(
                       // prepare the data for fitting the switching model
                       DataFrame data1 = DataFrame::create(
                         Named("id") = id2,
-                        Named("event") = cross2);
+                        Named("cross") = cross2);
                       
                       for (j=0; j<q+p2; j++) {
                         String zj = covariates_lgs_den[j];
@@ -957,7 +960,7 @@ List ipcwcpp(
                       }
                       
                       List fit_den = logisregcpp(
-                        data1, "", "event", covariates_lgs_den, 
+                        data1, "", "cross", covariates_lgs_den, 
                         "", "", "", "id", 1, firth, flic, 0, alpha);
                       
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
@@ -1006,7 +1009,7 @@ List ipcwcpp(
                       }
                       
                       List fit_num = logisregcpp(
-                        data1, "", "event", covariates_lgs_num, 
+                        data1, "", "cross", covariates_lgs_num, 
                         "", "", "", "id", 1, firth, flic, 0, alpha);
                       
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
@@ -1086,23 +1089,23 @@ List ipcwcpp(
                           }
                         }
                         
-                        List data_switchx = List::create(
+                        List data_x = List::create(
                           Named("data") = data1,
                           Named(treat) = R_NilValue
                         );
                         
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
-                          data_switchx[treat] = treatwi[1-h];
+                          data_x[treat] = treatwi[1-h];
                         } else if (TYPEOF(data[treat]) == REALSXP) {
-                          data_switchx[treat] = treatwn[1-h];
+                          data_x[treat] = treatwn[1-h];
                         } else if (TYPEOF(data[treat]) == STRSXP) {
-                          data_switchx[treat] = treatwc[1-h];
+                          data_x[treat] = treatwc[1-h];
                         }
                         
-                        data_switch[h] = data_switchx;
+                        data_switch[h] = data_x;
                         
-                        List fit_switchx = List::create(
+                        List fit_x = List::create(
                           Named("fit_den") = fit_den,
                           Named("fit_num") = fit_num,
                           Named(treat) = R_NilValue
@@ -1110,14 +1113,14 @@ List ipcwcpp(
                         
                         if (TYPEOF(data[treat]) == LGLSXP ||
                             TYPEOF(data[treat]) == INTSXP) {
-                          fit_switchx[treat] = treatwi[1-h];
+                          fit_x[treat] = treatwi[1-h];
                         } else if (TYPEOF(data[treat]) == REALSXP) {
-                          fit_switchx[treat] = treatwn[1-h];
+                          fit_x[treat] = treatwn[1-h];
                         } else if (TYPEOF(data[treat]) == STRSXP) {
-                          fit_switchx[treat] = treatwc[1-h];
+                          fit_x[treat] = treatwc[1-h];
                         }
                         
-                        fit_switch[h] = fit_switchx;
+                        fit_switch[h] = fit_x;
                       }
                       
                       w1[l] = w;
@@ -1247,8 +1250,7 @@ List ipcwcpp(
     int N = max(nobs)*nids;
     
     for (k=0; k<n_boot; k++) {
-      IntegerVector idb(N, NA_INTEGER), stratumb(N), eventb(N);
-      IntegerVector treatb(N), swtrtb(N);
+      IntegerVector idb(N), stratumb(N), treatb(N), eventb(N), swtrtb(N);
       NumericVector tstartb(N), tstopb(N), swtrt_timeb(N);
       NumericVector swtrt_time_lowerb(N), swtrt_time_upperb(N);
       NumericMatrix zb(N, p), zb_cox_den(N, p2), zb_lgs_den(N, q+p2);
@@ -1279,22 +1281,15 @@ List ipcwcpp(
           swtrt_timeb[r] = swtrt_timen[j];
           swtrt_time_lowerb[r] = swtrt_time_lowern[j];
           swtrt_time_upperb[r] = swtrt_time_uppern[j];
-          
-          for (int s=0; s<p; s++) {
-            zb(r,s) = zn(j,s);
-          }
-          for (int s=0; s<p2; s++) {
-            zb_cox_den(r,s) = zn_cox_den(j,s);
-          }
-          for (int s=0; s<q+p2; s++) {
-            zb_lgs_den(r,s) = zn_lgs_den(j,s);
-          }
+          zb(r,_) = zn(j,_);
+          zb_cox_den(r,_) = zn_cox_den(j,_);
+          zb_lgs_den(r,_) = zn_lgs_den(j,_);
         }
         
         l += idx[i+1] - idx[i];
       }
       
-      IntegerVector sub = which(!is_na(idb));
+      IntegerVector sub = Range(0,l-1);
       idb = idb[sub];
       stratumb = stratumb[sub];
       tstartb = tstartb[sub];

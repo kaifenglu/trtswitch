@@ -122,8 +122,9 @@
 #'   for the experimental group and the counterfactual survival times 
 #'   for the control group to obtain the hazard ratio estimate.
 #'   
-#' * Use bootstrap to construct the p-value and confidence interval for
-#'   hazard ratio.
+#' * If bootstrapping is used, the confidence interval and corresponding 
+#'   p-value for hazard ratio are calculated based on a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom. 
 #'
 #' @return A list with the following components:
 #'
@@ -152,26 +153,27 @@
 #'   
 #'     - \code{data_switch}: The list of input data for the time from 
 #'       secondary baseline to switch by treatment group. The variables 
-#'       include \code{id}, \code{stratum}, \code{swtrt}, and 
-#'       \code{swtrt_time}. If \code{swtrt == 0}, then \code{swtrt_time} 
+#'       include \code{id}, \code{stratum} (if applicable), \code{swtrt}, 
+#'       and \code{swtrt_time}. If \code{swtrt == 0}, then \code{swtrt_time} 
 #'       is censored at the time from secondary baseline to either 
 #'       death or censoring.
 #'   
 #'     - \code{km_switch}: The list of Kaplan-Meier plots for the time 
-#'       from secondary baseline to switch by stratum and treatment group.
+#'       from secondary baseline to switch by treatment group.
 #'   
-#'     - \code{eval_z}: The list of data containing the Wald statistics
-#'       for the coefficient of the counterfactual in the logistic 
-#'       regression switching model, evaluated at a sequence of \code{psi} 
-#'       values. Used to plot and check if the range of \code{psi} values 
-#'       to search for the solution and limits of confidence interval of 
-#'       \code{psi} need be modified.
+#'     - \code{eval_z}: The list of data by treatment group containing 
+#'       the Wald statistics for the coefficient of the counterfactual 
+#'       in the logistic regression switching model, evaluated at 
+#'       a sequence of \code{psi} values. Used to plot and check 
+#'       if the range of \code{psi} values to search for the solution 
+#'       and limits of confidence interval of \code{psi} need be modified.
 #'   
 #'     - \code{data_nullcox}: The list of input data for counterfactual 
 #'       survival times for the null Cox model by treatment group.
 #'   
 #'     - \code{fit_nullcox}: The list of fitted null Cox models for 
-#'       counterfactual survival times by treatment group.
+#'       counterfactual survival times by treatment group, which contains
+#'       the martingale residuals.
 #' 
 #'     - \code{data_logis}: The list of input data for pooled logistic 
 #'       regression models for treatment switching using g-estimation.

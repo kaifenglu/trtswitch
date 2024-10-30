@@ -1,0 +1,146 @@
+---
+title: "Two-Stage Estimation With g-estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Two-Stage Estimation With g-estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(trtswitch)
+library(dplyr, warn.conflicts = FALSE)
+library(ggplot2)
+```
+
+# Introduction
+TSEgest is an extension of the simple two-stage estimation (TSE) method by incorporating a structural nested model (SNM) and utilizing g-estimation. This allows a delay between disease progression (secondary baseline) and treatment switch, provided that time-dependent confounding variables that predict switching and survival are measured beyond the secondary baseline and included in the model for treatment switching. One key assumption for the TSEgest method is no unmeasured confounding, i.e., switching is independent of potential outcomes conditional on measured variables. 
+
+# Estimation of $\psi$
+To derive the g-estimate of $\psi$, we utilize a logistic regression model for switching
+\[
+  \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk}
+\]
+alongside a structural model for counterfactual survival times
+\[
+  U_{i,\psi} =  T_{C_i} + e^{\psi}T_{E_i}
+\]
+
+## Key Components 
+
+- **Switch Indictor $E_{ik}$**: This variable indicates whether subject $i$ switched treatment at observation $k$, starting from the secondary baseline up to and including the time of treatment switching. The secondary baseline visit corresponds to the first observation $(k=1)$ in the logistic regression model. 
+
+    - If a patient switches treatment two visits after disease progression, they contribute three records to the switching model: $E_{i1} = 0$, $E_{i2} = 0$, and $E_{i3} = 1$. 
+    
+    - If a patient does not switch treatment and either dies or is censored four visits after disease progression, they contribute five records, with $E_{ik} = 0$ for $k=1,\ldots,5$. 
+
+- **Confounders $x_{ijk}$**: These are the confounding variables measured for subject $i$ at observation $k$.
+
+- **Counteractual Survival Time $U_{i,\psi}$**: This represents the counterfactual survival time for subject $i$ based on a specific value of $\psi$. In case of censoring, we define $D_{i,\psi}^* = \min(C_i, e^{\psi}C_i)$, where $C_i$ is the censoring time for the subject. Additionally, we denote $\Delta_i$ as the observed event indicators. We then define $U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*)$ and $\Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*)$ to represent the recensored counterfactual survival times and event indicators, respectively. Next, we fit a null Cox model to the dataset $(U_{i,\psi}^*, \Delta_{i,\psi}^*)$ to patients with disease progression. The martingale residuals from this model are then used to replace $U_{i,\psi}$ in the pooled logistic regression switching model. 
+
+# Estimation of Hazard Ratio
+Once $\psi$ has been estimated, we can derive an adjusted data set and fit a (potentially stratified) Cox proportional hazards model to the adjusted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the entire adjustment and subsequent model-fitting process.
+
+# Example
+We start by preparing the data.
+```{r data}
+sim1 <- tsegestsim(
+  n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
+  trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
+  scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+  pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
+  pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
+  catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
+  ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
+  milestone = 546, swtrt_control_only = TRUE,
+  outputRawDataset = 1, seed = 2000)
+```
+
+Next we apply the TSE method with g-estimation. 
+```{r analysis}
+fit1 <- tsegest(
+  data = sim1$paneldata, id = "id", 
+  tstart = "tstart", tstop = "tstop", event = "died", 
+  treat = "trtrand", censor_time = "censor_time", 
+  pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
+  swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+  base_cov = "bprog", conf_cov = "bprog*catlag", 
+  low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+  recensor = TRUE, admin_recensor_only = TRUE, 
+  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
+  tol = 1.0e-6, boot = FALSE)
+```
+
+The Kaplan-Meier plot for the control arm demonstrates that treatment switching can occur at the secondary baseline and at each of the ensuing five scheduled visits, spaced 21 days apart.
+```{r km}
+switched <- fit1$analysis_switch$data_switch[[1]]$data %>% 
+  filter(swtrt == 1)
+table(switched$swtrt_time)
+
+ggplot(fit1$analysis_switch$km_switch[[1]]$data, 
+       aes(x=time, y=survival)) + 
+  geom_step() + 
+  scale_y_continuous(limits = c(0,1)) + 
+  scale_x_continuous(breaks = seq(0,105,21)) + 
+  xlab("time from progression to switch") + 
+  ggtitle(paste("trtrand: ", 
+                fit1$analysis_switch$km_switch[[1]]$trtrand)) + 
+  theme(panel.grid.minor.x = element_blank())
+```
+
+We can examine the logistic regression switching model to confirm that the coefficient associated with the counterfactual survival time (the martingale residuals for the null Cox model) is effectively zero. To account for the potential correlation of multiple observations within a subject, a robust sandwich variance estimator is employed, clustering on the subject level for the logistic regression model.
+```{r logis}
+parest <- fit1$analysis_switch$fit_logis[[1]]$fit$parest
+parest[, c("param", "beta", "sebeta", "z")]
+```
+
+The plot of $Z(\psi)$ versus $\psi$ shows that the estimation process worked well. 
+```{r Z(psi)}
+psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
+
+ggplot(fit1$analysis_switch$eval_z[[1]]$data %>% 
+         filter(psi > fit1$psi_CI[1] - psi_CI_width*0.25 & 
+                  psi < fit1$psi_CI[2] + psi_CI_width*0.25), 
+       aes(x=psi, y=Z)) + 
+  geom_line() + 
+  geom_hline(yintercept = c(0, -1.96, 1.96), linetype = 2) + 
+  scale_y_continuous(breaks = c(0, -1.96, 1.96)) + 
+  geom_vline(xintercept = c(fit1$psi, fit1$psi_CI), linetype = 2) + 
+  scale_x_continuous(breaks = round(c(fit1$psi, fit1$psi_CI), 3)) + 
+  ylab("Wald Z for counterfactual") + 
+  theme(panel.grid.minor = element_blank())
+```
+
+Now we fit the outcome Cox model and compare the treatment hazard ratio estimate with the reported. 
+```{r cox}
+fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
+c(fit1$hr, fit1$hr_CI)
+```
+
+Finally, to ensure the uncertainty is accurately represented, the entire adjustment process and subsequent survival modeling can be bootstrapped.
+````{verbatim}
+
+```{r boot}
+fit2 <- tsegest(
+  data = sim1$paneldata, id = "id", 
+  tstart = "tstart", tstop = "tstop", event = "died", 
+  treat = "trtrand", censor_time = "censor_time", 
+  pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
+  swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+  base_cov = "bprog", conf_cov = "bprog*catlag", 
+  low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+  recensor = TRUE, admin_recensor_only = TRUE, 
+  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
+  tol = 1.0e-6, boot = TRUE, n_boot = 1000, seed = 12345)
+
+c(fit2$hr, fit2$hr_CI)
+```
+
+````

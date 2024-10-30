@@ -72,7 +72,9 @@
 #'
 #' * Use either the log-rank test p-value for the intention-to-treat (ITT) 
 #'   analysis or bootstrap to construct the confidence interval for 
-#'   hazard ratio.
+#'   hazard ratio. If bootstrapping is used, the confidence interval 
+#'   and corresponding p-value are calculated based on a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom. 
 #'
 #' @return A list with the following components:
 #'

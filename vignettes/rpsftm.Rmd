@@ -1,0 +1,226 @@
+---
+title: "Rank Preserving Structural Failure Time Models"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Rank Preserving Structural Failure Time Models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(trtswitch)
+library(dplyr, warn.conflicts = FALSE)
+library(ggplot2)
+```
+
+# Introduction
+In clinical trials, treatment switching occurs when patients in the control group switch to the experimental treatment after experiencing disease progression or other clinical criteria. While treatment switching can provide ethical benefits for trial participants, it introduces significant challenges in estimating the true effect of the experimental treatment on overall survival (OS). If left unadjusted, treatment switching can obscure the real difference between the treatment arms and lead to biased estimates, typically underestimating the treatment benefit.
+
+The rank preserving structural failure time model (RPSFTM) is a statistical approach developed to address this issue. RPSFTM adjusts for the effects of treatment switching by modeling what the survival times of patients who switched treatments would have been if they had remained on the control treatment. The model assumes that the treatment effect is the same regardless of when the patient received the treatment. 
+
+The rank-preserving property means that the relative ordering of counterfactural survival times under the experimental treatment is the same as the relative ordering of counterfactural survival times under the control treatment. Formally, let $Y_i^{a=1}$ represent the potential outcome for subject $i$ under treatment condition $a=1$ (experimental), and $Y_i^{a=0}$ represent the potential outcome under treatment condition $a=0$ (control). If the ranking of $\{Y_i^{a=1}: i=1,\ldots,n\}$ is identical to the ranking of $\{Y_i^{a=0}: i=1,\ldots,n\}$, we say that rank preservation holds. 
+
+The structural failure time model refers to a framework used to estimate the true (unobserved) survival time in the absence of treatment switching, assuming that the experimental treatment has a multiplicative effect on survival. Specifically, each patient's observed survival time, $T_i$, is divided into the time spent on the control treatment, $T_{C_i}$, and the time spent on the experimental treatment, $T_{E_i}$, such that $T_i = T_{C_i} + T_{E_i}$. The `rx` parameter in the `rpsftm` function represents the proportion of time spent on the experimental treatment, defined as the ratio $T_{E_i}/T_i$. The structural model for counterfactual untreated survival times is expressed as
+\[
+   U_{i,\psi} = T_{C_i} + e^{\psi} T_{E_i},
+\]
+where there are three distinct cases:
+
+- **Experimental Group Patients**: $T_{C_i} = 0$, and $T_{E_i}$ represents the time from randomization to either death or censoring. 
+
+- **Control Group Nonswitchers**: $T_{C_i}$ is the time from randomization to either death or censoring, and $T_{E_i} = 0$. 
+
+- **Control Group Switchers**: $T_{C_i}$ is the time from randomization to treatment switch, and $T_{E_i}$ is the time from the switch to either death or censoring.
+
+
+# Recensoring
+The censoring time $C_i$ must be defined for all patients including those who experienced an event. We assume that censoring is noninformative in the absence of treatment switching. However, since time to treatment switching may be influenced by prognostic factors, the counterfactual censoring time 
+\[
+  f(T_{C_i}) = T_{C_i} + e^{\psi}(C_i - T_{C_i})
+\]
+could become informative. To address this and make the counterfactual censoring time noninformative, we take the minimum of the counterfactual censoring time across all possible values of the time to switching $T_{C_i}$. Specifically, we define:
+\[
+  D_{i,\psi}^* = \min_{T_{C_i} \in [0, C_i]} f(T_{C_i}).
+\]
+
+
+## Behavior of the function $f(T_{C_i})$:
+
+- **If $\psi < 0$**, then $f(T_{C_i})$ is an increasing function of $T_{C_i}$. The minimum occurs at $T_{C_i} = 0$, yielding a value of $e^{\psi} C_i$.
+- **If $\psi > 0$**, $f(T_{C_i})$ decreases with $T_{C_i}$, and the minimum is attained when $T_{C_i} = C_i$, yielding $C_i$.
+- **When $\psi = 0$**, $f(T_{C_i}) = C_i$ for all $T_{C_i}$.
+
+Thus, we can summarize the relationship:
+
+\[
+  D_{i,\psi}^* = \min(C_i, e^{\psi} C_i).
+\]
+
+To ensure that the counterfactual censoring time is independent of prognostic factors, we define $D_i^*(\psi)$ for all control group patients, irrespective of whether or not they were observed to switch treatment.
+
+## Case-by-case breakdown
+
+### Control group switchers who experienced an event:
+For these patients, we have $T_i = T_{C_i} + T_{E_i} \leq C_i$.
+
+- **When $\psi < 0$**:
+    - Since $e^{\psi} < 1$, $D_{i,\psi}^* = e^{\psi} C_i < C_i$, and $U_{i,\psi} < T_{C_i} + T_{E_i} = T_i$.
+    - If $e^{\psi} < \frac{T_{C_i}}{C_i - T_{E_i}} \leq 1$, then $D_{i,\psi}^* < U_{i,\psi}$, meaning the event will be recensored and become a nonevent. The counterfactual survival time $U_{i,\psi}$ is replaced by $D_{i,\psi}^* = e^{\psi} C_i$.
+    - If $e^{\psi} \geq \frac{T_{C_i}}{C_i - T_{E_i}}$, then $U_{i,\psi} \leq D_{i,\psi}^*$, and the event remains as such, with $U_{i,\psi}$ unchanged.
+
+- **When $\psi > 0$**:
+    - Since $e^{\psi} > 1$, $D_{i,\psi}^* = C_i$, and $U_{i,\psi} > T_{C_i} + T_{E_i} = T_i$.
+    - If $e^{\psi} > \frac{C_i - T_{C_i}}{T_{E_i}} \geq 1$, then $D_{i,\psi}^* < U_{i,\psi}$, and the event is recensored into a nonevent. The counterfactual survival time is replaced by $D_{i,\psi}^* = C_i$.
+    - If $e^{\psi} \leq \frac{C_i - T_{C_i}}{T_{E_i}}$, then $U_{i,\psi} \leq D_{i,\psi}^*$, and the event remains unchanged.
+
+- **When $\psi = 0$**:
+    - In this case, $U_{i,\psi} = T_i \leq C_i = D_{i,\psi}^*$, so there is no change to either the event or censoring times. The event remains unchanged.
+
+### Control group switchers who were censored:
+By definition, $D_{i,\psi}^* \leq T_{C_i} + e^{\psi}(C_i - T_{C_i}) = U_{i,\psi}$, so the counterfactual survival time $U_{i,\psi}$ is replaced with $D_{i,\psi}^*$.
+
+### Control group nonswitchers who experienced an event:
+For these patients, $U_{i,\psi} = T_{C_i} = T_i \leq C_i$.
+
+- **When $\psi < 0$**:
+    - Since $e^{\psi} < 1$, $D_{i,\psi}^* = e^{\psi} C_i$.
+    - If $e^{\psi} < \frac{T_i}{C_i} \leq 1$, then $D_{i,\psi}^* < U_{i,\psi}$, and the event becomes a nonevent, with $U_{i,\psi}$ replaced by $D_{i,\psi}^*$.
+    - If $e^{\psi} \geq \frac{T_i}{C_i}$, then $U_{i,\psi} \leq D_{i,\psi}^*$, and the event remains unchanged.
+
+- **When $\psi \geq 0$**:
+    - Since $e^{\psi} \geq 1$, $D_{i,\psi}^* = C_i \geq T_i = U_{i,\psi}$, so the event remains as it is, with $U_{i,\psi}$ unchanged.
+
+### Control group nonswitchers who were censored:
+In this case, $U_{i,\psi} = C_i$. By definition, $D_{i,\psi}^* \leq U_{i,\psi}$, meaning $U_{i,\psi}$ is replaced by $D_{i,\psi}^*$.
+
+## Summary:
+An observed event can become a nonevent due to recensoring under two conditions:
+
+1. If $\psi < 0$ and $e^{\psi} C_i < U_{i,\psi}$.
+2. If $\psi > 0$ and $C_i < U_{i,\psi}$.
+
+The recensored counterfactual survival time is defined as 
+\[
+  U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*), 
+\]
+while the counterfactual event indicator is give by 
+\[
+  \Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*), 
+\]
+where $\Delta_i$ represents the observed event indicator. 
+
+Recensoring is intended to reduce the bias in the treatment effect estimate at the expense of a loss of information for long-term survival.
+
+# Common Treatment Effect Assumption
+A key assumption for the validity of the RPSFTM is the existence of a common treatment effect, meaning that the time ratio, $e^{-\psi}$, remains constant regardless of when treatment switching occurs. However, since treatment switching often happens after disease progression, the treatment effect post-progression may be weaker than the effect observed immediately following randomization. To account for this in sensitivity analyses, the `treat_modifier` parameter in the `rpsftm` function can be set to a value between 0 and 1, effectively diluting $\psi$ by multiplying it by `treat_modifier`.
+
+# Estimation of $\psi$
+For a fixed value of $\psi$, we can construct the counterfactual survival times $U_{i,\psi}^*$ and the corresponding event indicators $\Delta_{i,\psi}^*$. A log-rank test (which may be stratified) can then be used to assess the difference in counterfactual survival times, accounting for potential censoring, between the two treatment groups. Let $Z(\psi)$ denote the Z-test statistic from the log-rank test. 
+
+Under the assumption that potential outcomes are independent of the randomized treatment group, the estimate of $\psi$ is the value that makes $Z(\psi)$ closest to zero. The confidence limits for $\psi$ can be derived from the values of $\psi$ that yield $Z(\psi)$ closest to $\Phi^{-1}(1 - \alpha/2)$ and $\Phi^{-1}(\alpha/2)$, where $\Phi(x)$ is the cumulative distribution function of the standard normal distribution and $\alpha$ is the two-sided significance level.
+
+The `rpsftm` function provides two methods for estimating the causal treatment effect, $\psi$:
+
+1. **Grid search method**: This divides the interval from `low_psi` to `hi_psi` into `n_eval_z - 1` subintervals and evaluates $Z(\psi)$ at `n_eval_z` equally spaced points of $\psi$ (including the endpoints `low_psi` and `hi_psi`).
+2. **Root-finding method**: This method uses numerical techniques, such as Brent's method, to find the value of $\psi$ such that $Z(\psi) = 0$ for the point estimate, $Z(\psi) = \Phi^{-1}(1 - \alpha/2)$ for the lower confidence limit, and $Z(\psi) = \Phi^{-1}(\alpha/2)$ for the upper confidence limit. Owing to the discrete nature of the log-rank test, the solution for $\psi$ may not be unique and may depend on the search interval and convergence tolerance.
+
+Regardless of the method used for estimating $\psi$, it is helpful to visualize the log-rank test statistic, $Z(\psi)$, across a range of $\psi$ values. Additionally, a Kaplan-Meier plot of the counterfactual survival times for the two randomized groups provides further validation of the estimated value of $\psi$. 
+
+
+# Estimation of Hazard Ratio
+Let $A_i$ denote the randomized treatment group and $Z_i$ the baseline covariates for subject $i$ ($i=1,\ldots,n$). Once $\psi$ has been estimated, we can fit a (potentially stratified) Cox proportional hazards model to the following: 
+
+- The observed survival times of the experimental group:  $\{(T_i,\Delta_i,Z_i): A_i = 1\}$
+
+- The counterfactual survival times for the control group:  $\{(U_{i,\psi}^*, \Delta_{i,\psi}^*, Z_i): A_i = 0\}$ evaluated at $\psi = \hat{\psi}$.
+
+This allows us to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by either 
+
+1. Matching the p-value from the log-rank test for an intention-to-treat (ITT) analysis, or
+2. Bootstrapping the entire adjustment and subsequent model-fitting process. 
+
+
+# Concorde Trial Example
+We will illustrate the `rpsftm` function using simulated data based on the randomized Concorde trial. In this trial, patients with asymptomatic HIV infection were randomly assigned to either immediate zidovudine treatment or deferred treatment. The primary outcome was the time to disease progression or death. 
+
+An ITT analysis estimates the effect of immediately administering zidovudine compared to delaying its use. However, some patients in the deferred arm started zidovudine before developing symptoms, based on low CD4 cell counts—a marker of disease progression. 
+
+## Data
+The data are stored in the `immdef` data frame. Here's a snapshot of the data:
+
+```{r data}
+head(immdef, 10)
+```
+
+For the immediate treatment arm, treatment crossover was not possible. 
+
+- Subject 1 was censored at 3 years. 
+
+- Subject 3 progressed at 1.74 years.
+
+For the deferred treatment arm, treatment crossover was allowed.
+
+- Subject 2 crossed over at 2.65 years and was censored at 3 years. 
+
+- Subject 5 crossed over at 2.12 years and progressed at 2.88 years. 
+
+- Subject 7 progressed at 2.19 years without treatment crossover. 
+
+## Analysis
+
+We begin by preparing the data and then apply the RPSFTM method:
+```{r analysis}
+data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
+
+fit1 <- rpsftm(
+  data, time = "progyrs", event = "prog", treat = "imm",
+  rx = "rx", censor_time = "censyrs", boot = FALSE)
+```
+
+The log-rank test for an ITT analysis, which ignores treatment changes, produces a borderline significant p-value of $0.056$.
+```{r logrank}
+fit1$logrank_pvalue
+```
+
+Using a root-finding algorithm, we estimate $\hat{\psi} = -0.181$, with a 95\% confidence interval of $(-0.350, 0.002)$. 
+```{r psi}
+c(fit1$psi, fit1$psi_CI)
+```
+
+The plot of $Z(\psi)$ versus $\psi$ shows that the estimation process worked well. 
+```{r Z(psi)}
+psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
+
+ggplot(fit1$eval_z %>% 
+         filter(psi > fit1$psi_CI[1] - psi_CI_width*0.25 & 
+                  psi < fit1$psi_CI[2] + psi_CI_width*0.25), 
+       aes(x=psi, y=Z)) + 
+  geom_line() + 
+  geom_hline(yintercept = c(0, -1.96, 1.96), linetype = 2) + 
+  scale_y_continuous(breaks = c(0, -1.96, 1.96)) + 
+  geom_vline(xintercept = c(fit1$psi, fit1$psi_CI), linetype = 2) + 
+  scale_x_continuous(breaks = round(c(fit1$psi, fit1$psi_CI), 3)) + 
+  ylab("log-rank Z") + 
+  theme(panel.grid.minor = element_blank())
+```
+
+The Kaplan-Meier plot of counterfactual survival times supports the estimated $\hat{\psi}$.
+```{r km}
+ggplot(fit1$kmstar, aes(x=time, y=survival, group=treated,
+                        linetype=as.factor(treated))) + 
+  geom_step() + 
+  scale_linetype_discrete(name = "treated") + 
+  scale_y_continuous(limits = c(0,1))
+```
+
+The estimated hazard ratio from the Cox proportional hazards model is $0.761$, with a 95\% confidence interval of $(0.575, 1.007)$, constructed to be consistent with the p-value from the log-rank test for the ITT analysis.
+```{r hr}
+c(fit1$hr, fit1$hr_CI)
+```

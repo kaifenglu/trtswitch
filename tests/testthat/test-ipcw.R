@@ -2,7 +2,7 @@ library(dplyr, warn.conflicts = FALSE)
 library(splines)
 library(survival)
 
-test_that("ipcw: pooled logistic regression switching model", {
+testthat::test_that("ipcw: pooled logistic regression switching model", {
   sim1 <- tsegestsim(
     n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
     trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
@@ -49,9 +49,11 @@ test_that("ipcw: pooled logistic regression switching model", {
   phat2 <- as.numeric(predict(switch2, newdata = data2, type = "response"))
   
   # unstabilized and stablized weights
-  data3 <- data1 %>% filter(trtrand == 0) %>% 
+  data3 <- data1 %>% 
+    filter(trtrand == 0) %>% 
     select(id, trtrand, bprog, tstart, tstop, event) %>%
-    left_join(data2 %>% ungroup() %>%
+    left_join(data2 %>% 
+                ungroup() %>%
                 mutate(pstay_den = 1-phat1, pstay_num = 1-phat2) %>%
                 select(id, tstop, pstay_den, pstay_num), 
               by = c("id", "tstop")) %>%
@@ -61,7 +63,8 @@ test_that("ipcw: pooled logistic regression switching model", {
     mutate(surv_den = cumprod(pstay_den), surv_num = cumprod(pstay_num),
            stabilized_weight = surv_num/surv_den) %>%
     select(id, tstart, tstop, event, stabilized_weight, bprog, trtrand) %>%
-    bind_rows(data1 %>% filter(trtrand == 1) %>%
+    bind_rows(data1 %>% 
+                filter(trtrand == 1) %>%
                 mutate(unstabilized_weight = 1, stabilized_weight = 1) %>%
                 select(id, tstart, tstop, event, 
                        stabilized_weight, bprog, trtrand))
@@ -71,12 +74,14 @@ test_that("ipcw: pooled logistic regression switching model", {
                ties = "efron", cluster = id)
   hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
   
-  expect_equal(data3$stabilized_weight, fit1$data_outcome$stabilized_weight)
-  expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
+  testthat::expect_equal(data3$stabilized_weight, 
+                         fit1$data_outcome$stabilized_weight)
+  
+  testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
 
 
-test_that("ipcw: time-dependent covariates Cox switching model", {
+testthat::test_that("ipcw: time-dependent covariates Cox switching model", {
   fit2 <- ipcw(
     shilong, id = "id", tstart = "tstart", tstop = "tstop", 
     event = "event", treat = "bras.f", swtrt = "co", 
@@ -102,10 +107,12 @@ test_that("ipcw: time-dependent covariates Cox switching model", {
   cut <- sort(unique(data1$tstop[data1$event == 1]))
   a1 = survSplit(Surv(tstart, tstop, event) ~ ., data = data1, cut = cut)
   a2 = survSplit(Surv(tstart, tstop, cross) ~ ., data = data1, cut = cut)
-  data2 <- a2 %>% mutate(event = a1$event)
+  data2 <- a2 %>% 
+    mutate(event = a1$event)
   
   tablist <- lapply(0:1, function(h) {
-    df1 <- data2 %>% filter(treat == h)
+    df1 <- data2 %>% 
+      filter(treat == h)
     fit_den <- coxph(Surv(tstart, tstop, cross) ~ agerand + sex.f 
                      + tt_Lnum + rmh_alea.c + pathway.f 
                      + ps + ttc + tran, 
@@ -119,6 +126,7 @@ test_that("ipcw: time-dependent covariates Cox switching model", {
            tstop = km_den$time, 
            surv_den = km_den$surv, surv_num = km_num$surv)
   })
+  
   data3 <- do.call(rbind, tablist)
   
   data4 <- data2 %>% 
@@ -131,6 +139,8 @@ test_that("ipcw: time-dependent covariates Cox switching model", {
                ties = "efron", cluster = id)
   hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
   
-  expect_equal(data4$stabilized_weight, fit2$data_outcome$stabilized_weight)
-  expect_equal(hr1, c(fit2$hr, fit2$hr_CI))
+  testthat::expect_equal(data4$stabilized_weight, 
+                         fit2$data_outcome$stabilized_weight)
+  
+  testthat::expect_equal(hr1, c(fit2$hr, fit2$hr_CI))
 })

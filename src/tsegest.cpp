@@ -19,8 +19,8 @@ List gest(int n2, int q, int p2, int nids2,
   double a = exp(psi);
   
   // counterfactual survival times and event indicators
-  NumericVector time_ts(nids2);
-  IntegerVector event_ts(nids2);
+  NumericVector t_star(nids2);
+  IntegerVector d_star(nids2);
   for (i=0; i<nids2; i++) {
     double u_star, c_star;
     if (swtrtn3[i] == 1) {
@@ -31,23 +31,23 @@ List gest(int n2, int q, int p2, int nids2,
     
     if (recensor) {
       c_star = censor_timen3[i]*std::min(1.0, a);
-      time_ts[i] = std::min(u_star, c_star);
-      event_ts[i] = c_star < u_star ? 0 : osn3[i];
+      t_star[i] = std::min(u_star, c_star);
+      d_star[i] = c_star < u_star ? 0 : osn3[i];
     } else {
-      time_ts[i] = u_star;
-      event_ts[i] = osn3[i];
+      t_star[i] = u_star;
+      d_star[i] = osn3[i];
     }
   }
   
   // martingale residuals from the null model
   DataFrame data1 = DataFrame::create(
-    Named("time") = time_ts,
-    Named("event") = event_ts,
+    Named("t_star") = t_star,
+    Named("d_star") = d_star,
     Named("stratum") = stratumn3
   );
   
   List fit1 = phregcpp(
-    data1, "", "stratum", "time", "", "event",
+    data1, "", "stratum", "t_star", "", "d_star",
     "", "", "", "", ties, 0, 0, 1, 0, 0, alpha);
   
   // replicate counterfactual residuals within subjects
@@ -61,7 +61,7 @@ List gest(int n2, int q, int p2, int nids2,
   
   // logistic regression switching model
   DataFrame data2 = DataFrame::create(
-    Named("event") = y,
+    Named("cross") = y,
     Named("counterfactual") = resid,
     Named("id") = idn2);
   
@@ -72,7 +72,7 @@ List gest(int n2, int q, int p2, int nids2,
   }
   
   List fit2 = logisregcpp(
-    data2, "", "event", covariates_lgs, "", 
+    data2, "", "cross", covariates_lgs, "", 
     "", "", "id", 1, firth, flic, 0, alpha);
   
   DataFrame parest = DataFrame(fit2["parest"]);
@@ -551,8 +551,9 @@ List tsegestcpp(
     Named("time") = tstopn1,
     Named("event") = eventn1);
   
-  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event",0,0);
-  double logRankPValue = as<double>(lr["logRankPValue"]);
+  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event", 
+                        0, 0);
+  double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
@@ -625,15 +626,17 @@ List tsegestcpp(
                   NumericMatrix zn1 = subset_matrix_by_row(zb, idx1);
                   
                   // time and event adjusted for treatment switching
-                  NumericVector time_ts = clone(timen1);
-                  IntegerVector event_ts = clone(eventn1);
+                  NumericVector t_star = clone(timen1);
+                  IntegerVector d_star = clone(eventn1);
                   
                   double psi0hat = 0, psi0lower = 0, psi0upper = 0;
                   double psi1hat = 0, psi1lower = 0, psi1upper = 0;
                   
-                  // initialize data_switch, eval_z, data_nullcox, data_logis
-                  List data_switch(2), eval_z(2);
-                  List data_nullcox(2), data_logis(2);
+                  // initialize data_switch, km_switch, eval_z, 
+                  // data_nullcox, fit_nullcox, data_logis, fit_logis
+                  List data_switch(2), km_switch(2), eval_z(2);
+                  List data_nullcox(2), fit_nullcox(2);
+                  List data_logis(2),fit_logis(2);
                   if (k == -1) {
                     for (h=0; h<2; h++) {
                       List data_x = List::create(
@@ -651,16 +654,11 @@ List tsegestcpp(
                       }
                       
                       data_switch[h] = data_x;
+                      km_switch[h] = data_x;
                       eval_z[h] = data_x;
                       data_nullcox[h] = data_x;
                       data_logis[h] = data_x;
-                    }
-                  }
-                  
-                  // initialize km_switch, fit_nullcox, and fit_logis
-                  List km_switch(2), fit_nullcox(2), fit_logis(2);
-                  if (k == -1) {
-                    for (h=0; h<2; h++) {
+                      
                       List fit_x = List::create(
                         Named("fit") = R_NilValue,
                         Named(treat) = R_NilValue
@@ -675,7 +673,6 @@ List tsegestcpp(
                         fit_x[treat] = treatwc[1-h];
                       }
                       
-                      km_switch[h] = fit_x;
                       fit_nullcox[h] = fit_x;
                       fit_logis[h] = fit_x;
                     }
@@ -693,26 +690,24 @@ List tsegestcpp(
                   int K = static_cast<int>(treats.size());
                   for (h=0; h<K; h++) {
                     // post progression data up to switching for the treat
-                    IntegerVector order2 = which(
+                    IntegerVector l = which(
                       (treatb == h) & (pdb == 1) & (tstopb >= pd_timeb) & 
                         ((swtrtb != 1) | (tstopb <= swtrt_timeb)) & 
                         (tstopb <= swtrt_time_upperb));
                     
-                    IntegerVector idn2 = idb[order2];
-                    IntegerVector stratumn2 = stratumb[order2];
-                    NumericVector tstartn2 = tstartb[order2];
-                    NumericVector tstopn2 = tstopb[order2];
-                    NumericVector pd_timen2 = pd_timeb[order2];
-                    IntegerVector osn2 = osb[order2];
-                    NumericVector os_timen2 = os_timeb[order2];
-                    NumericVector censor_timen2 = censor_timeb[order2];
-                    IntegerVector swtrtn2 = swtrtb[order2];
-                    NumericVector swtrt_timen2 = swtrt_timeb[order2];
-                    NumericMatrix zn_lgs2 = 
-                      subset_matrix_by_row(zb_lgs, order2);
+                    IntegerVector idn2 = idb[l];
+                    IntegerVector stratumn2 = stratumb[l];
+                    NumericVector tstopn2 = tstopb[l];
+                    NumericVector pd_timen2 = pd_timeb[l];
+                    IntegerVector osn2 = osb[l];
+                    NumericVector os_timen2 = os_timeb[l];
+                    NumericVector censor_timen2 = censor_timeb[l];
+                    IntegerVector swtrtn2 = swtrtb[l];
+                    NumericVector swtrt_timen2 = swtrt_timeb[l];
+                    NumericMatrix zn_lgs2 = subset_matrix_by_row(zb_lgs, l);
                     
                     // re-baseline based on disease progression date
-                    int n2 = static_cast<int>(order2.size());
+                    int n2 = static_cast<int>(l.size());
                     
                     IntegerVector idx2(1,0);
                     for (i=1; i<n2; i++) {
@@ -796,11 +791,11 @@ List tsegestcpp(
                         
                         if (recensor) {
                           c_star = censor_timen1[i]*std::min(1.0, a);
-                          time_ts[i] = std::min(u_star, c_star);
-                          event_ts[i] = c_star < u_star ? 0 : eventn1[i];
+                          t_star[i] = std::min(u_star, c_star);
+                          d_star[i] = c_star < u_star ? 0 : eventn1[i];
                         } else {
-                          time_ts[i] = u_star;
-                          event_ts[i] = eventn1[i];
+                          t_star[i] = u_star;
+                          d_star[i] = eventn1[i];
                         }
                       }
                     }
@@ -820,8 +815,8 @@ List tsegestcpp(
                       }
                     }
                     
-                    // update data and Kaplan-Meier plot for time to switch
                     if (k == -1) {
+                      // obtain data and Kaplan-Meier plot for time to switch
                       NumericVector swtrt_timen4(nids2);
                       for (i=0; i<nids2; i++) {
                         if (swtrtn3[i] == 1) {
@@ -855,43 +850,9 @@ List tsegestcpp(
                       DataFrame km1 = kmest(data1, "", "", "swtrt_time", 
                                             "swtrt", "log-log", 1-alpha);
                       
-                      List data_switchx = List::create(
-                        Named("data") = data1,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (TYPEOF(data[treat]) == LGLSXP ||
-                          TYPEOF(data[treat]) == INTSXP) {
-                        data_switchx[treat] = treatwi[1-h];
-                      } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_switchx[treat] = treatwn[1-h];
-                      } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_switchx[treat] = treatwc[1-h];
-                      }
-                      
-                      data_switch[h] = data_switchx;
-                      
-                      List km_switchx = List::create(
-                        Named("fit") = km1,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (TYPEOF(data[treat]) == LGLSXP ||
-                          TYPEOF(data[treat]) == INTSXP) {
-                        km_switchx[treat] = treatwi[1-h];
-                      } else if (TYPEOF(data[treat]) == REALSXP) {
-                        km_switchx[treat] = treatwn[1-h];
-                      } else if (TYPEOF(data[treat]) == STRSXP) {
-                        km_switchx[treat] = treatwc[1-h];
-                      }
-                      
-                      km_switch[h] = km_switchx;
-                    }
-                    
-                    // obtain the Wald statistics for the coefficient of 
-                    // the counterfactual in the logistic regression 
-                    // switching model at a sequence of psi values
-                    if (k == -1) {
+                      // obtain the Wald statistics for the coefficient of 
+                      // the counterfactual in the logistic regression 
+                      // switching model at a sequence of psi values
                       double step_psi = (hi_psi - low_psi)/(n_eval_z - 1);
                       NumericVector psi(n_eval_z), Z(n_eval_z);
                       for (i=0; i<n_eval_z; i++) {
@@ -906,29 +867,11 @@ List tsegestcpp(
                         Z[i] = out["z_counterfactual"];
                       }
                       
-                      DataFrame data1 = DataFrame::create(
+                      DataFrame data2 = DataFrame::create(
                         Named("psi") = psi,
                         Named("Z") = Z);
                       
-                      List data_x = List::create(
-                        Named("data") = data1,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (TYPEOF(data[treat]) == LGLSXP ||
-                          TYPEOF(data[treat]) == INTSXP) {
-                        data_x[treat] = treatwi[1-h];
-                      } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_x[treat] = treatwn[1-h];
-                      } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_x[treat] = treatwc[1-h];
-                      }
-                      
-                      eval_z[h] = data_x;
-                    }
-                    
-                    // update data and fit for null Cox and logistic models
-                    if (k == -1) {
+                      // obtain data and fit for null Cox and logistic models
                       List out = gest(
                         n2, q, p2, nids2, idx2, stratumn3, 
                         osn3, os_timen3, censor_timen3, 
@@ -936,75 +879,95 @@ List tsegestcpp(
                         covariates_lgs, zn_lgs2, firth, flic, 
                         recensor, alpha, ties, psihat);
                       
-                      DataFrame data1 = DataFrame(out["data_nullcox"]);
-                      DataFrame data2 = DataFrame(out["data_logis"]);
-                      List fit1 = out["fit_nullcox"];
-                      List fit2 = out["fit_logis"];
+                      DataFrame data3_1 = DataFrame(out["data_nullcox"]);
+                      NumericVector t_star = data3_1["t_star"];
+                      IntegerVector d_star = data3_1["d_star"];
+                      DataFrame data3 = DataFrame::create(
+                        Named("t_star") = t_star,
+                        Named("d_star") = d_star);
+                      
+                      DataFrame data4 = DataFrame(out["data_logis"]);
+                      List fit3 = out["fit_nullcox"];
+                      List fit4 = out["fit_logis"];
                       
                       if (has_stratum) {
                         for (i=0; i<p_stratum; i++) {
                           String s = stratum[i];
                           if (TYPEOF(data[s]) == INTSXP) {
                             IntegerVector stratumwi = u_stratum[s];
-                            data1.push_back(stratumwi[stratumn3-1], s);
-                            data2.push_back(stratumwi[stratumn2-1], s);
+                            data3.push_back(stratumwi[stratumn3-1], s);
+                            data4.push_back(stratumwi[stratumn2-1], s);
                           } else if (TYPEOF(data[s]) == REALSXP) {
                             NumericVector stratumwn = u_stratum[s];
-                            data1.push_back(stratumwn[stratumn3-1], s);
-                            data2.push_back(stratumwn[stratumn2-1], s);
+                            data3.push_back(stratumwn[stratumn3-1], s);
+                            data4.push_back(stratumwn[stratumn2-1], s);
                           } else if (TYPEOF(data[s]) == STRSXP) {
                             StringVector stratumwc = u_stratum[s];
-                            data1.push_back(stratumwc[stratumn3-1], s);
-                            data2.push_back(stratumwc[stratumn2-1], s);
+                            data3.push_back(stratumwc[stratumn3-1], s);
+                            data4.push_back(stratumwc[stratumn2-1], s);
                           }
                         }
                       }
                       
-                      // update data_nullcox and data_logis
-                      List data_x = List::create(
+                      // update the data and model fits
+                      List data_1 = List::create(
                         Named("data") = data1,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        data_x[treat] = treatwi[1-h];
+                        data_1[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_x[treat] = treatwn[1-h];
+                        data_1[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_x[treat] = treatwc[1-h];
+                        data_1[treat] = treatwc[1-h];
                       }
                       
-                      data_nullcox[h] = data_x;
+                      data_switch[h] = data_1;
                       
-                      data_x["data"] = data2;
-                      data_logis[h] = data_x;
+                      List data_2 = clone(data_1);
+                      data_2["data"] = data2;
+                      eval_z[h] = data_2;
                       
-                      List fit_x = List::create(
-                        Named("fit") = fit1,
+                      List data_3 = clone(data_1);
+                      data_3["data"] = data3;
+                      data_nullcox[h] = data_3;
+                      
+                      List data_4 = clone(data_1);
+                      data_4["data"] = data4;
+                      data_logis[h] = data_4;
+                      
+                      List data_5 = clone(data_1);
+                      data_5["data"] = km1;
+                      km_switch[h] = data_5;
+                      
+                      List fit_3 = List::create(
+                        Named("fit") = fit3,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        fit_x[treat] = treatwi[1-h];
+                        fit_3[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        fit_x[treat] = treatwn[1-h];
+                        fit_3[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        fit_x[treat] = treatwc[1-h];
+                        fit_3[treat] = treatwc[1-h];
                       }
                       
-                      fit_nullcox[h] = fit_x;
+                      fit_nullcox[h] = fit_3;
                       
-                      fit_x["fit"] = fit2;
-                      fit_logis[h] = fit_x;
+                      List fit_4 = clone(fit_3);
+                      fit_4["fit"] = fit4;
+                      fit_logis[h] = fit_4;
                     }
                   }
                   
                   // Cox model for hypothetical treatment effect estimate
                   data_outcome = DataFrame::create(
-                    Named("time") = time_ts,
-                    Named("event") = event_ts,
+                    Named("t_star") = t_star,
+                    Named("d_star") = d_star,
                     Named("treated") = treatn1);
                   
                   if (has_stratum) {
@@ -1030,7 +993,7 @@ List tsegestcpp(
                   }
                   
                   List fit_outcome = phregcpp(
-                    data_outcome, "", stratum, "time", "", "event",
+                    data_outcome, "", stratum, "t_star", "", "d_star",
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
@@ -1126,8 +1089,8 @@ List tsegestcpp(
     int N = max(nobs)*nids;
     
     for (k=0; k<n_boot; k++) {
-      IntegerVector idb(N, NA_INTEGER), stratumb(N), eventb(N);
-      IntegerVector treatb(N), osb(N), pdb(N), swtrtb(N);
+      IntegerVector idb(N), stratumb(N), eventb(N), treatb(N);
+      IntegerVector osb(N), pdb(N), swtrtb(N);
       NumericVector tstartb(N), tstopb(N), os_timeb(N), censor_timeb(N);
       NumericVector pd_timeb(N), swtrt_timeb(N), swtrt_time_upperb(N);
       NumericMatrix zb(N, p), zb_lgs(N, q+p2);
@@ -1162,18 +1125,14 @@ List tsegestcpp(
           swtrtb[r] = swtrtn[j];
           swtrt_timeb[r] = swtrt_timen[j];
           swtrt_time_upperb[r] = swtrt_time_uppern[j];
-          for (int s=0; s<p; s++) {
-            zb(r,s) = zn(j,s);
-          }
-          for (int s=0; s<q+p2; s++) {
-            zb_lgs(r,s) = zn_lgs(j,s);
-          }
+          zb(r,_) = zn(j,_);
+          zb_lgs(r,_) = zn_lgs(j,_);
         }
         
         l += idx[i+1] - idx[i];
       }
       
-      IntegerVector sub = which(!is_na(idb));
+      IntegerVector sub = Range(0,l-1);
       idb = idb[sub];
       stratumb = stratumb[sub];
       tstartb = tstartb[sub];

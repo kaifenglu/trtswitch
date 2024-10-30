@@ -70,7 +70,9 @@
 #'
 #' * Use either the log-rank test p-value for the intention-to-treat (ITT)
 #'   analysis or bootstrap to construct the confidence interval for 
-#'   hazard ratio.
+#'   hazard ratio. If bootstrapping is used, the confidence interval 
+#'   and corresponding p-value are calculated based on a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom. 
 #'
 #' @return A list with the following components:
 #'
@@ -99,6 +101,11 @@
 #'
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
 #'   based on the counterfactual untreated survival times by treatment arm.
+#'   
+#' * \code{data_aft}: The input data for the AFT model for 
+#'   estimating \code{psi}.
+#' 
+#' * \code{fit_aft}: The fitted AFT model for estimating \code{psi}.
 #'
 #' * \code{data_outcome}: The input data for the outcome Cox model.
 #'

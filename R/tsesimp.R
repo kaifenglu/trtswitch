@@ -84,8 +84,9 @@
 #'   for the experimental group and the counterfactual survival times 
 #'   for the control group to obtain the hazard ratio estimate.
 #'   
-#' * Use bootstrap to construct the p-value and confidence interval for
-#'   hazard ratio.
+#' * If bootstrapping is used, the confidence interval and corresponding 
+#'   p-value for hazard ratio are calculated based on a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom. 
 #'
 #' @return A list with the following components:
 #'

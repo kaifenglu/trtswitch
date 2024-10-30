@@ -28,15 +28,15 @@ List tsesimpcpp(const DataFrame data,
                 const bool boot = 1,
                 const int n_boot = 1000,
                 const int seed = NA_INTEGER) {
-
-  int i, j, k, l, n = data.nrow();
-
+  
+  int i, j, k, n = data.nrow();
+  
   int p = static_cast<int>(base_cov.size());
   if (p == 1 && (base_cov[0] == "" || base_cov[0] == "none")) p = 0;
-
+  
   int p2 = static_cast<int>(base2_cov.size());
   if (p2 == 1 && (base2_cov[0] == "" || base2_cov[0] == "none")) p2 = 0;
-
+  
   int p_stratum = static_cast<int>(stratum.size());
   
   bool has_stratum;
@@ -69,43 +69,43 @@ List tsesimpcpp(const DataFrame data,
   bool has_pd_time = hasVariable(data, pd_time);
   bool has_swtrt = hasVariable(data, swtrt);
   bool has_swtrt_time = hasVariable(data, swtrt_time);
-
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
-
+  
   if (TYPEOF(data[time]) != INTSXP && TYPEOF(data[time]) != REALSXP) {
     stop("time must take numeric values");
   }
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   if (is_true(any(timen <= 0.0))) {
     stop("time must be positive");
   }
-
+  
   if (!has_event) {
     stop("data must contain the event variable");
   }
-
+  
   if (TYPEOF(data[event]) != INTSXP && TYPEOF(data[event]) != LGLSXP) {
     stop("event must take integer or logical values");
   }
-
+  
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0");
   }
-
+  
   if (is_true(all(eventn == 0))) {
     stop("at least 1 event is needed");
   }
-
+  
   if (!has_treat) {
     stop("data must contain the treat variable");
   }
-
+  
   // create the numeric treat variable
   if (!has_treat) stop("data must contain the treat variable");
   IntegerVector treatn(n);
@@ -157,18 +157,18 @@ List tsesimpcpp(const DataFrame data,
   if (!has_censor_time) {
     stop("data must contain the censor_time variable");
   }
-
+  
   if (TYPEOF(data[censor_time]) != INTSXP &&
       TYPEOF(data[censor_time]) != REALSXP) {
     stop("censor_time must take numeric values");
   }
-
+  
   NumericVector censor_timenz = data[censor_time];
   NumericVector censor_timen = clone(censor_timenz);
   if (is_true(any(censor_timen < timen))) {
     stop("censor_time must be greater than or equal to time");
   }
-
+  
   if (!admin_recensor_only) {
     for (i=0; i<n; i++) {
       if (eventn[i] == 0) { // use the actual censoring time for dropouts
@@ -176,29 +176,29 @@ List tsesimpcpp(const DataFrame data,
       }
     }
   }
-
+  
   if (!has_pd) {
     stop("data must contain the pd variable");
   }
-
+  
   if (TYPEOF(data[pd]) != INTSXP && TYPEOF(data[pd]) != LGLSXP) {
     stop("pd must take integer or logical values");
   }
-
+  
   IntegerVector pdnz = data[pd];
   IntegerVector pdn = clone(pdnz);
   if (is_true(any((pdn != 1) & (pdn != 0)))) {
     stop("pd must be 1 or 0");
   }
-
+  
   if (!has_pd_time) {
     stop("data must contain the pd_time variable");
   }
-
+  
   if (TYPEOF(data[pd_time]) != INTSXP && TYPEOF(data[pd_time]) != REALSXP) {
     stop("pd_time must take numeric values");
   }
-
+  
   NumericVector pd_timenz = data[pd_time];
   NumericVector pd_timen = clone(pd_timenz);
   for (i=0; i<n; i++) {
@@ -210,40 +210,40 @@ List tsesimpcpp(const DataFrame data,
       stop("pd_time must be less than or equal to time");
     }
   }
-
+  
   if (!has_swtrt) {
     stop("data must contain the swtrt variable");
   }
-
+  
   if (TYPEOF(data[swtrt]) != INTSXP && TYPEOF(data[swtrt]) != LGLSXP) {
     stop("swtrt must take integer or logical values");
   }
-
+  
   IntegerVector swtrtnz = data[swtrt];
   IntegerVector swtrtn = clone(swtrtnz);
   if (is_true(any((swtrtn != 1) & (swtrtn != 0)))) {
     stop("swtrt must be 1 or 0");
   }
-
+  
   if (is_false(any((pdn == 1) & (swtrtn == 1) & (treatn == 0)))) {
     stop("at least 1 pd and swtrt is needed in the control group");
   }
-
+  
   if (!swtrt_control_only) {
     if (is_false(any((pdn == 1) & (swtrtn == 1) & (treatn == 1)))) {
       stop("at least 1 pd and swtrt is needed in the treatment group");
     }
   }
-
+  
   if (!has_swtrt_time) {
     stop("data must contain the swtrt_time variable");
   }
-
+  
   if (TYPEOF(data[swtrt_time]) != INTSXP &&
       TYPEOF(data[swtrt_time]) != REALSXP) {
     stop("swtrt_time must take numeric values");
   }
-
+  
   NumericVector swtrt_timenz = data[swtrt_time];
   NumericVector swtrt_timen = clone(swtrt_timenz);
   for (i=0; i<n; i++) {
@@ -255,7 +255,7 @@ List tsesimpcpp(const DataFrame data,
       stop("swtrt_time must be less than or equal to time");
     }
   }
-
+  
   // covariates for the Cox model containing treat and base_cov
   StringVector covariates(p+1);
   NumericMatrix zn(n,p);
@@ -272,7 +272,7 @@ List tsesimpcpp(const DataFrame data,
     covariates[j+1] = zj;
     zn(_,j) = u;
   }
-
+  
   // covariates for the accelerated failure time model for control with pd
   // including stratum and base2_cov
   int q; // number of columns corresponding to the strata effects
@@ -281,7 +281,7 @@ List tsesimpcpp(const DataFrame data,
   } else {
     q = nstrata - 1;
   }
-
+  
   StringVector covariates_aft(q+p2+1);
   NumericMatrix zn_aft(n,q+p2);
   covariates_aft[0] = "swtrt";
@@ -301,7 +301,7 @@ List tsesimpcpp(const DataFrame data,
       zn_aft(_,j) = 1.0*(stratumn == j+1);
     }
   }
-
+  
   for (j=0; j<p2; j++) {
     String zj = base2_cov[j];
     if (!hasVariable(data, zj)) {
@@ -314,27 +314,27 @@ List tsesimpcpp(const DataFrame data,
     covariates_aft[q+j+1] = zj;
     zn_aft(_,q+j) = u;
   }
-
+  
   std::string dist = aft_dist;
   std::for_each(dist.begin(), dist.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if ((dist == "log-logistic") || (dist == "llogistic")) {
     dist = "loglogistic";
   } else if  ((dist == "log-normal") || (dist == "lnormal")) {
     dist = "lognormal";
   }
-
+  
   if (!((dist == "exponential") || (dist == "weibull") ||
       (dist == "lognormal") || (dist == "loglogistic"))) {
     stop("aft_dist must be exponential, weibull, lognormal, or loglogistic");
   }
-
+  
   if (alpha <= 0.0 || alpha >= 0.5) {
     stop("alpha must lie between 0 and 0.5");
   }
-
+  
   if (ties != "efron" && ties != "breslow") {
     stop("ties must be efron or breslow");
   }
@@ -347,12 +347,12 @@ List tsesimpcpp(const DataFrame data,
     stop("n_boot must be greater than or equal to 100");
   }
   
-
+  
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
-  double logRankPValue = as<double>(lr["logRankPValue"]);
+  double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
-
+  
   k = -1; // indicate the observed data
   auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
             treat, treatwi, treatwn, treatwc, 
@@ -385,53 +385,47 @@ List tsesimpcpp(const DataFrame data,
                   zb_aft = subset_matrix_by_row(zb_aft, order);
                   
                   // time and event adjusted for treatment switching
-                  NumericVector time_ts = clone(timeb);
-                  IntegerVector event_ts = clone(eventb);
+                  NumericVector t_star = clone(timeb);
+                  IntegerVector d_star = clone(eventb);
                   
                   double psi0hat = 0, psi0lower = 0, psi0upper = 0;
                   double psi1hat = 0, psi1lower = 0, psi1upper = 0;
                   
-                  // initialize data_aft
-                  List data_aft(2);
+                  // initialize data_aft and fit_aft
+                  List data_aft(2), fit_aft(2);
                   if (k == -1) {
                     for (h=0; h<2; h++) {
-                      List data_aftx = List::create(
+                      List data_x = List::create(
                         Named("data") = R_NilValue,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        data_aftx[treat] = treatwi[1-h];
+                        data_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_aftx[treat] = treatwn[1-h];
+                        data_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_aftx[treat] = treatwc[1-h];
+                        data_x[treat] = treatwc[1-h];
                       }
                       
-                      data_aft[h] = data_aftx;
-                    }
-                  }
-                  
-                  // initialize fit_aft
-                  List fit_aft(2);
-                  if (k == -1) {
-                    for (h=0; h<2; h++) {
-                      List fit_aftx = List::create(
+                      data_aft[h] = data_x;
+                      
+                      List fit_x = List::create(
                         Named("fit") = R_NilValue,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        fit_aftx[treat] = treatwi[1-h];
+                        fit_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        fit_aftx[treat] = treatwn[1-h];
+                        fit_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        fit_aftx[treat] = treatwc[1-h];
+                        fit_x[treat] = treatwc[1-h];
                       }
                       
-                      fit_aft[h] = fit_aftx;
+                      fit_aft[h] = fit_x;
                     }
                   }
                   
@@ -447,17 +441,10 @@ List tsesimpcpp(const DataFrame data,
                   int K = static_cast<int>(treats.size());
                   for (h=0; h<K; h++) {
                     // post progression data
-                    IntegerVector sub = which((treatb == h) & (pdb == 1));
-                    int nsub = static_cast<int>(sub.size());
-                    NumericVector time2(nsub); // post-pd survival time
-                    IntegerVector event2(nsub);
-                    IntegerVector swtrt2(nsub);
-                    for (i=0; i<nsub; i++) {
-                      j = sub[i];
-                      time2[i] = timeb[j] - pd_timeb[j] + offset;
-                      event2[i] = eventb[j];
-                      swtrt2[i] = swtrtb[j];
-                    }
+                    IntegerVector l = which((treatb == h) & (pdb == 1));
+                    NumericVector time2 = timeb[l] - pd_timeb[l] + offset;
+                    IntegerVector event2 = eventb[l];
+                    IntegerVector swtrt2 = swtrtb[l];
                     
                     DataFrame data1 = DataFrame::create(
                       Named("time") = time2,
@@ -467,7 +454,7 @@ List tsesimpcpp(const DataFrame data,
                     for (j=0; j<q+p2; j++) {
                       String zj = covariates_aft[j+1];
                       NumericVector u = zb_aft(_,j);
-                      data1.push_back(u[sub], zj);
+                      data1.push_back(u[l], zj);
                     }
                     
                     List fit1 = liferegcpp(
@@ -495,11 +482,11 @@ List tsesimpcpp(const DataFrame data,
                         
                         if (recensor) {
                           c_star = censor_timeb[i]*std::min(1.0, a);
-                          time_ts[i] = std::min(u_star, c_star);
-                          event_ts[i] = c_star < u_star ? 0 : eventb[i];
+                          t_star[i] = std::min(u_star, c_star);
+                          d_star[i] = c_star < u_star ? 0 : eventb[i];
                         } else {
-                          time_ts[i] = u_star;
-                          event_ts[i] = eventb[i];
+                          t_star[i] = u_star;
+                          d_star[i] = eventb[i];
                         }
                       }
                     }
@@ -517,7 +504,7 @@ List tsesimpcpp(const DataFrame data,
                     
                     // update data_aft and fit_aft
                     if (k == -1) {
-                      IntegerVector stratum2 = stratumb[sub];
+                      IntegerVector stratum2 = stratumb[l];
                       
                       if (has_stratum) {
                         for (i=0; i<p_stratum; i++) {
@@ -535,46 +522,46 @@ List tsesimpcpp(const DataFrame data,
                         }
                       }
                       
-                      List data_aftx = List::create(
+                      List data_x = List::create(
                         Named("data") = data1,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        data_aftx[treat] = treatwi[1-h];
+                        data_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        data_aftx[treat] = treatwn[1-h];
+                        data_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        data_aftx[treat] = treatwc[1-h];
+                        data_x[treat] = treatwc[1-h];
                       }
                       
-                      data_aft[h] = data_aftx;
+                      data_aft[h] = data_x;
                       
-                      List fit_aftx = List::create(
+                      List fit_x = List::create(
                         Named("fit") = fit1,
                         Named(treat) = R_NilValue
                       );
                       
                       if (TYPEOF(data[treat]) == LGLSXP ||
                           TYPEOF(data[treat]) == INTSXP) {
-                        fit_aftx[treat] = treatwi[1-h];
+                        fit_x[treat] = treatwi[1-h];
                       } else if (TYPEOF(data[treat]) == REALSXP) {
-                        fit_aftx[treat] = treatwn[1-h];
+                        fit_x[treat] = treatwn[1-h];
                       } else if (TYPEOF(data[treat]) == STRSXP) {
-                        fit_aftx[treat] = treatwc[1-h];
+                        fit_x[treat] = treatwc[1-h];
                       }
                       
-                      fit_aft[h] = fit_aftx;
+                      fit_aft[h] = fit_x;
                     }
                   }
                   
                   // Cox model for hypothetical treatment effect estimate
                   data_outcome = DataFrame::create(
-                    Named("time") = time_ts,
-                    Named("event") = event_ts,
+                    Named("t_star") = t_star,
+                    Named("d_star") = d_star,
                     Named("treated") = treatb);
-
+                  
                   if (has_stratum) {
                     for (i=0; i<p_stratum; i++) {
                       String s = stratum[i];
@@ -598,9 +585,9 @@ List tsesimpcpp(const DataFrame data,
                   }
                   
                   List fit_outcome = phregcpp(
-                    data_outcome, "", stratum, "time", "", "event",
+                    data_outcome, "", stratum, "t_star", "", "d_star",
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
-
+                  
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
@@ -609,7 +596,7 @@ List tsesimpcpp(const DataFrame data,
                   double hrlower = exp(beta[0] - zcrit*sebeta[0]);
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
                   double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
-
+                  
                   List out;
                   if (k == -1) {
                     out = List::create(
@@ -640,13 +627,13 @@ List tsesimpcpp(const DataFrame data,
                       Named("hrupper") = hrupper,
                       Named("pvalue") = pvalue);
                   }
-
+                  
                   return out;
                 };
-
+  
   List out = f(stratumn, timen, eventn, treatn, censor_timen,
                pdn, pd_timen, swtrtn, swtrt_timen, zn, zn_aft);
-
+  
   List data_aft = out["data_aft"];
   List fit_aft = out["fit_aft"];
   DataFrame data_outcome = DataFrame(out["data_outcome"]);
@@ -679,11 +666,11 @@ List tsesimpcpp(const DataFrame data,
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
     if (seed != NA_INTEGER) set_seed(seed);
-
+    
     IntegerVector stratumb(n), eventb(n), treatb(n), pdb(n), swtrtb(n);
     NumericVector timeb(n), censor_timeb(n), pd_timeb(n), swtrt_timeb(n);
     NumericMatrix zb(n,p), zb_aft(n,q+p2);
-
+    
     // sort data by treatment group
     IntegerVector idx0 = which(treatn == 0);
     IntegerVector idx1 = which(treatn == 1);
@@ -693,11 +680,10 @@ List tsesimpcpp(const DataFrame data,
     for (i=0; i<n0; i++) {
       order[i] = idx0[i];
     }
-
     for (i=0; i<n1; i++){
       order[n0+i] = idx1[i];
     }
-
+    
     stratumn = stratumn[order];
     timen = timen[order];
     eventn = eventn[order];
@@ -709,7 +695,7 @@ List tsesimpcpp(const DataFrame data,
     swtrt_timen = swtrt_timen[order];
     zn = subset_matrix_by_row(zn, order);
     zn_aft = subset_matrix_by_row(zn_aft, order);
-
+    
     for (k=0; k<n_boot; k++) {
       // sample the data with replacement by treatment group
       for (i=0; i<n; i++) {
@@ -719,7 +705,7 @@ List tsesimpcpp(const DataFrame data,
         } else {
           j = n0 + static_cast<int>(std::floor(u*n1));
         }
-
+        
         stratumb[i] = stratumn[j];
         timeb[i] = timen[j];
         eventb[i] = eventn[j];
@@ -729,22 +715,18 @@ List tsesimpcpp(const DataFrame data,
         pd_timeb[i] = pd_timen[j];
         swtrtb[i] = swtrtn[j];
         swtrt_timeb[i] = swtrt_timen[j];
-        for (l=0; l<p; l++) {
-          zb(i,l) = zn(j,l);
-        }
-        for (l=0; l<q+p2; l++) {
-          zb_aft(i,l) = zn_aft(j,l);
-        }
+        zb(i,_) = zn(j,_);
+        zb_aft(i,_) = zn_aft(j,_);
       }
-
+      
       out = f(stratumb, timeb, eventb, treatb, censor_timeb,
               pdb, pd_timeb, swtrtb, swtrt_timeb, zb, zb_aft);
-
+      
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
       psi1hats[k] = out["psi1hat"];
     }
-
+    
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
     NumericVector loghrs = log(hrhats);
@@ -765,7 +747,7 @@ List tsesimpcpp(const DataFrame data,
     psi1lower = psi1hat - tcrit*sdpsi1;
     psi1upper = psi1hat + tcrit*sdpsi1;
   }
-
+  
   List settings = List::create(
     Named("aft_dist") = aft_dist,
     Named("strata_main_effect_only") = strata_main_effect_only,
@@ -778,7 +760,7 @@ List tsesimpcpp(const DataFrame data,
     Named("boot") = boot,
     Named("n_boot") = n_boot,
     Named("seed") = seed);
-
+  
   List result = List::create(
     Named("psi") = psihat,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
@@ -793,13 +775,13 @@ List tsesimpcpp(const DataFrame data,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);
-
+  
   if (!swtrt_control_only) {
     result.push_back(psi1hat, "psi_trt");
     NumericVector psi1_CI = NumericVector::create(psi1lower, psi1upper);
     result.push_back(psi1_CI, "psi_trt_CI");
   }
-
+  
   if (boot) {
     result.push_back(hrhats, "hr_boots");
     result.push_back(psihats, "psi_boots");

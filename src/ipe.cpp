@@ -4,7 +4,7 @@
 using namespace Rcpp;
 
 
-double est_psi_ipe(
+List est_psi_ipe(
     const double psi,
     const int n,
     const int q,
@@ -25,29 +25,26 @@ double est_psi_ipe(
   DataFrame Tstar = unswitched(psi*treat_modifier, n, time, event, treat,
                                rx, censor_time, recensor, autoswitch);
 
-  NumericVector t_star = Tstar["t_star"];
-  IntegerVector d_star = Tstar["d_star"];
-
-  DataFrame data = DataFrame::create(
-    Named("time") = t_star,
-    Named("event") = d_star,
-    Named("treated") = treat);
-
   for (int j=0; j<q+p; j++) {
     String zj = covariates_aft[j+1];
     NumericVector u = zb_aft(_,j);
-    data.push_back(u, zj);
+    Tstar.push_back(u, zj);
   }
 
-  List fit = liferegcpp(
-    data, "", "", "time", "", "event",
-    covariates_aft, "", "", "", dist, 0, 0, alpha);
+  List fit = liferegcpp(Tstar, "", "", "t_star", "", "d_star",
+                        covariates_aft, "", "", "", dist, 0, 0, alpha);
   
   DataFrame parest = DataFrame(fit["parest"]);
   NumericVector beta = parest["beta"];
-  double psihat = -beta[1]/treat_modifier;
-
-  return psihat;
+  double psinew = -beta[1]/treat_modifier;
+  
+  List out = List::create(
+    Named("data_aft") = Tstar,
+    Named("fit_aft") = fit,
+    Named("psinew") = psinew
+  );
+  
+  return out;
 }
 
 
@@ -73,7 +70,7 @@ List ipecpp(const DataFrame data,
             const int n_boot = 1000,
             const int seed = NA_INTEGER) {
 
-  int i, j, k, l, n = data.nrow();
+  int i, j, k, n = data.nrow();
   int p = static_cast<int>(base_cov.size());
   if (p == 1 && (base_cov[0] == "" || base_cov[0] == "none")) p = 0;
 
@@ -318,7 +315,7 @@ List ipecpp(const DataFrame data,
   
 
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
-  double logRankPValue = as<double>(lr["logRankPValue"]);
+  double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
 
@@ -337,49 +334,60 @@ List ipecpp(const DataFrame data,
                             censor_timeb, covariates_aft, zb_aft, 
                             dist, treat_modifier, recensor, 
                             autoswitch, alpha](double psi)->double{
-                              double psinew = est_psi_ipe(
+                              List out_aft = est_psi_ipe(
                                 psi, n, q, p, timeb, eventb, treatb, rxb,
-                                censor_timeb, covariates_aft, zb_aft, 
-                                dist, treat_modifier, recensor, 
-                                autoswitch, alpha);
+                                censor_timeb, covariates_aft, zb_aft, dist, 
+                                treat_modifier, recensor, autoswitch, alpha);
+                              
+                              double psinew = out_aft["psinew"];
                               return psinew - psi;
                             };
 
                   double psihat = brent(g, -3, 3, tol);
 
-                  // construct the counterfactual survival times
-                  DataFrame Sstar = untreated(
-                    psihat*treat_modifier, timeb, eventb, treatb,
-                    rxb, censor_timeb, recensor, autoswitch);
-
-                  NumericVector t_star = Sstar["t_star"];
-                  IntegerVector d_star = Sstar["d_star"];
-                  
                   // obtain the Kaplan-Meier estimates
-                  DataFrame kmstar;
+                  DataFrame Sstar, kmstar, data_aft;
+                  List fit_aft;
                   if (k == -1) {
-                    DataFrame kmdata = DataFrame::create(
-                      Named("treat") = treatb,
-                      Named("time") = t_star,
-                      Named("event") = d_star);
-
-                    kmstar = kmest(kmdata, "", "treat", "time",
-                                   "event", "log-log", 1-alpha);
+                    // construct the counterfactual survival times
+                    Sstar = untreated(
+                      psihat*treat_modifier, timeb, eventb, treatb,
+                      rxb, censor_timeb, recensor, autoswitch);
+                    
+                    kmstar = kmest(Sstar, "", "treated", "t_star",
+                                   "d_star", "log-log", 1-alpha);
+                    
+                    List out_aft = est_psi_ipe(
+                      psihat, n, q, p, timeb, eventb, treatb, rxb,
+                      censor_timeb, covariates_aft, zb_aft, dist, 
+                      treat_modifier, recensor, autoswitch, alpha);
+                    
+                    data_aft = DataFrame(out_aft["data_aft"]);
+                    
+                    if (has_stratum) {
+                      for (i=0; i<p_stratum; i++) {
+                        String s = stratum[i];
+                        if (TYPEOF(data[s]) == INTSXP) {
+                          IntegerVector stratumwi = u_stratum[s];
+                          data_aft.push_back(stratumwi[stratumb-1], s);
+                        } else if (TYPEOF(data[s]) == REALSXP) {
+                          NumericVector stratumwn = u_stratum[s];
+                          data_aft.push_back(stratumwn[stratumb-1], s);
+                        } else if (TYPEOF(data[s]) == STRSXP) {
+                          StringVector stratumwc = u_stratum[s];
+                          data_aft.push_back(stratumwc[stratumb-1], s);
+                        }
+                      }
+                    }
+                    
+                    fit_aft = out_aft["fit_aft"];
                   }
                   
                   // run Cox model to obtain the hazard ratio estimate
-                  DataFrame Tstar = unswitched(
+                  DataFrame data_outcome = unswitched(
                     psihat*treat_modifier, n, timeb, eventb, treatb,
                     rxb, censor_timeb, recensor, autoswitch);
                   
-                  t_star = Tstar["t_star"];
-                  d_star = Tstar["d_star"];
-                  
-                  DataFrame data_outcome = DataFrame::create(
-                    Named("time") = t_star,
-                    Named("event") = d_star,
-                    Named("treated") = treatb);
-
                   if (has_stratum) {
                     for (i=0; i<p_stratum; i++) {
                       String s = stratum[i];
@@ -403,7 +411,7 @@ List ipecpp(const DataFrame data,
                   }
 
                   List fit_outcome = phregcpp(
-                    data_outcome, "", stratum, "time", "", "event", 
+                    data_outcome, "", stratum, "t_star", "", "d_star", 
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
@@ -417,6 +425,8 @@ List ipecpp(const DataFrame data,
                     out = List::create(
                       Named("Sstar") = Sstar,
                       Named("kmstar") = kmstar,
+                      Named("data_aft") = data_aft,
+                      Named("fit_aft") = fit_aft,
                       Named("data_outcome") = data_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psihat,
@@ -437,6 +447,8 @@ List ipecpp(const DataFrame data,
 
   DataFrame Sstar = DataFrame(out["Sstar"]);
   DataFrame kmstar = DataFrame(out["kmstar"]);
+  DataFrame data_aft = DataFrame(out["data_aft"]);
+  List fit_aft = out["fit_aft"];
   DataFrame data_outcome = DataFrame(out["data_outcome"]);
   List fit_outcome = out["fit_outcome"];
   double psihat = out["psihat"];
@@ -448,7 +460,34 @@ List ipecpp(const DataFrame data,
   double hrhat = out["hrhat"];
   double pvalue = out["pvalue"];
   
-  IntegerVector treated = data_outcome["treated"];
+  IntegerVector treated = Sstar["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    Sstar.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    Sstar.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    Sstar.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = kmstar["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    kmstar.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    kmstar.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    kmstar.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = data_aft["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    data_aft.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    data_aft.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    data_aft.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = data_outcome["treated"];
   if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
     data_outcome.push_back(treatwi[1-treated], treat);
   } else if (TYPEOF(data[treat]) == REALSXP) {
@@ -484,7 +523,6 @@ List ipecpp(const DataFrame data,
     for (i=0; i<n0; i++) {
       order[i] = idx0[i];
     }
-
     for (i=0; i<n1; i++){
       order[n0+i] = idx1[i];
     }
@@ -514,16 +552,13 @@ List ipecpp(const DataFrame data,
         treatb[i] = treatn[j];
         rxb[i] = rxn[j];
         censor_timeb[i] = censor_timen[j];
-        for (l=0; l<p; l++) {
-          zb(i,l) = zn(j,l);
-        }
-        for (l=0; l<q+p; l++) {
-          zb_aft(i,l) = zn_aft(j,l);
-        }
+        zb(i,_) = zn(j,_);
+        zb_aft(i,_) = zn_aft(j,_);
       }
 
       List out = f(stratumb, timeb, eventb, treatb, rxb, censor_timeb, zb,
                    zb_aft);
+      
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
     }
@@ -570,6 +605,8 @@ List ipecpp(const DataFrame data,
     Named("hr_CI_type") = hr_CI_type,
     Named("Sstar") = Sstar,
     Named("kmstar") = kmstar,
+    Named("data_aft") = data_aft,
+    Named("fit_aft") = fit_aft,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
     Named("settings") = settings);

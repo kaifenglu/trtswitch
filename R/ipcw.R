@@ -117,8 +117,11 @@
 #' * Fit the weighted Cox model to the censored outcome survival times
 #'   to obtain the hazard ratio estimate.
 #'
-#' * Use bootstrap to construct the p-value and confidence interval for
-#'   hazard ratio.
+#' * Use either robust sandwich variance or bootstrapping to construct the 
+#'   p-value and confidence interval for the hazard ratio. 
+#'   If bootstrapping is used, the confidence interval 
+#'   and corresponding p-value are calculated based on a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom. 
 #'
 #' @return A list with the following components:
 #'

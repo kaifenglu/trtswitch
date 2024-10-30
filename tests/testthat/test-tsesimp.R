@@ -1,7 +1,7 @@
 library(dplyr, warn.conflicts = FALSE)
 library(survival)
 
-test_that("tsesimp: weibull aft", {
+testthat::test_that("tsesimp: weibull aft", {
   # the eventual survival time
   shilong1 <- shilong %>%
     arrange(bras.f, id, tstop) %>%
@@ -36,12 +36,12 @@ test_that("tsesimp: weibull aft", {
 
   # numeric code of treatment and apply administrative censoring
   data1 <- shilong3 %>% 
-    mutate(treat = ifelse(bras.f == "CT", 0, 1),
+    mutate(treated = 1*(bras.f == "MTA"),
            swtrt = 1*co)
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data1 %>% 
-      filter(treat == h & pd == 1) %>%
+      filter(treated == h & pd == 1) %>%
       mutate(time = tstop - dpd + 1)
     
     fit_aft <- survreg(Surv(time, event) ~ swtrt + agerand + sex.f 
@@ -52,19 +52,21 @@ test_that("tsesimp: weibull aft", {
     psi = -fit_aft$coefficients[2]
 
     data1 %>% 
-      filter(treat == h) %>%
-      mutate(u = ifelse(swtrt == 1, 
-                        ifelse(pd == 1, dpd-1 + (tstop-dpd+1)*exp(psi), 
-                               dco-1 + (tstop-dco+1)*exp(psi)), tstop),
-             c = pmin(dcut, dcut*exp(psi)),
-             time_ts = pmin(u, c),
-             event_ts = event*(u <= c))
+      filter(treated == h) %>%
+      mutate(u_star = ifelse(swtrt == 1, 
+                             ifelse(pd == 1, dpd-1 + (tstop-dpd+1)*exp(psi), 
+                                    dco-1 + (tstop-dco+1)*exp(psi)), tstop),
+             c_star = pmin(dcut, dcut*exp(psi)),
+             t_star = pmin(u_star, c_star),
+             d_star = event*(u_star <= c_star))
   })
+  
   data2 <- do.call(rbind, tablist)
   
-  fit <- coxph(Surv(time_ts, event_ts) ~ treat + agerand + sex.f 
+  fit <- coxph(Surv(t_star, d_star) ~ treated + agerand + sex.f 
                + tt_Lnum + rmh_alea.c + pathway.f, data = data2)
+  
   hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
   
-  expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
+  testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })

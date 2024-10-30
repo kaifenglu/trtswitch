@@ -15,24 +15,17 @@ double est_psi_rpsftm(
     const double treat_modifier,
     const bool recensor,
     const bool autoswitch,
-    double target = 0) {
+    const double target) {
 
   DataFrame Sstar = untreated(psi*treat_modifier, time, event, treat, rx,
                               censor_time, recensor, autoswitch);
 
-  NumericVector t_star = Sstar["t_star"];
-  IntegerVector d_star = Sstar["d_star"];
+  Sstar.push_back(stratum, "stratum");
+  DataFrame df = lrtest(Sstar, "", "stratum", "treated", "t_star", "d_star", 
+                        0, 0);
 
-  DataFrame data = DataFrame::create(
-    Named("stratum") = stratum,
-    Named("treat") = treat,
-    Named("time") = t_star,
-    Named("event") = d_star);
-
-  DataFrame df = lrtest(data, "", "stratum", "treat", "time", "event", 0, 0);
-
-  double result = as<double>(df["logRankZ"]) - target;
-  return result;
+  double z = df["logRankZ"];
+  return z - target;
 }
 
 
@@ -60,7 +53,7 @@ List rpsftmcpp(const DataFrame data,
                const int n_boot = 1000,
                const int seed = NA_INTEGER) {
 
-  int i, j, k, l, n = data.nrow();
+  int i, j, k, n = data.nrow();
   int p = static_cast<int>(base_cov.size());
   if (p == 1 && (base_cov[0] == "" || base_cov[0] == "none")) p = 0;
 
@@ -253,7 +246,7 @@ List rpsftmcpp(const DataFrame data,
 
   
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
-  double logRankPValue = as<double>(lr["logRankPValue"]);
+  double logRankPValue = lr["logRankPValue"];
 
   // evaluate the log-rank test statistic at each psi
   double step_psi = (hi_psi - low_psi)/(n_eval_z - 1);
@@ -330,38 +323,21 @@ List rpsftmcpp(const DataFrame data,
                     }
                   }
 
-                  // construct the counterfactual untreated survival times
-                  DataFrame Sstar = untreated(
-                    psihat*treat_modifier, timeb, eventb, treatb,
-                    rxb, censor_timeb, recensor, autoswitch);
-                  
-                  NumericVector t_star = Sstar["t_star"];
-                  IntegerVector d_star = Sstar["d_star"];
-
                   // obtain the Kaplan-Meier estimates
-                  DataFrame kmstar;
+                  DataFrame Sstar, kmstar;
                   if (k == -1) {
-                    DataFrame kmdata = DataFrame::create(
-                      Named("treat") = treatb,
-                      Named("time") = t_star,
-                      Named("event") = d_star);
+                    Sstar = untreated(
+                      psihat*treat_modifier, timeb, eventb, treatb,
+                      rxb, censor_timeb, recensor, autoswitch);
 
-                    kmstar = kmest(kmdata, "", "treat", "time",
-                                   "event", "log-log", 1-alpha);
+                    kmstar = kmest(Sstar, "", "treated", "t_star",
+                                   "d_star", "log-log", 1-alpha);
                   }
 
                   // run Cox model to obtain the hazard ratio estimate
-                  DataFrame Tstar = unswitched(
+                  DataFrame data_outcome = unswitched(
                     psihat*treat_modifier, n, timeb, eventb, treatb,
                     rxb, censor_timeb, recensor, autoswitch);
-                  
-                  t_star = Tstar["t_star"];
-                  d_star = Tstar["d_star"];
-                  
-                  DataFrame data_outcome = DataFrame::create(
-                    Named("time") = t_star,
-                    Named("event") = d_star,
-                    Named("treated") = treatb);
 
                   if (has_stratum) {
                     for (i=0; i<p_stratum; i++) {
@@ -386,7 +362,7 @@ List rpsftmcpp(const DataFrame data,
                   }
 
                   List fit_outcome = phregcpp(
-                    data_outcome, "", stratum, "time", "", "event", 
+                    data_outcome, "", stratum, "t_star", "", "d_star", 
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
@@ -430,8 +406,26 @@ List rpsftmcpp(const DataFrame data,
   String psi_CI_type = out["psi_CI_type"];
   double hrhat = out["hrhat"];
   double pvalue = out["pvalue"];
-
-  IntegerVector treated = data_outcome["treated"];
+  
+  IntegerVector treated = Sstar["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    Sstar.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    Sstar.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    Sstar.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = kmstar["treated"];
+  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+    kmstar.push_back(treatwi[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == REALSXP) {
+    kmstar.push_back(treatwn[1-treated], treat);
+  } else if (TYPEOF(data[treat]) == STRSXP) {
+    kmstar.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = data_outcome["treated"];
   if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
     data_outcome.push_back(treatwi[1-treated], treat);
   } else if (TYPEOF(data[treat]) == REALSXP) {
@@ -467,7 +461,6 @@ List rpsftmcpp(const DataFrame data,
     for (i=0; i<n0; i++) {
       order[i] = idx0[i];
     }
-
     for (i=0; i<n1; i++){
       order[n0+i] = idx1[i];
     }
@@ -496,12 +489,11 @@ List rpsftmcpp(const DataFrame data,
         treatb[i] = treatn[j];
         rxb[i] = rxn[j];
         censor_timeb[i] = censor_timen[j];
-        for (l=0; l<p; l++) {
-          zb(i,l) = zn(j,l);
-        }
+        zb(i,_) = zn(j,_);
       }
 
       List out = f(stratumb, timeb, eventb, treatb, rxb, censor_timeb, zb);
+      
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
     }
