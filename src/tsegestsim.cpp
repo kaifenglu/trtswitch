@@ -19,13 +19,13 @@ using namespace Rcpp;
 //' @param trtlghr The treatment effect in terms of log hazard ratio.
 //' @param bprogsl The poor prognosis effect in terms of log hazard ratio.
 //' @param shape1 The shape parameter for the Weibull event distribution 
-//'   for the treatment group.
+//'   for the first component.
 //' @param scale1 The scale parameter for the Weibull event distribution 
-//'   for the treatment group.
+//'   for the first component.
 //' @param shape2 The shape parameter for the Weibull event distribution 
-//'   for the control group.
+//'   for the second component.
 //' @param scale2 The scale parameter for the Weibull event distribution 
-//'   for the control group.
+//'   for the second component.
 //' @param pmix The mixing probability of the first component Weibull 
 //'   distribution.
 //' @param admin The administrative censoring time.
