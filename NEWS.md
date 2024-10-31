@@ -5,7 +5,10 @@
 - Updated description in trtswitch-package.
 
 - Updates to survival.cpp:
-    - Changed requirement of positive time to nonnegative time for kmest, kmtest, rmest, and rmdiff
+    - Changed requirement of positive time to nonnegative time for kmest, kmtest, rmest, and rmdiff.
+    
+- Updates to tsegestsimp.cpp:
+    - Changed the description of shape1, scale1, shape2, and scale2 parameters.
     
 - Updates to utilities.cpp:
     - Moved untreated and unswitched functions here. These functions are shared by rpsftm and ipe.

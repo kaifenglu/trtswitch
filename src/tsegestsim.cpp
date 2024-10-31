@@ -55,11 +55,11 @@ using namespace Rcpp;
 //'   time.
 //' @param swtrt_control_only Whether treatment switching occurred only in
 //'   the control group.
-//' @param outputRawDataset Whether to output the raw data set
+//' @param outputRawDataset Whether to output the raw data set.
 //' @param seed The seed to reproduce the simulation results.
 //'   The seed from the environment will be used if left unspecified.
 //'
-//' @return A list with two data frames
+//' @return A list with two data frames.
 //' 
 //' * \code{sumdata}: A data frame with the following variables:
 //'
