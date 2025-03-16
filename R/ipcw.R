@@ -75,8 +75,9 @@
 #'   of the artificial censoring times due to treatment switching.
 #' @param relative_time Whether to use the time relative to 
 #'   \code{swtrt_time_lower} as the intercepts for the pooled logistic
-#'   regression model.
-#' @param stabilized_weights Whether to use the stabilized weights.
+#'   regression model. The default is \code{TRUE}.
+#' @param stabilized_weights Whether to use the stabilized weights. 
+#'   The default is \code{TRUE}.
 #' @param trunc The truncation fraction of the weight distribution. 
 #'   Defaults to 0 for no truncation in weights.
 #' @param trunc_upper_only Whether to truncate the weights from the upper
@@ -84,15 +85,16 @@
 #'   the weights will be truncated from both the lower and upper ends of
 #'   the distribution.
 #' @param swtrt_control_only Whether treatment switching occurred only in
-#'   the control group.
-#' @param alpha The significance level to calculate confidence intervals.
+#'   the control group. The default is \code{TRUE}.
+#' @param alpha The significance level to calculate confidence intervals. 
+#'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results.
-#'   The seed from the environment will be used if left unspecified.
+#' @param seed The seed to reproduce the bootstrap results. The default is 
+#'   missing, in which case, the seed from the environment will be used.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
