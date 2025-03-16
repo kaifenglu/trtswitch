@@ -15,14 +15,14 @@ print.logisregr <- function(x, ...) {
   lrchisq = -2*(x$sumstat$loglik0 - x$sumstat$loglik1)
   degrees = x$sumstat$p - 1
   pvalue = sapply(1:nrow(x$sumstat), function(i) {
-    ifelse(degrees[i] > 0, 
-           pchisq(lrchisq[i], degrees[i], 0, lower.tail = FALSE), 
+    ifelse(degrees[i] > 0,
+           pchisq(lrchisq[i], degrees[i], 0, lower.tail = FALSE),
            NA)
   })
   df1 <- cbind(x$sumstat[, c("n", "nevents", "loglik0", "loglik1")],
                lrchisq = lrchisq, df = degrees, pvalue = pvalue,
-               x$sumstat[, c("niter", "firth", "flic")])
-
+               x$sumstat[, c("niter", "link", "firth", "flic")])
+  
   p = x$p
   if (p > 0) {
     nreps = nrow(x$parest)/p
