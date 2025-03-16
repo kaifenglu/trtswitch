@@ -1,6 +1,5 @@
 library(dplyr, warn.conflicts = FALSE)
 library(splines)
-library(survival)
 
 testthat::test_that("ipcw: pooled logistic regression switching model", {
   sim1 <- tsegestsim(
@@ -69,10 +68,12 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
                 select(id, tstart, tstop, event, 
                        stabilized_weight, bprog, trtrand))
   
-  fit <- coxph(Surv(tstart, tstop, event) ~ trtrand + bprog, 
-               data = data3, weights = stabilized_weight, 
-               ties = "efron", cluster = id)
-  hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
+  fit <- phregr(data3, time = "tstart", time2 = "tstop", event = "event", 
+                covariates = c("trtrand", "bprog"), 
+                weight = "stabilized_weight",
+                id = "id", ties = "efron", robust = TRUE)
+  hr1 <- exp(as.numeric(c(fit$parest$beta[1], fit$parest$lower[1], 
+                          fit$parest$upper[1])))
   
   testthat::expect_equal(data3$stabilized_weight, 
                          fit1$data_outcome$stabilized_weight)
@@ -101,29 +102,33 @@ testthat::test_that("ipcw: time-dependent covariates Cox switching model", {
     mutate(condition = row_number() == n() & co & tstop >= dco,
            cross = ifelse(condition, 1, 0),
            event = ifelse(condition, 0, event),
-           tstop = ifelse(condition, dco, tstop))
+           tstop = ifelse(condition, dco, tstop)) %>%
+    ungroup()
   
   # replicate event times within each subject
   cut <- sort(unique(data1$tstop[data1$event == 1]))
-  a1 = survSplit(Surv(tstart, tstop, event) ~ ., data = data1, cut = cut)
-  a2 = survSplit(Surv(tstart, tstop, cross) ~ ., data = data1, cut = cut)
-  data2 <- a2 %>% 
-    mutate(event = a1$event)
+  a1 <- survsplit(data1$tstart, data1$tstop, cut)
+  data2 <- data1[a1$row+1,]
+  data2$tstart = a1$start
+  data2$tstop = a1$end
+  data2$event[a1$censor] = 0;
+  data2$cross[a1$censor] = 0;
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data2 %>% 
       filter(treat == h)
-    fit_den <- coxph(Surv(tstart, tstop, cross) ~ agerand + sex.f 
-                     + tt_Lnum + rmh_alea.c + pathway.f 
-                     + ps + ttc + tran, 
-                     data = df1, ties = "efron", cluster = id)
-    fit_num <- coxph(Surv(tstart, tstop, cross) ~ agerand + sex.f 
-                     + tt_Lnum + rmh_alea.c + pathway.f, 
-                     data = df1, ties = "efron", cluster = id)
-    km_den <- survfit(fit_den, newdata = df1, id = id)
-    km_num <- survfit(fit_num, newdata = df1, id = id)
-    tibble(id = as.numeric(rep(attr(km_den$strata, "names"), km_den$strata)),
-           tstop = km_den$time, 
+    fit_den <- phregr(df1, time = "tstart", time2 = "tstop", event = "cross",
+                      covariates = c("agerand", "sex.f", "tt_Lnum", 
+                                     "rmh_alea.c", "pathway.f", 
+                                     "ps", "ttc", "tran"),
+                      id = "id", ties = "efron", robust = TRUE)
+    fit_num <- phregr(df1, time = "tstart", time2 = "tstop", event = "cross",
+                      covariates = c("agerand", "sex.f", "tt_Lnum", 
+                                     "rmh_alea.c", "pathway.f"),
+                      id = "id", ties = "efron", robust = TRUE)
+    km_den <- survfit_phregr(fit_den, newdata = df1)
+    km_num <- survfit_phregr(fit_num, newdata = df1)
+    tibble(id = km_den$id, tstop = km_den$time, 
            surv_den = km_den$surv, surv_num = km_num$surv)
   })
   
@@ -133,11 +138,13 @@ testthat::test_that("ipcw: time-dependent covariates Cox switching model", {
     left_join(data3, by = c("id", "tstop")) %>%
     mutate(stabilized_weight = surv_num/surv_den)
   
-  fit <- coxph(Surv(tstart, tstop, event) ~ treat + agerand 
-               + sex.f + tt_Lnum + rmh_alea.c + pathway.f, 
-               data = data4, weights = stabilized_weight, 
-               ties = "efron", cluster = id)
-  hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
+  fit <- phregr(data4, time = "tstart", time2 = "tstop", event = "event", 
+                covariates = c("treat", "agerand", "sex.f", "tt_Lnum",
+                               "rmh_alea.c", "pathway.f"), 
+                weight = "stabilized_weight",
+                id = "id", ties = "efron", robust = TRUE)
+  hr1 <- exp(as.numeric(c(fit$parest$beta[1], fit$parest$lower[1], 
+                          fit$parest$upper[1])))
   
   testthat::expect_equal(data4$stabilized_weight, 
                          fit2$data_outcome$stabilized_weight)
