@@ -1,5 +1,4 @@
 library(dplyr, warn.conflicts = FALSE)
-library(survival)
 
 testthat::test_that("rpsftm: control to active switch", {
   data1 <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
@@ -9,8 +8,8 @@ testthat::test_that("rpsftm: control to active switch", {
     rx = "rx", censor_time = "censyrs", boot = FALSE)
   
   # log-rank for ITT
-  fit_lr <- survdiff(Surv(progyrs, prog) ~ imm, data = data1)
-  z_lr = (fit_lr$obs - fit_lr$exp)[2]/sqrt(fit_lr$var[2,2])
+  fit_lr <- lrtest(data1, treat = "imm", time = "progyrs", event = "prog")
+  z_lr = fit_lr$logRankZ
   
   f <- function(psi) {
     data1 %>%
@@ -22,8 +21,8 @@ testthat::test_that("rpsftm: control to active switch", {
   
   g <- function(psi) {
     data2 <- f(psi)
-    fit_lr <- survdiff(Surv(t_star, d_star) ~ imm, data = data2)
-    (fit_lr$obs - fit_lr$exp)[2]/sqrt(fit_lr$var[2,2])
+    fit_lr <- lrtest(data2, treat = "imm", time = "t_star", event = "d_star")
+    fit_lr$logRankZ
   }
   
   # psi based on log-rank test
@@ -42,8 +41,8 @@ testthat::test_that("rpsftm: control to active switch", {
                 mutate(t_star = progyrs, 
                        d_star = prog))
   
-  fit <- coxph(Surv(t_star, d_star) ~ imm, data = data2)
-  beta = as.numeric(fit$coefficients[1])
+  fit <- phregr(data2, time = "t_star", event = "d_star", covariates = "imm")
+  beta = as.numeric(fit$beta[1])
   se = beta/z_lr
   
   zcrit = qnorm(0.975)
