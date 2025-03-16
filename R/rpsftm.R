@@ -56,8 +56,8 @@
 #'   the confidence interval will be constructed to match the log-rank
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results.
-#'   The seed from the environment will be used if left unspecified.
+#' @param seed The seed to reproduce the bootstrap results. The default is 
+#'   missing, in which case, the seed from the environment will be used.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
