@@ -14,7 +14,18 @@ DataFrame kmest(const DataFrame data,
                 const std::string time,
                 const std::string event,
                 const std::string conftype,
-                const double conflev);
+                const double conflev,
+                const bool keep_censor);
+
+DataFrame kmdiff(const DataFrame data,
+                 const StringVector& rep,
+                 const StringVector& stratum,
+                 const std::string treat,
+                 const std::string time,
+                 const std::string event,
+                 const double milestone,
+                 const double survDiffH0,
+                 const double conflev);
 
 DataFrame lrtest(const DataFrame data,
                  const StringVector& rep,
@@ -94,6 +105,7 @@ List liferegcpp(const DataFrame data,
 
 struct coxparams {
   int nused;
+  double delta;
   IntegerVector strata;
   NumericVector tstart;
   NumericVector tstop;
