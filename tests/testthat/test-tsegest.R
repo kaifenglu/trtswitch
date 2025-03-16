@@ -1,5 +1,4 @@
 library(dplyr, warn.conflicts = FALSE)
-library(survival)
 library(geepack)
 
 testthat::test_that("tsegest: logistic g-estimation", {
@@ -67,8 +66,9 @@ testthat::test_that("tsegest: logistic g-estimation", {
              t_star = pmin(u_star, c_star),
              d_star = os*(u_star <= c_star))
     
-    fit_cox <- coxph(Surv(t_star, d_star) ~ 1, data = data4a)
-    resid <- residuals(fit_cox)
+    fit_cox <- phregr(data4a, time = "t_star", event = "d_star", 
+                      est_resid = TRUE)
+    resid <- fit_cox$residuals
     
     data4b <- data3b %>%
       left_join(data4a %>% 
@@ -98,9 +98,10 @@ testthat::test_that("tsegest: logistic g-estimation", {
                 mutate(t_star = ostime, d_star = os) %>%
                 select(id, t_star, d_star, trtrand, bprog))
   
-  fit <- coxph(Surv(t_star, d_star) ~ trtrand + bprog, 
-               data = data4, ties = "efron")
+  fit <- phregr(data4, time = "t_star", event = "d_star", 
+                covariates = c("trtrand", "bprog"), ties = "efron")
   
-  hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
+  hr1 <- exp(as.numeric(c(fit$parest$beta[1], fit$parest$lower[1], 
+                          fit$parest$upper[1])))
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
