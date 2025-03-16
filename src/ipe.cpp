@@ -355,7 +355,7 @@ List ipecpp(const DataFrame data,
                       rxb, censor_timeb, recensor, autoswitch);
                     
                     kmstar = kmest(Sstar, "", "treated", "t_star",
-                                   "d_star", "log-log", 1-alpha);
+                                   "d_star", "log-log", 1-alpha, 0);
                     
                     List out_aft = est_psi_ipe(
                       psihat, n, q, p, timeb, eventb, treatb, rxb,
