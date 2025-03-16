@@ -1,5 +1,4 @@
 library(dplyr, warn.conflicts = FALSE)
-library(survival)
 
 testthat::test_that("tsesimp: weibull aft", {
   # the eventual survival time
@@ -44,12 +43,13 @@ testthat::test_that("tsesimp: weibull aft", {
       filter(treated == h & pd == 1) %>%
       mutate(time = tstop - dpd + 1)
     
-    fit_aft <- survreg(Surv(time, event) ~ swtrt + agerand + sex.f 
-                       + tt_Lnum + rmh_alea.c + pathway.f
-                       + ps + ttc + tran, 
-                       data = df1, dist = "weibull")
+    fit_aft <- liferegr(df1, time = "time", event = "event", 
+                        covariates = c("swtrt", "agerand", "sex.f", 
+                                       "tt_Lnum", "rmh_alea.c", "pathway.f",
+                                       "ps", "ttc", "tran"), 
+                        dist = "weibull")
     
-    psi = -fit_aft$coefficients[2]
+    psi = -fit_aft$beta[2]
 
     data1 %>% 
       filter(treated == h) %>%
@@ -63,10 +63,11 @@ testthat::test_that("tsesimp: weibull aft", {
   
   data2 <- do.call(rbind, tablist)
   
-  fit <- coxph(Surv(t_star, d_star) ~ treated + agerand + sex.f 
-               + tt_Lnum + rmh_alea.c + pathway.f, data = data2)
+  fit <- phregr(data2, time = "t_star", event = "d_star", 
+                covariates = c("treated", "agerand", "sex.f", 
+                               "tt_Lnum", "rmh_alea.c", "pathway.f"))
   
-  hr1 <- exp(as.numeric(c(fit$coefficients[1], confint(fit)[1,])))
-  
+  hr1 <- exp(as.numeric(c(fit$parest$beta[1], fit$parest$lower[1], 
+                          fit$parest$upper[1])))
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
