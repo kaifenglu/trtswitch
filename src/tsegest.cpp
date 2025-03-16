@@ -72,8 +72,8 @@ List gest(int n2, int q, int p2, int nids2,
   }
   
   List fit2 = logisregcpp(
-    data2, "", "cross", covariates_lgs, "", 
-    "", "", "id", 1, firth, flic, 0, alpha);
+    data2, "", "cross", covariates_lgs, "", "", 
+    "", "id", "logit", 1, firth, 0, flic, 0, alpha);
   
   DataFrame parest = DataFrame(fit2["parest"]);
   NumericVector z = parest["z"];
@@ -848,7 +848,7 @@ List tsegestcpp(
                       }
                       
                       DataFrame km1 = kmest(data1, "", "", "swtrt_time", 
-                                            "swtrt", "log-log", 1-alpha);
+                                            "swtrt", "log-log", 1-alpha, 0);
                       
                       // obtain the Wald statistics for the coefficient of 
                       // the counterfactual in the logistic regression 
