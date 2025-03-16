@@ -24,17 +24,24 @@
 #' @param covariates The vector of names of baseline covariates
 #'   in the input data.
 #' @param freq The name of the frequency variable in the input data.
-#'   The frequencies must be the same for all observations within each 
+#'   The frequencies must be the same for all observations within each
 #'   cluster as indicated by the id. Thus freq is the cluster frequency.
 #' @param weight The name of the weight variable in the input data.
 #' @param offset The name of the offset variable in the input data.
 #' @param id The name of the id variable in the input data.
+#' @param link The link function linking the response probabilities to the
+#'   linear predictors. Options include "logit" (default), "probit", and
+#'   "cloglog" (complementary log-log).
 #' @param robust Whether a robust sandwich variance estimate should be
 #'   computed. In the presence of the id variable, the score residuals
 #'   will be aggregated for each id when computing the robust sandwich
 #'   variance estimate.
 #' @param firth Whether the firth's bias reducing penalized likelihood
 #'   should be used. The default is \code{FALSE}.
+#' @param bc Whether to apply firth's bias correction for noncanonical
+#'   parameterization and weighted logistic regression. The default is
+#'   \code{FALSE}, in which case, the penalized likelihood with Jeffreys
+#'   prior will be used.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities. The default is \code{FALSE}.
 #' @param plci Whether to obtain profile likelihood confidence interval.
@@ -80,10 +87,15 @@
 #'     - \code{p}: The number of parameters, including the intercept,
 #'       and regression coefficients associated with the covariates.
 #'
+#'     - \code{link}: The link function.
+#'
 #'     - \code{robust}: Whether a robust sandwich variance estimate should
 #'       be computed.
 #'
 #'     - \code{firth}: Whether the firth's penalized likelihood is used.
+#'
+#'     - \code{bc}: Whether to apply firth's bias correction for noncanonical
+#'       parameterization and weighted logistic regression.
 #'
 #'     - \code{flic}: Whether to apply intercept correction.
 #'
@@ -126,15 +138,17 @@
 #'
 #' * \code{fitted}: The data frame with the following variables:
 #'
-#'     - \code{linear_predictors}: The linear fit on the logit scale.
+#'     - \code{linear_predictors}: The linear fit on the link function scale.
 #'
-#'     - \code{fitted_values}: The fitted probabilities of having an event, 
-#'       obtained by transforming the linear predictors by the inverse of 
-#'       the logit link.
+#'     - \code{fitted_values}: The fitted probabilities of having an event,
+#'       obtained by transforming the linear predictors by the inverse of
+#'       the link function.
 #'
 #'     - \code{rep}: The replication.
 #'
 #' * \code{p}: The number of parameters.
+#'
+#' * \code{link}: The link function.
 #'
 #' * \code{param}: The parameter names.
 #'
@@ -143,11 +157,11 @@
 #' * \code{vbeta}: The covariance matrix for parameter estimates.
 #'
 #' * \code{vbeta_naive}: The naive covariance matrix for parameter estimates.
-#' 
-#' * \code{linear_predictors}: The linear fit on the logit scale.
-#' 
+#'
+#' * \code{linear_predictors}: The linear fit on the link function scale.
+#'
 #' * \code{fitted_values}: The fitted probabilities of having an event.
-#' 
+#'
 #' * \code{terms}: The terms object.
 #'
 #' * \code{xlevels}: A record of the levels of the factors used in fitting.
@@ -170,6 +184,9 @@
 #'
 #' * \code{robust}: Whether a robust sandwich variance estimate should be
 #'   computed.
+#'
+#' * \code{bc}: Whether to apply firth's bias correction for noncanonical
+#'   parameterization and weighted logistic regression.
 #'
 #' * \code{firth}: Whether to use the firth's bias reducing penalized
 #'   likelihood.
@@ -205,8 +222,8 @@
 #' @export
 logisregr <- function(data, rep = "", event = "event", covariates = "",
                       freq = "", weight = "", offset = "", id = "",
-                      robust = FALSE, firth = FALSE, flic = FALSE,
-                      plci = FALSE, alpha = 0.05) {
+                      link = "logit", robust = FALSE, firth = FALSE,
+                      bc = FALSE, flic = FALSE, plci = FALSE, alpha = 0.05) {
   
   rownames(data) = NULL
   
@@ -250,10 +267,12 @@ logisregr <- function(data, rep = "", event = "event", covariates = "",
   
   fit <- logisregcpp(data = df, rep = rep, event = event,
                      covariates = varnames, freq = freq, weight = weight,
-                     offset = offset, id = id, robust = robust,
-                     firth = firth, flic = flic, plci = plci, alpha = alpha)
+                     offset = offset, id = id, link = link, robust = robust,
+                     firth = firth, bc = bc, flic = flic, plci = plci,
+                     alpha = alpha)
   
   fit$p <- fit$sumstat$p[1]
+  fit$link <- fit$sumstat$link[1]
   
   if (fit$p > 0) {
     fit$param = param
@@ -295,6 +314,7 @@ logisregr <- function(data, rep = "", event = "event", covariates = "",
   fit$id = id
   fit$robust = robust
   fit$firth = firth
+  fit$bc = bc
   fit$flic = flic
   fit$plci = plci
   fit$alpha = alpha
