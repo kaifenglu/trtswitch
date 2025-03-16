@@ -77,16 +77,17 @@
 #'   censoring times only. Defaults to \code{TRUE}. If \code{FALSE},
 #'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
-#'   the control group.
-#' @param alpha The significance level to calculate confidence intervals.
+#'   the control group. The default is \code{TRUE}.
+#' @param alpha The significance level to calculate confidence intervals. 
+#'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param tol The desired accuracy (convergence tolerance) for \code{psi}. 
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results.
-#'   The seed from the environment will be used if left unspecified.
+#' @param seed The seed to reproduce the bootstrap results. The default is 
+#'   missing, in which case, the seed from the environment will be used.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
