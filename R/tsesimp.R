@@ -1,8 +1,8 @@
 #' @title The Simple Two-Stage Estimation (TSE) Method for Treatment 
 #' Switching
 #' @description Obtains the causal parameter estimate of the AFT model 
-#' and the hazard ratio estimate of the Cox model to adjust for 
-#' treatment switching.
+#' for switching after disease progression and the hazard ratio estimate 
+#' of the outcome Cox model to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #'
@@ -46,8 +46,8 @@
 #'   (excluding swtrt) in the input data for the AFT model for 
 #'   post-progression survival.
 #' @param aft_dist The assumed distribution for time to event for the AFT
-#'   model. Options include "exponential", "weibull", "loglogistic", and
-#'   "lognormal".
+#'   model. Options include "exponential", "weibull" (default), 
+#'   "loglogistic", and "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
 #'   possible strata combinations will be considered in the AFT model.
@@ -57,8 +57,9 @@
 #'   censoring times only. Defaults to \code{TRUE}. If \code{FALSE},
 #'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param swtrt_control_only Whether treatment switching occurred only in
-#'   the control group.
-#' @param alpha The significance level to calculate confidence intervals.
+#'   the control group. The default is \code{TRUE}.
+#' @param alpha The significance level to calculate confidence intervals. 
+#'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param offset The offset to calculate the time to event, PD, and 
@@ -67,8 +68,8 @@
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results.
-#'   The seed from the environment will be used if left unspecified.
+#' @param seed The seed to reproduce the bootstrap results. The default is 
+#'   missing, in which case, the seed from the environment will be used.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
