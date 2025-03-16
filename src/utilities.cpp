@@ -5,7 +5,6 @@
 using namespace Rcpp;
 
 
-// [[Rcpp::export]]
 void set_seed(int seed) {
   Environment base_env("package:base");
   Function set_seed_r = base_env["set.seed"];
@@ -163,7 +162,7 @@ double brent(const std::function<double(double)>& f,
     }
     fb = f(b);
   }
-  stop("Maumum number of iterations exceeded in brent");
+  stop("Maximum number of iterations exceeded in brent");
   return 0.0; // Never get here
 }
 
@@ -180,7 +179,6 @@ bool hasVariable(DataFrame df, std::string varName) {
 }
 
 
-// [[Rcpp::export]]
 double quantilecpp(const NumericVector& x, const double p) {
   int n = static_cast<int>(x.size());
   NumericVector y = clone(x);
@@ -210,7 +208,6 @@ double squantilecpp(const std::function<double(double)>& S, double p) {
 }
 
 
-// [[Rcpp::export]]
 IntegerVector c_vectors_i(IntegerVector vec1, IntegerVector vec2) {
   IntegerVector result(vec1.size() + vec2.size());
   std::copy(vec1.begin(), vec1.end(), result.begin());
@@ -219,7 +216,6 @@ IntegerVector c_vectors_i(IntegerVector vec1, IntegerVector vec2) {
 }
 
 
-// [[Rcpp::export]]
 NumericVector c_vectors(NumericVector vec1, NumericVector vec2) {
   NumericVector result(vec1.size() + vec2.size());
   std::copy(vec1.begin(), vec1.end(), result.begin());
@@ -228,7 +224,6 @@ NumericVector c_vectors(NumericVector vec1, NumericVector vec2) {
 }
 
 
-// [[Rcpp::export]]
 NumericMatrix subset_matrix_by_row(NumericMatrix a, IntegerVector q) {
   int i, j, n = static_cast<int>(q.size()), p = a.ncol();
   NumericMatrix b(n,p);
@@ -241,7 +236,6 @@ NumericMatrix subset_matrix_by_row(NumericMatrix a, IntegerVector q) {
 }
 
 
-// [[Rcpp::export]]
 NumericMatrix c_matrices(NumericMatrix a1, NumericMatrix a2) {
   int h, i, j, n1 = a1.nrow(), n2 = a2.nrow(), p = a1.ncol();
   NumericMatrix b(n1+n2, p);
@@ -262,7 +256,6 @@ NumericMatrix c_matrices(NumericMatrix a1, NumericMatrix a2) {
 }
 
 
-// [[Rcpp::export]]
 List bygroup(DataFrame data, const StringVector& variables) {
   int i;
   int n = data.nrows();
@@ -339,7 +332,6 @@ List bygroup(DataFrame data, const StringVector& variables) {
 
 
 // The following three utilities functions are from the survival package
-// [[Rcpp::export]]
 int cholesky2(NumericMatrix matrix, int n, double toler) {
   double temp;
   int i, j, k;
@@ -377,7 +369,6 @@ int cholesky2(NumericMatrix matrix, int n, double toler) {
 }
 
 
-// [[Rcpp::export]]
 void chsolve2(NumericMatrix matrix, int n, NumericVector y) {
   int i, j;
   double temp;
@@ -401,7 +392,6 @@ void chsolve2(NumericMatrix matrix, int n, NumericVector y) {
 }
 
 
-// [[Rcpp::export]]
 void chinv2(NumericMatrix matrix, int n) {
   double temp;
   int i, j, k;
@@ -434,7 +424,6 @@ void chinv2(NumericMatrix matrix, int n) {
 }
 
 
-// [[Rcpp::export]]
 NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
   int i, j;
   NumericMatrix v = clone(matrix);
@@ -450,7 +439,42 @@ NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
 }
 
 
-// adapt from survsplit.c in the survival package
+//' @title Split a survival data set at specified cut points
+//' @description For a given survival dataset and specified cut times, 
+//' each record is split into multiple subrecords at each cut time. 
+//' The resulting dataset is in counting process format, with each 
+//' subrecord containing a start time, stop time, and event status.
+//' This is adapted from the survplit.c function from the survival package.
+//'
+//' @param tstart The starting time of the time interval for 
+//'   counting-process data.
+//' @param tstop The stopping time of the time interval for 
+//'   counting-process data.
+//' @param cut The vector of cut points.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{row}: The row number of the observation in the input data 
+//'   (starting from 0).
+//'
+//' * \code{start}: The starting time of the resulting subrecord.
+//'
+//' * \code{stop}: The stopping time of the resulting subrecord.
+//'
+//' * \code{censor}: Whether the subrecord lies strictly within a record
+//'   in the input data.
+//'
+//' * \code{interval}: The interval number.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @keywords internal
+//'
+//' @examples
+//'
+//' survsplit(15, 60, c(10, 30, 40))
+//'
+//' @export
 // [[Rcpp::export]]
 DataFrame survsplit(NumericVector tstart,
                     NumericVector tstop,
@@ -470,7 +494,7 @@ DataFrame survsplit(NumericVector tstart,
   }
 
   int n2 = n + extra;
-  IntegerVector row(n2);
+  IntegerVector row(n2), interval(n2);
   NumericVector start(n2), end(n2);
   LogicalVector censor(n2);
 
@@ -480,12 +504,14 @@ DataFrame survsplit(NumericVector tstart,
       start[k] = tstart[i];
       end[k] = tstop[i];
       row[k] = i;           // row in the original data
+      interval[k] = 1;
       k++;
     } else {
       // find the first cut point after tstart
       for (j=0; j < ncut && cut[j] <= tstart[i]; j++);
       start[k] = tstart[i];
       row[k] = i;
+      interval[k] = j;
       for (; j < ncut && cut[j] < tstop[i]; j++) {
         if (cut[j] > tstart[i]) {
           end[k] = cut[j];
@@ -493,6 +519,7 @@ DataFrame survsplit(NumericVector tstart,
           k++; // create the next sub-interval
           start[k] = cut[j];
           row[k] = i;
+          interval[k] = j+1;
         }
       }
       end[k] = tstop[i]; // finish the last sub-interval
@@ -505,13 +532,13 @@ DataFrame survsplit(NumericVector tstart,
     Named("row") = row,
     Named("start") = start,
     Named("end") = end,
-    Named("censor") = censor);
+    Named("censor") = censor,
+    Named("interval") = interval);
 
   return result;
 }
 
 
-// [[Rcpp::export]]
 bool is_sorted(NumericVector x) {
   int n = x.size();
   
@@ -526,15 +553,14 @@ bool is_sorted(NumericVector x) {
 }
 
 
-// Householder vector: Given an n-vector x, this function computes
-// an n-vector v with v(1)=1 such that (I - 2v*v^T / v^T*v) x is zero
-// in all but the first component.
-// [[Rcpp::export]]
-NumericVector house(NumericVector x) {
+// Householder vector
+// Given an n-vector x, this function computes an n-vector v with v(1) = 1
+// such that (I - 2*v*t(v)/t(v)*v)*x is zero in all but the first component.
+NumericVector house(const NumericVector& x) {
   int n = static_cast<int>(x.size());
   double mu = sqrt(sum(x*x));
   NumericVector v = clone(x);
-  if (mu > 0) {
+  if (mu > 0.0) {
     double beta = x[0] + std::copysign(1.0, x[0])*mu;
     for (int i=1; i<n; i++) {
       v[i] /= beta;
@@ -545,25 +571,32 @@ NumericVector house(NumericVector x) {
 }
 
 
-// Householder pre-multiplication: Given an m-by-n matrix A and a 
-// nonzero m-vector v with v(1) = 1, the following algorithm overwrites
-// A with PA where P = I - 2v*v^T/v^T*v.
-// [[Rcpp::export]]
-void row_house(NumericMatrix A, NumericVector v) {
-  int m = A.nrow(), n = A.ncol();
-  int i, j;
+// Householder pre-multiplication
+// Given an m-by-n matrix A and a nonzero m-vector v with v(1) = 1,
+// the following algorithm overwrites A with P*A where
+// P = I - 2*v*t(v)/t(v)*v.
+void row_house(NumericMatrix& A, const int i1, const int i2,
+               const int j1, const int j2, const NumericVector& v) {
+  if (i1 < 0 || i1 > i2 || i2 >= A.nrow()) {
+    stop("Invalid row indices i1 and i2");
+  }
+  if (j1 < 0 || j1 > j2 || j2 >= A.ncol()) {
+    stop("Invalid column indices j1 and j2");
+  }
+  
+  int i, j, m = i2-i1+1, n = j2-j1+1;
   double beta = -2.0/sum(v*v);
   NumericVector w(n);
   for (j=0; j<n; j++) {
     for (i=0; i<m; i++) {
-      w[j] += A(i,j)*v[i];
+      w[j] += A(i+i1,j+j1)*v[i];
     }
     w[j] *= beta;
   }
   
   for (i=0; i<m; i++) {
     for (j=0; j<n; j++) {
-      A(i,j) += v[i]*w[j];      
+      A(i+i1,j+j1) += v[i]*w[j];
     }
   }
 }
@@ -571,51 +604,51 @@ void row_house(NumericMatrix A, NumericVector v) {
 
 //' @title QR Decomposition of a Matrix
 //' @description Computes the QR decomposition of a matrix.
-//' 
-//' @param x A numeric matrix whose QR decomposition is to be computed.
-//' @param tol The tolerance for detecting linear dependencies in the 
-//'   columns of \code{x}.
-//' 
-//' @details 
-//' This function performs Householder QR with column pivoting: 
+//'
+//' @param X A numeric matrix whose QR decomposition is to be computed.
+//' @param tol The tolerance for detecting linear dependencies in the
+//'   columns of \code{X}.
+//'
+//' @details
+//' This function performs Householder QR with column pivoting:
 //' Given an \eqn{m}-by-\eqn{n} matrix \eqn{A} with \eqn{m \geq n},
-//' the following algorithm computes \eqn{r = \textrm{rank}(A)} and 
+//' the following algorithm computes \eqn{r = \textrm{rank}(A)} and
 //' the factorization \eqn{Q^T A P} equal to
-//' \tabular{ccccc}{ 
+//' \tabular{ccccc}{
 //' | \tab \eqn{R_{11}} \tab \eqn{R_{12}} \tab | \tab \eqn{r} \cr
-//' | \tab 0 \tab 0 \tab | \tab \eqn{m-r} \cr 
+//' | \tab 0 \tab 0 \tab | \tab \eqn{m-r} \cr
 //'   \tab \eqn{r} \tab \eqn{n-r} \tab \tab
 //' }
-//' with \eqn{Q = H_1 \cdots H_r} and \eqn{P = P_1 \cdots P_r}. 
+//' with \eqn{Q = H_1 \cdots H_r} and \eqn{P = P_1 \cdots P_r}.
 //' The upper triangular part of \eqn{A}
-//' is overwritten by the upper triangular part of \eqn{R} and 
+//' is overwritten by the upper triangular part of \eqn{R} and
 //' components \eqn{(j+1):m} of
-//' the \eqn{j}th Householder vector are stored in \eqn{A((j+1):m, j)}. 
+//' the \eqn{j}th Householder vector are stored in \eqn{A((j+1):m, j)}.
 //' The permutation \eqn{P} is encoded in an integer vector \code{pivot}.
-//' 
+//'
 //' @return A list with the following components:
-//' 
-//' * \code{qr}: A matrix with the same dimensions as \code{x}. The upper
+//'
+//' * \code{qr}: A matrix with the same dimensions as \code{X}. The upper
 //'   triangle contains the \code{R} of the decomposition and the lower
-//'   triangle contains Householder vectors (stored in compact form). 
-//'   
-//' * \code{rank}: The rank of \code{x} as computed by the decomposition.
-//' 
+//'   triangle contains Householder vectors (stored in compact form).
+//'
+//' * \code{rank}: The rank of \code{X} as computed by the decomposition.
+//'
 //' * \code{pivot}: The column permutation for the pivoting strategy used
 //'   during the decomposition.
-//'   
+//'
 //' * \code{Q}: The complete \eqn{m}-by-\eqn{m} orthogonal matrix \eqn{Q}.
-//' 
-//' * \code{R}: The complete \eqn{m}-by-\eqn{n} upper triangular 
+//'
+//' * \code{R}: The complete \eqn{m}-by-\eqn{n} upper triangular
 //'   matrix \eqn{R}.
-//' 
+//'
 //' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 //'
 //' @references
-//' Gene N. Golub and Charles F. Van Loan. 
-//' Matrix Computations, second edition. Baltimore, Maryland: 
+//' Gene N. Golub and Charles F. Van Loan.
+//' Matrix Computations, second edition. Baltimore, Maryland:
 //' The John Hopkins University Press, 1989, p.235.
-//' 
+//'
 //' @examples
 //'
 //' hilbert <- function(n) { i <- 1:n; 1 / outer(i - 1, i, `+`) }
@@ -624,10 +657,9 @@ void row_house(NumericMatrix A, NumericVector v) {
 //'
 //' @export
 // [[Rcpp::export]]
-List qrcpp(NumericMatrix x, double tol = 1e-12) {
-  int m = x.nrow(), n = x.ncol();
-  int i, j, k, l;
-  NumericMatrix A = clone(x);
+List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
+  int i, j, k, l, m = X.nrow(), n = X.ncol();
+  NumericMatrix A = clone(X);
   NumericVector c(n);
   for (j=0; j<n; j++) {
     c[j] = sum(A(_,j)*A(_,j));
@@ -662,22 +694,16 @@ List qrcpp(NumericMatrix x, double tol = 1e-12) {
     // find the Householder vector
     NumericVector v(m-r);
     for (i=0; i<m-r; i++) {
-      v[i] = A(r+i,r);
+      v[i] = A(i+r,r);
     }
     v = house(v);
     
     // pre-multiply by the Householder matrix
-    NumericMatrix B = A(Range(r,m-1), Range(r,n-1));
-    row_house(B,v);
-    for (i=0; i<m-r; i++) {
-      for (j=0; j<n-r; j++) {
-        A(r+i,r+j) = B(i,j);
-      }
-    }
+    row_house(A, r, m-1, r, n-1, v);
     
     // update the sub-diagonal elements of column r
     for (i=1; i<m-r; i++) {
-      A(r+i,r) = v[i];
+      A(i+r,r) = v[i];
     }
     
     // go to the next column and update the squared norm
@@ -692,7 +718,7 @@ List qrcpp(NumericMatrix x, double tol = 1e-12) {
         if (c[k] > tol) break;
       }
     } else {
-      tau = 0;
+      tau = 0.0;
     }
   }
   
@@ -702,16 +728,10 @@ List qrcpp(NumericMatrix x, double tol = 1e-12) {
     NumericVector v(m-k);
     v[0] = 1.0;
     for (i=1; i<m-k; i++) {
-      v[i] = A(k+i,k);
+      v[i] = A(i+k,k);
     }
     
-    NumericMatrix B = Q(Range(k,m-1), Range(k,m-1));
-    row_house(B,v);
-    for (i=0; i<m-k; i++) {
-      for (j=0; j<m-k; j++) {
-        Q(k+i,k+j) = B(i,j);
-      }
-    }
+    row_house(Q, k, m-1, k, m-1, v);
   }
   
   // recover the R matrix
