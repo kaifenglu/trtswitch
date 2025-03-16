@@ -48,11 +48,17 @@
 #' trial with inverse probability of censoring weighted (IPCW) log-rank tests.
 #' Biometrics. 2000;56:779-788.
 #'
-#' Nicholas R Latimer, KR Abrams, PC Lambert, MK Crowther, AJ Wailoo,
-#' JP Morden, RL Akehurst, and MJ Campbell.
+#' Nicholas R. Latimer, Keith R. Abrams, Paul C. Lambert, Michael K. Crowther, 
+#' Allan J. Wailoo, Jonathan P. Morden, Ron L. Akehurst, and 
+#' Michael J. Campbell.
 #' Adjusting for treatment switching in randomised controlled trials - A
 #' simulation study and a simplified two-stage method.
 #' Statistical Methods in Medical Research. 2017;26(2):724-751.
+#' 
+#' Nicholas R. Latimer, Ian R. White, Kate Tilling, and Ulrike Siebert. 
+#' Improved two-stage estimation to adjust for treatment switching in 
+#' randomised trials: g-estimation to address time-dependent confounding. 
+#' Statistical Methods in Medical Research. 2020;29(10):2900-2918.
 #'
 #' @useDynLib trtswitch, .registration = TRUE
 #' @importFrom Rcpp evalCpp
