@@ -331,7 +331,7 @@ List rpsftmcpp(const DataFrame data,
                       rxb, censor_timeb, recensor, autoswitch);
 
                     kmstar = kmest(Sstar, "", "treated", "t_star",
-                                   "d_star", "log-log", 1-alpha);
+                                   "d_star", "log-log", 1-alpha, 0);
                   }
 
                   // run Cox model to obtain the hazard ratio estimate
