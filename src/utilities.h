@@ -40,9 +40,10 @@ DataFrame survsplit(NumericVector tstart,
 
 bool is_sorted(NumericVector x);
 
-NumericVector house(NumericVector x);
-void row_house(NumericMatrix A, NumericVector v);
-List qrcpp(NumericMatrix x, double tol);
+NumericVector house(const NumericVector& x);
+void row_house(NumericMatrix& A, const int i1, const int i2,
+               const int j1, const int j2, const NumericVector& v);
+List qrcpp(const NumericMatrix& X, double tol);
 
 DataFrame untreated(
     const double psi,
