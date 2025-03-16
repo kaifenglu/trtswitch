@@ -30,8 +30,8 @@
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the outcome Cox model.
 #' @param aft_dist The assumed distribution for time to event for the AFT
-#'   model. Options include "exponential", "weibull", "loglogistic", and
-#'   "lognormal".
+#'   model. Options include "exponential", "weibull" (default), 
+#'   "loglogistic", and "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
 #'   possible strata combinations will be considered in the AFT model.
@@ -53,8 +53,8 @@
 #'   the confidence interval will be constructed to match the log-rank
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results.
-#'   The seed from the environment will be used if left unspecified.
+#' @param seed The seed to reproduce the bootstrap results. The default is 
+#'   missing, in which case, the seed from the environment will be used.
 #'
 #' @details We use the following steps to obtain the hazard ratio estimate
 #' and confidence interval had there been no treatment switching:
