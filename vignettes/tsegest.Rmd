@@ -79,11 +79,13 @@ fit1 <- tsegest(
 ```
 
 The Kaplan-Meier plot for the control arm demonstrates that treatment switching can occur at the secondary baseline and at each of the ensuing five scheduled visits, spaced 21 days apart.
-```{r km}
+```{r switch time points}
 switched <- fit1$analysis_switch$data_switch[[1]]$data %>% 
   filter(swtrt == 1)
 table(switched$swtrt_time)
+```
 
+```{r km}
 ggplot(fit1$analysis_switch$km_switch[[1]]$data, 
        aes(x=time, y=survival)) + 
   geom_step() + 
@@ -102,6 +104,11 @@ parest[, c("param", "beta", "sebeta", "z")]
 ```
 
 The plot of $Z(\psi)$ versus $\psi$ shows that the estimation process worked well. 
+```{r psi estimates}
+c(fit1$psi, fit1$psi_CI)
+```
+
+````{verbatim}
 ```{r Z(psi)}
 psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
 
@@ -117,6 +124,7 @@ ggplot(fit1$analysis_switch$eval_z[[1]]$data %>%
   ylab("Wald Z for counterfactual") + 
   theme(panel.grid.minor = element_blank())
 ```
+````
 
 Now we fit the outcome Cox model and compare the treatment hazard ratio estimate with the reported. 
 ```{r cox}
@@ -126,7 +134,6 @@ c(fit1$hr, fit1$hr_CI)
 
 Finally, to ensure the uncertainty is accurately represented, the entire adjustment process and subsequent survival modeling can be bootstrapped.
 ````{verbatim}
-
 ```{r boot}
 fit2 <- tsegest(
   data = sim1$paneldata, id = "id", 
@@ -142,5 +149,4 @@ fit2 <- tsegest(
 
 c(fit2$hr, fit2$hr_CI)
 ```
-
 ````
