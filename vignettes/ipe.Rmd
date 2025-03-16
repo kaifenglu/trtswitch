@@ -161,12 +161,13 @@ for (i in 2:B) {
 }
 
 data2 <- data.frame(index = 1:B, psi = psihats)
+tail(data2)
+```
 
+```{r psi plot}
 ggplot(data2, aes(x = index, y = psi)) + 
   geom_point() + 
   geom_line()
-
-tail(data2)
 ```
 
 
