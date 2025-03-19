@@ -4,6 +4,8 @@
 #' from the Cox model to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
+#' 
+#'   * \code{id}: The subject id.
 #'
 #'   * \code{stratum}: The stratum.
 #'
@@ -21,6 +23,7 @@
 #'
 #'   * \code{base_cov}: The baseline covariates (excluding treat).
 #'
+#' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param time The name of the time variable in the input data.
 #' @param event The name of the event variable in the input data.
@@ -174,7 +177,7 @@
 #' data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 #'
 #' fit1 <- ipe(
-#'   data, time = "progyrs", event = "prog", treat = "imm", 
+#'   data, id = "id", time = "progyrs", event = "prog", treat = "imm", 
 #'   rx = "rx", censor_time = "censyrs", aft_dist = "weibull",
 #'   boot = FALSE)
 #'
@@ -195,7 +198,7 @@
 #'                      ifelse(bras.f == "MTA", 1, 0)))
 #'
 #' fit2 <- ipe(
-#'   shilong2, time = "tstop", event = "event",
+#'   shilong2, id = "id", time = "tstop", event = "event",
 #'   treat = "bras.f", rx = "rx", censor_time = "dcut",
 #'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
 #'                "pathway.f"),
@@ -204,8 +207,9 @@
 #' c(fit2$hr, fit2$hr_CI)
 #'
 #' @export
-ipe <- function(data, stratum = "", time = "time", event = "event",
-                treat = "treat", rx = "rx", censor_time = "censor_time",
+ipe <- function(data, id = "id", stratum = "", time = "time", 
+                event = "event", treat = "treat", rx = "rx", 
+                censor_time = "censor_time",
                 base_cov = "", aft_dist = "weibull",
                 strata_main_effect_only = 1, treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
@@ -214,7 +218,7 @@ ipe <- function(data, stratum = "", time = "time", event = "event",
 
   rownames(data) = NULL
 
-  elements = c(stratum, time, event, treat, rx, censor_time, base_cov)
+  elements = c(stratum, time, event, treat, rx, censor_time)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
@@ -246,12 +250,21 @@ ipe <- function(data, stratum = "", time = "time", event = "event",
     varnames = ""
   }
 
-  ipecpp(data = df, stratum = stratum, time = time, event = event,
-         treat = treat, rx = rx, censor_time = censor_time,
-         base_cov = varnames, aft_dist = aft_dist,
-         strata_main_effect_only = strata_main_effect_only,
-         treat_modifier = treat_modifier, recensor = recensor,
-         admin_recensor_only = admin_recensor_only, 
-         autoswitch = autoswitch, alpha = alpha, ties = ties, 
-         tol = tol, boot = boot, n_boot = n_boot, seed = seed)
+  out <- ipecpp(
+    data = df, id = id, stratum = stratum, time = time, event = event,
+    treat = treat, rx = rx, censor_time = censor_time,
+    base_cov = varnames, aft_dist = aft_dist,
+    strata_main_effect_only = strata_main_effect_only,
+    treat_modifier = treat_modifier, recensor = recensor,
+    admin_recensor_only = admin_recensor_only, 
+    autoswitch = autoswitch, alpha = alpha, ties = ties, 
+    tol = tol, boot = boot, n_boot = n_boot, seed = seed)
+  
+  out$Sstar$uid <- NULL
+  out$data_aft$uid <- NULL
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
+  
+  out
 }
+
