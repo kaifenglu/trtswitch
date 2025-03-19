@@ -355,7 +355,7 @@ List ipcwcpp(
   }
   
   for (j=0; j<ns_df; j++) {
-    covariates_lgs_den[q+p2+j] = "s" + std::to_string(j+1);
+    covariates_lgs_den[q+p2+j] = "ns" + std::to_string(j+1);
   }
   
   StringVector covariates_lgs_num(q+p1+ns_df);
@@ -367,7 +367,7 @@ List ipcwcpp(
     covariates_lgs_num[q+j] = zj;
   }
   for (j=0; j<ns_df; j++) {
-    covariates_lgs_num[q+p1+j] = "s" + std::to_string(j+1);
+    covariates_lgs_num[q+p1+j] = "ns" + std::to_string(j+1);
   }
   
   if (trunc < 0.0 || trunc >= 0.5) {
@@ -444,20 +444,20 @@ List ipcwcpp(
   
   k = -1; // indicate the observed data
   auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
-            treat, treatwi, treatwn, treatwc, 
+            treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
             q, p, p1, p2, base_cov, numerator, denominator, 
             covariates, covariates_lgs_num, covariates_lgs_den, 
             logistic_switching_model, firth, flic, ns_df, 
             relative_time, stabilized_weights, trunc, trunc_upper_only, 
             swtrt_control_only, alpha, zcrit, ties](
-                IntegerVector idb, IntegerVector stratumb,
-                NumericVector tstartb, NumericVector tstopb,
-                IntegerVector eventb, IntegerVector treatb,
-                IntegerVector swtrtb, NumericVector swtrt_timeb,
-                NumericVector swtrt_time_lowerb, 
-                NumericVector swtrt_time_upperb,
-                NumericMatrix zb, NumericMatrix zb_cox_den,
-                NumericMatrix zb_lgs_den)->List {
+                IntegerVector& idb, IntegerVector& stratumb,
+                NumericVector& tstartb, NumericVector& tstopb,
+                IntegerVector& eventb, IntegerVector& treatb,
+                IntegerVector& swtrtb, NumericVector& swtrt_timeb,
+                NumericVector& swtrt_time_lowerb, 
+                NumericVector& swtrt_time_upperb,
+                NumericMatrix& zb, NumericMatrix& zb_cox_den,
+                NumericMatrix& zb_lgs_den)->List {
                   int h, i, j, n = static_cast<int>(idb.size());
                   
                   // order data by treat, id, and time
@@ -626,8 +626,10 @@ List ipcwcpp(
                       IntegerVector event20 = event0[l];
                       IntegerVector treat20 = treat0[l];
                       IntegerVector cross20 = cross0[l];
-                      NumericVector swtrt_time_lower20 = swtrt_time_lower0[l];
-                      NumericVector swtrt_time_upper20 = swtrt_time_upper0[l];
+                      NumericVector swtrt_time_lower20 = 
+                        swtrt_time_lower0[l];
+                      NumericVector swtrt_time_upper20 = 
+                        swtrt_time_upper0[l];
                       NumericMatrix z20 = subset_matrix_by_row(z0, l);
                       NumericMatrix z20_cox_den = 
                         subset_matrix_by_row(z0_cox_den, l);
@@ -648,8 +650,10 @@ List ipcwcpp(
                       IntegerVector event21 = event1[l];
                       IntegerVector treat21 = treat1[l];
                       IntegerVector cross21 = cross1[l];
-                      NumericVector swtrt_time_lower21 = swtrt_time_lower1[l];
-                      NumericVector swtrt_time_upper21 = swtrt_time_upper1[l];
+                      NumericVector swtrt_time_lower21 = 
+                        swtrt_time_lower1[l];
+                      NumericVector swtrt_time_upper21 = 
+                        swtrt_time_upper1[l];
                       NumericMatrix z21 = subset_matrix_by_row(z1, l);
                       NumericMatrix z21_cox_den = 
                         subset_matrix_by_row(z1_cox_den, l);
@@ -691,8 +695,8 @@ List ipcwcpp(
                       
                       // prepare the data for fitting the switching model
                       DataFrame data1 = DataFrame::create(
-                        Named("id") = id3,
-                        Named("stratum") = stratum3,
+                        Named("uid") = id3,
+                        Named("ustratum") = stratum3,
                         Named("tstart") = tstart3,
                         Named("tstop") = tstop3,
                         Named("cross") = cross3);
@@ -705,8 +709,8 @@ List ipcwcpp(
                       
                       // fit the denominator model for crossover
                       List fit_den = phregcpp(
-                        data1, "", "stratum", "tstart", "tstop", "cross",
-                        denominator, "", "", "id", ties, 
+                        data1, "", "ustratum", "tstart", "tstop", "cross",
+                        denominator, "", "", "uid", ties, 
                         1, 1, 0, 0, 0, alpha);
                       
                       // obtain the survival probabilities for crossover
@@ -717,15 +721,15 @@ List ipcwcpp(
                       
                       DataFrame km_den = survfit_phregcpp(
                         p2, beta_den, vbeta_den, basehaz_den, data1,
-                        denominator, "stratum", "", "id", "tstart", "tstop", 
-                        0, "log-log", 1-alpha);
+                        denominator, "ustratum", "", "uid", "tstart", 
+                        "tstop", 0, "log-log", 1-alpha);
                       
                       NumericVector surv_den = km_den["surv"];
                       int m = km_den.nrows();
                       
                       List fit_num = phregcpp(
-                        data1, "", "stratum", "tstart", "tstop", "cross", 
-                        numerator, "", "", "id", ties, 
+                        data1, "", "ustratum", "tstart", "tstop", "cross", 
+                        numerator, "", "", "uid", ties, 
                         1, 1, 0, 0, 0, alpha);
                       
                       NumericVector surv_num(m);
@@ -733,23 +737,25 @@ List ipcwcpp(
                         DataFrame parest_num = DataFrame(fit_num["parest"]);
                         NumericVector beta_num = parest_num["beta"];
                         NumericMatrix vbeta_num(p1, p1);
-                        DataFrame basehaz_num = DataFrame(fit_num["basehaz"]);
+                        DataFrame basehaz_num = 
+                          DataFrame(fit_num["basehaz"]);
                         
                         DataFrame km_num = survfit_phregcpp(
                           p1, beta_num, vbeta_num, basehaz_num, data1,
-                          numerator, "stratum", "", "id", "tstart", "tstop", 
-                          0, "log-log", 1-alpha);
+                          numerator, "ustratum", "", "uid", "tstart", 
+                          "tstop", 0, "log-log", 1-alpha);
                         
                         surv_num = km_num["surv"];
                       } else {
                         NumericVector beta_num(1);
                         NumericMatrix vbeta_num(1,1);
-                        DataFrame basehaz_num = DataFrame(fit_num["basehaz"]);
+                        DataFrame basehaz_num = 
+                          DataFrame(fit_num["basehaz"]);
                         
                         DataFrame km_num = survfit_phregcpp(
                           p1, beta_num, vbeta_num, basehaz_num, data1,
-                          numerator, "stratum", "", "id", "tstart", "tstop", 
-                          0, "log-log", 1-alpha);
+                          numerator, "ustratum", "", "uid", "tstart", 
+                          "tstop", 0, "log-log", 1-alpha);
                         
                         surv_num = km_num["surv"];
                       }
@@ -799,42 +805,44 @@ List ipcwcpp(
                       
                       // update data_switch and fit_switch
                       if (k == -1) {
-                        List data_x = List::create(
-                          Named("data") = data1,
-                          Named(treat) = R_NilValue
-                        );
-                        
-                        if (TYPEOF(data[treat]) == LGLSXP ||
-                            TYPEOF(data[treat]) == INTSXP) {
-                          data_x[treat] = treatwi[1-h];
-                        } else if (TYPEOF(data[treat]) == REALSXP) {
-                          data_x[treat] = treatwn[1-h];
-                        } else if (TYPEOF(data[treat]) == STRSXP) {
-                          data_x[treat] = treatwc[1-h];
+                        IntegerVector uid = data1["uid"];
+                        if (TYPEOF(data[id]) == INTSXP) {
+                          data1.push_front(idwi[uid-1], id);
+                        } else if (TYPEOF(data[id]) == REALSXP) {
+                          data1.push_front(idwn[uid-1], id);
+                        } else if (TYPEOF(data[id]) == STRSXP) {
+                          data1.push_front(idwc[uid-1], id);
                         }
                         
+                        if (has_stratum) {
+                          IntegerVector ustratum = data1["ustratum"];
+                          for (i=0; i<p_stratum; i++) {
+                            String s = stratum[i];
+                            if (TYPEOF(data[s]) == INTSXP) {
+                              IntegerVector stratumwi = u_stratum[s];
+                              data1.push_back(stratumwi[ustratum-1], s);
+                            } else if (TYPEOF(data[s]) == REALSXP) {
+                              NumericVector stratumwn = u_stratum[s];
+                              data1.push_back(stratumwn[ustratum-1], s);
+                            } else if (TYPEOF(data[s]) == STRSXP) {
+                              StringVector stratumwc = u_stratum[s];
+                              data1.push_back(stratumwc[ustratum-1], s);
+                            }
+                          }
+                        }
+                        
+                        List data_x = data_switch[h];
+                        data_x["data"] = data1;
                         data_switch[h] = data_x;
                         
-                        List fit_x = List::create(
-                          Named("fit_den") = fit_den,
-                          Named("fit_num") = fit_num,
-                          Named(treat) = R_NilValue
-                        );
-                        
-                        if (TYPEOF(data[treat]) == LGLSXP ||
-                            TYPEOF(data[treat]) == INTSXP) {
-                          fit_x[treat] = treatwi[1-h];
-                        } else if (TYPEOF(data[treat]) == REALSXP) {
-                          fit_x[treat] = treatwn[1-h];
-                        } else if (TYPEOF(data[treat]) == STRSXP) {
-                          fit_x[treat] = treatwc[1-h];
-                        }
-                        
+                        List fit_x = fit_switch[h];
+                        fit_x["fit_den"] = fit_den;
+                        fit_x["fit_num"]= fit_num;
                         fit_switch[h] = fit_x;
                       }
                       
                       // weights in the outcome model by matching id and time
-                      IntegerVector idx = km_den["id"];
+                      IntegerVector idx = km_den["uid"];
                       NumericVector timex = km_den["time"];
                       double limit = 2*max(timex) + 1;
                       NumericVector idtimex(m);
@@ -886,21 +894,7 @@ List ipcwcpp(
                       Named("unstabilized_weight") = w2,
                       Named("stabilized_weight") = sw2);
                     
-                    if (has_stratum) {
-                      for (i=0; i<p_stratum; i++) {
-                        String s = stratum[i];
-                        if (TYPEOF(data[s]) == INTSXP) {
-                          IntegerVector stratumwi = u_stratum[s];
-                          data_outcome.push_back(stratumwi[stratum2-1], s);
-                        } else if (TYPEOF(data[s]) == REALSXP) {
-                          NumericVector stratumwn = u_stratum[s];
-                          data_outcome.push_back(stratumwn[stratum2-1], s);
-                        } else if (TYPEOF(data[s]) == STRSXP) {
-                          StringVector stratumwc = u_stratum[s];
-                          data_outcome.push_back(stratumwc[stratum2-1], s);
-                        }
-                      }
-                    }
+                    data_outcome.push_back(stratum2, "ustratum");
                     
                     for (j=0; j<p; j++) {
                       NumericVector u = z2(_,j);
@@ -945,7 +939,8 @@ List ipcwcpp(
                       
                       // prepare the data for fitting the switching model
                       DataFrame data1 = DataFrame::create(
-                        Named("id") = id2,
+                        Named("uid") = id2,
+                        Named("ustratum") = stratum2,
                         Named("cross") = cross2);
                       
                       for (j=0; j<q+p2; j++) {
@@ -961,7 +956,7 @@ List ipcwcpp(
                       
                       List fit_den = logisregcpp(
                         data1, "", "cross", covariates_lgs_den, "", "", 
-                        "", "id", "logit", 1, firth, 0, flic, 0, alpha);
+                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha);
                       
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
                       NumericVector h_den = f_den["fitted_values"];
@@ -1010,7 +1005,7 @@ List ipcwcpp(
                       
                       List fit_num = logisregcpp(
                         data1, "", "cross", covariates_lgs_num, "", "", 
-                        "", "id", "logit", 1, firth, 0, flic, 0, alpha);
+                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha);
                       
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
                       NumericVector h_num = f_num["fitted_values"];
@@ -1073,53 +1068,39 @@ List ipcwcpp(
                       
                       // update data_switch and fit_switch
                       if (k == -1) {
+                        IntegerVector uid = data1["uid"];
+                        if (TYPEOF(data[id]) == INTSXP) {
+                          data1.push_front(idwi[uid-1], id);
+                        } else if (TYPEOF(data[id]) == REALSXP) {
+                          data1.push_front(idwn[uid-1], id);
+                        } else if (TYPEOF(data[id]) == STRSXP) {
+                          data1.push_front(idwc[uid-1], id);
+                        }
+                        
                         if (has_stratum) {
+                          IntegerVector ustratum = data1["ustratum"];
                           for (i=0; i<p_stratum; i++) {
                             String s = stratum[i];
                             if (TYPEOF(data[s]) == INTSXP) {
                               IntegerVector stratumwi = u_stratum[s];
-                              data1.push_back(stratumwi[stratum2-1], s);
+                              data1.push_back(stratumwi[ustratum-1], s);
                             } else if (TYPEOF(data[s]) == REALSXP) {
                               NumericVector stratumwn = u_stratum[s];
-                              data1.push_back(stratumwn[stratum2-1], s);
+                              data1.push_back(stratumwn[ustratum-1], s);
                             } else if (TYPEOF(data[s]) == STRSXP) {
                               StringVector stratumwc = u_stratum[s];
-                              data1.push_back(stratumwc[stratum2-1], s);
+                              data1.push_back(stratumwc[ustratum-1], s);
                             }
                           }
                         }
                         
-                        List data_x = List::create(
-                          Named("data") = data1,
-                          Named(treat) = R_NilValue
-                        );
-                        
-                        if (TYPEOF(data[treat]) == LGLSXP ||
-                            TYPEOF(data[treat]) == INTSXP) {
-                          data_x[treat] = treatwi[1-h];
-                        } else if (TYPEOF(data[treat]) == REALSXP) {
-                          data_x[treat] = treatwn[1-h];
-                        } else if (TYPEOF(data[treat]) == STRSXP) {
-                          data_x[treat] = treatwc[1-h];
-                        }
-                        
+                        List data_x = data_switch[h];
+                        data_x["data"] = data1;
                         data_switch[h] = data_x;
                         
-                        List fit_x = List::create(
-                          Named("fit_den") = fit_den,
-                          Named("fit_num") = fit_num,
-                          Named(treat) = R_NilValue
-                        );
-                        
-                        if (TYPEOF(data[treat]) == LGLSXP ||
-                            TYPEOF(data[treat]) == INTSXP) {
-                          fit_x[treat] = treatwi[1-h];
-                        } else if (TYPEOF(data[treat]) == REALSXP) {
-                          fit_x[treat] = treatwn[1-h];
-                        } else if (TYPEOF(data[treat]) == STRSXP) {
-                          fit_x[treat] = treatwc[1-h];
-                        }
-                        
+                        List fit_x = fit_switch[h];
+                        fit_x["fit_den"] = fit_den;
+                        fit_x["fit_num"] = fit_num;
                         fit_switch[h] = fit_x;
                       }
                       
@@ -1137,21 +1118,7 @@ List ipcwcpp(
                       Named("unstabilized_weight") = w1,
                       Named("stabilized_weight") = sw1);
                     
-                    if (has_stratum) {
-                      for (i=0; i<p_stratum; i++) {
-                        String s = stratum[i];
-                        if (TYPEOF(data[s]) == INTSXP) {
-                          IntegerVector stratumwi = u_stratum[s];
-                          data_outcome.push_back(stratumwi[stratum1-1], s);
-                        } else if (TYPEOF(data[s]) == REALSXP) {
-                          NumericVector stratumwn = u_stratum[s];
-                          data_outcome.push_back(stratumwn[stratum1-1], s);
-                        } else if (TYPEOF(data[s]) == STRSXP) {
-                          StringVector stratumwc = u_stratum[s];
-                          data_outcome.push_back(stratumwc[stratum1-1], s);
-                        }
-                      }
-                    }
+                    data_outcome.push_back(stratum1, "ustratum");
                     
                     for (j=0; j<p; j++) {
                       NumericVector u = z1(_,j);
@@ -1164,12 +1131,12 @@ List ipcwcpp(
                   List fit_outcome;
                   if (stabilized_weights) {
                     fit_outcome = phregcpp(
-                      data_outcome, "", stratum, "tstart", "tstop",
+                      data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "stabilized_weight", "",
                       "uid", ties, 1, 1, 0, 0, 0, alpha);
                   } else {
                     fit_outcome = phregcpp(
-                      data_outcome, "", stratum, "tstart", "tstop",
+                      data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "unstabilized_weight", "",
                       "uid", ties, 1, 1, 0, 0, 0, alpha);
                   }
@@ -1213,10 +1180,6 @@ List ipcwcpp(
   List fit_switch = out["fit_switch"];
   DataFrame data_outcome = DataFrame(out["data_outcome"]);
   List fit_outcome = out["fit_outcome"];
-  double hrhat = out["hrhat"];
-  double hrlower = out["hrlower"];
-  double hrupper = out["hrupper"];
-  double pvalue = out["pvalue"];
   
   IntegerVector uid = data_outcome["uid"];
   if (TYPEOF(data[id]) == INTSXP) {
@@ -1235,6 +1198,29 @@ List ipcwcpp(
   } else if (TYPEOF(data[treat]) == STRSXP) {
     data_outcome.push_back(treatwc[1-treated], treat);
   }
+  
+  if (has_stratum) {
+    IntegerVector ustratum = data_outcome["ustratum"];
+    for (i=0; i<p_stratum; i++) {
+      String s = stratum[i];
+      if (TYPEOF(data[s]) == INTSXP) {
+        IntegerVector stratumwi = u_stratum[s];
+        data_outcome.push_back(stratumwi[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == REALSXP) {
+        NumericVector stratumwn = u_stratum[s];
+        data_outcome.push_back(stratumwn[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == STRSXP) {
+        StringVector stratumwc = u_stratum[s];
+        data_outcome.push_back(stratumwc[ustratum-1], s);
+      }
+    }
+  }
+
+  
+  double hrhat = out["hrhat"];
+  double hrlower = out["hrlower"];
+  double hrupper = out["hrupper"];
+  double pvalue = out["pvalue"];
   
   // construct the confidence interval for HR
   String hr_CI_type;
