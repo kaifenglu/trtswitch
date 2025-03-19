@@ -83,6 +83,9 @@
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param tol The desired accuracy (convergence tolerance) for \code{psi}. 
+#' @param offset The offset to calculate the time to event, PD, and 
+#'   treatment switch. We can set \code{offset} equal to 1 (default), 
+#'   1/30.4375, or 1/365.25 if the time unit is day, month, or year.
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
@@ -221,6 +224,9 @@
 #'     - \code{tol}: The desired accuracy (convergence tolerance) 
 #'       for \code{psi}.
 #'
+#'     - \code{offset}: The offset to calculate the time to event, PD, and
+#'       treatment switch.
+#'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.
 #'
@@ -320,13 +326,13 @@ tsegest <- function(data, id = "id", stratum = "",
                     firth = FALSE, flic = FALSE,
                     recensor = TRUE, admin_recensor_only = TRUE,
                     swtrt_control_only = TRUE, alpha = 0.05, 
-                    ties = "efron", tol = 1.0e-6,  
+                    ties = "efron", tol = 1.0e-6, offset = 1, 
                     boot = TRUE, n_boot = 1000, seed = NA) {
 
   rownames(data) = NULL
 
   elements = c(id, stratum, tstart, tstop, event, treat, censor_time, 
-               pd, swtrt, base_cov, conf_cov)
+               pd, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
@@ -388,17 +394,29 @@ tsegest <- function(data, id = "id", stratum = "",
     df$swtrt_time_upper = 1.0e8;
   }
 
-  tsegestcpp(data = df, id = id, stratum = stratum, 
-             tstart = tstart, tstop = tstop, event = event,
-             treat = treat, censor_time = censor_time, pd = pd,
-             pd_time = pd_time, swtrt = swtrt, swtrt_time = swtrt_time,
-             swtrt_time_upper = swtrt_time_upper,
-             base_cov = varnames, conf_cov = varnames2,
-             low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
-             strata_main_effect_only = strata_main_effect_only,
-             firth = firth, flic = flic,
-             recensor = recensor, admin_recensor_only = admin_recensor_only,
-             swtrt_control_only = swtrt_control_only, alpha = alpha,
-             ties = ties, tol = tol, boot = boot, n_boot = n_boot, 
-             seed = seed)
+  out <- tsegestcpp(
+    data = df, id = id, stratum = stratum, 
+    tstart = tstart, tstop = tstop, event = event,
+    treat = treat, censor_time = censor_time, pd = pd,
+    pd_time = pd_time, swtrt = swtrt, swtrt_time = swtrt_time,
+    swtrt_time_upper = swtrt_time_upper,
+    base_cov = varnames, conf_cov = varnames2,
+    low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
+    strata_main_effect_only = strata_main_effect_only,
+    firth = firth, flic = flic,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    swtrt_control_only = swtrt_control_only, alpha = alpha,
+    ties = ties, tol = tol, offset = offset, 
+    boot = boot, n_boot = n_boot, seed = seed)
+  
+  K = ifelse(swtrt_control_only, 1, 2)
+  for (h in 1:K) {
+    out$analysis_switch$data_logis[[h]]$data$uid <- NULL
+    out$analysis_switch$data_nullcox[[h]]$data$ustratum <- NULL
+  }
+  
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
+  
+  out
 }
