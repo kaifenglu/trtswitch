@@ -46,9 +46,9 @@ testthat::test_that("tsegest: logistic g-estimation", {
               by = "id") %>%
     group_by(id) %>%
     slice(1) %>%
-    mutate(ostime = ostime - timePFSobs,
-           censor_time = censor_time - timePFSobs,
-           xotime = xotime - timePFSobs) %>%
+    mutate(ostime = ostime - timePFSobs + 1,
+           censor_time = censor_time - timePFSobs + 1,
+           xotime = xotime - timePFSobs + 1) %>%
     ungroup()
   
   # setup treatment switching indicators
@@ -60,7 +60,8 @@ testthat::test_that("tsegest: logistic g-estimation", {
   
   f <- function(psi, target) {
     data4a <- data3a %>%
-      mutate(u_star = ifelse(xo == 1, xotime + (ostime - xotime)*exp(psi), 
+      mutate(u_star = ifelse(xo == 1, xotime - 1 + 
+                               (ostime - xotime + 1)*exp(psi), 
                              ostime), 
              c_star = pmin(censor_time, censor_time*exp(psi)),
              t_star = pmin(u_star, c_star),
@@ -87,7 +88,8 @@ testthat::test_that("tsegest: logistic g-estimation", {
   
   data4 <- data1 %>%
     filter(trtrand == 0) %>%
-    mutate(u_star = ifelse(xo == 1, xotime + (ostime - xotime)*exp(psi), 
+    mutate(u_star = ifelse(xo == 1, xotime - 1 + 
+                             (ostime - xotime + 1)*exp(psi), 
                            ostime), 
            c_star = pmin(censor_time, censor_time*exp(psi)),
            t_star = pmin(u_star, c_star),
