@@ -6,6 +6,7 @@ using namespace Rcpp;
 
 double est_psi_rpsftm(
     const double psi,
+    const IntegerVector& id,
     const IntegerVector& stratum,
     const NumericVector& time,
     const IntegerVector& event,
@@ -17,12 +18,12 @@ double est_psi_rpsftm(
     const bool autoswitch,
     const double target) {
 
-  DataFrame Sstar = untreated(psi*treat_modifier, time, event, treat, rx,
-                              censor_time, recensor, autoswitch);
+  DataFrame Sstar = untreated(psi*treat_modifier, id, time, event, treat, 
+                              rx, censor_time, recensor, autoswitch);
 
-  Sstar.push_back(stratum, "stratum");
-  DataFrame df = lrtest(Sstar, "", "stratum", "treated", "t_star", "d_star", 
-                        0, 0);
+  Sstar.push_back(stratum, "ustratum");
+  DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", 
+                        "d_star", 0, 0);
 
   double z = df["logRankZ"];
   return z - target;
@@ -31,6 +32,7 @@ double est_psi_rpsftm(
 
 // [[Rcpp::export]]
 List rpsftmcpp(const DataFrame data,
+               const std::string id = "id",
                const StringVector& stratum = "",
                const std::string time = "time",
                const std::string event = "event",
@@ -72,12 +74,40 @@ List rpsftmcpp(const DataFrame data,
     u_stratum = DataFrame(out["lookup"]);
   }
   
+  bool has_id = hasVariable(data, id);
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
   bool has_treat = hasVariable(data, treat);
   bool has_rx = hasVariable(data, rx);
   bool has_censor_time = hasVariable(data, censor_time);
 
+  if (!has_id) {
+    stop("data must contain the id variable");
+  }
+  
+  IntegerVector idn(n);
+  IntegerVector idwi;
+  NumericVector idwn;
+  StringVector idwc;
+  if (TYPEOF(data[id]) == INTSXP) {
+    IntegerVector idv = data[id];
+    idwi = unique(idv);
+    idwi.sort();
+    idn = match(idv, idwi);
+  } else if (TYPEOF(data[id]) == REALSXP) {
+    NumericVector idv = data[id];
+    idwn = unique(idv);
+    idwn.sort();
+    idn = match(idv, idwn);
+  } else if (TYPEOF(data[id]) == STRSXP) {
+    StringVector idv = data[id];
+    idwc = unique(idv);
+    idwc.sort();
+    idn = match(idv, idwc);
+  } else {
+    stop("incorrect type for the id variable in the input data");
+  }
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
@@ -253,7 +283,7 @@ List rpsftmcpp(const DataFrame data,
   NumericVector psi(n_eval_z), Z(n_eval_z);
   for (i=0; i<n_eval_z; i++) {
     psi[i] = low_psi + i*step_psi;
-    Z[i] = est_psi_rpsftm(psi[i], stratumn, timen, eventn, treatn,
+    Z[i] = est_psi_rpsftm(psi[i], idn, stratumn, timen, eventn, treatn,
                           rxn, censor_timen, treat_modifier,
                           recensor, autoswitch, 0);
   }
@@ -265,14 +295,14 @@ List rpsftmcpp(const DataFrame data,
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
 
   k = -1;
-  auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
-            n, p, covariates, low_psi, hi_psi, n_eval_z, psi, 
+  auto f = [&k, n, p, covariates, low_psi, hi_psi, n_eval_z, psi, 
             treat_modifier, recensor, autoswitch, gridsearch, 
             alpha, zcrit, ties, tol](
-                IntegerVector stratumb, NumericVector timeb,
-                IntegerVector eventb, IntegerVector treatb,
-                NumericVector rxb, NumericVector censor_timeb,
-                NumericMatrix zb)->List {
+                IntegerVector& idb, 
+                IntegerVector& stratumb, NumericVector& timeb,
+                IntegerVector& eventb, IntegerVector& treatb,
+                NumericVector& rxb, NumericVector& censor_timeb,
+                NumericMatrix& zb)->List {
                   int i, j;
 
                   // obtain the estimate and confidence interval of psi
@@ -283,7 +313,7 @@ List rpsftmcpp(const DataFrame data,
                     NumericVector Z(n_eval_z);
                     for (i=0; i<n_eval_z; i++) {
                       Z[i] = est_psi_rpsftm(
-                        psi[i], stratumb, timeb, eventb, treatb, 
+                        psi[i], idb, stratumb, timeb, eventb, treatb, 
                         rxb, censor_timeb, treat_modifier, 
                         recensor, autoswitch, 0);
                     }
@@ -303,11 +333,11 @@ List rpsftmcpp(const DataFrame data,
                     }
                   } else {
                     double target = 0;
-                    auto g = [&target, stratumb, timeb, eventb, treatb, 
+                    auto g = [&target, idb, stratumb, timeb, eventb, treatb, 
                               rxb, censor_timeb, treat_modifier, recensor, 
                               autoswitch](double x)->double {
                                 return est_psi_rpsftm(
-                                  x, stratumb, timeb, eventb, treatb, 
+                                  x, idb, stratumb, timeb, eventb, treatb, 
                                   rxb, censor_timeb, treat_modifier, 
                                   recensor, autoswitch, target);
                               };
@@ -327,33 +357,19 @@ List rpsftmcpp(const DataFrame data,
                   DataFrame Sstar, kmstar;
                   if (k == -1) {
                     Sstar = untreated(
-                      psihat*treat_modifier, timeb, eventb, treatb,
+                      psihat*treat_modifier, idb, timeb, eventb, treatb,
                       rxb, censor_timeb, recensor, autoswitch);
 
                     kmstar = kmest(Sstar, "", "treated", "t_star",
-                                   "d_star", "log-log", 1-alpha, 0);
+                                   "d_star", "log-log", 1-alpha, 1);
                   }
 
                   // run Cox model to obtain the hazard ratio estimate
                   DataFrame data_outcome = unswitched(
-                    psihat*treat_modifier, n, timeb, eventb, treatb,
+                    psihat*treat_modifier, n, idb, timeb, eventb, treatb,
                     rxb, censor_timeb, recensor, autoswitch);
 
-                  if (has_stratum) {
-                    for (i=0; i<p_stratum; i++) {
-                      String s = stratum[i];
-                      if (TYPEOF(data[s]) == INTSXP) {
-                        IntegerVector stratumwi = u_stratum[s];
-                        data_outcome.push_back(stratumwi[stratumb-1], s);
-                      } else if (TYPEOF(data[s]) == REALSXP) {
-                        NumericVector stratumwn = u_stratum[s];
-                        data_outcome.push_back(stratumwn[stratumb-1], s);
-                      } else if (TYPEOF(data[s]) == STRSXP) {
-                        StringVector stratumwc = u_stratum[s];
-                        data_outcome.push_back(stratumwc[stratumb-1], s);
-                      }
-                    }
-                  }
+                  data_outcome.push_back(stratumb, "ustratum");
                   
                   for (j=0; j<p; j++) {
                     String zj = covariates[j+1];
@@ -362,7 +378,7 @@ List rpsftmcpp(const DataFrame data,
                   }
 
                   List fit_outcome = phregcpp(
-                    data_outcome, "", stratum, "t_star", "", "d_star", 
+                    data_outcome, "", "ustratum", "t_star", "", "d_star", 
                     covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
@@ -394,18 +410,31 @@ List rpsftmcpp(const DataFrame data,
                   return out;
                 };
 
-  List out = f(stratumn, timen, eventn, treatn, rxn, censor_timen, zn);
+  List out = f(idn, stratumn, timen, eventn, treatn, rxn, censor_timen, zn);
 
   DataFrame Sstar = DataFrame(out["Sstar"]);
   DataFrame kmstar = DataFrame(out["kmstar"]);
   DataFrame data_outcome = DataFrame(out["data_outcome"]);
   List fit_outcome = out["fit_outcome"];
-  double psihat = out["psihat"];
-  double psilower = out["psilower"];
-  double psiupper = out["psiupper"];
-  String psi_CI_type = out["psi_CI_type"];
-  double hrhat = out["hrhat"];
-  double pvalue = out["pvalue"];
+  
+  IntegerVector uid = Sstar["uid"];
+  if (TYPEOF(data[id]) == INTSXP) {
+    Sstar.push_front(idwi[uid-1], id);
+  } else if (TYPEOF(data[id]) == REALSXP) {
+    Sstar.push_front(idwn[uid-1], id);
+  } else if (TYPEOF(data[id]) == STRSXP) {
+    Sstar.push_front(idwc[uid-1], id);
+  }
+  
+  uid = data_outcome["uid"];
+  if (TYPEOF(data[id]) == INTSXP) {
+    data_outcome.push_front(idwi[uid-1], id);
+  } else if (TYPEOF(data[id]) == REALSXP) {
+    data_outcome.push_front(idwn[uid-1], id);
+  } else if (TYPEOF(data[id]) == STRSXP) {
+    data_outcome.push_front(idwc[uid-1], id);
+  }
+  
   
   IntegerVector treated = Sstar["treated"];
   if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
@@ -434,6 +463,46 @@ List rpsftmcpp(const DataFrame data,
     data_outcome.push_back(treatwc[1-treated], treat);
   }
   
+  
+  if (has_stratum) {
+    for (i=0; i<p_stratum; i++) {
+      String s = stratum[i];
+      if (TYPEOF(data[s]) == INTSXP) {
+        IntegerVector stratumwi = u_stratum[s];
+        Sstar.push_back(stratumwi[stratumn-1], s);
+      } else if (TYPEOF(data[s]) == REALSXP) {
+        NumericVector stratumwn = u_stratum[s];
+        Sstar.push_back(stratumwn[stratumn-1], s);
+      } else if (TYPEOF(data[s]) == STRSXP) {
+        StringVector stratumwc = u_stratum[s];
+        Sstar.push_back(stratumwc[stratumn-1], s);
+      }
+    }
+    
+    IntegerVector ustratum = data_outcome["ustratum"];
+    for (i=0; i<p_stratum; i++) {
+      String s = stratum[i];
+      if (TYPEOF(data[s]) == INTSXP) {
+        IntegerVector stratumwi = u_stratum[s];
+        data_outcome.push_back(stratumwi[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == REALSXP) {
+        NumericVector stratumwn = u_stratum[s];
+        data_outcome.push_back(stratumwn[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == STRSXP) {
+        StringVector stratumwc = u_stratum[s];
+        data_outcome.push_back(stratumwc[ustratum-1], s);
+      }
+    }
+  }
+  
+  
+  double psihat = out["psihat"];
+  double psilower = out["psilower"];
+  double psiupper = out["psiupper"];
+  String psi_CI_type = out["psi_CI_type"];
+  double hrhat = out["hrhat"];
+  double pvalue = out["pvalue"];
+  
   // construct the confidence interval for HR
   double hrlower, hrupper;
   NumericVector hrhats(n_boot), psihats(n_boot);
@@ -448,7 +517,7 @@ List rpsftmcpp(const DataFrame data,
   } else { // bootstrap the entire process to construct CI for HR
     if (seed != NA_INTEGER) set_seed(seed);
 
-    IntegerVector stratumb(n), treatb(n), eventb(n);
+    IntegerVector idb(n), stratumb(n), treatb(n), eventb(n);
     NumericVector timeb(n), rxb(n), censor_timeb(n);
     NumericMatrix zb(n,p);
 
@@ -465,6 +534,7 @@ List rpsftmcpp(const DataFrame data,
       order[n0+i] = idx1[i];
     }
 
+    idn = idn[order];
     stratumn = stratumn[order];
     timen = timen[order];
     eventn = eventn[order];
@@ -483,6 +553,7 @@ List rpsftmcpp(const DataFrame data,
           j = n0 + static_cast<int>(std::floor(u*n1));
         }
 
+        idb[i] = idn[j];
         stratumb[i] = stratumn[j];
         timeb[i] = timen[j];
         eventb[i] = eventn[j];
@@ -492,7 +563,8 @@ List rpsftmcpp(const DataFrame data,
         zb(i,_) = zn(j,_);
       }
 
-      List out = f(stratumb, timeb, eventb, treatb, rxb, censor_timeb, zb);
+      List out = f(idb, stratumb, timeb, eventb, treatb, rxb, 
+                   censor_timeb, zb);
       
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
