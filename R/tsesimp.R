@@ -6,6 +6,8 @@
 #'
 #' @param data The input data frame that contains the following variables:
 #'
+#'   * \code{id}: The subject id.
+#'
 #'   * \code{stratum}: The stratum.
 #'
 #'   * \code{time}: The survival time for right censored data.
@@ -31,6 +33,7 @@
 #'   * \code{base2_cov}: The baseline and secondary baseline
 #'     covariates (excluding swtrt).
 #'
+#' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param time The name of the time variable in the input data.
 #' @param event The name of the event variable in the input data.
@@ -202,7 +205,7 @@
 #'
 #' # apply the two-stage method
 #' fit1 <- tsesimp(
-#'   data = shilong3, time = "tstop", event = "event",
+#'   data = shilong3, id = "id", time = "tstop", event = "event",
 #'   treat = "bras.f", censor_time = "dcut", pd = "pd",
 #'   pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
 #'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
@@ -216,20 +219,21 @@
 #' c(fit1$hr, fit1$hr_CI)
 #'
 #' @export
-tsesimp <- function(data, stratum = "", time = "time", event = "event",
-                    treat = "treat", censor_time = "censor_time",
+tsesimp <- function(data, id = "id", stratum = "", time = "time", 
+                    event = "event", treat = "treat", 
+                    censor_time = "censor_time",
                     pd = "pd", pd_time = "pd_time",
                     swtrt = "swtrt", swtrt_time = "swtrt_time",
                     base_cov = "", base2_cov = "",
                     aft_dist = "weibull", strata_main_effect_only = TRUE,
                     recensor = TRUE, admin_recensor_only = TRUE,
-                    swtrt_control_only = TRUE, alpha = 0.05, ties = "efron",
-                    offset = 1, boot = TRUE, n_boot = 1000, seed = NA) {
+                    swtrt_control_only = TRUE, alpha = 0.05, 
+                    ties = "efron", offset = 1, 
+                    boot = TRUE, n_boot = 1000, seed = NA) {
 
   rownames(data) = NULL
 
-  elements = c(stratum, time, event, treat, censor_time, pd, swtrt,
-               base_cov, base2_cov)
+  elements = c(stratum, time, event, treat, censor_time, pd, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
@@ -285,14 +289,20 @@ tsesimp <- function(data, stratum = "", time = "time", event = "event",
     varnames2 = ""
   }
 
-  tsesimpcpp(data = df, stratum = stratum, time = time, event = event,
-             treat = treat, censor_time = censor_time, pd = pd,
-             pd_time = pd_time, swtrt = swtrt, swtrt_time = swtrt_time,
-             base_cov = varnames, base2_cov = varnames2,
-             aft_dist = aft_dist,
-             strata_main_effect_only = strata_main_effect_only,
-             recensor = recensor, admin_recensor_only = admin_recensor_only,
-             swtrt_control_only = swtrt_control_only, alpha = alpha,
-             ties = ties, offset = offset, boot = boot, n_boot = n_boot,
-             seed = seed)
+  out <- tsesimpcpp(
+    data = df, id = id, stratum = stratum, time = time, 
+    event = event, treat = treat, censor_time = censor_time, 
+    pd = pd, pd_time = pd_time, swtrt = swtrt, 
+    swtrt_time = swtrt_time, base_cov = varnames, 
+    base2_cov = varnames2, aft_dist = aft_dist,
+    strata_main_effect_only = strata_main_effect_only,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    swtrt_control_only = swtrt_control_only, alpha = alpha,
+    ties = ties, offset = offset, 
+    boot = boot, n_boot = n_boot, seed = seed)
+  
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
+  
+  out
 }
