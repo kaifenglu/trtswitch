@@ -5,6 +5,8 @@
 #' to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
+#' 
+#'   * \code{id}: The subject id.
 #'
 #'   * \code{stratum}: The stratum.
 #'
@@ -21,7 +23,8 @@
 #'     be provided for all subjects including those who had events.
 #'
 #'   * \code{base_cov}: The baseline covariates (excluding treat).
-#'
+#'   
+#' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param time The name of the time variable in the input data.
 #' @param event The name of the event variable in the input data.
@@ -181,7 +184,7 @@
 #' data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 #'
 #' fit1 <- rpsftm(
-#'   data, time = "progyrs", event = "prog", treat = "imm",
+#'   data, id = "id", time = "progyrs", event = "prog", treat = "imm",
 #'   rx = "rx", censor_time = "censyrs", boot = FALSE)
 #'
 #' c(fit1$hr, fit1$hr_CI)
@@ -201,7 +204,7 @@
 #'                      ifelse(bras.f == "MTA", 1, 0)))
 #'
 #' fit2 <- rpsftm(
-#'   shilong2, time = "tstop", event = "event",
+#'   shilong2, id = "id", time = "tstop", event = "event",
 #'   treat = "bras.f", rx = "rx", censor_time = "dcut",
 #'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
 #'                "pathway.f"),
@@ -210,7 +213,8 @@
 #' c(fit2$hr, fit2$hr_CI)
 #'
 #' @export
-rpsftm <- function(data, stratum = "", time = "time", event = "event",
+rpsftm <- function(data, id = "id", stratum = "", 
+                   time = "time", event = "event",
                    treat = "treat", rx = "rx", censor_time = "censor_time",
                    base_cov = "", low_psi = -1, hi_psi = 1,
                    n_eval_z = 100, treat_modifier = 1,
@@ -221,7 +225,7 @@ rpsftm <- function(data, stratum = "", time = "time", event = "event",
 
   rownames(data) = NULL
 
-  elements = c(stratum, time, event, treat, rx, censor_time, base_cov)
+  elements = c(stratum, time, event, treat, rx, censor_time)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
@@ -253,12 +257,20 @@ rpsftm <- function(data, stratum = "", time = "time", event = "event",
     varnames = ""
   }
 
-  rpsftmcpp(data = df, stratum = stratum, time = time, event = event,
-            treat = treat, rx = rx, censor_time = censor_time,
-            base_cov = varnames, low_psi = low_psi, hi_psi = hi_psi,
-            n_eval_z = n_eval_z, treat_modifier = treat_modifier,
-            recensor = recensor, admin_recensor_only = admin_recensor_only,
-            autoswitch = autoswitch, gridsearch = gridsearch, 
-            alpha = alpha, ties = ties, tol = tol, 
-            boot = boot, n_boot = n_boot, seed = seed)
+  out <- rpsftmcpp(
+    data = df, id = id, stratum = stratum, 
+    time = time, event = event,
+    treat = treat, rx = rx, censor_time = censor_time,
+    base_cov = varnames, low_psi = low_psi, hi_psi = hi_psi,
+    n_eval_z = n_eval_z, treat_modifier = treat_modifier,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    autoswitch = autoswitch, gridsearch = gridsearch, 
+    alpha = alpha, ties = ties, tol = tol, 
+    boot = boot, n_boot = n_boot, seed = seed)
+  
+  out$Sstar$uid <- NULL
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
+  
+  out
 }
