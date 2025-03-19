@@ -263,8 +263,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
 
   rownames(data) = NULL
 
-  elements = c(id, stratum, tstart, tstop, event, treat, swtrt,
-               base_cov, numerator, denominator)
+  elements = c(id, stratum, tstart, tstop, event, treat, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
@@ -356,21 +355,30 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     df$swtrt_time_upper = 1.0e8;
   }
 
-  fit <- ipcwcpp(data = df, id = id, stratum = stratum, tstart = tstart,
-                 tstop = tstop, event = event, treat = treat, 
-                 swtrt = swtrt, swtrt_time = swtrt_time, 
-                 swtrt_time_lower = swtrt_time_lower, 
-                 swtrt_time_upper = swtrt_time_upper, base_cov = varnames,
-                 numerator = varnames2, denominator = varnames3,
-                 logistic_switching_model = logistic_switching_model,
-                 strata_main_effect_only = strata_main_effect_only,
-                 firth = firth, flic = flic, ns_df = ns_df,
-                 relative_time = relative_time,
-                 stabilized_weights = stabilized_weights, 
-                 trunc = trunc, trunc_upper_only = trunc_upper_only,
-                 swtrt_control_only = swtrt_control_only, alpha = alpha,
-                 ties = ties, boot = boot, n_boot = n_boot, seed = seed)
-
-  fit$data_outcome$uid <- NULL
-  fit
+  out <- ipcwcpp(
+    data = df, id = id, stratum = stratum, tstart = tstart,
+    tstop = tstop, event = event, treat = treat, 
+    swtrt = swtrt, swtrt_time = swtrt_time, 
+    swtrt_time_lower = swtrt_time_lower, 
+    swtrt_time_upper = swtrt_time_upper, base_cov = varnames,
+    numerator = varnames2, denominator = varnames3,
+    logistic_switching_model = logistic_switching_model,
+    strata_main_effect_only = strata_main_effect_only,
+    firth = firth, flic = flic, ns_df = ns_df,
+    relative_time = relative_time,
+    stabilized_weights = stabilized_weights, 
+    trunc = trunc, trunc_upper_only = trunc_upper_only,
+    swtrt_control_only = swtrt_control_only, alpha = alpha,
+    ties = ties, boot = boot, n_boot = n_boot, seed = seed)
+  
+  K = ifelse(swtrt_control_only, 1, 2)
+  for (h in 1:K) {
+    out$data_switch[[h]]$data$uid <- NULL
+    out$data_switch[[h]]$data$ustratum <- NULL
+  }
+  
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
+  
+  out
 }
