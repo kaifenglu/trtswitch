@@ -47,6 +47,7 @@ List qrcpp(const NumericMatrix& X, double tol);
 
 DataFrame untreated(
     const double psi,
+    const IntegerVector& id,
     const NumericVector& time,
     const IntegerVector& event,
     const IntegerVector& treat,
@@ -58,6 +59,7 @@ DataFrame untreated(
 DataFrame unswitched(
     const double psi,
     const int n,
+    const IntegerVector& id,
     const NumericVector& time,
     const IntegerVector& event,
     const IntegerVector& treat,

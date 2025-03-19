@@ -444,7 +444,7 @@ NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
 //' each record is split into multiple subrecords at each cut time. 
 //' The resulting dataset is in counting process format, with each 
 //' subrecord containing a start time, stop time, and event status.
-//' This is adapted from the survplit.c function from the survival package.
+//' This is adapted from the survsplit.c function from the survival package.
 //'
 //' @param tstart The starting time of the time interval for 
 //'   counting-process data.
@@ -757,6 +757,7 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
 // counterfactual untreated survival times and event indicators
 DataFrame untreated(
     const double psi,
+    const IntegerVector& id,
     const NumericVector& time,
     const IntegerVector& event,
     const IntegerVector& treat,
@@ -785,6 +786,7 @@ DataFrame untreated(
   }
   
   DataFrame result = DataFrame::create(
+    Named("uid") = id,
     Named("t_star") = t_star,
     Named("d_star") = d_star,
     Named("treated") = treat
@@ -798,6 +800,7 @@ DataFrame untreated(
 DataFrame unswitched(
     const double psi,
     const int n,
+    const IntegerVector& id,
     const NumericVector& time,
     const IntegerVector& event,
     const IntegerVector& treat,
@@ -842,6 +845,7 @@ DataFrame unswitched(
   }
   
   DataFrame result = DataFrame::create(
+    Named("uid") = id,
     Named("t_star") = t_star,
     Named("d_star") = d_star,
     Named("treated") = treat
