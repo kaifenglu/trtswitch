@@ -19,6 +19,9 @@
 #' does not have the strata statement. The RPSFTM, IPE and TSE methods 
 #' can be used with or without recensoring. The IPCW method can produce 
 #' stabilized and truncated weights. 
+#' 
+#' The \code{treat} variable adopts a treatment-before-control order,  
+#' except with 1/0 or TRUE/FALSE coding.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
