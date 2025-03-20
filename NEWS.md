@@ -3,6 +3,7 @@
 - Added the keep_censor parameter to the kmest function and added the ncensor variable to the output data frame.
 - Added time 0 and the ncensor variable to the output data frame of the kmest function
 - Added time 0 and the ncensor variable to the output baseline hazard data frame of the phregr function
+- Added id to output data
 
 # trtswitch 0.1.3
 
