@@ -92,7 +92,7 @@
 #'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model.
+#'   the Cox model applied to counterfactual unswitched survival times.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -216,8 +216,8 @@
 rpsftm <- function(data, id = "id", stratum = "", 
                    time = "time", event = "event",
                    treat = "treat", rx = "rx", censor_time = "censor_time",
-                   base_cov = "", low_psi = -1, hi_psi = 1,
-                   n_eval_z = 100, treat_modifier = 1,
+                   base_cov = "", low_psi = -2, hi_psi = 2,
+                   n_eval_z = 101, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = FALSE,
                    alpha = 0.05, ties = "efron", tol = 1.0e-6,
