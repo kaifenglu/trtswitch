@@ -128,10 +128,10 @@
 #' @return A list with the following components:
 #'
 #' * \code{logrank_pvalue}:  The two-sided p-value of the log-rank test 
-#'   for an intention-to-treat (ITT) analysis.
+#'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model.
+#'   the Cox model applied to counterfactual unswitched survival times.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
