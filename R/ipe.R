@@ -31,13 +31,16 @@
 #' @param rx The name of the rx variable in the input data.
 #' @param censor_time The name of the censor_time variable in the input data.
 #' @param base_cov The names of baseline covariates (excluding
-#'   treat) in the input data for the outcome Cox model.
+#'   treat) in the input data for the causal AFT model and the outcome 
+#'   Cox model.
 #' @param aft_dist The assumed distribution for time to event for the AFT
 #'   model. Options include "exponential", "weibull" (default), 
 #'   "loglogistic", and "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
 #'   possible strata combinations will be considered in the AFT model.
+#' @param low_psi The lower limit of the causal parameter.
+#' @param hi_psi The upper limit of the causal parameter.
 #' @param treat_modifier The optional sensitivity parameter for the
 #'   constant treatment effect assumption.
 #' @param recensor Whether to apply recensoring to counterfactual
@@ -90,7 +93,7 @@
 #'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on 
-#'   the Cox model.
+#'   the Cox model applied to counterfactual unswitched survival times.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -122,6 +125,10 @@
 #'     - \code{strata_main_effect_only}: Whether to only include the strata
 #'       main effects in the AFT model.
 #'
+#'     - \code{low_psi}: The lower limit of the causal parameter.
+#'     
+#'     - \code{hi_psi}: The upper limit of the causal parameter.
+#'     
 #'     - \code{treat_modifier}: The sensitivity parameter for the constant
 #'       treatment effect assumption.
 #'
@@ -161,12 +168,12 @@
 #' Michael Branson and John Whitehead.
 #' Estimating a treatment effect in survival studies in which patients
 #' switch treatment.
-#' Statistics in Medicine. 2002;21:2449-2463.
+#' Statistics in Medicine. 2002;21(17):2449-2463.
 #'
 #' Ian R White.
 #' Letter to the Editor: Estimating treatment effects in randomized
 #' trials with treatment switching.
-#' Statistics in Medicine. 2006;25:1619-1622.
+#' Statistics in Medicine. 2006;25(9):1619-1622.
 #'
 #' @examples
 #'
@@ -211,6 +218,7 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
                 event = "event", treat = "treat", rx = "rx", 
                 censor_time = "censor_time",
                 base_cov = "", aft_dist = "weibull",
+                low_psi = -2, hi_psi = 2,
                 strata_main_effect_only = 1, treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
                 autoswitch = TRUE, alpha = 0.05, ties = "efron",
@@ -254,6 +262,7 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     data = df, id = id, stratum = stratum, time = time, event = event,
     treat = treat, rx = rx, censor_time = censor_time,
     base_cov = varnames, aft_dist = aft_dist,
+    low_psi = low_psi, hi_psi = hi_psi,
     strata_main_effect_only = strata_main_effect_only,
     treat_modifier = treat_modifier, recensor = recensor,
     admin_recensor_only = admin_recensor_only, 
