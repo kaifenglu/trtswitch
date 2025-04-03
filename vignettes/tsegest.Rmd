@@ -72,10 +72,11 @@ fit1 <- tsegest(
   pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
   base_cov = "bprog", conf_cov = "bprog*catlag", 
-  low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+  low_psi = -2, hi_psi = 2, n_eval_z = 101, 
+  strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-  tol = 1.0e-6, boot = FALSE)
+  tol = 1.0e-6, offset = 1, boot = FALSE)
 ```
 
 The Kaplan-Meier plot for the control arm demonstrates that treatment switching can occur at the secondary baseline and at each of the ensuing five scheduled visits, spaced 21 days apart.
@@ -109,7 +110,7 @@ The plot of $Z(\psi)$ versus $\psi$ shows that the estimation process worked wel
 c(fit1$psi, fit1$psi_CI)
 ```
 
-````{verbatim}
+
 ```{r Z(psi)}
 psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
 
@@ -125,7 +126,6 @@ ggplot(fit1$analysis_switch$eval_z[[1]]$data %>%
   ylab("Wald Z for counterfactual") + 
   theme(panel.grid.minor = element_blank())
 ```
-````
 
 Now we fit the outcome Cox model and compare the treatment hazard ratio estimate with the reported. 
 ```{r cox}
@@ -143,10 +143,12 @@ fit2 <- tsegest(
   pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
   base_cov = "bprog", conf_cov = "bprog*catlag", 
-  low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+  low_psi = -2, hi_psi = 2, n_eval_z = 101, 
+  strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-  tol = 1.0e-6, boot = TRUE, n_boot = 1000, seed = 12345)
+  tol = 1.0e-6, offset = 1, boot = TRUE, 
+  n_boot = 1000, seed = 12345)
 
 c(fit2$hr, fit2$hr_CI)
 ```
