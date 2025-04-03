@@ -140,10 +140,10 @@
 #'   i.e., "logistic model" or "bootstrap".
 #'   
 #' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   for an intention-to-treat (ITT) analysis.
+#'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model.
+#'   the Cox model applied to counterfactual unswitched survival times.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -162,8 +162,8 @@
 #'       is censored at the time from secondary baseline to either 
 #'       death or censoring.
 #'   
-#'     - \code{km_switch}: The list of Kaplan-Meier plots for the time 
-#'       from secondary baseline to switch by treatment group.
+#'     - \code{km_switch}: The list of Kaplan-Meier plot data for the 
+#'       time from secondary baseline to switch by treatment group.
 #'   
 #'     - \code{eval_z}: The list of data by treatment group containing 
 #'       the Wald statistics for the coefficient of the counterfactual 
@@ -321,7 +321,7 @@ tsegest <- function(data, id = "id", stratum = "",
                     pd = "pd", pd_time = "pd_time",
                     swtrt = "swtrt", swtrt_time = "swtrt_time",
                     swtrt_time_upper = "", base_cov = "", conf_cov = "",
-                    low_psi = -3, hi_psi = 3, n_eval_z = 100,
+                    low_psi = -2, hi_psi = 2, n_eval_z = 101,
                     strata_main_effect_only = TRUE,
                     firth = FALSE, flic = FALSE,
                     recensor = TRUE, admin_recensor_only = TRUE,
