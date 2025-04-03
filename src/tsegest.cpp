@@ -5,7 +5,7 @@
 using namespace Rcpp;
 
 
-List gest(int n2, int q, int p2, int nids2, 
+List est_psi_tsegest(int n2, int q, int p2, int nids2, 
           IntegerVector idx2, IntegerVector stratumn3, 
           IntegerVector osn3, NumericVector os_timen3, 
           NumericVector censor_timen3,  
@@ -108,9 +108,9 @@ List tsegestcpp(
     const std::string swtrt_time_upper = "",
     const StringVector& base_cov = "",
     const StringVector& conf_cov = "",
-    const double low_psi = -3,
-    const double hi_psi = 3,
-    const int n_eval_z = 100,
+    const double low_psi = -2,
+    const double hi_psi = 2,
+    const int n_eval_z = 101,
     const bool strata_main_effect_only = 1,
     const bool firth = 0,
     const bool flic = 0,
@@ -715,9 +715,15 @@ List tsegestcpp(
                     NumericVector swtrt_timen2 = swtrt_timeb[l];
                     NumericMatrix zn_lgs2 = subset_matrix_by_row(zb_lgs, l);
                     
-                    // re-baseline based on disease progression date
                     int n2 = static_cast<int>(l.size());
                     
+                    // treatment switching indicators
+                    IntegerVector y(n2);
+                    for (i=0; i<n2; i++) {
+                      y[i] = swtrtn2[i] * (tstopn2[i] == swtrt_timen2[i]);
+                    } 
+                    
+                    // re-baseline based on disease progression date
                     IntegerVector idx2(1,0);
                     for (i=1; i<n2; i++) {
                       if (idn2[i] != idn2[i-1]) {
@@ -749,15 +755,7 @@ List tsegestcpp(
                       }
                     }
                     
-                    // treatment switching indicators
-                    IntegerVector y(n2);
-                    for (i=0; i<nids2; i++) {
-                      for (j=idx2[i]; j<idx2[i+1]; j++) {
-                        y[j] = swtrtn2[j] == 1 && 
-                          tstopn2[j] == swtrt_timen2[j];
-                      }
-                    }
-                    
+
                     // z-stat for the slope of counterfactual survival time
                     // martingale residuals in the logistic regression model
                     double target = 0;
@@ -766,7 +764,7 @@ List tsegestcpp(
                               swtrt_timen3, idn2, y, covariates_lgs, 
                               zn_lgs2, firth, flic, recensor, alpha, ties, 
                               offset](double psi)->double{
-                                List out = gest(
+                                List out = est_psi_tsegest(
                                   n2, q, p2, nids2, idx2, stratumn3, 
                                   osn3, os_timen3, censor_timen3, 
                                   swtrtn3, swtrt_timen3, idn2, y, 
@@ -874,7 +872,7 @@ List tsegestcpp(
                       NumericVector psi(n_eval_z), Z(n_eval_z);
                       for (i=0; i<n_eval_z; i++) {
                         psi[i] = low_psi + i*step_psi;
-                        List out = gest(
+                        List out = est_psi_tsegest(
                           n2, q, p2, nids2, idx2, stratumn3, 
                           osn3, os_timen3, censor_timen3, 
                           swtrtn3, swtrt_timen3, idn2, y, 
@@ -889,7 +887,7 @@ List tsegestcpp(
                         Named("Z") = Z);
                       
                       // obtain data and fit for null Cox and logistic models
-                      List out = gest(
+                      List out = est_psi_tsegest(
                         n2, q, p2, nids2, idx2, stratumn3, 
                         osn3, os_timen3, censor_timen3, 
                         swtrtn3, swtrt_timen3, idn2, y, 
