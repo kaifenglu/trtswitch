@@ -20,7 +20,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
     pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
     swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
     base_cov = "bprog", conf_cov = "bprog*catlag", 
-    low_psi = -3, hi_psi = 3, strata_main_effect_only = TRUE,
+    low_psi = -2, hi_psi = 2, strata_main_effect_only = TRUE,
     recensor = TRUE, admin_recensor_only = TRUE, 
     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
     tol = 1.0e-6, boot = FALSE)
@@ -84,7 +84,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
     as.numeric(z_lgs["resid"]) - target
   }
   
-  psi <- uniroot(f, c(-3, 3), 0, tol = 1.0e-6)$root
+  psi <- uniroot(f, c(-2, 2), 0, tol = 1.0e-6)$root
   
   data4 <- data1 %>%
     filter(trtrand == 0) %>%
