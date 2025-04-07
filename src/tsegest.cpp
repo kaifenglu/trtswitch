@@ -11,6 +11,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
           NumericVector censor_timen3,  
           IntegerVector swtrtn3, NumericVector swtrt_timen3, 
           IntegerVector idn2, IntegerVector y, 
+          NumericVector tstartn2, NumericVector tstopn2,
           StringVector covariates_lgs, NumericMatrix zn_lgs2, 
           bool firth, bool flic, bool recensor, double alpha, 
           std::string ties, double offset, double psi) {
@@ -63,6 +64,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   // logistic regression switching model
   DataFrame data2 = DataFrame::create(
     Named("uid") = idn2,
+    Named("tstart") = tstartn2,
+    Named("tstop") = tstopn2,
     Named("cross") = y,
     Named("counterfactual") = resid);
   
@@ -706,6 +709,7 @@ List tsegestcpp(
                     
                     IntegerVector idn2 = idb[l];
                     IntegerVector stratumn2 = stratumb[l];
+                    NumericVector tstartn2 = tstartb[l];
                     NumericVector tstopn2 = tstopb[l];
                     NumericVector pd_timen2 = pd_timeb[l];
                     IntegerVector osn2 = osb[l];
@@ -721,7 +725,7 @@ List tsegestcpp(
                     IntegerVector y(n2);
                     for (i=0; i<n2; i++) {
                       y[i] = swtrtn2[i] * (tstopn2[i] == swtrt_timen2[i]);
-                    } 
+                    }
                     
                     // re-baseline based on disease progression date
                     IntegerVector idx2(1,0);
@@ -761,13 +765,15 @@ List tsegestcpp(
                     double target = 0;
                     auto g = [&target, n2, q, p2, nids2, idx2, stratumn3, 
                               osn3, os_timen3, censor_timen3, swtrtn3, 
-                              swtrt_timen3, idn2, y, covariates_lgs, 
-                              zn_lgs2, firth, flic, recensor, alpha, ties, 
+                              swtrt_timen3, idn2, y, tstartn2, tstopn2, 
+                              covariates_lgs, zn_lgs2, firth, flic, 
+                              recensor, alpha, ties, 
                               offset](double psi)->double{
                                 List out = est_psi_tsegest(
                                   n2, q, p2, nids2, idx2, stratumn3, 
                                   osn3, os_timen3, censor_timen3, 
                                   swtrtn3, swtrt_timen3, idn2, y, 
+                                  tstartn2, tstopn2, 
                                   covariates_lgs, zn_lgs2, firth, flic, 
                                   recensor, alpha, ties, offset, psi);
                                 
@@ -876,6 +882,7 @@ List tsegestcpp(
                           n2, q, p2, nids2, idx2, stratumn3, 
                           osn3, os_timen3, censor_timen3, 
                           swtrtn3, swtrt_timen3, idn2, y, 
+                          tstartn2, tstopn2, 
                           covariates_lgs, zn_lgs2, firth, flic, 
                           recensor, alpha, ties, offset, psi[i]);
                         
@@ -891,6 +898,7 @@ List tsegestcpp(
                         n2, q, p2, nids2, idx2, stratumn3, 
                         osn3, os_timen3, censor_timen3, 
                         swtrtn3, swtrt_timen3, idn2, y, 
+                        tstartn2, tstopn2,
                         covariates_lgs, zn_lgs2, firth, flic, 
                         recensor, alpha, ties, offset, psihat);
                       
