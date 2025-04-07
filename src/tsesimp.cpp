@@ -479,7 +479,7 @@ List tsesimpcpp(const DataFrame data,
                     IntegerVector swtrt2 = swtrtb[l];
                     
                     DataFrame data1 = DataFrame::create(
-                      Named("time") = time2,
+                      Named("pps") = time2,
                       Named("event") = event2,
                       Named("swtrt") = swtrt2);
                     
@@ -490,7 +490,7 @@ List tsesimpcpp(const DataFrame data,
                     }
                     
                     List fit1 = liferegcpp(
-                      data1, "", "", "time", "", "event", 
+                      data1, "", "", "pps", "", "event", 
                       covariates_aft, "", "", "", dist, 0, 0, alpha);
                     
                     DataFrame parest1 = DataFrame(fit1["parest"]);
