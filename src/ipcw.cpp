@@ -912,6 +912,7 @@ List ipcwcpp(
                         (tstop1 <= swtrt_time_upper1));
                       IntegerVector id2 = id1[l];
                       IntegerVector stratum2 = stratum1[l];
+                      NumericVector tstart2 = tstart1[l];
                       NumericVector tstop2 = tstop1[l];
                       NumericVector swtrt_time_lower2 = swtrt_time_lower1[l];
                       IntegerVector cross2 = cross1[l];
@@ -941,6 +942,8 @@ List ipcwcpp(
                       DataFrame data1 = DataFrame::create(
                         Named("uid") = id2,
                         Named("ustratum") = stratum2,
+                        Named("tstart") = tstart2,
+                        Named("tstop") = tstop2,
                         Named("cross") = cross2);
                       
                       for (j=0; j<q+p2; j++) {
@@ -1133,12 +1136,12 @@ List ipcwcpp(
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "stabilized_weight", "",
-                      "uid", ties, 1, 1, 0, 0, 0, alpha);
+                      "uid", ties, 1, 0, 0, 0, 0, alpha);
                   } else {
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "unstabilized_weight", "",
-                      "uid", ties, 1, 1, 0, 0, 0, alpha);
+                      "uid", ties, 1, 0, 0, 0, 0, alpha);
                   }
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
