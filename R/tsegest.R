@@ -144,6 +144,8 @@
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model applied to counterfactual unswitched survival times.
+#'   If \code{boot} is \code{TRUE}, this value represents the 
+#'   bootstrap p-value.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -417,6 +419,57 @@ tsegest <- function(data, id = "id", stratum = "",
   
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
+  
+  df[, "tstart"] = df[, tstart]
+  df[, "tstop"] = df[, tstop]
+  
+  if (p >= 1) {
+    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    add_vars <- setdiff(t3, varnames)
+    if (length(add_vars) > 0) {
+      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                by = id, all.x = TRUE, sort = FALSE)
+    }
+    
+    del_vars <- setdiff(varnames, t3)
+    if (length(del_vars) > 0) {
+      out$data_outcome[, del_vars] <- NULL
+    }
+  }
+  
+  if (p2 >= 1) {
+    t1 = terms(formula(paste("~", paste(conf_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    tem_vars <- c(pd_time, swtrt, swtrt_time, swtrt_time_upper)
+    add_vars <- c(setdiff(t3, varnames2), tem_vars)
+    if (length(add_vars) > 0) {
+      for (h in 1:K) {
+        out$analysis_switch$data_logis[[h]]$data <- 
+          merge(out$analysis_switch$data_logis[[h]]$data, 
+                df[, c(id, "tstart", "tstop", add_vars)], 
+                by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
+      }
+    }
+    
+    del_vars <- setdiff(varnames2, t3)
+    if (length(del_vars) > 0) {
+      for (h in 1:K) {
+        out$analysis_switch$data_logis[[h]]$data[, del_vars] <- NULL
+      }
+    }
+    
+    for (h in 1:K) {
+      out$analysis_switch$data_logis[[h]]$data <- 
+        out$analysis_switch$data_logis[[h]]$data[
+          , !startsWith(names(out$analysis_switch$data_logis[[h]]$data), 
+                        "stratum_")]
+    }
+  }
   
   out
 }
