@@ -330,7 +330,8 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     t3 = rownames(t2)
     
     K = ifelse(swtrt_control_only, 1, 2)
-    add_vars <- setdiff(t3, varnames2)
+    tem_vars <- c(pd_time, swtrt_time, time)
+    add_vars <- c(setdiff(t3, varnames2), tem_vars)
     if (length(add_vars) > 0) {
       for (h in 1:K) {
         out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
