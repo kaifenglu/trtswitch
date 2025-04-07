@@ -34,10 +34,10 @@
 #'     the outcome model.
 #'
 #'   * \code{numerator}: The baseline covariates (excluding treat) used in 
-#'     the switching model for the numerator for stabilized weights.
+#'     the numerator switching model for stabilized weights.
 #'
-#'   * \code{denominator}: The baseline and time-dependent covariates 
-#'     (excluding treat) used in the switching model for the denominator.
+#'   * \code{denominator}: The baseline (excluding treat) and time-dependent 
+#'     covariates used in the denominator switching model.
 #'
 #' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
@@ -56,8 +56,8 @@
 #' @param numerator The names of baseline covariates 
 #'   (excluding treat) in the input data for the numerator switching 
 #'   model for stabilized weights.
-#' @param denominator The names of baseline and time-dependent
-#'   covariates (excluding treat) in the input data for the denominator 
+#' @param denominator The names of baseline  (excluding treat) and 
+#'   time-dependent covariates in the input data for the denominator 
 #'   switching model.
 #' @param logistic_switching_model Whether a pooled logistic regression 
 #'   switching model is used.
@@ -132,6 +132,8 @@
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model applied to counterfactual unswitched survival times.
+#'   If \code{boot} is \code{TRUE}, this value represents the 
+#'   bootstrap p-value.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -201,7 +203,7 @@
 #' James M. Robins and Dianne M. Finkelstein.
 #' Correcting for noncompliance and dependent censoring in an AIDS clinical
 #' trial with inverse probability of censoring weighted (IPCW) log-rank tests.
-#' Biometrics. 2000;56:779-788.
+#' Biometrics. 2000;56(3):779-788.
 #'
 #' @examples
 #'
@@ -260,17 +262,17 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
                  trunc = 0, trunc_upper_only = TRUE,
                  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
                  boot = TRUE, n_boot = 1000, seed = NA) {
-
+  
   rownames(data) = NULL
-
+  
   elements = c(id, stratum, tstart, tstop, event, treat, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
   mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
                    data = data)
-
+  
   rownum = as.integer(rownames(mf))
   df = data[rownum,]
-
+  
   nvar = length(base_cov)
   if (missing(base_cov) || is.null(base_cov) || (nvar == 1 && (
     base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
@@ -281,7 +283,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     t3 = rownames(t2)
     p = length(t3)
   }
-
+  
   if (p >= 1) {
     mm = model.matrix(t1, df)
     colnames(mm) = make.names(colnames(mm))
@@ -294,7 +296,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   } else {
     varnames = ""
   }
-
+  
   nvar2 = length(numerator)
   if (missing(numerator) || is.null(numerator) || (nvar2 == 1 && (
     numerator[1] == "" || tolower(numerator[1]) == "none"))) {
@@ -305,7 +307,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     t3 = rownames(t2)
     p2 = length(t3)
   }
-
+  
   if (p2 >= 1) {
     mm2 = model.matrix(t1, df)
     colnames(mm2) = make.names(colnames(mm2))
@@ -318,7 +320,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   } else {
     varnames2 = ""
   }
-
+  
   nvar3 = length(denominator)
   if (missing(denominator) || is.null(denominator) || (nvar3 == 1 && (
     denominator[1] == "" || tolower(denominator[1]) == "none"))) {
@@ -329,7 +331,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     t3 = rownames(t2)
     p3 = length(t3)
   }
-
+  
   if (p3 >= 1) {
     mm3 = model.matrix(t1, df)
     colnames(mm3) = make.names(colnames(mm3))
@@ -354,7 +356,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     swtrt_time_upper = "swtrt_time_upper";
     df$swtrt_time_upper = 1.0e8;
   }
-
+  
   out <- ipcwcpp(
     data = df, id = id, stratum = stratum, tstart = tstart,
     tstop = tstop, event = event, treat = treat, 
@@ -379,6 +381,98 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
+  
+  
+  df[, "tstart"] = df[, tstart]
+  df[, "tstop"] = df[, tstop]
+  
+  # sort df by id, tstart, tstop
+  df_sorted <- df[order(df[[id]], df[[tstart]], df[[tstop]]), ]
+  
+  # Find the last observation for each id
+  last_observations_indices <- !duplicated(df_sorted[[id]], fromLast = TRUE)
+  
+  # Subset the sorted data frame to keep only the last observations
+  df_sorted_last <- df_sorted[last_observations_indices, ]
+  
+  if (p >= 1) {
+    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    add_vars <- setdiff(t3, varnames)
+    if (length(add_vars) > 0) {
+      out$data_outcome <- merge(out$data_outcome, 
+                                df_sorted_last[, c(id, add_vars)], 
+                                by = id, all.x = TRUE, sort = FALSE)
+    }
+    
+    del_vars <- setdiff(varnames, t3)
+    if (length(del_vars) > 0) {
+      out$data_outcome[, del_vars] <- NULL
+    }
+  }
+  
+  if (p3 >= 1) {
+    # exclude observations after treatment switch
+    data1 <- df[!df[[swtrt]] | df[[tstart]] < df[[swtrt_time]], ]
+    
+    # sort by id, tstart, and tstop
+    data1 <- data1[order(data1[[id]], data1[[tstart]], data1[[tstop]]), ]
+    
+    # identify the last obs within each id who switched 
+    condition <- !duplicated(data1[[id]], fromLast = TRUE) & 
+      data1[[swtrt]] & data1[[tstop]] >= data1[[swtrt_time]]
+    
+    # reset event and tstop at time of treatment switch
+    data1[condition, event] <- 0
+    data1[condition, tstop] <- data1[condition, swtrt_time]
+    
+    t1 = terms(formula(paste("~", paste(denominator, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    tem_vars <- c(swtrt, swtrt_time, swtrt_time_lower, swtrt_time_upper)
+    add_vars <- c(setdiff(t3, varnames3), tem_vars)
+    if (length(add_vars) > 0) {
+      if (logistic_switching_model) {
+        for (h in 1:K) {
+          out$data_switch[[h]]$data <- 
+            merge(out$data_switch[[h]]$data, 
+                  data1[, c(id, "tstart", "tstop", add_vars)], 
+                  by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
+        }
+      } else {
+        # replicate event times within each subject
+        cut <- sort(unique(data1$tstop[data1[[event]] == 1]))
+        a1 <- survsplit(data1$tstart, data1$tstop, cut)
+        data2 <- data1[a1$row+1,]
+        data2$tstart = a1$start
+        data2$tstop = a1$end
+
+        for (h in 1:K) {
+          out$data_switch[[h]]$data <- 
+            merge(out$data_switch[[h]]$data, 
+                  data2[, c(id, "tstart", "tstop", add_vars)], 
+                  by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
+        }
+      }
+    }
+    
+    del_vars <- setdiff(varnames3, t3)
+    if (length(del_vars) > 0) {
+      for (h in 1:K) {
+        out$data_switch[[h]]$data[, del_vars] <- NULL
+      }
+    }
+    
+    if (logistic_switching_model) {
+      for (h in 1:K) {
+        out$data_switch[[h]]$data <- out$data_switch[[h]]$data[
+          , !startsWith(names(out$data_switch[[h]]$data), "stratum_")]
+      }
+    }
+  }
   
   out
 }
