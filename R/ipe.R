@@ -94,6 +94,8 @@
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on 
 #'   the Cox model applied to counterfactual unswitched survival times.
+#'   If \code{boot} is \code{TRUE}, this value represents the 
+#'   bootstrap p-value.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -242,10 +244,10 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
     t2 = attr(t1, "factors")
     t3 = rownames(t2)
-    p3 = length(t3)
+    p = length(t3)
   }
 
-  if (p3 >= 1) {
+  if (p >= 1) {
     mm = model.matrix(t1, df)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
@@ -274,6 +276,28 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
+  if (p >= 1) {
+    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    add_vars <- setdiff(t3, varnames)
+    if (length(add_vars) > 0) {
+      out$data_aft <- merge(out$data_aft, df[, c(id, add_vars)], 
+                            by = id, all.x = TRUE, sort = FALSE)
+      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                by = id, all.x = TRUE, sort = FALSE)
+    }
+    
+    del_vars <- setdiff(varnames, t3)
+    if (length(del_vars) > 0) {
+      out$data_aft[, del_vars] <- NULL
+      out$data_outcome[, del_vars] <- NULL
+    }
+    
+    out$data_aft <- out$data_aft[
+      , !startsWith(names(out$data_aft), "stratum_")]
+  }
+  
   out
 }
-
