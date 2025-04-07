@@ -106,6 +106,8 @@
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
 #'   the Cox model applied to counterfactual unswitched survival times.
+#'   If \code{boot} is \code{TRUE}, this value represents the 
+#'   bootstrap p-value.
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -304,5 +306,51 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
+  
+  if (p >= 1) {
+    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    add_vars <- setdiff(t3, varnames)
+    if (length(add_vars) > 0) {
+      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                by = id, all.x = TRUE, sort = FALSE)
+    }
+    
+    del_vars <- setdiff(varnames, t3)
+    if (length(del_vars) > 0) {
+      out$data_outcome[, del_vars] <- NULL
+    }
+  }
+  
+  if (p2 >= 1) {
+    t1 = terms(formula(paste("~", paste(base2_cov, collapse = "+"))))
+    t2 = attr(t1, "factors")
+    t3 = rownames(t2)
+    
+    K = ifelse(swtrt_control_only, 1, 2)
+    add_vars <- setdiff(t3, varnames2)
+    if (length(add_vars) > 0) {
+      for (h in 1:K) {
+        out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
+                                        df[, c(id, add_vars)], 
+                                        by = id, all.x = TRUE, sort = FALSE)
+      }
+    }
+    
+    del_vars <- setdiff(varnames2, t3)
+    if (length(del_vars) > 0) {
+      for (h in 1:K) {
+        out$data_aft[[h]]$data[, del_vars] <- NULL
+      }
+    }
+    
+    for (h in 1:K) {
+      out$data_aft[[h]]$data <- out$data_aft[[h]]$data[
+        , !startsWith(names(out$data_aft[[h]]$data), "stratum_")]
+    }
+  }
+
   out
 }
