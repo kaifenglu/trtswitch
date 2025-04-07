@@ -238,7 +238,7 @@ rpsftm <- function(data, id = "id", stratum = "",
   nvar = length(base_cov)
   if (missing(base_cov) || is.null(base_cov) || (nvar == 1 && (
     base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
-    p3 = 0
+    p = 0
   } else {
     t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
     t2 = attr(t1, "factors")
