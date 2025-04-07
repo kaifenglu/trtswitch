@@ -35,7 +35,7 @@ When using pooled logistic regression for the switching model, the following spe
 
 - **Visit-Specific Intercepts**: These can be modeled using a natural cubic spline with specified degrees of freedom, denoted as $\nu$ (corresponding to the `ns_df` parameter of the `ipcw` function). The boundary and internal knots can be based on the range and percentiles of observed treatment switching times, respectively. Here, $\nu$ equals the number of internal knots plus one; a value of $\nu=0$ indicates a common intercept, while $\nu=1$ leads to a linear effect of visit. By default, $\nu=3$, which implies two internal knots for the cubic spline. The parameter `relative_time` is set to `TRUE` by default, which indicates that visit time is relative to the secondary baseline defined by the `swtrt_time_lower` parameter. Setting `relative_time = FALSE` makes visit time relative to randomization.
 
-- **Stratification Factors**: If more more than one stratification factor exists, they can be included in the logistic model either as main effects only (`strata_main_effect_only = TRUE`) or as all possible combinations of the  levels of the stratification factors (`strata_main_effect_only = FALSE`). 
+- **Stratification Factors**: If more than one stratification factor exists, they can be included in the logistic model either as main effects only (`strata_main_effect_only = TRUE`) or as all possible combinations of the  levels of the stratification factors (`strata_main_effect_only = FALSE`). 
 
 - **Handling Nonconvergence**: If the pooled logistic regression model encounters issues such as complete or quasi-complete separation, Firth's bias-reducing penalized likelihood method (`firth = TRUE`) can be applied alongside intercept correction (`flic = TRUE`) to yield more accurate predicted probabilities. 
 
@@ -66,7 +66,7 @@ sim1 <- tsegestsim(
   outputRawDataset = 1, seed = 2000)
 ```
 
-Given that the observations are collected at regular intervals, we can use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `catlag` and the interaction between `bprog` and `catlag` serve as time-dependent covariates. Additionally, `s1`, `s2`, and `s3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
+Given that the observations are collected at regular intervals, we can use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `catlag` and the interaction between `bprog` and `catlag` serve as time-dependent covariates. Additionally, `ns1`, `ns2`, and `ns3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
 ```{r analysis example 1}
 fit1 <- ipcw(
   sim1$paneldata, id = "id", tstart = "tstart", 
@@ -112,7 +112,7 @@ exp(fit1$fit_outcome$parest[1, c("beta", "lower", "upper")])
 ```
 
 
-## Example for Time-Dependent Covariates Cox Switching Model
+## Example for Time-Dependent Cox Switching Model
 Now we apply the IPCW method using a Cox proportional hazards model with time-dependent covariates as the switching model. 
 ```{r example 2}
 fit2 <- ipcw(
