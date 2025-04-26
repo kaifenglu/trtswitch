@@ -53,7 +53,8 @@
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
-#' @param tol The desired accuracy (convergence tolerance) for \code{psi}.
+#' @param tol The desired accuracy (convergence tolerance) for \code{psi} 
+#' for the root finding algorithm.
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{FALSE}, in which case,
 #'   the confidence interval will be constructed to match the log-rank
@@ -106,16 +107,23 @@
 #'
 #' * \code{Sstar}: A data frame containing the counterfactual untreated
 #'   survival times and event indicators for each treatment group.
-#'
+#'   The variables include \code{id}, \code{stratum}, 
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, and \code{treat}.
+#'   
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
 #'   based on the counterfactual untreated survival times by treatment arm.
 #'   
 #' * \code{data_aft}: The input data for the AFT model for 
-#'   estimating \code{psi}.
+#'   estimating \code{psi}. The variables include \code{id}, \code{stratum}, 
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, \code{base_cov}, 
+#'   and \code{treat}.
 #' 
 #' * \code{fit_aft}: The fitted AFT model for estimating \code{psi}.
 #'
-#' * \code{data_outcome}: The input data for the outcome Cox model.
+#' * \code{data_outcome}: The input data for the outcome Cox model of 
+#'   counterfactual unswitched survival times.
+#'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
+#'   \code{"d_star"}, \code{"treated"}, \code{base_cov}, and \code{treat}.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -220,7 +228,7 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
                 event = "event", treat = "treat", rx = "rx", 
                 censor_time = "censor_time",
                 base_cov = "", aft_dist = "weibull",
-                low_psi = -2, hi_psi = 2,
+                low_psi = -1, hi_psi = 1,
                 strata_main_effect_only = 1, treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
                 autoswitch = TRUE, alpha = 0.05, ties = "efron",
