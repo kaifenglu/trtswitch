@@ -6,12 +6,12 @@
 using namespace Rcpp;
 
 
-NumericVector fsurvci(double surv, double sesurv, String ct, double z) {
+NumericVector fsurvci(double surv, double sesurv, std::string ct, double z) {
   double grad, hw, lower = NA_REAL, upper = NA_REAL;
   if (surv == 1.0 && sesurv == 0.0) {
     lower = 1.0;
     upper = 1.0;
-  } else if (ct == "plain") {
+  } else if (ct == "plain" || ct == "linear") {
     lower = std::max(surv - z*sesurv, 0.0);
     upper = std::min(surv + z*sesurv, 1.0);
   } else if (ct == "log") {
@@ -19,7 +19,7 @@ NumericVector fsurvci(double surv, double sesurv, String ct, double z) {
     hw = z*grad*sesurv;
     lower = exp(log(surv) - hw);
     upper = std::min(exp(log(surv) + hw), 1.0);
-  } else if (ct == "log-log") {
+  } else if (ct == "log-log" || ct == "loglog" || ct == "cloglog") {
     grad = 1.0/(surv*log(surv));
     hw = z*grad*sesurv;
     lower = exp(-exp(log(-log(surv)) - hw));
@@ -29,7 +29,7 @@ NumericVector fsurvci(double surv, double sesurv, String ct, double z) {
     hw = z*grad*sesurv;
     lower = R::plogis(R::qlogis(surv, 0, 1, 1, 0) - hw, 0, 1, 1, 0);
     upper = R::plogis(R::qlogis(surv, 0, 1, 1, 0) + hw, 0, 1, 1, 0);
-  } else if (ct == "arcsin") {
+  } else if (ct == "arcsin" || ct == "asin" || ct == "asinsqrt") {
     grad = 1.0/(2.0*sqrt(surv*(1.0 - surv)));
     hw = z*grad*sesurv;
     lower = pow(sin(asin(sqrt(surv)) - hw), 2);
@@ -37,6 +37,259 @@ NumericVector fsurvci(double surv, double sesurv, String ct, double z) {
   }
 
   return NumericVector::create(lower, upper);
+}
+
+
+//' @title Brookmeyer-Crowley Confidence Interval for Quantiles of
+//' Right-Censored Time-to-Event Data
+//' @description Obtains the Brookmeyer-Crowley confidence
+//' interval for quantiles of right-censored time-to-event data.
+//'
+//' @param time The vector of possibly right-censored survival times.
+//' @param event The vector of event indicators.
+//' @param cilevel The confidence interval level. Defaults to 0.95.
+//' @param transform The transformation of the survival function to use
+//'   to construct the confidence interval. Options include 
+//'   "linear" (alternatively "plain"), "log", 
+//'   "loglog" (alternatively "log-log" or "cloglog"), 
+//'   "asinsqrt" (alternatively "asin" or "arcsin"), and "logit". 
+//'   Defaults to "loglog".
+//'   
+//' @param probs The vector of probabilities to calculate the quantiles.
+//'   Defaults to c(0.25, 0.5, 0.75).
+//'
+//' @return A data frame containing the estimated quantile and
+//' confidence interval corresponding to each specified probability.
+//' It includes the following variables:
+//'
+//' * \code{prob}: The probability to calculate the quantile.
+//'
+//' * \code{quantile}: The estimated quantile.
+//'
+//' * \code{lower}: The lower limit of the confidence interval.
+//'
+//' * \code{upper}: The upper limit of the confidence interval.
+//'
+//' * \code{cilevel}: The confidence interval level.
+//'
+//' * \code{transform}: The transformation of the survival function to use
+//'   to construct the confidence interval.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' survQuantile(
+//'   time = c(33.7, 3.9, 10.5, 5.4, 19.5, 23.8, 7.9, 16.9, 16.6,
+//'            33.7, 17.1, 7.9, 10.5, 38),
+//'   event = c(0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1),
+//'   probs = c(0.25, 0.5, 0.75))
+//'
+//' @export
+// [[Rcpp::export]]
+DataFrame survQuantile(const NumericVector& time = NA_REAL, 
+                       const IntegerVector& event = NA_REAL,
+                       const double cilevel = 0.95, 
+                       const std::string transform = "loglog",
+                       const NumericVector& probs = NA_REAL) {
+  int i, j;
+  
+  if (is_true(any(is_na(time)))) {
+    stop("time must be provided");
+  }
+  
+  if (is_true(any(is_na(event)))) {
+    stop("event must be provided");
+  }
+  
+  if (is_true(any((event != 1) & (event != 0)))) {
+    stop("event must be 1 or 0");
+  }
+  
+  if (is_true(all(event == 0))) {
+    stop("at least 1 event is needed");
+  }
+  
+  if (cilevel <= 0 || cilevel >= 1) {
+    stop("cilevel must lie between 0 and 1");
+  }
+  
+  std::string ct = transform;
+  std::for_each(ct.begin(), ct.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+  
+  if (!(ct == "linear" || ct == "plain" || ct == "log" || 
+      ct == "loglog" || ct == "log-log" || ct == "cloglog" || 
+      ct == "asinsqrt" || ct == "arcsin"|| ct == "asin" || 
+      ct == "logit")) {
+    stop("Invalid value for transform");
+  }
+  
+  if (is_true(any((probs <= 0) | (probs >= 1)))) {
+    stop("Elements of probs must lie between 0 and 1");
+  }
+  
+  int n = static_cast<int>(time.size());
+  
+  // sort by time, and event with event in descending order
+  IntegerVector order = seq(0, n-1);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    return (time[i] < time[j]) ||
+      ((time[i] == time[j]) && (event[i] > event[j]));
+  });
+  
+  NumericVector time2 = time[order];
+  IntegerVector event2 = event[order];
+  
+  NumericVector time0(n, NA_REAL), nrisk0(n), nevent0(n);
+  NumericVector surv0(n), sesurv0(n);
+  double t = 0, nrisk = n, nevent = 0, surv = 1, vcumhaz = 0, sesurv;
+  
+  i = 0;
+  bool cache = 0; // buffer for the current event time
+  for (j=0; j<n; j++) {
+    if ((j == 0 && event2[j] == 1) ||
+        (j >= 1 && event2[j] == 1 && time2[j] > time2[j-1])) {
+      // new event, add the info for the previous event
+      if (cache) {
+        surv = surv*(1.0 - nevent/nrisk);
+        if (nrisk > nevent) {
+          vcumhaz = vcumhaz + nevent/(nrisk*(nrisk - nevent));
+        } else {
+          vcumhaz = NA_REAL;
+        }
+        sesurv = surv*sqrt(vcumhaz);
+        
+        time0[i] = t;
+        nrisk0[i] = nrisk;
+        nevent0[i] = nevent;
+        surv0[i] = surv;
+        sesurv0[i] = sesurv;
+        
+        i++;
+      }
+      
+      // update the buffer for the current event time
+      t = time2[j];
+      nrisk = n-j;
+      nevent = 1;
+      cache = 1;
+    } else if (j >= 1 && event2[j] == 1 && event2[j-1] == 1 &&
+      time2[j] == time2[j-1]) { // tied event
+      nevent++;
+    } else if (j >= 1 && event2[j] == 0 && event2[j-1] == 1) {
+      // new censoring, add the info for the previous event
+      surv = surv*(1.0 - nevent/nrisk);
+      if (nrisk > nevent) {
+        vcumhaz = vcumhaz + nevent/(nrisk*(nrisk - nevent));
+      } else {
+        vcumhaz = NA_REAL;
+      }
+      sesurv = surv*sqrt(vcumhaz);
+      
+      time0[i] = t;
+      nrisk0[i] = nrisk;
+      nevent0[i] = nevent;
+      surv0[i] = surv;
+      sesurv0[i] = sesurv;
+      
+      i++;
+
+      // empty the buffer for the current event time
+      cache = 0;
+    }
+  }
+  
+  // add the info for the last event
+  if (cache) {
+    surv = surv*(1.0 - nevent/nrisk);
+    if (nrisk > nevent) {
+      vcumhaz = vcumhaz + nevent/(nrisk*(nrisk - nevent));
+    } else {
+      vcumhaz = NA_REAL;
+    }
+    sesurv = surv*sqrt(vcumhaz);
+    
+    time0[i] = t;
+    nrisk0[i] = nrisk;
+    nevent0[i] = nevent;
+    surv0[i] = surv;
+    sesurv0[i] = sesurv;
+    
+    i++;
+  }
+  
+  // only keep nonmissing records
+  LogicalVector sub = !is_na(time0);
+  time0 = time0[sub];
+  nrisk0 = nrisk0[sub];
+  nevent0 = nevent0[sub];
+  surv0 = surv0[sub];
+  sesurv0 = sesurv0[sub];
+  
+
+  int n0 = sum(sub);
+  NumericVector z(n0, NA_REAL), grad(n0, NA_REAL);
+  double zcrit = R::qnorm((1.0 + cilevel)/2.0, 0, 1, 1, 0);
+
+  int m = static_cast<int>(probs.size());
+  NumericVector quantile(m), lower(m), upper(m);
+  for (j=0; j<m; j++) {
+    double q = 1.0 - probs[j];
+    for (i=0; i<n0; i++) {
+      if (nrisk0[i] > nevent0[i]) {
+        if (ct == "linear" || ct == "plain") {
+          z[i] = (surv0[i] - (q))/sesurv0[i];
+        } else if (ct == "loglog" || ct == "log-log" || ct == "cloglog") {
+          grad[i] = 1.0/(surv0[i]*log(surv0[i]));
+          z[i] = (log(-log(surv0[i])) - log(-log(q)))/(grad[i]*sesurv0[i]);
+        } else if (ct == "log") {
+          grad[i] = 1.0/surv0[i];
+          z[i] = (log(surv0[i]) - log(q))/(grad[i]*sesurv0[i]);
+        } else if (ct == "asinsqrt" || ct == "asin"|| ct == "arcsin") {
+          grad[i] = 1.0/(2.0*sqrt(surv0[i]*(1-surv0[i])));
+          z[i] = (asin(sqrt(surv0[i])) - asin(sqrt(q)))/(grad[i]*sesurv0[i]);
+        } else if (ct == "logit") {
+          grad[i] = 1/(surv0[i]*(1-surv0[i]));
+          z[i] = (R::qlogis(surv0[i], 0, 1, 1, 0) - 
+            R::qlogis(q, 0, 1, 1, 0))/(grad[i]*sesurv0[i]);
+        }
+      }
+    }
+    
+    IntegerVector index;
+    for (i = 0; i < z.size(); i++) {
+      if (!std::isnan(z[i]) && std::abs(z[i]) <= zcrit) {
+        index.push_back(i);
+      }
+    }
+    
+    if (index.size() == 0) {
+      lower[j] = NA_REAL;
+      upper[j] = NA_REAL;
+    } else {
+      lower[j] = time0[min(index)];
+      upper[j] = max(index) < n0-1 ? time0[max(index)+1] : NA_REAL;
+    }
+    
+    if (is_true(any(surv0 < q))) {
+      quantile[j] = time0[min(which(surv0 < q))];
+    } else {
+      quantile[j] = NA_REAL;
+    }
+  }
+  
+  DataFrame result = DataFrame::create(
+    Named("prob") = probs,
+    Named("quantile") = quantile,
+    Named("lower") = lower,
+    Named("upper") = upper,
+    Named("cilevel") = cilevel,
+    Named("transform") = ct
+  );
+  
+  return result;
 }
 
 
@@ -1435,8 +1688,8 @@ DataFrame lrtest(const DataFrame data,
         for (k=0; k<K; k++) {
           uscore1 += w[k]*(nevent10[k] - nevent0[k]*nrisk10[k]/nrisk0[k]);
           if (nrisk0[k] > 1.0) {
-            vscore1 += pow(w[k],2)*nevent0[k]*(nrisk0[k]-nevent0[k])*
-              nrisk10[k]*nrisk20[k]/(pow(nrisk0[k],2)*(nrisk0[k]-1.0));
+            vscore1 += pow(w[k], 2)*nevent0[k]*(nrisk0[k] - nevent0[k])*
+              nrisk10[k]*nrisk20[k]/(pow(nrisk0[k], 2)*(nrisk0[k] - 1.0));
           }
         }
       }
@@ -2677,42 +2930,42 @@ NumericVector f_score_1(int p, NumericVector par, void *ex) {
         double u = (log(param->tstop[person]) - eta[person])/sigma;
         double v = (log(param->tstart[person]) - eta[person])/sigma;
         double d1 = R::dnorm(v, 0, 1, 0), d2 = R::dnorm(u, 0, 1, 0);
-        double p1 = R::pnorm(v, 0, 1, 0, 0), p2 = R::pnorm(u, 0, 1, 0, 0);
-        double c1 = wt*(d1 - d2)/(p1 - p2);
+        double q1 = R::pnorm(v, 0, 1, 0, 0), q2 = R::pnorm(u, 0, 1, 0, 0);
+        double c1 = wt*(d1 - d2)/(q1 - q2);
         for (i=0; i<nvar; i++) {
           score[i] += c1*z[i];
         }
-        score[k] += wt*(d1*v - d2*u)/(p1 - p2);
+        score[k] += wt*(d1*v - d2*u)/(q1 - q2);
       } else if (param->dist == "loglogistic") {
         double u = (log(param->tstop[person]) - eta[person])/sigma;
         double v = (log(param->tstart[person]) - eta[person])/sigma;
         double d1 = R::dlogis(v, 0, 1, 0), d2 = R::dlogis(u, 0, 1, 0);
-        double p1 = R::plogis(v, 0, 1, 0, 0), p2 = R::plogis(u, 0, 1, 0, 0);
-        double c1 = wt*(d1 - d2)/(p1 - p2);
+        double q1 = R::plogis(v, 0, 1, 0, 0), q2 = R::plogis(u, 0, 1, 0, 0);
+        double c1 = wt*(d1 - d2)/(q1 - q2);
         for (i=0; i<nvar; i++) {
           score[i] += c1*z[i];
         }
-        score[k] += wt*(d1*v - d2*u)/(p1 - p2);
+        score[k] += wt*(d1*v - d2*u)/(q1 - q2);
       } else if (param->dist == "normal") {
         double u = (param->tstop[person] - eta[person])/sigma;
         double v = (param->tstart[person] - eta[person])/sigma;
         double d1 = R::dnorm(v, 0, 1, 0), d2 = R::dnorm(u, 0, 1, 0);
-        double p1 = R::pnorm(v, 0, 1, 0, 0), p2 = R::pnorm(u, 0, 1, 0, 0);
-        double c1 = wt*(d1 - d2)/(p1 - p2);
+        double q1 = R::pnorm(v, 0, 1, 0, 0), q2 = R::pnorm(u, 0, 1, 0, 0);
+        double c1 = wt*(d1 - d2)/(q1 - q2);
         for (i=0; i<nvar; i++) {
           score[i] += c1*z[i];
         }
-        score[k] += wt*(d1*v - d2*u)/(p1 - p2);
+        score[k] += wt*(d1*v - d2*u)/(q1 - q2);
       } else if (param->dist == "logistic") {
         double u = (param->tstop[person] - eta[person])/sigma;
         double v = (param->tstart[person] - eta[person])/sigma;
         double d1 = R::dlogis(v, 0, 1, 0), d2 = R::dlogis(u, 0, 1, 0);
-        double p1 = R::plogis(v, 0, 1, 0, 0), p2 = R::plogis(u, 0, 1, 0, 0);
-        double c1 = wt*(d1 - d2)/(p1 - p2);
+        double q1 = R::plogis(v, 0, 1, 0, 0), q2 = R::plogis(u, 0, 1, 0, 0);
+        double c1 = wt*(d1 - d2)/(q1 - q2);
         for (i=0; i<nvar; i++) {
           score[i] += c1*z[i];
         }
-        score[k] += wt*(d1*v - d2*u)/(p1 - p2);
+        score[k] += wt*(d1*v - d2*u)/(q1 - q2);
       }
     } else if (param->status[person] == 2) { // upper used as left censoring
       if (param->dist == "exponential") {
@@ -3196,6 +3449,141 @@ NumericMatrix f_info_1(int p, NumericVector par, void *ex) {
 }
 
 
+// first and second derivatives of log likelihood with respect to eta
+List f_der_eta_1(NumericVector eta, NumericVector sig, void *ex) {
+  aftparams *param = (aftparams *) ex;
+  int n = param->z.nrow();
+  int person;
+
+  NumericVector dg(n), ddg(n);
+  for (person = 0; person < n; person++) {
+    double sigma = sig[person];
+    if (param->status[person] == 1) { // event
+      if (param->dist == "exponential" || param->dist == "weibull") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = -(1 - exp(u))/sigma;
+        ddg[person] = -exp(u)/(sigma*sigma);
+      } else if (param->dist == "lognormal") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = u/sigma;
+        ddg[person] = -1/(sigma*sigma);
+      } else if (param->dist == "loglogistic") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = (1 - 2*R::plogis(u, 0, 1, 0, 0))/sigma;
+        ddg[person] = -2*R::dlogis(u, 0, 1, 0)/(sigma*sigma);
+      } else if (param->dist == "normal") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        dg[person] = u/sigma;
+        ddg[person] = -1/(sigma*sigma);
+      } else if (param->dist == "logistic") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        dg[person] = (1 - 2*R::plogis(u, 0, 1, 0, 0))/sigma;
+        ddg[person] = -2*R::dlogis(u, 0, 1, 0)/(sigma*sigma);
+      }
+    } else if (param->status[person] == 3) { // interval censoring
+      if (param->dist == "exponential" || param->dist == "weibull") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        double w1 = exp(v), w2 = exp(u);
+        double q1 = exp(-w1), q2 = exp(-w2);
+        double d1 = w1*q1, d2 = w2*q2;
+        dg[person] = (d1 - d2)/(q1 - q2)/sigma;
+        ddg[person] = -(d1*(1-w1) - d2*(1-w2))/(q1 - q2)/(sigma*sigma) - 
+          pow(dg[person], 2);
+      } else if (param->dist == "lognormal") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        double d1 = R::dnorm(v, 0, 1, 0), d2 = R::dnorm(u, 0, 1, 0);
+        double q1 = R::pnorm(v, 0, 1, 0, 0), q2 = R::pnorm(u, 0, 1, 0, 0);
+        dg[person] = (d1 - d2)/(q1 - q2)/sigma;
+        ddg[person] = (d1*v - d2*u)/(q1 - q2)/(sigma*sigma) - 
+          pow(dg[person], 2);
+      } else if (param->dist == "loglogistic") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        double d1 = R::dlogis(v, 0, 1, 0), d2 = R::dlogis(u, 0, 1, 0);
+        double q1 = R::plogis(v, 0, 1, 0, 0), q2 = R::plogis(u, 0, 1, 0, 0);
+        dg[person] = (d1 - d2)/(q1 - q2)/sigma;
+        ddg[person] = -(d1*(2*q1-1) - d2*(2*q2-1))/(q1 - q2)/(sigma*sigma) - 
+          pow(dg[person], 2);
+      } else if (param->dist == "normal") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        double v = (param->tstart[person] - eta[person])/sigma;
+        double d1 = R::dnorm(v, 0, 1, 0), d2 = R::dnorm(u, 0, 1, 0);
+        double q1 = R::pnorm(v, 0, 1, 0, 0), q2 = R::pnorm(u, 0, 1, 0, 0);
+        dg[person] = (d1 - d2)/(q1 - q2)/sigma;
+        ddg[person] = (d1*v - d2*u)/(q1 - q2)/(sigma*sigma) - 
+          pow(dg[person], 2);
+      } else if (param->dist == "logistic") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        double v = (param->tstart[person] - eta[person])/sigma;
+        double d1 = R::dlogis(v, 0, 1, 0), d2 = R::dlogis(u, 0, 1, 0);
+        double q1 = R::plogis(v, 0, 1, 0, 0), q2 = R::plogis(u, 0, 1, 0, 0);
+        dg[person] = (d1 - d2)/(q1 - q2)/sigma;
+        ddg[person] = -(d1*(2*q1-1) - d2*(2*q2-1))/(q1 - q2)/(sigma*sigma) - 
+          pow(dg[person], 2);
+      }
+    } else if (param->status[person] == 2) { // upper used as left censoring
+      if (param->dist == "exponential" || param->dist == "weibull") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = -exp(u - exp(u))/(1 - exp(-exp(u)))/sigma;
+        ddg[person] = (1 - exp(u) - exp(-exp(u)))*exp(u - exp(u))/
+          pow((1 - exp(-exp(u)))*sigma, 2);
+      } else if (param->dist == "lognormal") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = -R::dnorm(u, 0, 1, 0)/R::pnorm(u, 0, 1, 1, 0)/sigma;
+        ddg[person] = -u*R::dnorm(u, 0, 1, 0)/
+          (R::pnorm(u, 0, 1, 1, 0)*sigma*sigma) - pow(dg[person], 2);
+      } else if (param->dist == "loglogistic") {
+        double u = (log(param->tstop[person]) - eta[person])/sigma;
+        dg[person] = -R::plogis(u, 0, 1, 0, 0)/sigma;
+        ddg[person] = -R::dlogis(u, 0, 1, 0)/(sigma*sigma);
+      } else if (param->dist == "normal") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        dg[person] = -R::dnorm(u, 0, 1, 0)/R::pnorm(u, 0, 1, 1, 0)/sigma;
+        ddg[person] = -u*R::dnorm(u, 0, 1, 0)/
+          (R::pnorm(u, 0, 1, 1, 0)*sigma*sigma) - pow(dg[person], 2);
+      } else if (param->dist == "logistic") {
+        double u = (param->tstop[person] - eta[person])/sigma;
+        dg[person] = -R::plogis(u, 0, 1, 0, 0)/sigma;
+        ddg[person] = -R::dlogis(u, 0, 1, 0)/(sigma*sigma);
+      }
+    } else if (param->status[person] == 0) { // lower used as right censoring
+      if (param->dist == "exponential" || param->dist == "weibull") {
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        dg[person] = exp(v)/sigma;
+        ddg[person] = -exp(v)/(sigma*sigma);
+      } else if (param->dist == "lognormal") {
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        dg[person] = R::dnorm(v, 0, 1, 0)/R::pnorm(v, 0, 1, 0, 0)/sigma;
+        ddg[person] = v*R::dnorm(v, 0, 1, 0)/
+          (R::pnorm(v, 0, 1, 0, 0)*sigma*sigma) - pow(dg[person], 2);
+      } else if (param->dist == "loglogistic") {
+        double v = (log(param->tstart[person]) - eta[person])/sigma;
+        dg[person] = R::plogis(v, 0, 1, 1, 0)/sigma;
+        ddg[person] = -R::dlogis(v, 0, 1, 0)/(sigma*sigma);
+      } else if (param->dist == "normal") {
+        double v = (param->tstart[person] - eta[person])/sigma;
+        dg[person] = R::dnorm(v, 0, 1, 0)/R::pnorm(v, 0, 1, 0, 0)/sigma;
+        ddg[person] = v*R::dnorm(v, 0, 1, 0)/
+          (R::pnorm(v, 0, 1, 0, 0)*sigma*sigma) - pow(dg[person], 2);
+      } else if (param->dist == "logistic") {
+        double v = (param->tstart[person] - eta[person])/sigma;
+        dg[person] = R::plogis(v, 0, 1, 1, 0)/sigma;
+        ddg[person] = -R::dlogis(v, 0, 1, 0)/(sigma*sigma);
+      }
+    }
+  }
+  
+  List result = List::create(
+    Named("dg") = dg,
+    Named("ddg") = ddg);
+  
+  return result;
+}
+
+
+
 // score residual matrix
 NumericMatrix f_ressco_1(int p, NumericVector par, void *ex) {
   aftparams *param = (aftparams *) ex;
@@ -3461,23 +3849,35 @@ List liferegloop(int p, NumericVector par, void *ex,
   // standardize the design matrix
   NumericVector mu(nvar), sigma(nvar);
   NumericMatrix z2(nsub, nvar);
-  mu[0] = 0;
-  sigma[0] = 1;
-  z2(_,0) = z1(_,0);
-  for (i=1; i<nvar; i++) {
+  for (i=0; i<nvar; i++) {
     NumericVector u = z1(_,i);
-    mu[i] = mean(u);
-    sigma[i] = sd(u);
-    // no standardization for constant columns
-    if (sigma[i] == 0) sigma[i] = 1;
+    if (is_true(all((u == 0) | (u == 1)))) { // no standardization
+      mu[i] = 0; 
+      sigma[i] = 1;
+    } else {
+      mu[i] = mean(u);
+      sigma[i] = sd(u);
+    }
     z2(_,i) = (u - mu[i])/sigma[i];
   }
 
+  // corresponding initial beta
+  NumericVector beta(p), newbeta(p);
+  beta[0] = par[0];
+  for (i=1; i<nvar; i++) {
+    beta[i] = par[i]*sigma[i];
+    beta[0] += par[i]*mu[i];
+  }
+  if (param->dist != "exponential") {
+    for (i=nvar; i<p; i++) {
+      beta[i] = par[i];
+    }
+  }
+  
   aftparams para = {param->dist, param->strata, param->tstart, param->tstop,
                     param->status, param->weight, param->offset, z2, nstrata};
 
   double toler = 1e-12;
-  NumericVector beta(p), newbeta(p);
   double loglik, newlk;
   NumericVector u(p);
   NumericMatrix imat(p,p);
@@ -3486,13 +3886,7 @@ List liferegloop(int p, NumericVector par, void *ex,
   NumericMatrix imat1(ncolfit, ncolfit);
   NumericMatrix jj1(ncolfit, ncolfit);
 
-  // initial beta and log likelihood
-  beta[0] = par[0];
-  for (i=1; i<nvar; i++) {
-    beta[i] = par[i]*sigma[i];
-    beta[0] += par[i]*mu[i];
-  }
-
+  // initial log likelihood
   loglik = f_llik_1(p, beta, &para);
   u = f_score_1(p, beta, &para);
   for (i=0; i<ncolfit; i++) {
@@ -3773,7 +4167,9 @@ List liferegcpp(const DataFrame data,
                 const std::string dist = "weibull",
                 const bool robust = 0,
                 const bool plci = 0,
-                const double alpha = 0.05) {
+                const double alpha = 0.05,
+                const int maxiter = 50,
+                const double eps = 1.0e-9) {
 
   int h, i, j, k, n = data.nrows();
   int nvar = static_cast<int>(covariates.size()) + 1;
@@ -4124,7 +4520,7 @@ List liferegcpp(const DataFrame data,
     aftparams param = {dist1, stratum1, tstart, tstop, status, weight1,
                           offset1, z1, nstrata};
 
-    List outint = liferegloop(p, bint0, &param, 100, 1.0e-9,
+    List outint = liferegloop(p, bint0, &param, maxiter, eps,
                               colfit0, ncolfit0);
     NumericVector bint = outint["coef"];
     NumericMatrix vbint = as<NumericMatrix>(outint["var"]);
@@ -4136,7 +4532,79 @@ List liferegcpp(const DataFrame data,
     if (nvar > 1) {
       // parameter estimates and standard errors for the full model
       IntegerVector colfit = seq(0,p-1);
-      out = liferegloop(p, bint, &param, 100, 1.0e-9, colfit, p);
+      
+      // obtain initial values for model parameters
+      NumericVector sig(n2, 1.0);
+      if (dist1 != "exponential") {
+        for (i=0; i<n2; i++) {
+          sig[i] = exp(bint[nvar + stratum1[i] - 1]);
+        }
+      }
+      
+      // first two derivatives of log-likelihood wrt eta
+      List der = f_der_eta_1(y0, sig, &param);
+      NumericVector dg = der["dg"], ddg = der["ddg"];
+      NumericVector eta = y0 - offset1;
+      
+      // standardize the design matrix
+      NumericVector mu(nvar), sigma(nvar);
+      NumericMatrix z2(n2, nvar);
+      for (j=0; j<nvar; j++) {
+        NumericVector u = z1(_,j);
+        if (is_true(all((u == 0) | (u == 1)))) { // no standardization
+          mu[j] = 0; 
+          sigma[j] = 1;
+        } else {
+          mu[j] = mean(u);
+          sigma[j] = sd(u);
+        }
+        z2(_,j) = (u - mu[j])/sigma[j];
+      }
+      
+      // score vector
+      NumericVector u1(nvar);
+      for (i=0; i<n2; i++) {
+        double c1 = weight1[i]*(-ddg[i]*eta[i] + dg[i]);
+        for (j=0; j<nvar; j++) {
+          u1[j] += c1*z2(i,j);
+        }
+      }
+      
+      // hessian matrix
+      NumericMatrix v1(nvar, nvar);
+      for (i=0; i<n2; i++) {
+        double c1 = -weight1[i]*ddg[i];
+        for (j=0; j<nvar; j++) {
+          for (k=0; k<=j; k++) {
+            v1(j,k) += c1*z2(i,j)*z2(i,k);
+          }
+        }
+      }
+      for (j=0; j<nvar-1; j++) {
+        for (k=j+1; k<nvar; k++) {
+          v1(j,k) = v1(k,j);
+        }
+      }
+      
+      // update the parameter vector
+      double toler = 1e-12;
+      i = cholesky2(v1, nvar, toler);
+      chsolve2(v1, nvar, u1);
+      
+      // transform back to the unstandardized design matrix scale
+      NumericVector binit(p);
+      binit[0] = u1[0];
+      for (j=1; j<nvar; j++) {
+        binit[j] = u1[j]/sigma[j];
+        binit[0] = binit[0] - binit[j]*mu[j];
+      }
+      if (dist1 != "exponential") {
+        for (j=nvar; j<p; j++) {
+          binit[j] = bint[j];
+        }
+      }
+      
+      out = liferegloop(p, binit, &param, maxiter, eps, colfit, p);
 
       bool fail = out["fail"];
       if (fail) stop("The algorithm in liferegr did not converge");
@@ -4272,8 +4740,8 @@ List liferegcpp(const DataFrame data,
       double l0 = lmax - 0.5*R::qchisq(1-alpha, 1, 1, 0);
 
       for (k=0; k<p; k++) {
-        lb[k] = liferegplloop(p, b, &param, 30, 1.0e-8, k, -1, l0);
-        ub[k] = liferegplloop(p, b, &param, 30, 1.0e-8, k, 1, l0);
+        lb[k] = liferegplloop(p, b, &param, maxiter, eps, k, -1, l0);
+        ub[k] = liferegplloop(p, b, &param, maxiter, eps, k, 1, l0);
 
         IntegerVector colfit1(p-1);
         for (i=0; i<k; i++) {
@@ -4284,7 +4752,7 @@ List liferegcpp(const DataFrame data,
         }
 
         NumericVector b0(p);
-        List out0 = liferegloop(p, b0, &param, 30, 1.0e-8, colfit1, p-1);
+        List out0 = liferegloop(p, b0, &param, maxiter, eps, colfit1, p-1);
         double lmax0 = out0["loglik"];
         prob[k] = R::pchisq(-2*(lmax0 - lmax), 1, 0, 0);
         clparm[k] = "PL";
@@ -5818,7 +6286,9 @@ List phregcpp(const DataFrame data,
               const bool est_resid = 1,
               const bool firth = 0,
               const bool plci = 0,
-              const double alpha = 0.05) {
+              const double alpha = 0.05,
+              const int maxiter = 50,
+              const double eps = 1.0e-9) {
 
   int h, i, j, k, n = data.nrows();
   int p = static_cast<int>(covariates.size());
@@ -6165,7 +6635,7 @@ List phregcpp(const DataFrame data,
     NumericMatrix vb(p,p);
     if (p > 0) {
       IntegerVector colfit = seq(0,p-1);
-      List out = phregloop(p, bint, &param, 30, 1.0e-9, firth, colfit, p);
+      List out = phregloop(p, bint, &param, maxiter, eps, firth, colfit, p);
 
       bool fail = out["fail"];
       if (fail) stop("The algorithm in phregr did not converge");
@@ -6298,8 +6768,8 @@ List phregcpp(const DataFrame data,
         double l0 = lmax - 0.5*R::qchisq(1-alpha, 1, 1, 0);
 
         for (k=0; k<p; k++) {
-          lb[k] = phregplloop(p, b, &param, 30, 1.0e-8, firth, k, -1, l0);
-          ub[k] = phregplloop(p, b, &param, 30, 1.0e-8, firth, k, 1, l0);
+          lb[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, -1, l0);
+          ub[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, 1, l0);
 
           IntegerVector colfit1(p-1);
           for (i=0; i<k; i++) {
@@ -6310,7 +6780,7 @@ List phregcpp(const DataFrame data,
           }
 
           NumericVector b0(p);
-          List out0 = phregloop(p, b0, &param, 30, 1.0e-8, firth,
+          List out0 = phregloop(p, b0, &param, maxiter, eps, firth, 
                                 colfit1, p-1);
           double lmax0 = out0["loglik"];
           prob[k] = R::pchisq(-2*(lmax0 - lmax), 1, 0, 0);
