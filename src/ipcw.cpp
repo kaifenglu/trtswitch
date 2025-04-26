@@ -711,7 +711,7 @@ List ipcwcpp(
                       List fit_den = phregcpp(
                         data1, "", "ustratum", "tstart", "tstop", "cross",
                         denominator, "", "", "uid", ties, 
-                        1, 1, 0, 0, 0, alpha);
+                        1, 1, 0, 0, 0, alpha, 50, 1.0e-9);
                       
                       // obtain the survival probabilities for crossover
                       DataFrame parest_den = DataFrame(fit_den["parest"]);
@@ -730,7 +730,7 @@ List ipcwcpp(
                       List fit_num = phregcpp(
                         data1, "", "ustratum", "tstart", "tstop", "cross", 
                         numerator, "", "", "uid", ties, 
-                        1, 1, 0, 0, 0, alpha);
+                        1, 1, 0, 0, 0, alpha, 50, 1.0e-9);
                       
                       NumericVector surv_num(m);
                       if (p1 > 0) {
@@ -959,7 +959,8 @@ List ipcwcpp(
                       
                       List fit_den = logisregcpp(
                         data1, "", "cross", covariates_lgs_den, "", "", 
-                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha);
+                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha,
+                        50, 1.0e-9);
                       
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
                       NumericVector h_den = f_den["fitted_values"];
@@ -1008,7 +1009,8 @@ List ipcwcpp(
                       
                       List fit_num = logisregcpp(
                         data1, "", "cross", covariates_lgs_num, "", "", 
-                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha);
+                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha, 
+                        50, 1.0e-9);
                       
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
                       NumericVector h_num = f_num["fitted_values"];
@@ -1136,12 +1138,12 @@ List ipcwcpp(
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "stabilized_weight", "",
-                      "uid", ties, 1, 0, 0, 0, 0, alpha);
+                      "uid", ties, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                   } else {
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "unstabilized_weight", "",
-                      "uid", ties, 1, 0, 0, 0, 0, alpha);
+                      "uid", ties, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                   }
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
