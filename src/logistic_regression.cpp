@@ -754,7 +754,9 @@ List logisregcpp(const DataFrame data,
                  const bool bc = 0,
                  const bool flic = 0,
                  const bool plci = 0,
-                 const double alpha = 0.05) {
+                 const double alpha = 0.05,
+                 const int maxiter = 50,
+                 const double eps = 1.0e-9) {
 
   int h, i, j, k, n = data.nrows();
   int p = static_cast<int>(covariates.size()) + 1;
@@ -964,12 +966,12 @@ List logisregcpp(const DataFrame data,
 
     IntegerVector colfit0(1);
     logparams param = {n1, link1, event1, z1, freq1, weight1, offset1};
-    List outint = logisregloop(p, bint0, &param, 100, 1.0e-9, firth, 0,
+    List outint = logisregloop(p, bint0, &param, maxiter, eps, firth, 0,
                                colfit0, 1);
 
     if (firth && bc) {
       NumericVector bint1 = outint["coef"];
-      outint = logisregloop(p, bint1, &param, 100, 1.0e-9, firth, bc,
+      outint = logisregloop(p, bint1, &param, maxiter, eps, firth, bc,
                             colfit0, 1);
     }
 
@@ -983,11 +985,11 @@ List logisregcpp(const DataFrame data,
     if (p > 1) {
       // parameter estimates and standard errors for the full model
       IntegerVector colfit = seq(0,p-1);
-      out = logisregloop(p, bint, &param, 100, 1.0e-9, firth, 0, colfit, p);
+      out = logisregloop(p, bint, &param, maxiter, eps, firth, 0, colfit, p);
 
       if (firth && bc) {
         NumericVector bint1 = out["coef"];
-        out = logisregloop(p, bint1, &param, 100, 1.0e-9, firth, bc,
+        out = logisregloop(p, bint1, &param, maxiter, eps, firth, bc,
                            colfit, p);
       }
 
@@ -1009,7 +1011,7 @@ List logisregcpp(const DataFrame data,
 
         logparams param0 = {n1, link1, event1, z1, freq1, weight1, lp};
         NumericVector bint00(1, bint0[0]);
-        outint = logisregloop(1, bint00, &param0, 100, 1.0e-9, 0, 0,
+        outint = logisregloop(1, bint00, &param0, maxiter, eps, 0, 0,
                               colfit0, 1);
         double a = as<double>(outint["coef"]);
         double va = as<double>(outint["var"]);
@@ -1047,7 +1049,7 @@ List logisregcpp(const DataFrame data,
       out = outint;
 
       if (flic) {
-        out = logisregloop(p, bint0, &param, 100, 1.0e-9, 0, 0, colfit0, 1);
+        out = logisregloop(p, bint0, &param, maxiter, eps, 0, 0, colfit0, 1);
         b = out["coef"];
         vb = as<NumericMatrix>(outint["var"]);
       }
@@ -1205,9 +1207,9 @@ List logisregcpp(const DataFrame data,
 
       if (!(firth && flic)) {
         for (k=0; k<p; k++) {
-          lb[k] = logisregplloop(p, b, &param, 100, 1.0e-6, firth, bc,
+          lb[k] = logisregplloop(p, b, &param, maxiter, eps, firth, bc,
                                  k, -1, l0);
-          ub[k] = logisregplloop(p, b, &param, 100, 1.0e-6, firth, bc,
+          ub[k] = logisregplloop(p, b, &param, maxiter, eps, firth, bc,
                                  k, 1, l0);
 
           IntegerVector colfit1(p-1);
@@ -1219,11 +1221,11 @@ List logisregcpp(const DataFrame data,
           }
 
           NumericVector b0(p);
-          List out0 = logisregloop(p, b0, &param, 100, 1.0e-8, firth, 0,
+          List out0 = logisregloop(p, b0, &param, maxiter, eps, firth, 0,
                                    colfit1, p-1);
           if (firth && bc) {
             NumericVector b1 = out0["coef"];
-            out0 = logisregloop(p, b1, &param, 100, 1.0e-8, firth, bc,
+            out0 = logisregloop(p, b1, &param, maxiter, eps, firth, bc,
                                 colfit1, p-1);
           }
           double lmax0 = out0["loglik"];
@@ -1243,9 +1245,9 @@ List logisregcpp(const DataFrame data,
         clparm[0] = "Wald";
 
         for (k=1; k<p; k++) {
-          lb[k] = logisregplloop(p, b, &param, 100, 1.0e-6, firth, bc,
+          lb[k] = logisregplloop(p, b, &param, maxiter, eps, firth, bc,
                                  k, -1, l0);
-          ub[k] = logisregplloop(p, b, &param, 100, 1.0e-6, firth, bc,
+          ub[k] = logisregplloop(p, b, &param, maxiter, eps, firth, bc,
                                  k, 1, l0);
 
           IntegerVector colfit1(p-1);
@@ -1257,11 +1259,11 @@ List logisregcpp(const DataFrame data,
           }
 
           NumericVector b0(p);
-          List out0 = logisregloop(p, b0, &param, 100, 1.0e-8, firth, 0,
+          List out0 = logisregloop(p, b0, &param, maxiter, eps, firth, 0,
                                    colfit1, p-1);
           if (firth && bc) {
             NumericVector b1 = out0["coef"];
-            out0 = logisregloop(p, b1, &param, 100, 1.0e-8, firth, bc,
+            out0 = logisregloop(p, b1, &param, maxiter, eps, firth, bc,
                                 colfit1, p-1);
           }
           double lmax0 = out0["loglik"];
