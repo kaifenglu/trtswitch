@@ -491,7 +491,8 @@ List tsesimpcpp(const DataFrame data,
                     
                     List fit1 = liferegcpp(
                       data1, "", "", "pps", "", "event", 
-                      covariates_aft, "", "", "", dist, 0, 0, alpha);
+                      covariates_aft, "", "", "", dist, 0, 0, alpha, 
+                      50, 1.0e-9);
                     
                     DataFrame parest1 = DataFrame(fit1["parest"]);
                     NumericVector beta1 = parest1["beta"];
@@ -590,7 +591,8 @@ List tsesimpcpp(const DataFrame data,
                   
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star",
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
+                    50, 1.0e-9);
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
