@@ -55,6 +55,8 @@
 #'   Defaults to \code{FALSE}.
 #' @param plci Whether to obtain profile likelihood confidence interval.
 #' @param alpha The two-sided significance level.
+#' @param maxiter The maximum number of iterations.
+#' @param eps The tolerance to declare convergence. 
 #'
 #' @return A list with the following components:
 #'
@@ -227,7 +229,8 @@ phregr <- function(data, rep = "", stratum = "",
                    covariates = "", weight = "", offset = "",
                    id = "", ties = "efron", robust = FALSE,
                    est_basehaz = TRUE, est_resid = TRUE, firth = FALSE,
-                   plci = FALSE, alpha = 0.05) {
+                   plci = FALSE, alpha = 0.05, 
+                   maxiter = 50, eps = 1.0e-9) {
   
   rownames(data) = NULL
   
@@ -273,7 +276,8 @@ phregr <- function(data, rep = "", stratum = "",
                   weight = weight, offset = offset, id = id, ties = ties,
                   robust = robust, est_basehaz = est_basehaz,
                   est_resid = est_resid, firth = firth,
-                  plci = plci, alpha = alpha)
+                  plci = plci, alpha = alpha, 
+                  maxiter = maxiter, eps = eps)
   
   fit$p = fit$sumstat$p[1]
   
