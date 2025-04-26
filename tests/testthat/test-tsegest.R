@@ -1,5 +1,6 @@
 library(dplyr, warn.conflicts = FALSE)
 library(geepack)
+library(survival)
 
 testthat::test_that("tsegest: logistic g-estimation", {
   sim1 <- tsegestsim(
@@ -67,8 +68,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
              t_star = pmin(u_star, c_star),
              d_star = os*(u_star <= c_star))
     
-    fit_cox <- phregr(data4a, time = "t_star", event = "d_star", 
-                      est_resid = TRUE)
+    fit_cox <- coxph(Surv(t_star, d_star) ~ 1, data = data4a)
     resid <- fit_cox$residuals
     
     data4b <- data3b %>%
@@ -84,7 +84,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
     as.numeric(z_lgs["resid"]) - target
   }
   
-  psi <- uniroot(f, c(-2, 2), 0, tol = 1.0e-6)$root
+  psi <- uniroot(f, c(-1,1), 0, tol = 1.0e-6)$root
   
   data4 <- data1 %>%
     filter(trtrand == 0) %>%
@@ -100,10 +100,9 @@ testthat::test_that("tsegest: logistic g-estimation", {
                 mutate(t_star = ostime, d_star = os) %>%
                 select(id, t_star, d_star, trtrand, bprog))
   
-  fit <- phregr(data4, time = "t_star", event = "d_star", 
-                covariates = c("trtrand", "bprog"), ties = "efron")
+  fit <- coxph(Surv(t_star, d_star) ~ trtrand + bprog, 
+               data = data4, ties = "efron")
   
-  hr1 <- exp(as.numeric(c(fit$parest$beta[1], fit$parest$lower[1], 
-                          fit$parest$upper[1])))
+  hr1 <- as.numeric(exp(cbind(fit$coefficients, confint(fit)))["trtrand",])
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
