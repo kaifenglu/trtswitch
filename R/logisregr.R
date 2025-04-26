@@ -46,6 +46,8 @@
 #'   accurate predicted probabilities. The default is \code{FALSE}.
 #' @param plci Whether to obtain profile likelihood confidence interval.
 #' @param alpha The two-sided significance level.
+#' @param maxiter The maximum number of iterations.
+#' @param eps The tolerance to declare convergence. 
 #'
 #' @details
 #' Fitting a logistic regression model using Firth's bias reduction method
@@ -223,7 +225,8 @@
 logisregr <- function(data, rep = "", event = "event", covariates = "",
                       freq = "", weight = "", offset = "", id = "",
                       link = "logit", robust = FALSE, firth = FALSE,
-                      bc = FALSE, flic = FALSE, plci = FALSE, alpha = 0.05) {
+                      bc = FALSE, flic = FALSE, plci = FALSE, alpha = 0.05, 
+                      maxiter = 50, eps = 1.0e-9) {
   
   rownames(data) = NULL
   
@@ -269,7 +272,7 @@ logisregr <- function(data, rep = "", event = "event", covariates = "",
                      covariates = varnames, freq = freq, weight = weight,
                      offset = offset, id = id, link = link, robust = robust,
                      firth = firth, bc = bc, flic = flic, plci = plci,
-                     alpha = alpha)
+                     alpha = alpha, maxiter = maxiter, eps = eps)
   
   fit$p <- fit$sumstat$p[1]
   fit$link <- fit$sumstat$link[1]
