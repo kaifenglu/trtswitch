@@ -49,6 +49,8 @@
 #'   variance estimate.
 #' @param plci Whether to obtain profile likelihood confidence interval.
 #' @param alpha The two-sided significance level.
+#' @param maxiter The maximum number of iterations.
+#' @param eps The tolerance to declare convergence. 
 #'
 #' @details There are two ways to specify the model, one for right censored
 #' data through the time and event variables, and the other for interval
@@ -208,7 +210,8 @@ liferegr <- function(data, rep = "", stratum = "",
                      time = "time", time2 = "", event = "event",
                      covariates = "", weight = "", offset = "",
                      id = "", dist = "weibull", robust = FALSE,
-                     plci = FALSE, alpha = 0.05) {
+                     plci = FALSE, alpha = 0.05, 
+                     maxiter = 50, eps = 1.0e-9) {
   rownames(data) = NULL
   
   elements = c(rep, stratum, covariates, weight, offset, id)
@@ -256,7 +259,8 @@ liferegr <- function(data, rep = "", stratum = "",
   fit <- liferegcpp(data = df, rep = rep, stratum = stratum, time = time,
                     time2 = time2, event = event, covariates = varnames,
                     weight = weight, offset = offset, id = id, dist = dist,
-                    robust = robust, plci = plci, alpha = alpha)
+                    robust = robust, plci = plci, alpha = alpha, 
+                    maxiter = maxiter, eps = eps)
   
   fit$p <- fit$sumstat$p[1]
   fit$nvar <- fit$sumstat$nvar[1]
@@ -308,7 +312,7 @@ liferegr <- function(data, rep = "", stratum = "",
   fit$robust = robust
   fit$plci = plci
   fit$alpha = alpha
-  
+
   class(fit) = "liferegr"
   fit
 }
