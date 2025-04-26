@@ -50,7 +50,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   List fit1 = phregcpp(
     data1, "", "ustratum", "t_star", "", "d_star",
-    "", "", "", "", ties, 0, 0, 1, 0, 0, alpha);
+    "", "", "", "", ties, 0, 0, 1, 0, 0, alpha, 50, 1.0e-9);
   
   // replicate counterfactual residuals within subjects
   NumericVector resid3 = fit1["residuals"];
@@ -77,7 +77,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   List fit2 = logisregcpp(
     data2, "", "cross", covariates_lgs, "", "", 
-    "", "uid", "logit", 1, firth, 0, flic, 0, alpha);
+    "", "uid", "logit", 1, firth, 0, flic, 0, alpha, 50, 1.0e-9);
   
   DataFrame parest = DataFrame(fit2["parest"]);
   NumericVector z = parest["z"];
@@ -111,8 +111,8 @@ List tsegestcpp(
     const std::string swtrt_time_upper = "",
     const StringVector& base_cov = "",
     const StringVector& conf_cov = "",
-    const double low_psi = -2,
-    const double hi_psi = 2,
+    const double low_psi = -1,
+    const double hi_psi = 1,
     const int n_eval_z = 101,
     const bool strata_main_effect_only = 1,
     const bool firth = 0,
@@ -120,6 +120,7 @@ List tsegestcpp(
     const bool recensor = 1,
     const bool admin_recensor_only = 1,
     const bool swtrt_control_only = 1,
+    const bool gridsearch = 0,
     const double alpha = 0.05,
     const std::string ties = "efron",
     const double tol = 1.0e-6,
@@ -566,12 +567,18 @@ List tsegestcpp(
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
+  double step_psi = (hi_psi - low_psi)/(n_eval_z - 1);
+  NumericVector psi(n_eval_z);
+  for (i=0; i<n_eval_z; i++) {
+    psi[i] = low_psi + i*step_psi;
+  }
+  
   k = -1;
   auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
-            q, p, p2, covariates, covariates_lgs,
-            low_psi, hi_psi, n_eval_z, firth, flic, recensor, 
-            swtrt_control_only, alpha, zcrit, ties, tol, offset] (
+            q, p, p2, covariates, covariates_lgs, low_psi, hi_psi, 
+            n_eval_z, psi, firth, flic, recensor, swtrt_control_only, 
+            gridsearch, alpha, zcrit, ties, tol, offset] (
                 IntegerVector& idb, IntegerVector& stratumb, 
                 NumericVector& tstartb, NumericVector& tstopb, 
                 IntegerVector& eventb, IntegerVector& treatb, 
@@ -643,6 +650,7 @@ List tsegestcpp(
                   
                   double psi0hat = 0, psi0lower = 0, psi0upper = 0;
                   double psi1hat = 0, psi1lower = 0, psi1upper = 0;
+                  String psi_CI_type;
                   
                   // initialize data_switch, km_switch, eval_z, 
                   // data_nullcox, fit_nullcox, data_logis, fit_logis
@@ -759,36 +767,78 @@ List tsegestcpp(
                       }
                     }
                     
-
-                    // z-stat for the slope of counterfactual survival time
-                    // martingale residuals in the logistic regression model
-                    double target = 0;
-                    auto g = [&target, n2, q, p2, nids2, idx2, stratumn3, 
-                              osn3, os_timen3, censor_timen3, swtrtn3, 
-                              swtrt_timen3, idn2, y, tstartn2, tstopn2, 
-                              covariates_lgs, zn_lgs2, firth, flic, 
-                              recensor, alpha, ties, 
-                              offset](double psi)->double{
-                                List out = est_psi_tsegest(
-                                  n2, q, p2, nids2, idx2, stratumn3, 
-                                  osn3, os_timen3, censor_timen3, 
-                                  swtrtn3, swtrt_timen3, idn2, y, 
-                                  tstartn2, tstopn2, 
-                                  covariates_lgs, zn_lgs2, firth, flic, 
-                                  recensor, alpha, ties, offset, psi);
-                                
-                                double z = out["z_counterfactual"];
-                                return z - target;
-                              };
                     
-                    // causal parameter estimates
-                    double psihat = brent(g, low_psi, hi_psi, tol);
-                    double psilower = 0, psiupper = 0;
-                    if (k == -1) {
-                      target = zcrit;
-                      psilower = brent(g, low_psi, psihat, tol);
-                      target = -zcrit;
-                      psiupper = brent(g, psihat, hi_psi, tol);
+                    // obtain the estimate and confidence interval of psi
+                    double psihat, psilower = 0, psiupper = 0;
+                    
+                    if (gridsearch) {
+                      NumericVector Z(n_eval_z);
+                      for (i=0; i<n_eval_z; i++) {
+                        List out = est_psi_tsegest(
+                          n2, q, p2, nids2, idx2, stratumn3, 
+                          osn3, os_timen3, censor_timen3, 
+                          swtrtn3, swtrt_timen3, idn2, y, 
+                          tstartn2, tstopn2, 
+                          covariates_lgs, zn_lgs2, firth, flic, 
+                          recensor, alpha, ties, offset, psi[i]);
+                        
+                        Z[i] = out["z_counterfactual"];
+                      }
+                      
+                      auto g = [psi, Z](double target)->double{
+                        NumericVector Z1 = Z - target;
+                        NumericVector Zsq = Z1*Z1;
+                        return psi[which_min(Zsq)];
+                      };
+                      
+                      psihat = g(0);
+                      psi_CI_type = "grid search";
+                      
+                      if (k == -1) {
+                        psilower = g(zcrit);
+                        psiupper = g(-zcrit);
+                      }
+                    } else {
+                      // z-stat for the slope of counterfactual survival time
+                      // martingale residuals in the logistic regression model
+                      double target = 0;
+                      auto g = [&target, n2, q, p2, nids2, idx2, stratumn3, 
+                                osn3, os_timen3, censor_timen3, swtrtn3, 
+                                swtrt_timen3, idn2, y, tstartn2, tstopn2, 
+                                covariates_lgs, zn_lgs2, firth, flic, 
+                                recensor, alpha, ties, 
+                                offset](double psi)->double{
+                                  List out = est_psi_tsegest(
+                                    n2, q, p2, nids2, idx2, stratumn3, 
+                                    osn3, os_timen3, censor_timen3, 
+                                    swtrtn3, swtrt_timen3, idn2, y, 
+                                    tstartn2, tstopn2, 
+                                    covariates_lgs, zn_lgs2, firth, flic, 
+                                    recensor, alpha, ties, offset, psi);
+                                  
+                                  double z = out["z_counterfactual"];
+                                  return z - target;
+                                };
+                      
+                      // causal parameter estimates
+                      psihat = brent(g, low_psi, hi_psi, tol);
+                      psi_CI_type = "root finding";
+                      
+                      if (k == -1) {
+                        target = zcrit;
+                        if (g(-6) > 0) {
+                          psilower = brent(g, low_psi, psihat, tol);  
+                        } else {
+                          psilower = NA_REAL;
+                        }
+                        
+                        target = -zcrit;
+                        if (g(6) < 0) {
+                          psiupper = brent(g, psihat, hi_psi, tol);  
+                        } else {
+                          psiupper = NA_REAL;
+                        }
+                      }
                     }
                     
                     // counter-factual survival times and event indicators
@@ -874,10 +924,8 @@ List tsegestcpp(
                       // obtain the Wald statistics for the coefficient of 
                       // the counterfactual in the logistic regression 
                       // switching model at a sequence of psi values
-                      double step_psi = (hi_psi - low_psi)/(n_eval_z - 1);
-                      NumericVector psi(n_eval_z), Z(n_eval_z);
+                      NumericVector Z(n_eval_z);
                       for (i=0; i<n_eval_z; i++) {
-                        psi[i] = low_psi + i*step_psi;
                         List out = est_psi_tsegest(
                           n2, q, p2, nids2, idx2, stratumn3, 
                           osn3, os_timen3, censor_timen3, 
@@ -985,7 +1033,8 @@ List tsegestcpp(
                   
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star",
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
+                    50, 1.0e-9);
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
@@ -1014,6 +1063,7 @@ List tsegestcpp(
                       Named("psi1hat") = psi1hat,
                       Named("psi1lower") = psi1lower,
                       Named("psi1upper") = psi1upper,
+                      Named("psi_CI_type") = psi_CI_type,
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
@@ -1088,12 +1138,12 @@ List tsegestcpp(
   double psi1hat = out["psi1hat"];
   double psi1lower = out["psi1lower"];
   double psi1upper = out["psi1upper"];
+  String psi_CI_type = out["psi_CI_type"];
   double hrhat = out["hrhat"];
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
-  String psi_CI_type = "logistic model";
-  
+
   // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
@@ -1220,6 +1270,7 @@ List tsegestcpp(
     Named("recensor") = recensor,
     Named("admin_recensor_only") = admin_recensor_only,
     Named("swtrt_control_only") = swtrt_control_only,
+    Named("gridsearch") = gridsearch,
     Named("alpha") = alpha,
     Named("ties") = ties,
     Named("tol") = tol,
