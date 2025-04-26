@@ -1,4 +1,5 @@
 library(dplyr, warn.conflicts = FALSE)
+library(survival)
 
 testthat::test_that("rpsftm: control to active switch", {
   data1 <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
@@ -8,8 +9,9 @@ testthat::test_that("rpsftm: control to active switch", {
     rx = "rx", censor_time = "censyrs", boot = FALSE)
   
   # log-rank for ITT
-  fit_lr <- lrtest(data1, treat = "imm", time = "progyrs", event = "prog")
-  z_lr = fit_lr$logRankZ
+  fit_lr <- survdiff(Surv(progyrs, prog) ~ imm, data = data1)
+  z_lr <- sqrt(fit_lr$chisq)
+  if (fit_lr$obs[2] < fit_lr$exp[2]) z_lr <- -z_lr
   
   f <- function(psi) {
     data1 %>%
@@ -21,12 +23,14 @@ testthat::test_that("rpsftm: control to active switch", {
   
   g <- function(psi) {
     data2 <- f(psi)
-    fit_lr <- lrtest(data2, treat = "imm", time = "t_star", event = "d_star")
-    fit_lr$logRankZ
+    fit_lr <- survdiff(Surv(t_star, d_star) ~ imm, data = data2)
+    z_lr <- sqrt(fit_lr$chisq)
+    if (fit_lr$obs[2] < fit_lr$exp[2]) z_lr <- -z_lr
+    z_lr
   }
   
   # psi based on log-rank test
-  psi <- uniroot(g, c(-3,3), tol = 1e-6)$root
+  psi <- uniroot(g, c(-1,1), tol = 1e-6)$root
   
   # observed on treated and counterfactual on control
   data2 <- data1 %>%
