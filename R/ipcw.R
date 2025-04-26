@@ -143,13 +143,20 @@
 #'   either "Cox model" or "bootstrap".
 #'
 #' * \code{data_switch}: A list of input data for the switching models by 
-#'   treatment group.
+#'   treatment group. The variables include \code{id}, \code{stratum}, 
+#'   \code{"tstart"}, \code{"tstop"}, \code{"cross"}, \code{denominator}, 
+#'   \code{swtrt}, \code{swtrt_time}, \code{swtrt_time_lower}, 
+#'   and \code{swtrt_time_upper}.
 #'
 #' * \code{fit_switch}: A list of fitted switching models for the
 #'   denominator and numerator by treatment group.
 #'
-#' * \code{data_outcome}: The input data for the outcome Cox model
+#' * \code{data_outcome}: The input data for the outcome Cox model 
 #'   including the inverse probability of censoring weights.
+#'   The variables include \code{id}, \code{stratum}, \code{"tstart"}, 
+#'   \code{"tstop"}, \code{"event"}, \code{"treated"}, 
+#'   \code{"unstablized_weight"}, \code{"stabilized_weight"}, 
+#'   \code{base_cov}, and \code{treat}.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
