@@ -1,6 +1,7 @@
 #' @title The Simple Two-Stage Estimation (TSE) Method for Treatment 
 #' Switching
-#' @description Obtains the causal parameter estimate of the AFT model 
+#' @description Obtains the causal parameter estimate of the accelerated 
+#' failure-time (AFT) model 
 #' for switching after disease progression and the hazard ratio estimate 
 #' of the outcome Cox model to adjust for treatment switching.
 #'
@@ -45,7 +46,7 @@
 #' @param swtrt_time The name of the swtrt_time variable in the input data.
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the outcome Cox model.
-#' @param base2_cov The names of secondary baseline covariates
+#' @param base2_cov The names of baseline and secondary baseline covariates
 #'   (excluding swtrt) in the input data for the AFT model for 
 #'   post-progression survival.
 #' @param aft_dist The assumed distribution for time to event for the AFT
@@ -117,12 +118,17 @@
 #'   either "Cox model" or "bootstrap".
 #'
 #' * \code{data_aft}: A list of input data for the AFT model by treatment 
-#'   group.
+#'   group. The variables include \code{id}, \code{stratum}, \code{"pps"}, 
+#'   \code{"event"}, \code{"swtrt"}, \code{base2_cov}, \code{pd_time}, 
+#'   \code{swtrt_time}, and \code{time}.
 #' 
 #' * \code{fit_aft}: A list of fitted AFT models by treatment group.
 #' 
-#' * \code{data_outcome}: The input data for the outcome Cox model. 
-#' 
+#' * \code{data_outcome}: The input data for the outcome Cox model 
+#'   of counterfactual unswitched survival times.
+#'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
+#'   \code{"d_star"}, \code{"treated"}, \code{base_cov}, and \code{treat}.
+#'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
