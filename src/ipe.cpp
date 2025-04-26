@@ -33,7 +33,8 @@ List est_psi_ipe(
   }
 
   List fit = liferegcpp(df, "", "", "t_star", "", "d_star",
-                        covariates_aft, "", "", "", dist, 0, 0, alpha);
+                        covariates_aft, "", "", "", dist, 0, 0, alpha, 
+                        50, 1.0e-9);
   
   DataFrame parest = DataFrame(fit["parest"]);
   NumericVector beta = parest["beta"];
@@ -61,8 +62,8 @@ List ipecpp(const DataFrame data,
             const StringVector& base_cov = "",
             const std::string aft_dist = "weibull",
             const bool strata_main_effect_only = 1,
-            const double low_psi = -2,
-            const double hi_psi = 2,
+            const double low_psi = -1,
+            const double hi_psi = 1,
             const double treat_modifier = 1,
             const bool recensor = 1,
             const bool admin_recensor_only = 1,
@@ -419,7 +420,8 @@ List ipecpp(const DataFrame data,
 
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star", 
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
+                    50, 1.0e-9);
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
