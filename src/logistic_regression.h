@@ -48,6 +48,8 @@ List logisregcpp(const DataFrame data,
                  const bool bc,
                  const bool flic,
                  const bool plci,
-                 const double alpha);
+                 const double alpha,
+                 const int maxiter,
+                 const double eps);
 
 #endif // __LOGISTIC_REGRESSION__
