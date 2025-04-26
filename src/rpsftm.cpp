@@ -40,8 +40,8 @@ List rpsftmcpp(const DataFrame data,
                const std::string rx = "rx",
                const std::string censor_time = "censor_time",
                const StringVector& base_cov = "",
-               const double low_psi = -2,
-               const double hi_psi = 2,
+               const double low_psi = -1,
+               const double hi_psi = 1,
                const int n_eval_z = 101,
                const double treat_modifier = 1,
                const bool recensor = 1,
@@ -347,9 +347,18 @@ List rpsftmcpp(const DataFrame data,
 
                     if (k == -1) {
                       target = zcrit;
-                      psilower = brent(g, low_psi, psihat, tol);
+                      if (g(-6) > 0) {
+                        psilower = brent(g, low_psi, psihat, tol);  
+                      } else {
+                        psilower = NA_REAL;
+                      }
+                      
                       target = -zcrit;
-                      psiupper = brent(g, psihat, hi_psi, tol);
+                      if (g(6) < 0) {
+                        psiupper = brent(g, psihat, hi_psi, tol);  
+                      } else {
+                        psiupper = NA_REAL;
+                      }
                     }
                   }
 
@@ -379,7 +388,8 @@ List rpsftmcpp(const DataFrame data,
 
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star", 
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha);
+                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
+                    50, 1.0e-9);
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
@@ -595,7 +605,7 @@ List rpsftmcpp(const DataFrame data,
     Named("recensor") = recensor,
     Named("admin_recensor_only") = admin_recensor_only,
     Named("autoswitch") = autoswitch,
-    Named("gridsearch") =gridsearch,
+    Named("gridsearch") = gridsearch,
     Named("alpha") = alpha,
     Named("ties") = ties,
     Named("tol") = tol,
