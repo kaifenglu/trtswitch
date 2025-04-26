@@ -53,7 +53,8 @@
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
-#' @param tol The desired accuracy (convergence tolerance) for \code{psi}.
+#' @param tol The desired accuracy (convergence tolerance) for \code{psi} 
+#'   for the root finding algorithm.
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{FALSE}, in which case,
 #'   the confidence interval will be constructed to match the log-rank
@@ -109,12 +110,18 @@
 #'   limits of confidence interval of \code{psi} need be modified.
 #'
 #' * \code{Sstar}: A data frame containing the counterfactual untreated
-#'   survival times and event indicators for each treatment group.
+#'   survival times and event indicators for each treatment group. 
+#'   The variables include \code{id}, \code{stratum}, 
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, and \code{treat}.
 #'
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
 #'   based on the counterfactual untreated survival times by treatment arm.
 #'
-#' * \code{data_outcome}: The input data for the outcome Cox model.
+#' * \code{data_outcome}: The input data for the outcome Cox model of 
+#'   counterfactual unswitched survival times. 
+#'   The variables include \code{id}, \code{stratum}, 
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, \code{base_cov},
+#'   and \code{treat}.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -175,7 +182,7 @@
 #' Ian R. White, Adbel G. Babiker, Sarah Walker, and Janet H. Darbyshire.
 #' Randomization-based methods for correcting for treatment changes:
 #' Examples from the CONCORDE trial.
-#' Statistics in Medicine. 1999;18:2617-2634.
+#' Statistics in Medicine. 1999;18(19):2617-2634.
 #'
 #' @examples
 #'
@@ -218,7 +225,7 @@
 rpsftm <- function(data, id = "id", stratum = "", 
                    time = "time", event = "event",
                    treat = "treat", rx = "rx", censor_time = "censor_time",
-                   base_cov = "", low_psi = -2, hi_psi = 2,
+                   base_cov = "", low_psi = -1, hi_psi = 1,
                    n_eval_z = 101, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = FALSE,
