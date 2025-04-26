@@ -8,6 +8,12 @@ using namespace Rcpp;
 
 NumericVector fsurvci(double surv, double sesurv, String ct, double z);
 
+DataFrame survQuantile(const NumericVector& time, 
+                       const IntegerVector& event,
+                       const double cilevel, 
+                       const std::string transform,
+                       const NumericVector& probs);
+
 DataFrame kmest(const DataFrame data,
                 const StringVector& rep,
                 const StringVector& stratum,
@@ -76,6 +82,8 @@ NumericVector f_score_1(int p, NumericVector par, void *ex);
 
 NumericMatrix f_info_1(int p, NumericVector par, void *ex);
 
+List f_der_eta_1(NumericVector eta, NumericVector sig, void *ex);
+
 NumericMatrix f_ressco_1(int p, NumericVector par, void *ex);
 
 NumericMatrix f_jj_1(int p, NumericVector par, void *ex);
@@ -101,7 +109,9 @@ List liferegcpp(const DataFrame data,
                 const std::string dist,
                 const bool robust,
                 const bool plci,
-                const double alpha);
+                const double alpha,
+                const int maxiter,
+                const double eps);
 
 struct coxparams {
   int nused;
@@ -161,7 +171,9 @@ List phregcpp(const DataFrame data,
               const bool est_resid,
               const bool firth,
               const bool plci,
-              const double alpha);
+              const double alpha,
+              const int maxiter,
+              const double eps);
 
 DataFrame survfit_phregcpp(const int p,
                            const NumericVector& beta,
