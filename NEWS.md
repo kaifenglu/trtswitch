@@ -1,3 +1,35 @@
+# trtswitch 0.1.6
+
+- fixed an ASAN issue in survQuantile
+
+# trtswitch 0.1.5
+
+- updated the default search interval for psi to [-2,2] at 101 points in rpsftm
+- added parameters and output low_psi = -2 and hi_psi = 2 to ipe
+- renamed gest to est_psi_tsegest and updated the default search interval for psi to [-2,2] at 101 points in tsegest
+- replaced dummy variables with original variables in data_outcome for rpsftm
+- replaced dummy variables with original variables in data_outcome and data_aft for ipe
+- removed dummy strata variables in data_aft for ipe
+- replaced dummy variables with original variables in data_outcome and data_aft for tsesimp
+- removed dummy strata variables in data_aft for tsesimp
+- renamed time to pps in data_aft for tsesimp
+- added pd_time, swtrt_time, and time to data_aft for tsesimp
+- added tstart, tstop to data_logis for tsegest
+- replaced dummy variables with original variables in data_outcome and data_logis for tsegest
+- removed dummy strata variables in data_logis for tsegest
+- added tstart, tstop to data_switch for ipcw
+- replaced dummy variables with original variables in data_outcome and data_switch for ipcw
+- removed dummy strata variables in data_switch for ipcw
+- updated liferegr to use better starting values for model parameters
+- updated documentations for rpsftm, ipe, tsesimp, tsegest, and ipcw to clarify the variables in output data frames
+- added gridsearch parameter to tsegest
+- updated unit tes
+ts and vignettes to use functions from the survival package
+- added maxiter and eps to logisregr, liferegr, and phregr
+- added the special case for psilower and psiupper when no root exists when using uniroot finding in rpsftm and tsegest
+- updated to shortening survival if patients switched from active treatment to control in tsegestsim
+- added subject-level data to tsegestsim
+
 # trtswitch 0.1.4
 
 - Added the keep_censor parameter to the kmest function and added the ncensor variable to the output data frame.
