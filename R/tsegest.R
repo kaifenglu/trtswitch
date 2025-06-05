@@ -273,8 +273,6 @@
 #' Statistical Methods in Medical Research. 2020;29(10):2900-2918.
 #'
 #' @examples
-#'
-#' # Example 1: one-way treatment switching (control to active)
 #' 
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
@@ -300,33 +298,6 @@
 #'   tol = 1.0e-6, boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI)
-#'
-#' # Example 2: two-way treatment switching
-#'
-#' sim2 <- tsegestsim(
-#'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
-#'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-#'   scale1 = 360, shape2 = 1.7, scale2 = 688, 
-#'   pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
-#'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
-#'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
-#'   ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
-#'   milestone = 546, swtrt_control_only = FALSE,
-#'   outputRawDataset = 1, seed = 2000)
-#'   
-#' fit2 <- tsegest(
-#'   data = sim2$paneldata, id = "id", 
-#'   tstart = "tstart", tstop = "tstop", event = "event", 
-#'   treat = "trtrand", censor_time = "censor_time", 
-#'   pd = "progressed", pd_time = "timePFSobs", 
-#'   swtrt = "xo", swtrt_time = "xotime", 
-#'   base_cov = "bprog", conf_cov = "bprog*catlag", 
-#'   strata_main_effect_only = TRUE,
-#'   recensor = TRUE, admin_recensor_only = TRUE, 
-#'   swtrt_control_only = FALSE, alpha = 0.05, ties = "efron", 
-#'   tol = 1.0e-6, boot = FALSE)
-#'   
-#' c(fit2$hr, fit2$hr_CI)
 #' 
 #' @export
 tsegest <- function(data, id = "id", stratum = "", 
