@@ -6,15 +6,15 @@ using namespace Rcpp;
 
 
 List est_psi_tsegest(int n2, int q, int p2, int nids2, 
-          IntegerVector idx2, IntegerVector stratumn3, 
-          IntegerVector osn3, NumericVector os_timen3, 
-          NumericVector censor_timen3,  
-          IntegerVector swtrtn3, NumericVector swtrt_timen3, 
-          IntegerVector idn2, IntegerVector y, 
-          NumericVector tstartn2, NumericVector tstopn2,
-          StringVector covariates_lgs, NumericMatrix zn_lgs2, 
-          bool firth, bool flic, bool recensor, double alpha, 
-          std::string ties, double offset, double psi) {
+                     IntegerVector idx2, IntegerVector stratumn3, 
+                     IntegerVector osn3, NumericVector os_timen3, 
+                     NumericVector censor_timen3,  
+                     IntegerVector swtrtn3, NumericVector swtrt_timen3, 
+                     IntegerVector idn2, IntegerVector y, 
+                     NumericVector tstartn2, NumericVector tstopn2,
+                     StringVector covariates_lgs, NumericMatrix zn_lgs2, 
+                     bool firth, bool flic, bool recensor, double alpha, 
+                     std::string ties, double offset, double psi) {
   
   int i, j; 
   double a = exp(psi);
@@ -77,7 +77,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   List fit2 = logisregcpp(
     data2, "", "cross", covariates_lgs, "", "", 
-    "", "uid", "logit", 1, firth, 0, flic, 0, alpha, 50, 1.0e-9);
+    "", "uid", "logit", 1, firth, flic, 0, alpha, 150, 1.0e-9);
   
   DataFrame parest = DataFrame(fit2["parest"]);
   NumericVector z = parest["z"];
@@ -108,11 +108,10 @@ List tsegestcpp(
     const std::string pd_time = "pd_time",
     const std::string swtrt = "swtrt",
     const std::string swtrt_time = "swtrt_time",
-    const std::string swtrt_time_upper = "",
     const StringVector& base_cov = "",
     const StringVector& conf_cov = "",
-    const double low_psi = -1,
-    const double hi_psi = 1,
+    const double low_psi = -2,
+    const double hi_psi = 2,
     const int n_eval_z = 101,
     const bool strata_main_effect_only = 1,
     const bool firth = 0,
@@ -147,7 +146,6 @@ List tsegestcpp(
   bool has_pd_time = hasVariable(data, pd_time);
   bool has_swtrt = hasVariable(data, swtrt);
   bool has_swtrt_time = hasVariable(data, swtrt_time);
-  bool has_swtrt_time_upper = hasVariable(data, swtrt_time_upper);
   
   // create the numeric id variable
   if (!has_id) stop("data must contain the id variable");
@@ -381,24 +379,20 @@ List tsegestcpp(
     }
   }
   
-  if (!has_swtrt_time_upper) {
-    stop("data must contain the swtrt_time_upper variable"); 
-  }
-  
-  if (TYPEOF(data[swtrt_time_upper]) != INTSXP &&
-      TYPEOF(data[swtrt_time_upper]) != REALSXP) {
-    stop("swtrt_time_upper must take numeric values");
-  }
-  
-  NumericVector swtrt_time_uppernz = data[swtrt_time_upper];
-  NumericVector swtrt_time_uppern = clone(swtrt_time_uppernz);
-  if (is_true(any(swtrt_time_uppern < 0.0))) {
-    stop("swtrt_time_upper must be nonnegative");
-  }
-  
+  // if the patient switched before pd, set pd time equal to switch time
   for (i=0; i<n; i++) {
-    if (swtrtn[i] == 1 && swtrt_timen[i] > swtrt_time_uppern[i]) {
-      stop("swtrt_time must be less than or equal to swtrt_time_upper");
+    if (pdn[i] == 1 && swtrtn[i] == 1 && swtrt_timen[i] < pd_timen[i]) {
+      pd_timen[i] = swtrt_timen[i];
+    }
+  }
+  
+  // make sure offset is less than or equal to observed time variables
+  for (i=0; i<n; i++) {
+    if (pdn[i] == 1 && pd_timen[i] < offset) {
+      stop("pd_time must be great than or equal to offset");
+    }
+    if (swtrtn[i] == 1 && swtrt_timen[i] < offset) {
+      stop("swtrt_time must be great than or equal to offset");
     }
   }
   
@@ -508,7 +502,6 @@ List tsegestcpp(
   pd_timen = pd_timen[order];
   swtrtn = swtrtn[order];
   swtrt_timen = swtrt_timen[order];
-  swtrt_time_uppern = swtrt_time_uppern[order];
   zn = subset_matrix_by_row(zn, order);
   zn_lgs = subset_matrix_by_row(zn_lgs, order);
   
@@ -586,7 +579,6 @@ List tsegestcpp(
                 NumericVector& censor_timeb, 
                 IntegerVector& pdb, NumericVector& pd_timeb, 
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
-                NumericVector& swtrt_time_upperb,
                 NumericMatrix& zb, NumericMatrix& zb_lgs)->List {
                   int h, i, j, n = static_cast<int>(idb.size());
                   
@@ -614,7 +606,6 @@ List tsegestcpp(
                   pd_timeb = pd_timeb[order];
                   swtrtb = swtrtb[order];
                   swtrt_timeb = swtrt_timeb[order];
-                  swtrt_time_upperb = swtrt_time_upperb[order];
                   zb = subset_matrix_by_row(zb, order);
                   zb_lgs = subset_matrix_by_row(zb_lgs, order);
                   
@@ -712,8 +703,7 @@ List tsegestcpp(
                     // post progression data up to switching for the treat
                     IntegerVector l = which(
                       (treatb == h) & (pdb == 1) & (tstopb >= pd_timeb) & 
-                        ((swtrtb != 1) | (tstopb <= swtrt_timeb)) & 
-                        (tstopb <= swtrt_time_upperb));
+                        ((swtrtb != 1) | (tstopb <= swtrt_timeb)));
                     
                     IntegerVector idn2 = idb[l];
                     IntegerVector stratumn2 = stratumb[l];
@@ -826,14 +816,14 @@ List tsegestcpp(
                       
                       if (k == -1) {
                         target = zcrit;
-                        if (g(-6) > 0) {
+                        if (g(low_psi) > 0) {
                           psilower = brent(g, low_psi, psihat, tol);  
                         } else {
                           psilower = NA_REAL;
                         }
                         
                         target = -zcrit;
-                        if (g(6) < 0) {
+                        if (g(hi_psi) < 0) {
                           psiupper = brent(g, psihat, hi_psi, tol);  
                         } else {
                           psiupper = NA_REAL;
@@ -1039,11 +1029,11 @@ List tsegestcpp(
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
-                  NumericVector z = parest["z"];
+                  NumericVector pval = parest["p"];
                   double hrhat = exp(beta[0]);
                   double hrlower = exp(beta[0] - zcrit*sebeta[0]);
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
-                  double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
+                  double pvalue = pval[0];
                   
                   List out;
                   if (k == -1) {
@@ -1083,8 +1073,7 @@ List tsegestcpp(
   
   List out = f(idn, stratumn, tstartn, tstopn, eventn, treatn,
                osn, os_timen, censor_timen, pdn, pd_timen, 
-               swtrtn, swtrt_timen, swtrt_time_uppern, 
-               zn, zn_lgs);
+               swtrtn, swtrt_timen, zn, zn_lgs);
   
   List data_switch = out["data_switch"];
   List km_switch = out["km_switch"];
@@ -1143,7 +1132,7 @@ List tsegestcpp(
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
-
+  
   // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
@@ -1161,7 +1150,7 @@ List tsegestcpp(
       IntegerVector idb(N), stratumb(N), eventb(N), treatb(N);
       IntegerVector osb(N), pdb(N), swtrtb(N);
       NumericVector tstartb(N), tstopb(N), os_timeb(N), censor_timeb(N);
-      NumericVector pd_timeb(N), swtrt_timeb(N), swtrt_time_upperb(N);
+      NumericVector pd_timeb(N), swtrt_timeb(N);
       NumericMatrix zb(N, p), zb_lgs(N, q+p2);
       
       // sample the subject-level data with replacement by treatment group
@@ -1178,27 +1167,23 @@ List tsegestcpp(
         int idb1 = idn[idx[i]] + h*nids;
         
         for (j=idx[i]; j<idx[i+1]; j++) {
-          int r = l + j - idx[i];
-          
-          idb[r] = idb1;
-          stratumb[r] = stratumn[j];
-          tstartb[r] = tstartn[j];
-          tstopb[r] = tstopn[j];
-          eventb[r] = eventn[j];
-          treatb[r] = treatn[j];
-          osb[r] = osn[j];
-          os_timeb[r] = os_timen[j];
-          censor_timeb[r] = censor_timen[j];
-          pdb[r] = pdn[j];
-          pd_timeb[r] = pd_timen[j];
-          swtrtb[r] = swtrtn[j];
-          swtrt_timeb[r] = swtrt_timen[j];
-          swtrt_time_upperb[r] = swtrt_time_uppern[j];
-          zb(r,_) = zn(j,_);
-          zb_lgs(r,_) = zn_lgs(j,_);
+          idb[l] = idb1;
+          stratumb[l] = stratumn[j];
+          tstartb[l] = tstartn[j];
+          tstopb[l] = tstopn[j];
+          eventb[l] = eventn[j];
+          treatb[l] = treatn[j];
+          osb[l] = osn[j];
+          os_timeb[l] = os_timen[j];
+          censor_timeb[l] = censor_timen[j];
+          pdb[l] = pdn[j];
+          pd_timeb[l] = pd_timen[j];
+          swtrtb[l] = swtrtn[j];
+          swtrt_timeb[l] = swtrt_timen[j];
+          zb(l,_) = zn(j,_);
+          zb_lgs(l,_) = zn_lgs(j,_);
+          l++;
         }
-        
-        l += idx[i+1] - idx[i];
       }
       
       IntegerVector sub = Range(0,l-1);
@@ -1215,14 +1200,12 @@ List tsegestcpp(
       pd_timeb = pd_timeb[sub];
       swtrtb = swtrtb[sub];
       swtrt_timeb = swtrt_timeb[sub];
-      swtrt_time_upperb = swtrt_time_upperb[sub];
       zb = subset_matrix_by_row(zb, sub);
       zb_lgs = subset_matrix_by_row(zb_lgs, sub);
       
       out = f(idb, stratumb, tstartb, tstopb, eventb, treatb,
               osb, os_timeb, censor_timeb, pdb, pd_timeb, 
-              swtrtb, swtrt_timeb, swtrt_time_upperb, 
-              zb, zb_lgs);
+              swtrtb, swtrt_timeb, zb, zb_lgs);
       
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
