@@ -113,9 +113,24 @@ List liferegcpp(const DataFrame data,
                 const int maxiter,
                 const double eps);
 
+NumericMatrix residuals_liferegcpp(const NumericVector& beta,
+                                   const NumericMatrix& vbeta,
+                                   DataFrame data,
+                                   const StringVector& stratum,
+                                   const std::string time,
+                                   const std::string time2,
+                                   const std::string event,
+                                   const StringVector& covariates,
+                                   const std::string weight,
+                                   const std::string offset,
+                                   const std::string id,
+                                   const std::string dist,
+                                   const std::string type,
+                                   const bool collapse,
+                                   const bool weighted);
+
 struct coxparams {
   int nused;
-  double delta;
   IntegerVector strata;
   NumericVector tstart;
   NumericVector tstop;
@@ -192,6 +207,8 @@ DataFrame survfit_phregcpp(const int p,
 
 List residuals_phregcpp(const int p,
                         const NumericVector& beta,
+                        const NumericMatrix& vbeta,
+                        const NumericVector& resmart,
                         DataFrame data,
                         const StringVector& stratum,
                         const std::string time,
@@ -202,6 +219,8 @@ List residuals_phregcpp(const int p,
                         const std::string offset,
                         const std::string id,
                         const std::string ties,
-                        const std::string type);
+                        const std::string type,
+                        const bool collapse,
+                        const bool weighted);
 
 #endif // __SURVIVAL_ANALYSIS__
