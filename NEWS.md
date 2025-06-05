@@ -1,3 +1,22 @@
+# trtswitch 0.1.7
+
+- updated survival_analysis to ignore intervals not at risk within each stratum without creating non overlapping times across strata
+- updated documentation for the survsplit utility function
+- updated tsegestsim to use the standard definition of weibull scale
+- removed bc from logisregr
+- removed swtrt_time_upper from tsegest
+- removed subject-level adsl data from tsegestsim output
+- removed swtrt_time_lower, swtrt_time_upper, and relative_time from ipcw
+- removed the robust option for logistic regression treatment switching model in ipcw
+- added match3 utility function to match on id and value
+- added residuals_liferegr for residuals from parameteric regression models for failure time data
+- added the psi_test, aft_dist, and strata_main_effect_only parameters to rpsftm to allow parametric regression and cox regression models to estimate psi
+- added baseline covariates to the output Sstar data set of the rpsftm and ipe functions
+- added a check for switching time before progression time in tsesimp and tsegest
+- added a check for switching time or progression time less than offset in tsesimp and tsegest
+- added timeOS and died variables for subject-level data and used event for death status at the end of each time interval for tsegestsim
+- added tssim for treatment switching data simulation
+
 # trtswitch 0.1.6
 
 - fixed an ASAN issue in survQuantile
