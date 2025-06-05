@@ -6,7 +6,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
   sim1 <- tsegestsim(
     n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
     trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-    scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+    scale1 = 360, shape2 = 1.7, scale2 = 688, 
     pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
     pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
     catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -16,10 +16,10 @@ testthat::test_that("tsegest: logistic g-estimation", {
   
   fit1 <- tsegest(
     data = sim1$paneldata, id = "id", 
-    tstart = "tstart", tstop = "tstop", event = "died", 
+    tstart = "tstart", tstop = "tstop", event = "event", 
     treat = "trtrand", censor_time = "censor_time", 
-    pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
-    swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+    pd = "progressed", pd_time = "timePFSobs", 
+    swtrt = "xo", swtrt_time = "xotime", 
     base_cov = "bprog", conf_cov = "bprog*catlag", 
     low_psi = -2, hi_psi = 2, strata_main_effect_only = TRUE,
     recensor = TRUE, admin_recensor_only = TRUE, 
@@ -37,8 +37,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
   # post progression data up to switching 
   data2 <- sim1$paneldata %>%
     filter(trtrand == 0 & progressed == 1 & tstop >= timePFSobs & 
-             ((xo == 0 & tstop <= xotime_upper) | 
-                (xo == 1 & tstop <= xotime)))
+             ((xo == 0) | (xo == 1 & tstop <= xotime)))
   
   # re-baseline
   data3a <- data2 %>% 
