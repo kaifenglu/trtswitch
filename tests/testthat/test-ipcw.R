@@ -6,7 +6,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
   sim1 <- tsegestsim(
     n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
     trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-    scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+    scale1 = 360, shape2 = 1.7, scale2 = 688, 
     pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
     pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
     catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -17,13 +17,10 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
   fit1 <- ipcw(
     sim1$paneldata, id = "id", tstart = "tstart", 
     tstop = "tstop", event = "died", treat = "trtrand", 
-    swtrt = "xo", swtrt_time = "xotime", 
-    swtrt_time_lower = "timePFSobs",
-    swtrt_time_upper = "xotime_upper", base_cov = "bprog", 
+    swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
     numerator = "bprog", denominator = "bprog*catlag", 
     logistic_switching_model = TRUE, ns_df = 3,
-    relative_time = TRUE, swtrt_control_only = TRUE, 
-    boot = FALSE)
+    swtrt_control_only = TRUE, boot = FALSE)
   
   # exclude observations after treatment switch
   data1 <- sim1$paneldata %>%
@@ -35,12 +32,10 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
            tstop = ifelse(condition, xotime, tstop))
   
   # fit pooled logistic regression switching models
-  data2 <- data1 %>%
-    filter(trtrand == 0 & tstop >= timePFSobs & tstop <= xotime_upper) %>%
-    mutate(x0 = tstop - timePFSobs)
+  data2 <- data1 %>% filter(trtrand == 0)
   
-  ns1 <- ns(data2$x0[data2$cross == 1], df = 3)
-  ns2 <- ns(data2$x0, knots = attr(ns1, "knots"), 
+  ns1 <- ns(data2$tstop[data2$cross == 1], df = 3)
+  ns2 <- ns(data2$tstop, knots = attr(ns1, "knots"), 
             Boundary.knots = attr(ns1, "Boundary.knots"))
   switch1 <- glm(cross ~ bprog*catlag + ns2, family = binomial, data = data2)
   phat1 <- as.numeric(predict(switch1, newdata = data2, type = "response"))
