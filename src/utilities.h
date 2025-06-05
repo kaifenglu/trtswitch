@@ -45,6 +45,10 @@ void row_house(NumericMatrix& A, const int i1, const int i2,
                const int j1, const int j2, const NumericVector& v);
 List qrcpp(const NumericMatrix& X, double tol);
 
+IntegerVector match3(
+    const IntegerVector id1, const NumericVector v1,
+    const IntegerVector id2, const NumericVector v2);
+
 DataFrame untreated(
     const double psi,
     const IntegerVector& id,
