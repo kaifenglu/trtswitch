@@ -2,7 +2,7 @@
 #' @description Obtains the martingale, deviance, score, or Schoenfeld
 #' residuals for a proportional hazards regression model.
 #'
-#' @param fit_phregr The output from the \code{phregr} call.
+#' @param object The output from the \code{phregr} call.
 #' @param type The type of residuals desired, with options including
 #'   \code{"martingale"}, \code{"deviance"}, \code{"score"},
 #'   \code{"schoenfeld"}, \code{"dfbeta"}, \code{"dfbetas"}, and
@@ -66,25 +66,25 @@
 #'
 #' @export
 residuals_phregr <- function(
-    fit_phregr, type=c("martingale", "deviance", "score", "schoenfeld",
-                       "dfbeta", "dfbetas", "scaledsch"),
+    object, type=c("martingale", "deviance", "score", "schoenfeld",
+                   "dfbeta", "dfbetas", "scaledsch"),
     collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
+  
+  p = object$p
+  beta = object$beta
+  residuals = object$residuals
 
-  p = fit_phregr$p
-  beta = fit_phregr$beta
-  residuals = fit_phregr$residuals
-
-  data = fit_phregr$data
-  stratum = fit_phregr$stratum
-  time = fit_phregr$time
-  time2 = fit_phregr$time2
-  event = fit_phregr$event
-  covariates = fit_phregr$covariates
-  weight = fit_phregr$weight
-  offset = fit_phregr$offset
-  id = fit_phregr$id
-  ties = fit_phregr$ties
-  param = fit_phregr$param
+  data = object$data
+  stratum = object$stratum
+  time = object$time
+  time2 = object$time2
+  event = object$event
+  covariates = object$covariates
+  weight = object$weight
+  offset = object$offset
+  id = object$id
+  ties = object$ties
+  param = object$param
 
   rownames(data) = NULL
   
@@ -122,19 +122,16 @@ residuals_phregr <- function(
 
 
   type <- match.arg(type)
-  otype <- type
+  
   if (type=='dfbeta' || type=='dfbetas') {
-    type <- 'score'
     if (missing(weighted))
       weighted <- TRUE  # different default for this case
   }
-  if (type=='scaledsch') type<-'schoenfeld'
 
   n <- length(residuals)
-  rr <- residuals
 
-  vv <- drop(fit_phregr$vbeta_naive)
-  if (is.null(vv)) vv <- drop(fit_phregr$vbeta)
+  vv <- object$vbeta_naive
+  if (is.null(vv)) vv <- object$vbeta
 
   if (weight != "") {
     weights <- df[[weight]]
@@ -147,111 +144,50 @@ residuals_phregr <- function(
   } else {
     idn <- seq(1,n)
   }
-
-
-  if (type == 'martingale') rr <- fit_phregr$residuals
-
-  if (type=='schoenfeld') {
-    if (p == 0) stop("covariates must be present for schoenfeld residuals")
-
-    temp = residuals_phregcpp(p = p,
-                              beta = beta,
-                              data = df,
-                              stratum = stratum,
-                              time = time,
-                              time2 = time2,
-                              event = event,
-                              covariates = varnames,
-                              weight = weight,
-                              offset = offset,
-                              id = id,
-                              ties = ties,
-                              type = "schoenfeld")
-
-    if (p==1) {
-      rr <- c(temp$resid)
-    } else {
-      rr <- temp$resid
-    }
-    if (weighted) rr <- rr * weights[temp$obs]
-    if (length(unique(temp$stratumn)) > 1) {
-      attr(rr, "stratum") <- temp$stratumn
-    }
-    attr(rr, "time") <- temp$time
-
-    if (otype=='scaledsch') {
-      ndead <- length(temp$obs)
-      if (nvar==1) {
-        rr <- rr * vv * ndead + beta
-      } else {
-        rr <- drop(rr %*% vv *ndead + rep(beta, each=nrow(rr)))
-      }
-    }
-
-    if (is.matrix(rr)) colnames(rr) <- param
-
-    return(rr)
-  }
-
-  if (type=='score') {
-    if (p == 0) stop("covariates must be present for score residuals")
-
-    temp = residuals_phregcpp(p = p,
-                              beta = beta,
-                              data = df,
-                              stratum = stratum,
-                              time = time,
-                              time2 = time2,
-                              event = event,
-                              covariates = varnames,
-                              weight = weight,
-                              offset = offset,
-                              id = id,
-                              ties = ties,
-                              type = "score")
-
-
-    if (p==1) {
-      rr <- c(temp$resid)
-    } else {
-      rr <- temp$resid
-    }
-
-    if (otype=='dfbeta') {
-      if (is.matrix(rr)) {
-        rr <- rr %*% vv
-      } else {
-        rr <- rr * vv
-      }
-    }
-    else if (otype=='dfbetas') {
-      if (is.matrix(rr)) {
-        rr <- (rr %*% vv) %*% diag(sqrt(1/diag(vv)))
-      } else {
-        rr <- rr * sqrt(vv)
-      }
-    }
-
-    if (is.matrix(rr)) colnames(rr) <- param
-  }
-
-  #
-  # Multiply up by case weights (which will be 1 for unweighted)
-  #
-  if (weighted) rr <- rr * weights
-
-  status <- df[[event]]
   
-  # Collapse if desired
-  if (collapse) {
-    rr <- drop(rowsum(rr, idn))
-    if (type=='deviance') status <- drop(rowsum(status, idn))
+  
+  if (p == 0) { # null Cox model case
+    beta = 0
+    vv = matrix(0,1,1)
   }
 
-  # Deviance residuals are computed after collapsing occurs
-  if (type=='deviance') {
-    sign(rr) *sqrt(-2* (rr+ ifelse(status==0, 0, status*log(status-rr))))
+  temp = residuals_phregcpp(p = p,
+                            beta = beta,
+                            vbeta = vv,
+                            resmart = residuals,
+                            data = df,
+                            stratum = stratum,
+                            time = time,
+                            time2 = time2,
+                            event = event,
+                            covariates = varnames,
+                            weight = weight,
+                            offset = offset,
+                            id = id,
+                            ties = ties,
+                            type = type, 
+                            collapse = collapse,
+                            weighted = weighted)
+  
+
+  if (type == "martingale" || type == "deviance") {
+    rr <- temp$resid
   } else {
-    rr
+    if (p == 1) {
+      rr = c(temp$resid)
+    } else {
+      rr = temp$resid
+    }
+    
+    if (type == "schoenfeld" || type == "scaledsch") {
+      attr(rr, "time") = temp$time
+      if (length(temp) == 3) {
+        attr(rr, "strata") = temp$strata
+      }
+    }
   }
+  
+  if (is.matrix(rr)) colnames(rr) <- param
+  
+  rr
 }
