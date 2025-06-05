@@ -2,7 +2,7 @@
 #' @description Obtains the predicted survivor function for a proportional
 #' hazards regression model.
 #'
-#' @param fit_phregr The output from the \code{phregr} call.
+#' @param object The output from the \code{phregr} call.
 #' @param newdata A data frame with the same variable names as those that
 #'   appear in the \code{phregr} call. For right-censored data, one curve is
 #'   produced per row to represent a cohort whose covariates correspond to
@@ -92,28 +92,28 @@
 #'                           rx = c(0,1,0,1)))
 #'
 #' @export
-survfit_phregr <- function(fit_phregr, newdata, sefit = TRUE,
+survfit_phregr <- function(object, newdata, sefit = TRUE,
                            conftype = "log-log", conflev = 0.95) {
 
-  p = fit_phregr$p
+  p = object$p
   if (p == 0) {
     beta = 0
     vbeta = 0
   } else {
-    beta = fit_phregr$beta
-    vbeta = fit_phregr$vbeta
+    beta = object$beta
+    vbeta = object$vbeta
   }
 
-  basehaz = fit_phregr$basehaz
+  basehaz = object$basehaz
 
-  covariates = fit_phregr$covariates
-  stratum = fit_phregr$stratum
-  offset = fit_phregr$offset
-  id = fit_phregr$id
+  covariates = object$covariates
+  stratum = object$stratum
+  offset = object$offset
+  id = object$id
 
   if (id != "") {
-    tstart = fit_phregr$time
-    tstop = fit_phregr$time2
+    tstart = object$time
+    tstop = object$time2
   } else {
     tstart = ""
     tstop = ""
@@ -132,7 +132,7 @@ survfit_phregr <- function(fit_phregr, newdata, sefit = TRUE,
 
   if (p >= 1 && p3 >= 1 && !(missing(newdata) || is.null(newdata))) {
     df = newdata
-    mf = model.frame(t1, df, xlev = fit_phregr$xlevels)
+    mf = model.frame(t1, df, xlev = object$xlevels)
     mm = model.matrix(t1, mf)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
