@@ -53,8 +53,6 @@ using namespace Rcpp;
 //'   survival time.
 //' @param milestone The milestone to calculate restricted mean survival 
 //'   time.
-//' @param swtrt_control_only Whether treatment switching occurred only in
-//'   the control group.
 //' @param outputRawDataset Whether to output the raw data set.
 //' @param seed The seed to reproduce the simulation results.
 //'   The seed from the environment will be used if left unspecified.
@@ -179,7 +177,6 @@ List tsegestsim(const int n = 500,
                 const double pgoodmet = 0.2,
                 const double xomult = 1.4188308,
                 const double milestone = 546,
-                const bool swtrt_control_only = 1,
                 const bool outputRawDataset = 1,
                 const int seed = NA_INTEGER) {
   
@@ -437,78 +434,41 @@ List tsegestsim(const int n = 500,
     }
 
     // generate the indicator and time of treatment switching
-    if (swtrt_control_only) {
-      if (trtrand[i] == 0 &&
-          timeOS[i] > timePFSobs[i] && progressed[i] == 1) {
-        xo1[i] = static_cast<int>(R::rbinom(1, p1));
-      }
-      
-      if (trtrand[i] == 0 && xo1[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 21 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo2[i] = static_cast<int>(R::rbinom(1, p2));
-      }
-      
-      if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 42 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo3[i] = static_cast<int>(R::rbinom(1, p3));
-      }
-      
-      if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 63 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo4[i] = static_cast<int>(R::rbinom(1, p4));
-      }
-      
-      if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
-          xo4[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 84 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo5[i] = static_cast<int>(R::rbinom(1, p5));
-      }
-      
-      if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
-          xo4[i] == 0 && xo5[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 105 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo6[i] = static_cast<int>(R::rbinom(1, p6));
-      }
-    } else {
-      if (timeOS[i] > timePFSobs[i] && progressed[i] == 1) {
-        xo1[i] = static_cast<int>(R::rbinom(1, p1));
-      }
-      
-      if (xo1[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 21 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo2[i] = static_cast<int>(R::rbinom(1, p2));
-      }
-      
-      if (xo1[i] == 0 && xo2[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 42 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo3[i] = static_cast<int>(R::rbinom(1, p3));
-      }
-      
-      if (xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 63 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo4[i] = static_cast<int>(R::rbinom(1, p4));
-      }
-      
-      if (xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 && xo4[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 84 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo5[i] = static_cast<int>(R::rbinom(1, p5));
-      }
-      
-      if (xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 && xo4[i] == 0 && 
-          xo5[i] == 0 &&
-          timeOS[i] > timePFSobs[i] + 105 && progressed[i] == 1 && 
-          tdxo == 1) {
-        xo6[i] = static_cast<int>(R::rbinom(1, p6));
-      }
+    if (trtrand[i] == 0 &&
+        timeOS[i] > timePFSobs[i] && progressed[i] == 1) {
+      xo1[i] = static_cast<int>(R::rbinom(1, p1));
+    }
+    
+    if (trtrand[i] == 0 && xo1[i] == 0 &&
+        timeOS[i] > timePFSobs[i] + 21 && progressed[i] == 1 && 
+        tdxo == 1) {
+      xo2[i] = static_cast<int>(R::rbinom(1, p2));
+    }
+    
+    if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 &&
+        timeOS[i] > timePFSobs[i] + 42 && progressed[i] == 1 && 
+        tdxo == 1) {
+      xo3[i] = static_cast<int>(R::rbinom(1, p3));
+    }
+    
+    if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
+        timeOS[i] > timePFSobs[i] + 63 && progressed[i] == 1 && 
+        tdxo == 1) {
+      xo4[i] = static_cast<int>(R::rbinom(1, p4));
+    }
+    
+    if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
+        xo4[i] == 0 &&
+        timeOS[i] > timePFSobs[i] + 84 && progressed[i] == 1 && 
+        tdxo == 1) {
+      xo5[i] = static_cast<int>(R::rbinom(1, p5));
+    }
+    
+    if (trtrand[i] == 0 && xo1[i] == 0 && xo2[i] == 0 && xo3[i] == 0 &&
+        xo4[i] == 0 && xo5[i] == 0 &&
+        timeOS[i] > timePFSobs[i] + 105 && progressed[i] == 1 && 
+        tdxo == 1) {
+      xo6[i] = static_cast<int>(R::rbinom(1, p6));
     }
 
     if (xo1[i] == 1) xotime[i] = timePFSobs[i];
@@ -537,18 +497,6 @@ List tsegestsim(const int n = 500,
     
     if (trtrand[i] == 0 && xo[i] == 1 && bprog[i] == 0 && xoprecat[i] == 1) {
       probcat[i] = pcattrt;
-    }
-    
-    if (!swtrt_control_only) { // active switched to control
-      if (trtrand[i] == 1 && xo[i] == 1 && bprog[i] == 1 && 
-          xoprecat[i] == 1) {
-        probcat[i] = pcatnotrtbprog;
-      }
-      
-      if (trtrand[i] == 1 && xo[i] == 1 && bprog[i] == 0 && 
-          xoprecat[i] == 1) {
-        probcat[i] = pcatnotrt;
-      }
     }
     
     // regenerate metastatic disease status after treatment switching
@@ -763,14 +711,6 @@ List tsegestsim(const int n = 500,
     if (trtrand[i] == 0 && xo[i] == 1) {
       xoOSgainobs[i] = timeOS[i] - xotime[i];
       xoOSgainobs[i] = std::round(xoOSgainobs[i]*xomult);
-    }
-    
-    if (!swtrt_control_only) {
-      if (trtrand[i] == 1 && xo[i] == 1) { 
-        // crossover to control shortens remaining survival time
-        xoOSgainobs[i] = timeOS[i] - xotime[i];
-        xoOSgainobs[i] = std::round(xoOSgainobs[i]/xomult);
-      }
     }
     
     timeOS2[i] = xo[i] == 1 ? xoOSgainobs[i] + xotime[i] : timeOS[i];
