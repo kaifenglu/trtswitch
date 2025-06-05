@@ -1,8 +1,9 @@
 #' @title Rank Preserving Structural Failure Time Model (RPSFTM) for
 #' Treatment Switching
 #' @description Obtains the causal parameter estimate from the 
-#' log-rank test and the hazard ratio estimate from the Cox model
-#' to adjust for treatment switching.
+#' log-rank test, the Cox proportional hazards model, or a parametric 
+#' survival regression model, and obtains the hazard ratio estimate 
+#' from the Cox model to adjust for treatment switching.
 #'
 #' @param data The input data frame that contains the following variables:
 #' 
@@ -33,11 +34,18 @@
 #' @param censor_time The name of the censor_time variable in the input data.
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the outcome Cox model.
+#' @param psi_test The survival function to calculate the Z-statistic, e.g., 
+#'   "logrank" (default), "phreg", or "lifereg".
+#' @param aft_dist The assumed distribution for time to event for the AFT
+#'   model when \code{psi_test = "lifereg"}. Options include "exponential", 
+#'   "weibull" (default), "loglogistic", and "lognormal".
+#' @param strata_main_effect_only Whether to only include the strata main
+#'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
+#'   possible strata combinations will be considered in the AFT model.
 #' @param low_psi The lower limit of the causal parameter.
 #' @param hi_psi The upper limit of the causal parameter.
 #' @param n_eval_z The number of points between \code{low_psi} and 
-#'   \code{hi_psi} (inclusive) at which to evaluate the log-rank 
-#'   Z-statistics.
+#'   \code{hi_psi} (inclusive) at which to evaluate the Z-statistics.
 #' @param treat_modifier The optional sensitivity parameter for the
 #'   constant treatment effect assumption.
 #' @param recensor Whether to apply recensoring to counterfactual
@@ -67,8 +75,10 @@
 #' and confidence interval had there been no treatment switching:
 #'
 #' * Use RPSFTM to estimate the causal parameter \eqn{\psi} based on the 
-#'   log-rank test for counterfactual untreated survival times for 
-#'   both arms: \deqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}
+#'   log-rank test (default), the Cox proportional hazards model, 
+#'   or a parametric survival regression model for counterfactual 
+#'   untreated survival times for both arms: 
+#'   \deqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}
 #'
 #' * Fit the Cox proportional hazards model to the observed survival times
 #'   for the experimental group and the counterfactual survival times
@@ -104,15 +114,16 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "log-rank p-value" or "bootstrap".
 #'
-#' * \code{eval_z}: A data frame containing the log-rank test Z-statistics
-#'   evaluated at a sequence of \code{psi} values. Used to plot and check
-#'   if the range of \code{psi} values to search for the solution and
+#' * \code{eval_z}: A data frame containing the Z-statistics for treatment
+#'   effect evaluated at a sequence of \code{psi} values. Used to plot and 
+#'   check if the range of \code{psi} values to search for the solution and
 #'   limits of confidence interval of \code{psi} need be modified.
 #'
 #' * \code{Sstar}: A data frame containing the counterfactual untreated
 #'   survival times and event indicators for each treatment group. 
 #'   The variables include \code{id}, \code{stratum}, 
-#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, and \code{treat}.
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, \code{base_cov}, 
+#'   and \code{treat}.
 #'
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
 #'   based on the counterfactual untreated survival times by treatment arm.
@@ -126,14 +137,21 @@
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{settings}: A list with the following components:
+#' 
+#'     - \code{psi_test}: The survival function to calculate the Z-statistic.
+#'     
+#'     - \code{aft_dist}: The distribution for time to event for the AFT
+#'       model.
+#'
+#'     - \code{strata_main_effect_only}: Whether to only include the strata
+#'       main effects in the AFT model.
 #'
 #'     - \code{low_psi}: The lower limit of the causal parameter.
 #'     
 #'     - \code{hi_psi}: The upper limit of the causal parameter.
 #'     
 #'     - \code{n_eval_z}: The number of points between \code{low_psi} and 
-#'       \code{hi_psi} (inclusive) at which to evaluate the log-rank 
-#'       Z-statistics.
+#'       \code{hi_psi} (inclusive) at which to evaluate the Z-statistics.
 #'
 #'     - \code{treat_modifier}: The sensitivity parameter for the
 #'       constant treatment effect assumption.
@@ -225,7 +243,9 @@
 rpsftm <- function(data, id = "id", stratum = "", 
                    time = "time", event = "event",
                    treat = "treat", rx = "rx", censor_time = "censor_time",
-                   base_cov = "", low_psi = -1, hi_psi = 1,
+                   base_cov = "", psi_test = "logrank", 
+                   aft_dist = "weibull", strata_main_effect_only = TRUE, 
+                   low_psi = -2, hi_psi = 2,
                    n_eval_z = 101, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = FALSE,
@@ -270,7 +290,9 @@ rpsftm <- function(data, id = "id", stratum = "",
     data = df, id = id, stratum = stratum, 
     time = time, event = event,
     treat = treat, rx = rx, censor_time = censor_time,
-    base_cov = varnames, low_psi = low_psi, hi_psi = hi_psi,
+    base_cov = varnames, psi_test = psi_test, aft_dist = aft_dist,
+    strata_main_effect_only = strata_main_effect_only, 
+    low_psi = low_psi, hi_psi = hi_psi,
     n_eval_z = n_eval_z, treat_modifier = treat_modifier,
     recensor = recensor, admin_recensor_only = admin_recensor_only,
     autoswitch = autoswitch, gridsearch = gridsearch, 
@@ -278,6 +300,7 @@ rpsftm <- function(data, id = "id", stratum = "",
     boot = boot, n_boot = n_boot, seed = seed)
   
   out$Sstar$uid <- NULL
+  out$Sstar$ustratum <- NULL
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
@@ -288,12 +311,15 @@ rpsftm <- function(data, id = "id", stratum = "",
     
     add_vars <- setdiff(t3, varnames)
     if (length(add_vars) > 0) {
+      out$Sstar <- merge(out$Sstar, df[, c(id, add_vars)], 
+                                by = id, all.x = TRUE, sort = FALSE)
       out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
                                 by = id, all.x = TRUE, sort = FALSE)
     }
     
     del_vars <- setdiff(varnames, t3)
     if (length(del_vars) > 0) {
+      out$Sstar[, del_vars] <- NULL
       out$data_outcome[, del_vars] <- NULL
     }
   }
