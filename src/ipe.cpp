@@ -62,8 +62,8 @@ List ipecpp(const DataFrame data,
             const StringVector& base_cov = "",
             const std::string aft_dist = "weibull",
             const bool strata_main_effect_only = 1,
-            const double low_psi = -1,
-            const double hi_psi = 1,
+            const double low_psi = -2,
+            const double hi_psi = 2,
             const double treat_modifier = 1,
             const bool recensor = 1,
             const bool admin_recensor_only = 1,
@@ -396,12 +396,22 @@ List ipecpp(const DataFrame data,
                     kmstar = kmest(Sstar, "", "treated", "t_star",
                                    "d_star", "log-log", 1-alpha, 1);
                     
+                    Sstar.push_back(stratumb, "ustratum");
+                    
+                    for (j=0; j<p; j++) {
+                      String zj = covariates[j+1];
+                      NumericVector u = zb(_,j);
+                      Sstar.push_back(u, zj);
+                    }
+                    
                     List out_aft = est_psi_ipe(
                       psihat, n, q, p, idb, timeb, eventb, treatb, rxb,
                       censor_timeb, covariates_aft, zb_aft, dist, 
                       treat_modifier, recensor, autoswitch, alpha);
                     
                     data_aft = DataFrame(out_aft["data_aft"]);
+                    data_aft.push_back(stratumb, "ustratum");
+                    
                     fit_aft = out_aft["fit_aft"];
                   }
                   
@@ -425,9 +435,9 @@ List ipecpp(const DataFrame data,
 
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
-                  NumericVector z = parest["z"];
+                  NumericVector pval = parest["p"];
                   double hrhat = exp(beta[0]/treat_modifier);
-                  double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
+                  double pvalue = pval[0];
                   
                   List out;
                   if (k == -1) {
@@ -526,34 +536,47 @@ List ipecpp(const DataFrame data,
   
   
   if (has_stratum) {
+    IntegerVector ustratum = Sstar["ustratum"];
     for (i=0; i<p_stratum; i++) {
       String s = stratum[i];
       if (TYPEOF(data[s]) == INTSXP) {
         IntegerVector stratumwi = u_stratum[s];
-        Sstar.push_back(stratumwi[stratumn-1], s);
+        Sstar.push_back(stratumwi[ustratum-1], s);
       } else if (TYPEOF(data[s]) == REALSXP) {
         NumericVector stratumwn = u_stratum[s];
-        Sstar.push_back(stratumwn[stratumn-1], s);
+        Sstar.push_back(stratumwn[ustratum-1], s);
       } else if (TYPEOF(data[s]) == STRSXP) {
         StringVector stratumwc = u_stratum[s];
-        Sstar.push_back(stratumwc[stratumn-1], s);
+        Sstar.push_back(stratumwc[ustratum-1], s);
       }
     }
     
-    IntegerVector ustratum = data_outcome["ustratum"];
+    ustratum = data_aft["ustratum"];
     for (i=0; i<p_stratum; i++) {
       String s = stratum[i];
       if (TYPEOF(data[s]) == INTSXP) {
         IntegerVector stratumwi = u_stratum[s];
         data_aft.push_back(stratumwi[ustratum-1], s);
-        data_outcome.push_back(stratumwi[ustratum-1], s);
       } else if (TYPEOF(data[s]) == REALSXP) {
         NumericVector stratumwn = u_stratum[s];
         data_aft.push_back(stratumwn[ustratum-1], s);
-        data_outcome.push_back(stratumwn[ustratum-1], s);
       } else if (TYPEOF(data[s]) == STRSXP) {
         StringVector stratumwc = u_stratum[s];
         data_aft.push_back(stratumwc[ustratum-1], s);
+      }
+    }
+    
+    ustratum = data_outcome["ustratum"];
+    for (i=0; i<p_stratum; i++) {
+      String s = stratum[i];
+      if (TYPEOF(data[s]) == INTSXP) {
+        IntegerVector stratumwi = u_stratum[s];
+        data_outcome.push_back(stratumwi[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == REALSXP) {
+        NumericVector stratumwn = u_stratum[s];
+        data_outcome.push_back(stratumwn[ustratum-1], s);
+      } else if (TYPEOF(data[s]) == STRSXP) {
+        StringVector stratumwc = u_stratum[s];
         data_outcome.push_back(stratumwc[ustratum-1], s);
       }
     }
