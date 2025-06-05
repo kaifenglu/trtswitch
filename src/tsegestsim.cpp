@@ -59,7 +59,7 @@ using namespace Rcpp;
 //' @param seed The seed to reproduce the simulation results.
 //'   The seed from the environment will be used if left unspecified.
 //'
-//' @return A list with three data frames.
+//' @return A list with two data frames.
 //' 
 //' * \code{sumdata}: A summary data frame with the following variables:
 //'
@@ -88,36 +88,6 @@ using namespace Rcpp;
 //'     - \code{simtrue_cox_hr}: The treatment hazard ratio from the Cox 
 //'       model without adjusting for baseline prognosis.
 //'
-//' * \code{adsldata}: A subject-level data frame containing one record 
-//'   per subject with the following variables:
-//'
-//'     - \code{id}: The subject ID.
-//'
-//'     - \code{trtrand}: The randomized treatment arm.
-//'
-//'     - \code{bprog}: Whether the patient had poor baseline prognosis. 
-//'     
-//'     - \code{timeOS}: The observed survival time.
-//'     
-//'     - \code{died}: Whether the patient died. 
-//'     
-//'     - \code{progressed}: Whether the patient had disease progression. 
-//'     
-//'     - \code{timePFSobs}: The observed time of disease progression at 
-//'       regular scheduled visits.
-//'       
-//'     - \code{catevent}: Whether the patient developed metastatic disease.
-//'     
-//'     - \code{cattime}: When the patient developed metastatic disease.
-//'     
-//'     - \code{xo}: Whether the patient switched treatment. 
-//'     
-//'     - \code{xotime}: When the patient switched treatment.
-//'     
-//'     - \code{xotime_upper}: The upper bound of treatment switching time.
-//'     
-//'     - \code{censor_time}: The administrative censoring time.
-//'
 //' * \code{paneldata}: A counting process style subject-level data frame 
 //'   with the following variables:
 //'
@@ -131,7 +101,11 @@ using namespace Rcpp;
 //'     
 //'     - \code{tstop}: The right end of time interval.
 //'     
-//'     - \code{died}: Whether the patient died. 
+//'     - \code{event}: Whether the patient died at the end of the interval. 
+//'     
+//'     - \code{timeOS}: The observed survival time.
+//'     
+//'     - \code{died}: Whether the patient died during the study. 
 //'     
 //'     - \code{progressed}: Whether the patient had disease progression. 
 //'     
@@ -172,7 +146,7 @@ using namespace Rcpp;
 //' sim1 <- tsegestsim(
 //'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 //'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-//'   scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+//'   scale1 = 360, shape2 = 1.7, scale2 = 688, 
 //'   pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
 //'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
 //'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -188,9 +162,9 @@ List tsegestsim(const int n = 500,
                 const double trtlghr = -0.5,
                 const double bprogsl = 0.3,
                 const double shape1 = 1.8,
-                const double scale1 = 0.000025,
+                const double scale1 = 360,
                 const double shape2 = 1.7,
-                const double scale2 = 0.000015,
+                const double scale2 = 688,
                 const double pmix = 0.5,
                 const double admin = 5000,
                 const double pcatnotrtbprog = 0.5,
@@ -217,8 +191,8 @@ List tsegestsim(const int n = 500,
 
   // survival function of the Weibull mixture
   auto S = [shape1, scale1, shape2, scale2, pmix](double t)->double {
-    double a1 = pmix*exp(-scale1*pow(t,shape1));
-    double a2 = (1-pmix)*exp(-scale2*pow(t,shape2));
+    double a1 = pmix*exp(-pow(t/scale1,shape1));
+    double a2 = (1-pmix)*exp(-pow(t/scale2,shape2));
     return a1+a2;
   };
 
@@ -969,6 +943,8 @@ List tsegestsim(const int n = 500,
   IntegerVector died2 = died[q2];
   died2[censor == 1] = 0;
   
+  NumericVector timeOS8 = timeOS2[q2];
+  IntegerVector died8 = died[q2];
   IntegerVector progressed2 = progressed[q2];
   NumericVector timePFSobs2 = timePFSobs[q2];
   IntegerVector catevent2 = catevent[q2];
@@ -1028,28 +1004,15 @@ List tsegestsim(const int n = 500,
     Named("simtrue_cox_hr") = simtrue_cox_hr);
   
   if (outputRawDataset) {
-    DataFrame adsldata = DataFrame::create(
-      Named("id") = id,
-      Named("trtrand") = trtrand,
-      Named("bprog") = bprog,
-      Named("timeOS") = timeOS2,
-      Named("died") = died,
-      Named("progressed") = progressed,
-      Named("timePFSobs") = timePFSobs,
-      Named("catevent") = catevent,
-      Named("cattime") = cattime,
-      Named("xo") = xo,
-      Named("xotime") = xotime,
-      Named("xoime_upper") = xotime_upper,
-      Named("censor_time") = admin);
-    
     DataFrame paneldata = DataFrame::create(
       Named("id") = id2,
       Named("trtrand") = trtrand2,
       Named("bprog") = bprog2,
       Named("tstart") = tstart,
       Named("tstop") = tstop,
-      Named("died") = died2,
+      Named("event") = died2,
+      Named("timeOS") = timeOS8,
+      Named("died") = died8,
       Named("progressed") = progressed2,
       Named("timePFSobs") = timePFSobs2,
       Named("progtdc") = progtdc,
@@ -1064,7 +1027,6 @@ List tsegestsim(const int n = 500,
       Named("censor_time") = admin);
     
     result = List::create(Named("sumstat") = sumstat,
-                          Named("adsldata") = adsldata,
                           Named("paneldata") = paneldata);
   } else {
     result = List::create(Named("sumstat") = sumstat);
