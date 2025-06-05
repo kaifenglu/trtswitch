@@ -33,8 +33,6 @@
 #'
 #'   * \code{swtrt_time}: The time from randomization to treatment switch.
 #'   
-#'   * \code{swtrt_time_upper}: The upper bound of treatment switching time.
-#'
 #'   * \code{base_cov}: The baseline covariates (excluding treat).
 #'
 #'   * \code{conf_cov}: The confounding variables for predicting
@@ -51,8 +49,6 @@
 #' @param pd_time The name of the pd_time variable in the input data.
 #' @param swtrt The name of the swtrt variable in the input data.
 #' @param swtrt_time The name of the swtrt_time variable in the input data.
-#' @param swtrt_time_upper The name of the swtrt_time_upper variable in the 
-#'   input data.
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the Cox model.
 #' @param conf_cov The names of confounding variables (excluding 
@@ -68,9 +64,9 @@
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
 #'   considered in the switching model.
 #' @param firth Whether the Firth's bias reducing penalized likelihood
-#'   should be used. The default is \code{FALSE}.
+#'   should be used.
 #' @param flic Whether to apply intercept correction to obtain more
-#'   accurate predicted probabilities. The default is \code{FALSE}.
+#'   accurate predicted probabilities.
 #' @param recensor Whether to apply recensoring to counterfactual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
@@ -192,8 +188,7 @@
 #'       The variables include \code{id}, \code{stratum}, 
 #'       \code{"tstart"}, \code{"tstop"}, \code{"cross"}, 
 #'       \code{"counterfactual"}, \code{conf_cov}, 
-#'       \code{pd_time}, \code{swtrt}, 
-#'       \code{swtrt_time}, and \code{swtrt_time_upper}.
+#'       \code{pd_time}, \code{swtrt}, and \code{swtrt_time}.
 #'   
 #'     - \code{fit_logis}: The list of fitted pooled logistic regression 
 #'       models for treatment switching using g-estimation.
@@ -284,7 +279,7 @@
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 #'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-#'   scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+#'   scale1 = 360, shape2 = 1.7, scale2 = 688, 
 #'   pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
 #'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
 #'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -294,10 +289,10 @@
 #'   
 #' fit1 <- tsegest(
 #'   data = sim1$paneldata, id = "id", 
-#'   tstart = "tstart", tstop = "tstop", event = "died", 
+#'   tstart = "tstart", tstop = "tstop", event = "event", 
 #'   treat = "trtrand", censor_time = "censor_time", 
-#'   pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
-#'   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+#'   pd = "progressed", pd_time = "timePFSobs", 
+#'   swtrt = "xo", swtrt_time = "xotime", 
 #'   base_cov = "bprog", conf_cov = "bprog*catlag", 
 #'   strata_main_effect_only = TRUE,
 #'   recensor = TRUE, admin_recensor_only = TRUE, 
@@ -311,7 +306,7 @@
 #' sim2 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 #'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-#'   scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+#'   scale1 = 360, shape2 = 1.7, scale2 = 688, 
 #'   pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
 #'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
 #'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -321,10 +316,10 @@
 #'   
 #' fit2 <- tsegest(
 #'   data = sim2$paneldata, id = "id", 
-#'   tstart = "tstart", tstop = "tstop", event = "died", 
+#'   tstart = "tstart", tstop = "tstop", event = "event", 
 #'   treat = "trtrand", censor_time = "censor_time", 
-#'   pd = "progressed", pd_time = "timePFSobs", swtrt = "xo", 
-#'   swtrt_time = "xotime", swtrt_time_upper = "xotime_upper",
+#'   pd = "progressed", pd_time = "timePFSobs", 
+#'   swtrt = "xo", swtrt_time = "xotime", 
 #'   base_cov = "bprog", conf_cov = "bprog*catlag", 
 #'   strata_main_effect_only = TRUE,
 #'   recensor = TRUE, admin_recensor_only = TRUE, 
@@ -339,8 +334,8 @@ tsegest <- function(data, id = "id", stratum = "",
                     treat = "treat", censor_time = "censor_time",
                     pd = "pd", pd_time = "pd_time",
                     swtrt = "swtrt", swtrt_time = "swtrt_time",
-                    swtrt_time_upper = "", base_cov = "", conf_cov = "",
-                    low_psi = -1, hi_psi = 1, n_eval_z = 101,
+                    base_cov = "", conf_cov = "",
+                    low_psi = -2, hi_psi = 2, n_eval_z = 101,
                     strata_main_effect_only = TRUE,
                     firth = FALSE, flic = FALSE,
                     recensor = TRUE, admin_recensor_only = TRUE,
@@ -406,19 +401,12 @@ tsegest <- function(data, id = "id", stratum = "",
   } else {
     varnames2 = ""
   }
-  
-  if (missing(swtrt_time_upper) || is.null(swtrt_time_upper) || (
-    swtrt_time_upper[1] == "" || tolower(swtrt_time_upper[1]) == "none")) {
-    swtrt_time_upper = "swtrt_time_upper";
-    df$swtrt_time_upper = 1.0e8;
-  }
 
   out <- tsegestcpp(
     data = df, id = id, stratum = stratum, 
     tstart = tstart, tstop = tstop, event = event,
     treat = treat, censor_time = censor_time, pd = pd,
     pd_time = pd_time, swtrt = swtrt, swtrt_time = swtrt_time,
-    swtrt_time_upper = swtrt_time_upper,
     base_cov = varnames, conf_cov = varnames2,
     low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
     strata_main_effect_only = strata_main_effect_only,
@@ -462,7 +450,7 @@ tsegest <- function(data, id = "id", stratum = "",
     t2 = attr(t1, "factors")
     t3 = rownames(t2)
     
-    tem_vars <- c(pd_time, swtrt, swtrt_time, swtrt_time_upper)
+    tem_vars <- c(pd_time, swtrt, swtrt_time)
     add_vars <- c(setdiff(t3, varnames2), tem_vars)
     if (length(add_vars) > 0) {
       for (h in 1:K) {
