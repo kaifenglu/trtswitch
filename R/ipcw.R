@@ -26,10 +26,6 @@
 #'
 #'   * \code{swtrt_time}: The time from randomization to treatment switch.
 #'
-#'   * \code{swtrt_time_lower}: The lower bound of treatment switching time.
-#'
-#'   * \code{swtrt_time_upper}: The upper bound of treatment switching time.
-#'
 #'   * \code{base_cov}: The baseline covariates (excluding treat) used in
 #'     the outcome model.
 #'
@@ -47,10 +43,6 @@
 #' @param treat The name of the treatment variable in the input data.
 #' @param swtrt The name of the swtrt variable in the input data.
 #' @param swtrt_time The name of the swtrt_time variable in the input data.
-#' @param swtrt_time_lower The name of the swtrt_time_lower variable in 
-#'   the input data.
-#' @param swtrt_time_upper The name of the swtrt_time_upper variable in 
-#'   the input data. 
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the Cox model.
 #' @param numerator The names of baseline covariates 
@@ -66,16 +58,13 @@
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
 #'   considered in the switching model.
 #' @param firth Whether the Firth's bias reducing penalized likelihood
-#'   should be used. The default is \code{FALSE}.
+#'   should be used.
 #' @param flic Whether to apply intercept correction to obtain more
-#'   accurate predicted probabilities. The default is \code{FALSE}.
+#'   accurate predicted probabilities.
 #' @param ns_df Degrees of freedom for the natural cubic spline for 
 #'   visit-specific intercepts of the pooled logistic regression model. 
 #'   Defaults to 3 for two internal knots at the 33 and 67 percentiles
 #'   of the artificial censoring times due to treatment switching.
-#' @param relative_time Whether to use the time relative to 
-#'   \code{swtrt_time_lower} as the intercepts for the pooled logistic
-#'   regression model. The default is \code{TRUE}.
 #' @param stabilized_weights Whether to use the stabilized weights. 
 #'   The default is \code{TRUE}.
 #' @param trunc The truncation fraction of the weight distribution. 
@@ -145,8 +134,7 @@
 #' * \code{data_switch}: A list of input data for the switching models by 
 #'   treatment group. The variables include \code{id}, \code{stratum}, 
 #'   \code{"tstart"}, \code{"tstop"}, \code{"cross"}, \code{denominator}, 
-#'   \code{swtrt}, \code{swtrt_time}, \code{swtrt_time_lower}, 
-#'   and \code{swtrt_time_upper}.
+#'   \code{swtrt}, and \code{swtrt_time}.
 #'
 #' * \code{fit_switch}: A list of fitted switching models for the
 #'   denominator and numerator by treatment group.
@@ -175,9 +163,6 @@
 #'       accurate predicted probabilities.
 #'       
 #'     - \code{ns_df}: Degrees of freedom for the natural cubic spline.
-#'     
-#'     - \code{relative_time}: Whether to use the relative time as the 
-#'       intercepts.
 #'   
 #'     - \code{stabilized_weights}: Whether to use the stabilized weights.
 #'
@@ -219,7 +204,7 @@
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 #'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-#'   scale1 = 0.000025, shape2 = 1.7, scale2 = 0.000015, 
+#'   scale1 = 360, shape2 = 1.7, scale2 = 688, 
 #'   pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
 #'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
 #'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
@@ -229,14 +214,11 @@
 #' 
 #' fit1 <- ipcw(
 #'   sim1$paneldata, id = "id", tstart = "tstart", 
-#'   tstop = "tstop", event = "died", treat = "trtrand", 
-#'   swtrt = "xo", swtrt_time = "xotime", 
-#'   swtrt_time_lower = "timePFSobs",
-#'   swtrt_time_upper = "xotime_upper", base_cov = "bprog", 
+#'   tstop = "tstop", event = "event", treat = "trtrand", 
+#'   swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
 #'   numerator = "bprog", denominator = "bprog*catlag", 
 #'   logistic_switching_model = TRUE, ns_df = 3,
-#'   relative_time = TRUE, swtrt_control_only = TRUE, 
-#'   boot = FALSE)
+#'   swtrt_control_only = TRUE, boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI) 
 #' 
@@ -260,11 +242,10 @@
 ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
                  tstop = "tstop", event = "event", treat = "treat",
                  swtrt = "swtrt", swtrt_time = "swtrt_time",
-                 swtrt_time_lower = "", swtrt_time_upper = "",
                  base_cov = "", numerator = "", denominator = "",
                  logistic_switching_model = FALSE, 
                  strata_main_effect_only = TRUE, firth = FALSE, 
-                 flic = FALSE, ns_df = 3, relative_time = TRUE,
+                 flic = FALSE, ns_df = 3, 
                  stabilized_weights = TRUE, 
                  trunc = 0, trunc_upper_only = TRUE,
                  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
@@ -352,29 +333,14 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     varnames3 = ""
   }
   
-  if (missing(swtrt_time_lower) || is.null(swtrt_time_lower) || (
-    swtrt_time_lower[1] == "" || tolower(swtrt_time_lower[1]) == "none")) {
-    swtrt_time_lower = "swtrt_time_lower";
-    df$swtrt_time_lower = 0;
-  }
-  
-  if (missing(swtrt_time_upper) || is.null(swtrt_time_upper) || (
-    swtrt_time_upper[1] == "" || tolower(swtrt_time_upper[1]) == "none")) {
-    swtrt_time_upper = "swtrt_time_upper";
-    df$swtrt_time_upper = 1.0e8;
-  }
-  
   out <- ipcwcpp(
     data = df, id = id, stratum = stratum, tstart = tstart,
     tstop = tstop, event = event, treat = treat, 
-    swtrt = swtrt, swtrt_time = swtrt_time, 
-    swtrt_time_lower = swtrt_time_lower, 
-    swtrt_time_upper = swtrt_time_upper, base_cov = varnames,
+    swtrt = swtrt, swtrt_time = swtrt_time, base_cov = varnames,
     numerator = varnames2, denominator = varnames3,
     logistic_switching_model = logistic_switching_model,
     strata_main_effect_only = strata_main_effect_only,
     firth = firth, flic = flic, ns_df = ns_df,
-    relative_time = relative_time,
     stabilized_weights = stabilized_weights, 
     trunc = trunc, trunc_upper_only = trunc_upper_only,
     swtrt_control_only = swtrt_control_only, alpha = alpha,
@@ -439,7 +405,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     t2 = attr(t1, "factors")
     t3 = rownames(t2)
     
-    tem_vars <- c(swtrt, swtrt_time, swtrt_time_lower, swtrt_time_upper)
+    tem_vars <- c(swtrt, swtrt_time)
     add_vars <- c(setdiff(t3, varnames3), tem_vars)
     if (length(add_vars) > 0) {
       if (logistic_switching_model) {
