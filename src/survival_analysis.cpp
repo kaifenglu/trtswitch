@@ -82,7 +82,7 @@ NumericVector fsurvci(double surv, double sesurv, std::string ct, double z) {
 //' survQuantile(
 //'   time = c(33.7, 3.9, 10.5, 5.4, 19.5, 23.8, 7.9, 16.9, 16.6,
 //'            33.7, 17.1, 7.9, 10.5, 38),
-//'   event = c(0, 1, 1, 1, 1,0,1,0,0, 0, 0,0,1,1),
+//'   event = c(0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1),
 //'   probs = c(0.25, 0.5, 0.75))
 //'
 //' @export
@@ -231,7 +231,7 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
 
   int n0 = sum(sub);
   NumericVector z(n0, NA_REAL), grad(n0, NA_REAL);
-  double zcrit = R::qnorm((1.0 + cilevel)/2.0,0,1,1,0);
+  double zcrit = R::qnorm((1+cilevel)/2,0,1,1,0);
 
   int m = static_cast<int>(probs.size());
   NumericVector quantile(m), lower(m), upper(m);
@@ -434,7 +434,7 @@ DataFrame kmest(const DataFrame data,
   }
 
   // confidence interval for survival probability
-  double z = R::qnorm((1.0 + conflev)/2.0,0,1,1,0);
+  double z = R::qnorm((1+conflev)/2,0,1,1,0);
 
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
@@ -916,7 +916,7 @@ DataFrame kmdiff(const DataFrame data,
   NumericVector survDiffZ0(nreps), survDiffPValue0(nreps);
   NumericVector lower0(nreps), upper0(nreps);
 
-  double z = R::qnorm((1.0 + conflev)/2.0,0,1,1,0);
+  double z = R::qnorm((1+conflev)/2,0,1,1,0);
 
   bool noerr = 1;
   int index = 0;
@@ -1911,7 +1911,7 @@ DataFrame rmest(const DataFrame data,
   NumericVector rmst0(n), stderr0(n);
   NumericVector lower0(n), upper0(n);
 
-  double z = R::qnorm((1.0 + conflev)/2.0,0,1,1,0);
+  double z = R::qnorm((1+conflev)/2,0,1,1,0);
 
   bool noerr = 1;
   int index = 0;
@@ -7859,7 +7859,7 @@ DataFrame survfit_phregcpp(const int p,
     stop("conflev must lie between 0 and 1");
   }
 
-  double zcrit = R::qnorm((1.0 + conflev)/2.0,0,1,1,0);
+  double zcrit = R::qnorm((1+conflev)/2,0,1,1,0);
 
   IntegerVector stratumn0(n0);
   DataFrame u_stratum0;
