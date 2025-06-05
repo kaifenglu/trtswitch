@@ -5,7 +5,6 @@
 
 using namespace Rcpp;
 
-
 // [[Rcpp::export]]
 List ipcwcpp(
     const DataFrame data,
@@ -17,8 +16,6 @@ List ipcwcpp(
     const std::string treat = "treat",
     const std::string swtrt = "swtrt",
     const std::string swtrt_time = "swtrt_time",
-    const std::string swtrt_time_lower = "",
-    const std::string swtrt_time_upper = "",
     const StringVector& base_cov = "",
     const StringVector& numerator = "",
     const StringVector& denominator = "",
@@ -27,7 +24,6 @@ List ipcwcpp(
     const bool firth = 0,
     const bool flic = 0,
     const int ns_df = 3,
-    const bool relative_time = 0,
     const bool stabilized_weights = 1,
     const double trunc = 0,
     const bool trunc_upper_only = 1,
@@ -68,8 +64,6 @@ List ipcwcpp(
   bool has_treat = hasVariable(data, treat);
   bool has_swtrt = hasVariable(data, swtrt);
   bool has_swtrt_time = hasVariable(data, swtrt_time);
-  bool has_swtrt_time_lower = hasVariable(data, swtrt_time_lower);
-  bool has_swtrt_time_upper = hasVariable(data, swtrt_time_upper);
   
   // create the numeric id variable
   if (!has_id) stop("data must contain the id variable");
@@ -247,46 +241,6 @@ List ipcwcpp(
       stop("swtrt_time must be nonnegative");
     }
   }
-  
-  if (!has_swtrt_time_lower) {
-    stop("data must contain the swtrt_time_lower variable"); 
-  }
-  
-  if (TYPEOF(data[swtrt_time_lower]) != INTSXP &&
-      TYPEOF(data[swtrt_time_lower]) != REALSXP) {
-    stop("swtrt_time_lower must take numeric values");
-  }
-  
-  NumericVector swtrt_time_lowernz = data[swtrt_time_lower];
-  NumericVector swtrt_time_lowern = clone(swtrt_time_lowernz);
-  if (is_true(any(swtrt_time_lowern < 0.0))) {
-    stop("swtrt_time_lower must be nonnegative");
-  }
-  
-  if (!has_swtrt_time_upper) {
-    stop("data must contain the swtrt_time_upper variable"); 
-  }
-  
-  if (TYPEOF(data[swtrt_time_upper]) != INTSXP &&
-      TYPEOF(data[swtrt_time_upper]) != REALSXP) {
-    stop("swtrt_time_upper must take numeric values");
-  }
-  
-  NumericVector swtrt_time_uppernz = data[swtrt_time_upper];
-  NumericVector swtrt_time_uppern = clone(swtrt_time_uppernz);
-  if (is_true(any(swtrt_time_uppern < 0.0))) {
-    stop("swtrt_time_upper must be nonnegative");
-  }
-  
-  for (i=0; i<n; i++) {
-    if (swtrtn[i] == 1 && swtrt_timen[i] < swtrt_time_lowern[i]) {
-      stop("swtrt_time must be greater than or equal to swtrt_time_lower");
-    }
-    
-    if (swtrtn[i] == 1 && swtrt_timen[i] > swtrt_time_uppern[i]) {
-      stop("swtrt_time must be less than or equal to swtrt_time_upper");
-    }
-  }
 
   StringVector covariates(p+1);
   NumericMatrix zn(n,p);
@@ -404,8 +358,6 @@ List ipcwcpp(
   treatn = treatn[order];
   swtrtn = swtrtn[order];
   swtrt_timen = swtrt_timen[order];
-  swtrt_time_lowern = swtrt_time_lowern[order];
-  swtrt_time_uppern = swtrt_time_uppern[order];
   zn = subset_matrix_by_row(zn, order);
   zn_cox_den = subset_matrix_by_row(zn_cox_den, order);
   zn_lgs_den = subset_matrix_by_row(zn_lgs_den, order);
@@ -448,14 +400,12 @@ List ipcwcpp(
             q, p, p1, p2, base_cov, numerator, denominator, 
             covariates, covariates_lgs_num, covariates_lgs_den, 
             logistic_switching_model, firth, flic, ns_df, 
-            relative_time, stabilized_weights, trunc, trunc_upper_only, 
+            stabilized_weights, trunc, trunc_upper_only, 
             swtrt_control_only, alpha, zcrit, ties](
                 IntegerVector& idb, IntegerVector& stratumb,
                 NumericVector& tstartb, NumericVector& tstopb,
                 IntegerVector& eventb, IntegerVector& treatb,
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb,
-                NumericVector& swtrt_time_lowerb, 
-                NumericVector& swtrt_time_upperb,
                 NumericMatrix& zb, NumericMatrix& zb_cox_den,
                 NumericMatrix& zb_lgs_den)->List {
                   int h, i, j, n = static_cast<int>(idb.size());
@@ -477,8 +427,6 @@ List ipcwcpp(
                   treatb = treatb[order];
                   swtrtb = swtrtb[order];
                   swtrt_timeb = swtrt_timeb[order];
-                  swtrt_time_lowerb = swtrt_time_lowerb[order];
-                  swtrt_time_upperb = swtrt_time_upperb[order];
                   zb = subset_matrix_by_row(zb, order);
                   zb_cox_den = subset_matrix_by_row(zb_cox_den, order);
                   zb_lgs_den = subset_matrix_by_row(zb_lgs_den, order);
@@ -494,8 +442,6 @@ List ipcwcpp(
                   IntegerVector treat1 = treatb[l];
                   IntegerVector swtrt1 = swtrtb[l];
                   NumericVector swtrt_time1 = swtrt_timeb[l];
-                  NumericVector swtrt_time_lower1 = swtrt_time_lowerb[l];
-                  NumericVector swtrt_time_upper1 = swtrt_time_upperb[l];
                   NumericMatrix z1 = subset_matrix_by_row(zb, l);
                   NumericMatrix z1_cox_den = 
                     subset_matrix_by_row(zb_cox_den, l);
@@ -574,7 +520,6 @@ List ipcwcpp(
                     // replicate event times within each subject
                     IntegerVector id2, stratum2, event2, treat2, cross2;
                     NumericVector tstart2, tstop2;
-                    NumericVector swtrt_time_lower2, swtrt_time_upper2;
                     NumericMatrix z2, z2_cox_den;
                     int n2;
                     if (!swtrt_control_only) {
@@ -588,8 +533,6 @@ List ipcwcpp(
                       event2 = event1[l];
                       treat2 = treat1[l];
                       cross2 = cross1[l];
-                      swtrt_time_lower2 = swtrt_time_lower1[l];
-                      swtrt_time_upper2 = swtrt_time_upper1[l];
                       z2 = subset_matrix_by_row(z1, l);
                       z2_cox_den = subset_matrix_by_row(z1_cox_den, l);
                       n2 = static_cast<int>(l.size());
@@ -609,8 +552,6 @@ List ipcwcpp(
                       IntegerVector event0 = event1[l];
                       IntegerVector treat0 = treat1[l];
                       IntegerVector cross0 = cross1[l];
-                      NumericVector swtrt_time_lower0 = swtrt_time_lower1[l];
-                      NumericVector swtrt_time_upper0 = swtrt_time_upper1[l];
                       NumericMatrix z0 = subset_matrix_by_row(z1, l);
                       NumericMatrix z0_cox_den = 
                         subset_matrix_by_row(z1_cox_den, l);
@@ -626,10 +567,6 @@ List ipcwcpp(
                       IntegerVector event20 = event0[l];
                       IntegerVector treat20 = treat0[l];
                       IntegerVector cross20 = cross0[l];
-                      NumericVector swtrt_time_lower20 = 
-                        swtrt_time_lower0[l];
-                      NumericVector swtrt_time_upper20 = 
-                        swtrt_time_upper0[l];
                       NumericMatrix z20 = subset_matrix_by_row(z0, l);
                       NumericMatrix z20_cox_den = 
                         subset_matrix_by_row(z0_cox_den, l);
@@ -650,10 +587,6 @@ List ipcwcpp(
                       IntegerVector event21 = event1[l];
                       IntegerVector treat21 = treat1[l];
                       IntegerVector cross21 = cross1[l];
-                      NumericVector swtrt_time_lower21 = 
-                        swtrt_time_lower1[l];
-                      NumericVector swtrt_time_upper21 = 
-                        swtrt_time_upper1[l];
                       NumericMatrix z21 = subset_matrix_by_row(z1, l);
                       NumericMatrix z21_cox_den = 
                         subset_matrix_by_row(z1_cox_den, l);
@@ -667,10 +600,6 @@ List ipcwcpp(
                       event2 = c_vectors_i(event20, event21);
                       treat2 = c_vectors_i(treat20, treat21);
                       cross2 = c_vectors_i(cross20, cross21);
-                      swtrt_time_lower2 = c_vectors(swtrt_time_lower20, 
-                                                    swtrt_time_lower21);
-                      swtrt_time_upper2 = c_vectors(swtrt_time_upper20, 
-                                                    swtrt_time_upper21);
                       z2 = c_matrices(z20, z21);
                       z2_cox_den = c_matrices(z20_cox_den, z21_cox_den);
                       n2 = n20 + n21;
@@ -681,9 +610,7 @@ List ipcwcpp(
                     
                     // fit the switching models by treatment group
                     for (h=0; h<K; h++) {
-                      l = which((treat2 == h) & 
-                        (tstop2 >= swtrt_time_lower2) & 
-                        (tstop2 <= swtrt_time_upper2));
+                      l = which(treat2 == h);
                       IntegerVector id3 = id2[l];
                       IntegerVector stratum3 = stratum2[l];
                       NumericVector tstart3 = tstart2[l];
@@ -691,8 +618,7 @@ List ipcwcpp(
                       IntegerVector cross3 = cross2[l];
                       NumericMatrix z3_cox_den = 
                         subset_matrix_by_row(z2_cox_den, l);
-                      int n3 = static_cast<int>(l.size());
-                      
+
                       // prepare the data for fitting the switching model
                       DataFrame data1 = DataFrame::create(
                         Named("uid") = id3,
@@ -844,16 +770,7 @@ List ipcwcpp(
                       // weights in the outcome model by matching id and time
                       IntegerVector idx = km_den["uid"];
                       NumericVector timex = km_den["time"];
-                      double limit = 2*max(timex) + 1;
-                      NumericVector idtimex(m);
-                      NumericVector idtime3(n3);
-                      for (i=0; i<m; i++) {
-                        idtimex[i] = idx[i]*limit + timex[i];
-                      }
-                      for (i=0; i<n3; i++) {
-                        idtime3[i] = id3[i]*limit + tstop3[i];
-                      }
-                      IntegerVector sub = match(idtime3, idtimex) - 1;
+                      IntegerVector sub = match3(id3, tstop3, idx, timex);
                       NumericVector w3 = w[sub];
                       NumericVector sw3 = sw[sub];
                       w2[l] = w3;
@@ -907,14 +824,11 @@ List ipcwcpp(
                     
                     // fit the switching models by treatment group
                     for (h=0; h<K; h++) {
-                      l = which((treat1 == h) & 
-                        (tstop1 >= swtrt_time_lower1) &
-                        (tstop1 <= swtrt_time_upper1));
+                      l = which(treat1 == h);
                       IntegerVector id2 = id1[l];
                       IntegerVector stratum2 = stratum1[l];
                       NumericVector tstart2 = tstart1[l];
                       NumericVector tstop2 = tstop1[l];
-                      NumericVector swtrt_time_lower2 = swtrt_time_lower1[l];
                       IntegerVector cross2 = cross1[l];
                       NumericMatrix z2_lgs_den = 
                         subset_matrix_by_row(z1_lgs_den, l);
@@ -923,19 +837,14 @@ List ipcwcpp(
                       // obtain natural cubic spline knots
                       NumericMatrix s(n2, ns_df);
                       if (ns_df > 0) {
-                        NumericVector x0(n2);
-                        if (relative_time) {
-                          x0 = tstop2 - swtrt_time_lower2;
-                        } else {
-                          x0 = tstop2;
-                        }
-                        NumericVector x = x0[cross2 == 1];
+                        NumericVector x = tstop2[cross2 == 1];
                         NumericVector knots(1, NA_REAL);
                         NumericVector boundary_knots(1, NA_REAL);
                         s = nscpp(x, ns_df, knots, 0, boundary_knots);
                         knots = s.attr("knots");
                         boundary_knots = s.attr("boundary_knots");
-                        s = nscpp(x0, NA_INTEGER, knots, 0, boundary_knots);
+                        s = nscpp(tstop2, NA_INTEGER, knots, 0, 
+                                  boundary_knots);
                       }
                       
                       // prepare the data for fitting the switching model
@@ -959,7 +868,7 @@ List ipcwcpp(
                       
                       List fit_den = logisregcpp(
                         data1, "", "cross", covariates_lgs_den, "", "", 
-                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha,
+                        "", "uid", "logit", 0, firth, flic, 0, alpha,
                         50, 1.0e-9);
                       
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
@@ -975,16 +884,7 @@ List ipcwcpp(
                       int n3 = static_cast<int>(l.size());
                       
                       // match on id and time
-                      double limit = 2*max(tstop3) + 1;
-                      NumericVector idtime2(n2);
-                      NumericVector idtime3(n3);
-                      for (i=0; i<n2; i++) {
-                        idtime2[i] = id2[i]*limit + tstop2[i];
-                      }
-                      for (i=0; i<n3; i++) {
-                        idtime3[i] = id3[i]*limit + tstop3[i];
-                      }
-                      IntegerVector sub = match(idtime2, idtime3) - 1;
+                      IntegerVector sub = match3(id2, tstop2, id3, tstop3);
                       NumericVector pstay_den(n3, 1.0);
                       pstay_den[sub] = s_den;
                       
@@ -1009,7 +909,7 @@ List ipcwcpp(
                       
                       List fit_num = logisregcpp(
                         data1, "", "cross", covariates_lgs_num, "", "", 
-                        "", "uid", "logit", 1, firth, 0, flic, 0, alpha, 
+                        "", "uid", "logit", 0, firth, flic, 0, alpha, 
                         50, 1.0e-9);
                       
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
@@ -1149,11 +1049,11 @@ List ipcwcpp(
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
-                  NumericVector z = parest["z"];
+                  NumericVector pval = parest["p"];
                   double hrhat = exp(beta[0]);
                   double hrlower = exp(beta[0] - zcrit*sebeta[0]);
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
-                  double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
+                  double pvalue = pval[0];
                   
                   List out;
                   if (k == -1) {
@@ -1178,8 +1078,7 @@ List ipcwcpp(
                 };
   
   List out = f(idn, stratumn, tstartn, tstopn, eventn, treatn,
-               swtrtn, swtrt_timen, swtrt_time_lowern, 
-               swtrt_time_uppern, zn, zn_cox_den, zn_lgs_den);
+               swtrtn, swtrt_timen, zn, zn_cox_den, zn_lgs_den);
   
   List data_switch = out["data_switch"];
   List fit_switch = out["fit_switch"];
@@ -1243,7 +1142,6 @@ List ipcwcpp(
     for (k=0; k<n_boot; k++) {
       IntegerVector idb(N), stratumb(N), treatb(N), eventb(N), swtrtb(N);
       NumericVector tstartb(N), tstopb(N), swtrt_timeb(N);
-      NumericVector swtrt_time_lowerb(N), swtrt_time_upperb(N);
       NumericMatrix zb(N, p), zb_cox_den(N, p2), zb_lgs_den(N, q+p2);
       
       // sample the subject-level data with replacement by treatment group
@@ -1260,24 +1158,19 @@ List ipcwcpp(
         int idb1 = idn[idx[i]] + h*nids;
         
         for (j=idx[i]; j<idx[i+1]; j++) {
-          int r = l + j - idx[i];
-          
-          idb[r] = idb1;
-          stratumb[r] = stratumn[j];
-          tstartb[r] = tstartn[j];
-          tstopb[r] = tstopn[j];
-          eventb[r] = eventn[j];
-          treatb[r] = treatn[j];
-          swtrtb[r] = swtrtn[j];
-          swtrt_timeb[r] = swtrt_timen[j];
-          swtrt_time_lowerb[r] = swtrt_time_lowern[j];
-          swtrt_time_upperb[r] = swtrt_time_uppern[j];
-          zb(r,_) = zn(j,_);
-          zb_cox_den(r,_) = zn_cox_den(j,_);
-          zb_lgs_den(r,_) = zn_lgs_den(j,_);
+          idb[l] = idb1;
+          stratumb[l] = stratumn[j];
+          tstartb[l] = tstartn[j];
+          tstopb[l] = tstopn[j];
+          eventb[l] = eventn[j];
+          treatb[l] = treatn[j];
+          swtrtb[l] = swtrtn[j];
+          swtrt_timeb[l] = swtrt_timen[j];
+          zb(l,_) = zn(j,_);
+          zb_cox_den(l,_) = zn_cox_den(j,_);
+          zb_lgs_den(l,_) = zn_lgs_den(j,_);
+          l++;
         }
-        
-        l += idx[i+1] - idx[i];
       }
       
       IntegerVector sub = Range(0,l-1);
@@ -1289,15 +1182,12 @@ List ipcwcpp(
       treatb = treatb[sub];
       swtrtb = swtrtb[sub];
       swtrt_timeb = swtrt_timeb[sub];
-      swtrt_time_lowerb = swtrt_time_lowerb[sub];
-      swtrt_time_upperb = swtrt_time_upperb[sub];
       zb = subset_matrix_by_row(zb, sub);
       zb_cox_den = subset_matrix_by_row(zb_cox_den, sub);
       zb_lgs_den = subset_matrix_by_row(zb_lgs_den, sub);
       
       out = f(idb, stratumb, tstartb, tstopb, eventb, treatb,
-              swtrtb, swtrt_timeb, swtrt_time_lowerb, 
-              swtrt_time_upperb, zb, zb_cox_den, zb_lgs_den);
+              swtrtb, swtrt_timeb, zb, zb_cox_den, zb_lgs_den);
       
       hrhats[k] = out["hrhat"];
     }
@@ -1319,7 +1209,6 @@ List ipcwcpp(
     Named("firth") = firth,
     Named("flic") = flic,
     Named("ns_df") = ns_df,
-    Named("relative_time") = relative_time,
     Named("stabilized_weights") = stabilized_weights,
     Named("trunc") = trunc,
     Named("trunc_upper_only") = trunc_upper_only,
