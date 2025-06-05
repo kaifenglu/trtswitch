@@ -285,6 +285,23 @@ List tsesimpcpp(const DataFrame data,
     }
   }
   
+  // if the patient switched before pd, set pd time equal to switch time
+  for (i=0; i<n; i++) {
+    if (pdn[i] == 1 && swtrtn[i] == 1 && swtrt_timen[i] < pd_timen[i]) {
+      pd_timen[i] = swtrt_timen[i];
+    }
+  }
+  
+  // make sure offset is less than or equal to observed time variables
+  for (i=0; i<n; i++) {
+    if (pdn[i] == 1 && pd_timen[i] < offset) {
+      stop("pd_time must be great than or equal to offset");
+    }
+    if (swtrtn[i] == 1 && swtrt_timen[i] < offset) {
+      stop("swtrt_time must be great than or equal to offset");
+    }
+  }
+  
   // covariates for the Cox model containing treat and base_cov
   StringVector covariates(p+1);
   NumericMatrix zn(n,p);
@@ -376,10 +393,8 @@ List tsesimpcpp(const DataFrame data,
     stop("n_boot must be greater than or equal to 100");
   }
   
-  
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
   double logRankPValue = lr["logRankPValue"];
-  
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
   k = -1; // indicate the observed data
@@ -387,10 +402,9 @@ List tsesimpcpp(const DataFrame data,
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
             n, q, p, p2, covariates, covariates_aft, dist, 
             recensor, swtrt_control_only, alpha, zcrit, ties, offset](
-                IntegerVector& idb, 
-                IntegerVector& stratumb, NumericVector& timeb,
-                IntegerVector& eventb, IntegerVector& treatb,
-                NumericVector& censor_timeb, 
+                IntegerVector& idb, IntegerVector& stratumb, 
+                NumericVector& timeb, IntegerVector& eventb, 
+                IntegerVector& treatb, NumericVector& censor_timeb, 
                 IntegerVector& pdb, NumericVector& pd_timeb, 
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
                 NumericMatrix& zb, NumericMatrix& zb_aft)->List {
@@ -597,11 +611,11 @@ List tsesimpcpp(const DataFrame data,
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector sebeta = parest["sebeta"];
-                  NumericVector z = parest["z"];
+                  NumericVector pval = parest["p"];
                   double hrhat = exp(beta[0]);
                   double hrlower = exp(beta[0] - zcrit*sebeta[0]);
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
-                  double pvalue = 2*(1 - R::pnorm(fabs(z[0]), 0, 1, 1, 0));
+                  double pvalue = pval[0];
                   
                   List out;
                   if (k == -1) {
@@ -678,7 +692,6 @@ List tsesimpcpp(const DataFrame data,
       }
     }
   }
-  
   
   double psihat = out["psihat"];
   double psilower = out["psilower"];
