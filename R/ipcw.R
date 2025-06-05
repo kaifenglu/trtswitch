@@ -209,8 +209,7 @@
 #'   pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
 #'   catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
 #'   ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
-#'   milestone = 546, swtrt_control_only = TRUE,
-#'   outputRawDataset = 1, seed = 2000)
+#'   milestone = 546, outputRawDataset = 1, seed = 2000)
 #' 
 #' fit1 <- ipcw(
 #'   sim1$paneldata, id = "id", tstart = "tstart", 
