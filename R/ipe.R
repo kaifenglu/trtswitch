@@ -108,7 +108,8 @@
 #' * \code{Sstar}: A data frame containing the counterfactual untreated
 #'   survival times and event indicators for each treatment group.
 #'   The variables include \code{id}, \code{stratum}, 
-#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, and \code{treat}.
+#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, \code{base_cov}, 
+#'   and \code{treat}.
 #'   
 #' * \code{kmstar}: A data frame containing the Kaplan-Meier estimates
 #'   based on the counterfactual untreated survival times by treatment arm.
@@ -228,7 +229,7 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
                 event = "event", treat = "treat", rx = "rx", 
                 censor_time = "censor_time",
                 base_cov = "", aft_dist = "weibull",
-                low_psi = -1, hi_psi = 1,
+                low_psi = -2, hi_psi = 2,
                 strata_main_effect_only = 1, treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
                 autoswitch = TRUE, alpha = 0.05, ties = "efron",
@@ -280,7 +281,9 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     tol = tol, boot = boot, n_boot = n_boot, seed = seed)
   
   out$Sstar$uid <- NULL
+  out$Sstar$ustratum <- NULL
   out$data_aft$uid <- NULL
+  out$data_aft$ustratum <- NULL
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
@@ -291,6 +294,8 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     
     add_vars <- setdiff(t3, varnames)
     if (length(add_vars) > 0) {
+      out$Sstar <- merge(out$Sstar, df[, c(id, add_vars)], 
+                            by = id, all.x = TRUE, sort = FALSE)
       out$data_aft <- merge(out$data_aft, df[, c(id, add_vars)], 
                             by = id, all.x = TRUE, sort = FALSE)
       out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
@@ -299,6 +304,7 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     
     del_vars <- setdiff(varnames, t3)
     if (length(del_vars) > 0) {
+      out$Sstar[, del_vars] <- NULL
       out$data_aft[, del_vars] <- NULL
       out$data_outcome[, del_vars] <- NULL
     }
