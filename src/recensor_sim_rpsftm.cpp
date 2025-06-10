@@ -204,6 +204,102 @@ double f_est_psi_rpsftm(
 }
 
 
+//' @title Simulation Study to Evaluate Recensoring Rules in RPSFTM
+//' 
+//' @description 
+//' Simulates datasets to evaluate the performance of various recensoring 
+//' strategies under the Rank Preserving Structural Failure Time Model 
+//' (RPSFTM) for handling treatment switching in survival analysis.
+//'
+//' @param nsim Number of simulated datasets.
+//' @param n Number of subjects per simulation.
+//' @param shape Shape parameter of the Weibull distribution for time to 
+//'   death.
+//' @param scale Scale parameter of the Weibull distribution for time to 
+//'   death in the control group.
+//' @param gamma Rate parameter of the exponential distribution for random 
+//'   dropouts in the control group.
+//' @param tfmin Minimum planned follow-up time (in days).
+//' @param tfmax Maximum planned follow-up time (in days).
+//' @param psi Log time ratio of death time for control vs experimental 
+//'   treatment.
+//' @param omega Log time ratio of dropout time for control vs experimental 
+//'   treatment.
+//' @param pswitch Probability of treatment switching at disease progression.
+//' @param a Shape parameter 1 of the Beta distribution for time to disease 
+//'   progression as a fraction of time to death.
+//' @param b Shape parameter 2 of the Beta distribution for time to disease 
+//'   progression.
+//' @param low_psi Lower bound for the search interval of the causal 
+//'   parameter \eqn{\psi}.
+//' @param hi_psi Upper bound for the search interval of the causal 
+//'   parameter \eqn{\psi}.
+//' @param treat_modifier Sensitivity parameter modifying the constant 
+//'   treatment effect assumption.
+//' @param recensor_type Type of recensoring to apply:
+//'   \itemize{
+//'     \item 0: No recensoring
+//'     \item 1: Recensor all control-arm subjects
+//'     \item 2: Recensor only switchers in the control arm
+//'     \item 3: Recensor only control-arm switchers whose counterfactual 
+//'              survival exceeds the planned follow-up time
+//'   }
+//' @param admin_recensor_only Logical. If \code{TRUE}, recensoring is 
+//'   applied only to administrative censoring times. 
+//'   If \code{FALSE}, it is also applied to dropout times.
+//' @param autoswitch Logical. If \code{TRUE}, disables recensoring in arms 
+//'   without any treatment switching.
+//' @param alpha Significance level for confidence interval calculation 
+//'   (default is 0.05).
+//' @param ties Method for handling tied event times in the Cox model. 
+//'   Options are \code{"efron"} (default) or \code{"breslow"}.
+//' @param tol Convergence tolerance for root-finding in estimation of 
+//'   \eqn{\psi}.
+//' @param boot Logical. If \code{TRUE}, bootstrap is used to estimate 
+//'   the confidence interval for the hazard ratio. If \code{FALSE}, 
+//'   the confidence interval is matched to the log-rank p-value.
+//' @param n_boot Number of bootstrap samples, used only if 
+//'   \code{boot = TRUE}.
+//' @param seed Optional. Random seed for reproducibility. If not provided, 
+//'   the global seed is used.
+//'
+//' @return A data frame summarizing the simulation results, including:
+//' \itemize{
+//'   \item \code{recensor_type}, \code{admin_recensor_only}: Settings 
+//'         used in the simulation.
+//'   \item Event rates: \code{p_event_1}, \code{p_dropout_1}, 
+//'         \code{p_admin_censor_1}, \code{p_event_0}, 
+//'         \code{p_dropout_0}, \code{p_admin_censor_0}.
+//'   \item Progression and switching: \code{p_pd_0}, \code{p_swtrt_0},
+//'         \code{p_recensored_0}.
+//'   \item Causal parameter (\eqn{\psi}) estimates: \code{psi}, 
+//'         \code{psi_est}, \code{psi_bias}, 
+//'         \code{psi_se}, \code{psi_mse}.
+//'   \item Log hazard ratio estimates: \code{loghr}, \code{loghr_est}, 
+//'         \code{loghr_se}, \code{loghr_mse}.
+//'   \item Hazard ratio metrics: \code{hr}, \code{hr_est} (geometric mean), 
+//'         \code{hr_pctbias} (percent bias).
+//'   \item Standard errors of log hazard ratio: \code{loghr_se_cox}, 
+//'         \code{loghr_se_lr}, \code{loghr_se_boot}.
+//'   \item Coverage probabilities: \code{hr_ci_cover_cox}, 
+//'         \code{hr_ci_cover_lr}, \code{hr_ci_cover_boot}.
+//' }
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//' \donttest{
+//' result <- recensor_sim_rpsftm(
+//'   nsim = 10, n = 400, shape = 1.5, scale = exp(6.3169),
+//'   gamma = 0.001, tfmin = 407.5, tfmax = 407.5,
+//'   psi = log(0.5) / 1.5, omega = log(1), pswitch = 0.7,
+//'   a = 2, b = 4, low_psi = -5, hi_psi = 5,
+//'   treat_modifier = 1, recensor_type = 1,
+//'   admin_recensor_only = TRUE, autoswitch = TRUE,
+//'   alpha = 0.05, tol = 1e-6, boot = TRUE,
+//'   n_boot = 10, seed = 314159)
+//' }
+//'
 //' @export
 // [[Rcpp::export]]
 DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
