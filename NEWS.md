@@ -42,8 +42,7 @@
 - updated liferegr to use better starting values for model parameters
 - updated documentations for rpsftm, ipe, tsesimp, tsegest, and ipcw to clarify the variables in output data frames
 - added gridsearch parameter to tsegest
-- updated unit tes
-ts and vignettes to use functions from the survival package
+- updated unit tests and vignettes to use functions from the survival package
 - added maxiter and eps to logisregr, liferegr, and phregr
 - added the special case for psilower and psiupper when no root exists when using uniroot finding in rpsftm and tsegest
 - updated to shortening survival if patients switched from active treatment to control in tsegestsim
