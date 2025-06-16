@@ -66,7 +66,7 @@
 #' @useDynLib trtswitch, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 #' @importFrom stats formula makepredictcall model.frame model.matrix 
-#' pchisq plogis rbinom rexp terms
+#' na.omit na.pass pchisq plogis rbinom rexp terms
 #'
 NULL
 
