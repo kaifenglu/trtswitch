@@ -525,7 +525,7 @@ List ipcwcpp(
                     if (!swtrt_control_only) {
                       DataFrame a = survsplit(tstart1, tstop1, cut);
                       IntegerVector censor = a["censor"];
-                      l = a["row"];
+                      IntegerVector l = a["row"];
                       id2 = id1[l];
                       stratum2 = stratum1[l];
                       tstart2 = a["start"];
@@ -544,7 +544,7 @@ List ipcwcpp(
                       }
                     } else {
                       // extract data for the control group
-                      l = which(treat1 == 0);
+                      IntegerVector l = which(treat1 == 0);
                       IntegerVector id0 = id1[l];
                       IntegerVector stratum0 = stratum1[l];
                       NumericVector tstart0 = tstart1[l];
@@ -610,7 +610,7 @@ List ipcwcpp(
                     
                     // fit the switching models by treatment group
                     for (h=0; h<K; h++) {
-                      l = which(treat2 == h);
+                      IntegerVector l = which(treat2 == h);
                       IntegerVector id3 = id2[l];
                       IntegerVector stratum3 = stratum2[l];
                       NumericVector tstart3 = tstart2[l];
@@ -824,7 +824,7 @@ List ipcwcpp(
                     
                     // fit the switching models by treatment group
                     for (h=0; h<K; h++) {
-                      l = which(treat1 == h);
+                      IntegerVector l = which(treat1 == h);
                       IntegerVector id2 = id1[l];
                       IntegerVector stratum2 = stratum1[l];
                       NumericVector tstart2 = tstart1[l];
@@ -875,32 +875,21 @@ List ipcwcpp(
                       NumericVector h_den = f_den["fitted_values"];
                       
                       // convert to probability of remaining uncensored
-                      NumericVector s_den = 1.0 - h_den;
-                      
-                      // replace missing probabilities with 1 within subjects
-                      l = which(treat1 == h);
-                      IntegerVector id3 = id1[l];
-                      NumericVector tstop3 = tstop1[l];
-                      int n3 = static_cast<int>(l.size());
-                      
-                      // match on id and time
-                      IntegerVector sub = match3(id2, tstop2, id3, tstop3);
-                      NumericVector pstay_den(n3, 1.0);
-                      pstay_den[sub] = s_den;
+                      NumericVector pstay_den = 1.0 - h_den;
                       
                       // obtain cumulative products within a subject
                       IntegerVector idx(1,0);
-                      for (i=1; i<n3; i++) {
-                        if (id3[i] != id3[i-1]) {
+                      for (i=1; i<n2; i++) {
+                        if (id2[i] != id2[i-1]) {
                           idx.push_back(i);
                         }
                       }
                       
-                      int nids3 = static_cast<int>(idx.size());
-                      idx.push_back(n3);
+                      int nids2 = static_cast<int>(idx.size());
+                      idx.push_back(n2);
                       
-                      NumericVector surv_den(n3);
-                      for (i=0; i<nids3; i++) {
+                      NumericVector surv_den(n2);
+                      for (i=0; i<nids2; i++) {
                         surv_den[idx[i]] = pstay_den[idx[i]];
                         for (j=idx[i]+1; j<idx[i+1]; j++) {
                           surv_den[j] = surv_den[j-1]*pstay_den[j];
@@ -916,12 +905,10 @@ List ipcwcpp(
                       NumericVector h_num = f_num["fitted_values"];
                       
                       // convert to probability of remaining uncensored
-                      NumericVector s_num = 1.0 - h_num;
-                      NumericVector pstay_num(n3, 1.0);
-                      pstay_num[sub] = s_num;
-                      
-                      NumericVector surv_num(n3);
-                      for (i=0; i<nids3; i++) {
+                      NumericVector pstay_num = 1.0 - h_num;
+
+                      NumericVector surv_num(n2);
+                      for (i=0; i<nids2; i++) {
                         surv_num[idx[i]] = pstay_num[idx[i]];
                         for (j=idx[i]+1; j<idx[i+1]; j++) {
                           surv_num[j] = surv_num[j-1]*pstay_num[j];
@@ -937,13 +924,13 @@ List ipcwcpp(
                         // truncated unstabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (i=0; i<n2; i++) {
                             if (w[i] > upper) w[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(w, trunc);
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (i=0; i<n2; i++) {
                             if (w[i] < lower) {
                               w[i] = lower;
                             } else if (w[i] > upper) {
@@ -955,13 +942,13 @@ List ipcwcpp(
                         // truncated stabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (i=0; i<n2; i++) {
                             if (sw[i] > upper) sw[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(sw, trunc);
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (i=0; i<n2; i++) {
                             if (sw[i] < lower) {
                               sw[i] = lower;
                             } else if (sw[i] > upper) {
