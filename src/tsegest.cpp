@@ -18,6 +18,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   int i, j; 
   double a = exp(psi);
+  double c0 = std::min(1.0, a);
   
   // counterfactual survival times and event indicators
   NumericVector t_star(nids2);
@@ -32,7 +33,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
     }
     
     if (recensor) {
-      c_star = censor_timen3[i]*std::min(1.0, a);
+      c_star = censor_timen3[i]*c0;
       t_star[i] = std::min(u_star, c_star);
       d_star[i] = c_star < u_star ? 0 : osn3[i];
     } else {
@@ -797,14 +798,14 @@ List tsegestcpp(
                                 swtrt_timen3, idn2, y, tstartn2, tstopn2, 
                                 covariates_lgs, zn_lgs2, firth, flic, 
                                 recensor, alpha, ties, 
-                                offset](double psi)->double{
+                                offset](double x)->double{
                                   List out = est_psi_tsegest(
                                     n2, q, p2, nids2, idx2, stratumn3, 
                                     osn3, os_timen3, censor_timen3, 
                                     swtrtn3, swtrt_timen3, idn2, y, 
                                     tstartn2, tstopn2, 
                                     covariates_lgs, zn_lgs2, firth, flic, 
-                                    recensor, alpha, ties, offset, psi);
+                                    recensor, alpha, ties, offset, x);
                                   
                                   double z = out["z_counterfactual"];
                                   return z - target;
@@ -833,6 +834,7 @@ List tsegestcpp(
                     
                     // counter-factual survival times and event indicators
                     double a = exp(psihat);
+                    double c0 = std::min(1.0, a);
                     for (i=0; i<nids; i++) {
                       if (treatn1[i] == h) {
                         double b2, u_star, c_star;
@@ -844,7 +846,7 @@ List tsegestcpp(
                         }
                         
                         if (recensor) {
-                          c_star = censor_timen1[i]*std::min(1.0, a);
+                          c_star = censor_timen1[i]*c0;
                           t_star[i] = std::min(u_star, c_star);
                           d_star[i] = c_star < u_star ? 0 : eventn1[i];
                         } else {
