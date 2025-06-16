@@ -1,3 +1,9 @@
+# trtswitch 0.1.8
+
+- eliminated redundant code for the logistic regression switching model for ipcw
+- added the marginal structural model (msm) method
+- added na.action = na.pass for model frame construction involving covariates for all methods
+
 # trtswitch 0.1.7
 
 - updated survival_analysis to ignore intervals not at risk within each stratum without creating non overlapping times across strata
