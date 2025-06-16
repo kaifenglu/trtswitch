@@ -841,6 +841,7 @@ DataFrame unswitched(
   
   int i;
   double a = exp(psi), a1 = exp(-psi);
+  double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
   NumericVector u_star(n), t_star(n);
   IntegerVector d_star(n);
   for (i=0; i<n; i++) {
@@ -857,9 +858,9 @@ DataFrame unswitched(
     NumericVector c_star(n);
     for (i=0; i<n; i++) {
       if (treat[i] == 0) {
-        c_star[i] = censor_time[i]*std::min(1.0, a);
+        c_star[i] = censor_time[i]*c0;
       } else {
-        c_star[i] = censor_time[i]*std::min(1.0, a1);
+        c_star[i] = censor_time[i]*c1;
       }
     }
     
