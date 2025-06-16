@@ -254,8 +254,8 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   
   elements = c(id, stratum, tstart, tstop, event, treat, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
-  mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
-                   data = data)
+  fml = formula(paste("~", paste(elements, collapse = "+")))
+  mf = model.frame(fml, data = data, na.action = na.omit)
   
   rownum = as.integer(rownames(mf))
   df = data[rownum,]
@@ -265,14 +265,13 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
     p = 0
   } else {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p = length(t3)
+    fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
+    p = length(rownames(attr(terms(fml1), "factors")))
   }
   
   if (p >= 1) {
-    mm = model.matrix(t1, df)
+    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
+    mm <- model.matrix(fml1, mf1)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
     for (i in 1:length(varnames)) {
@@ -289,14 +288,13 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     numerator[1] == "" || tolower(numerator[1]) == "none"))) {
     p2 = 0
   } else {
-    t1 = terms(formula(paste("~", paste(numerator, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p2 = length(t3)
+    fml2 = formula(paste("~", paste(numerator, collapse = "+")))
+    p2 = length(rownames(attr(terms(fml2), "factors")))
   }
   
   if (p2 >= 1) {
-    mm2 = model.matrix(t1, df)
+    mf2 <- model.frame(fml2, data = df, na.action = na.pass)
+    mm2 <- model.matrix(fml2, mf2)
     colnames(mm2) = make.names(colnames(mm2))
     varnames2 = colnames(mm2)[-1]
     for (i in 1:length(varnames2)) {
@@ -313,14 +311,13 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     denominator[1] == "" || tolower(denominator[1]) == "none"))) {
     p3 = 0
   } else {
-    t1 = terms(formula(paste("~", paste(denominator, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p3 = length(t3)
+    fml3 = formula(paste("~", paste(denominator, collapse = "+")))
+    p3 = length(rownames(attr(terms(fml3), "factors")))
   }
   
   if (p3 >= 1) {
-    mm3 = model.matrix(t1, df)
+    mf3 <- model.frame(fml3, data = df, na.action = na.pass)
+    mm3 <- model.matrix(fml3, mf3)
     colnames(mm3) = make.names(colnames(mm3))
     varnames3 = colnames(mm3)[-1]
     for (i in 1:length(varnames3)) {
