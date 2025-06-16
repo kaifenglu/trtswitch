@@ -318,9 +318,9 @@ tsegest <- function(data, id = "id", stratum = "",
   elements = c(id, stratum, tstart, tstop, event, treat, censor_time, 
                pd, swtrt)
   elements = unique(elements[elements != "" & elements != "none"])
-  mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
-                   data = data)
-
+  fml = formula(paste("~", paste(elements, collapse = "+")))
+  mf = model.frame(fml, data = data, na.action = na.omit)
+  
   rownum = as.integer(rownames(mf))
   df = data[rownum,]
 
@@ -329,14 +329,13 @@ tsegest <- function(data, id = "id", stratum = "",
     base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
     p = 0
   } else {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p = length(t3)
+    fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
+    p = length(rownames(attr(terms(fml1), "factors")))
   }
 
   if (p >= 1) {
-    mm = model.matrix(t1, df)
+    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
+    mm <- model.matrix(fml1, mf1)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
     for (i in 1:length(varnames)) {
@@ -353,14 +352,13 @@ tsegest <- function(data, id = "id", stratum = "",
     conf_cov[1] == "" || tolower(conf_cov[1]) == "none"))) {
     p2 = 0
   } else {
-    t1 = terms(formula(paste("~", paste(conf_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p2 = length(t3)
+    fml2 = formula(paste("~", paste(conf_cov, collapse = "+")))
+    p2 = length(rownames(attr(terms(fml2), "factors")))
   }
 
   if (p2 >= 1) {
-    mm2 = model.matrix(t1, df)
+    mf2 <- model.frame(fml2, data = df, na.action = na.pass)
+    mm2 <- model.matrix(fml2, mf2)
     colnames(mm2) = make.names(colnames(mm2))
     varnames2 = colnames(mm2)[-1]
     for (i in 1:length(varnames2)) {
