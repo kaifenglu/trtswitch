@@ -517,6 +517,7 @@ List tsesimpcpp(const DataFrame data,
                     
                     // calculate counter-factual survival times
                     double a = exp(psihat);
+                    double c0 = std::min(1.0, a);
                     for (i=0; i<n; i++) {
                       if (treatb[i] == h) {
                         double b2, u_star, c_star;
@@ -529,7 +530,7 @@ List tsesimpcpp(const DataFrame data,
                         }
                         
                         if (recensor) {
-                          c_star = censor_timeb[i]*std::min(1.0, a);
+                          c_star = censor_timeb[i]*c0;
                           t_star[i] = std::min(u_star, c_star);
                           d_star[i] = c_star < u_star ? 0 : eventb[i];
                         } else {
