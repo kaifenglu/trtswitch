@@ -39,7 +39,7 @@ With an initial estimate of $\psi$ from the intention-to-treat (ITT) analysis us
   U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*),
 \]
 \[
-  \Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*).
+  \Delta_{i,\psi}^* = I(U_{i,\psi} \leq D_{i,\psi}^*).
 \]
 
 2. Fit an AFT model to the adjusted data set consisting of 
