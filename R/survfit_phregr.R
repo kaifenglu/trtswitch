@@ -124,16 +124,15 @@ survfit_phregr <- function(object, newdata, sefit = TRUE,
     covariates[1] == "" || tolower(covariates[1]) == "none"))) {
     p3 = 0
   } else {
-    t1 = terms(formula(paste("~", paste(covariates, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p3 = length(t3)
+    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
+    p3 = length(rownames(attr(terms(fml1), "factors")))
   }
 
   if (p >= 1 && p3 >= 1 && !(missing(newdata) || is.null(newdata))) {
     df = newdata
-    mf = model.frame(t1, df, xlev = object$xlevels)
-    mm = model.matrix(t1, mf)
+    mf1 <- model.frame(fml1, data = df, na.action = na.pass, 
+                       xlev = object$xlevels)
+    mm <- model.matrix(fml1, mf1)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
     for (i in 1:length(varnames)) {
