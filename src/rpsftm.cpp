@@ -342,7 +342,7 @@ List rpsftmcpp(const DataFrame data,
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
   
-  if (test == "survdiff") {
+  if (test == "survdiff" || test == "lifetest" || test == "lrtest") {
     test = "logrank";
   } else if (test == "coxph") {
     test = "phreg";
