@@ -86,6 +86,12 @@ using namespace Rcpp;
 //'     - \code{simtrue_cox_hr}: The treatment hazard ratio from the Cox 
 //'       model without adjusting for baseline prognosis.
 //'
+//'     - \code{simtrue_aftwbprog_af}: The average acceleration factor from 
+//'       the Weibull AFT model adjusting for baseline prognosis.
+//'
+//'     - \code{simtrue_aft_af}: The average acceleration factor from 
+//'       the Weibull AFT model without adjusting for baseline prognosis.
+//'
 //' * \code{paneldata}: A counting process style subject-level data frame 
 //'   with the following variables:
 //'
@@ -197,6 +203,7 @@ List tsegestsim(const int n = 500,
   double simtrueconstmean, simtrueconstlb, simtrueconstub, simtrueconstse;
   double simtrueexpstmean, simtrueexpstlb, simtrueexpstub, simtrueexpstse;
   double simtrue_coxwbprog_hr, simtrue_cox_hr;
+  double simtrue_aftwbprog_af, simtrue_aft_af;
 
   IntegerVector id(n), trtrand(n), bprog(n), dead(n), progressed(n);
   NumericVector timeOS(n), timeOS5(n);
@@ -368,7 +375,21 @@ List tsegestsim(const int n = 500,
   parest = DataFrame(a3["parest"]);
   beta = parest["beta"];
   simtrue_cox_hr = exp(beta[0]);
+  
+  // acceleration factor from AFT with bprog
+  List a4 = liferegcpp(a1, "", "", "time", "", "event", covariates,
+                       "", "", "", "weibull", 0, 0, 0.05, 50, 1.0e-9);
+  parest = DataFrame(a4["parest"]);
+  beta = parest["beta"];
+  simtrue_aftwbprog_af = exp(beta[1]);
 
+  // acceleration factor from AFT without bprog
+  List a5 = liferegcpp(a1, "", "", "time", "", "event", "trtrand",
+                       "", "", "", "weibull", 0, 0, 0.05, 50, 1.0e-9);
+  parest = DataFrame(a5["parest"]);
+  beta = parest["beta"];
+  simtrue_aft_af = exp(beta[1]);
+  
   // apply switch and effect
   IntegerVector xo1(n, NA_INTEGER), xo2(n, NA_INTEGER), xo3(n, NA_INTEGER);
   IntegerVector xo4(n, NA_INTEGER), xo5(n, NA_INTEGER), xo6(n, NA_INTEGER);
@@ -941,7 +962,9 @@ List tsegestsim(const int n = 500,
     Named("simtrueexpstub") = simtrueexpstub,
     Named("simtrueexpstse") = simtrueexpstse,
     Named("simtrue_coxwbprog_hr") = simtrue_coxwbprog_hr,
-    Named("simtrue_cox_hr") = simtrue_cox_hr);
+    Named("simtrue_cox_hr") = simtrue_cox_hr,
+    Named("simtrue_aftwbprog_af") = simtrue_aftwbprog_af,
+    Named("simtrue_aft_af") = simtrue_aft_af);
   
   if (outputRawDataset) {
     DataFrame paneldata = DataFrame::create(
