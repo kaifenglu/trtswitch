@@ -191,6 +191,10 @@
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @references
+#' James M. Robins, Miguel Angel Hernan, and Babette Brumback. 
+#' Marginal structural models and causal inference in epidemiology. 
+#' Epidemiology. 2000;11(5):550-560.
+#' 
 #' Miguel Angel Hernan, Babette Brumback, and James M. Robins. 
 #' Marginal structural modesl to estimate the causual effect of zidovudine 
 #' on the survival of HIV-positive men. Epidemiology. 2000;11(5):561-570.
