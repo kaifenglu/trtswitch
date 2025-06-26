@@ -33,11 +33,15 @@
 #' @param rx The name of the rx variable in the input data.
 #' @param censor_time The name of the censor_time variable in the input data.
 #' @param base_cov The names of baseline covariates (excluding
-#'   treat) in the input data for the outcome Cox model.
+#'   treat) in the input data for the outcome Cox model. 
+#'   These covariates will also be used in the Cox model for estimating 
+#'   \code{psi} when \code{psi_test = "phreg"} and in the AFT model 
+#'   for estimating \code{psi} when \code{psi_test = "lifereg"}.   
 #' @param psi_test The survival function to calculate the Z-statistic, e.g., 
 #'   "logrank" (default), "phreg", or "lifereg".
-#' @param aft_dist The assumed distribution for time to event for the AFT
-#'   model when \code{psi_test = "lifereg"}. Options include "exponential", 
+#' @param aft_dist The assumed distribution for time to event for the 
+#'   accelerated failure time (AFT) model when 
+#'   \code{psi_test = "lifereg"}. Options include "exponential", 
 #'   "weibull" (default), "loglogistic", and "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
@@ -77,12 +81,11 @@
 #' * Use RPSFTM to estimate the causal parameter \eqn{\psi} based on the 
 #'   log-rank test (default), the Cox proportional hazards model, 
 #'   or a parametric survival regression model for counterfactual 
-#'   untreated survival times for both arms: 
+#'   \emph{untreated} survival times: 
 #'   \deqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}
 #'
-#' * Fit the Cox proportional hazards model to the observed survival times
-#'   for the experimental group and the counterfactual survival times
-#'   for the control group to obtain the hazard ratio estimate.
+#' * Fit the Cox proportional hazards model to the counterfactual 
+#'   \emph{unswitched} survival times to obtain the hazard ratio estimate.
 #'
 #' * Use either the log-rank test p-value for the intention-to-treat (ITT) 
 #'   analysis or bootstrap to construct the confidence interval for 
