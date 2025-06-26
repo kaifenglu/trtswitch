@@ -236,27 +236,27 @@ phregr <- function(data, rep = "", stratum = "",
   
   elements = c(rep, stratum, time, event, covariates, weight, offset, id)
   elements = unique(elements[elements != "" & elements != "none"])
-  mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
-                   data = data)
+  fml = formula(paste("~", paste(elements, collapse = "+")))
+  mf = model.frame(fml, data = data, na.action = na.omit)
+  
   rownum = as.integer(rownames(mf))
   df = data[rownum,]
   
   nvar = length(covariates)
   if (missing(covariates) || is.null(covariates) || (nvar == 1 && (
     covariates[1] == "" || tolower(covariates[1]) == "none"))) {
-    t1 = terms(formula("~1"))
     p = 0
+    t1 = terms(formula("~1"))
   } else {
-    t1 = terms(formula(paste("~", paste(covariates, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p = length(t3)
+    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
+    p = length(rownames(attr(terms(fml1), "factors")))
+    t1 = terms(fml1)
   }
   
   if (p >= 1) {
-    mf = model.frame(t1, df)
-    xlevels = mf$xlev
-    mm = model.matrix(t1, mf)
+    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
+    mm <- model.matrix(fml1, mf1)
+    xlevels = mf1$xlev
     param = colnames(mm)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
