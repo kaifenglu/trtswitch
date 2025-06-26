@@ -15,7 +15,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
   
   fit1 <- ipcw(
     sim1$paneldata, id = "id", tstart = "tstart", 
-    tstop = "tstop", event = "died", treat = "trtrand", 
+    tstop = "tstop", event = "event", treat = "trtrand", 
     swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
     numerator = "bprog", denominator = "bprog*catlag", 
     logistic_switching_model = TRUE, ns_df = 3,
@@ -27,7 +27,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
     group_by(id) %>%
     mutate(condition = row_number() == n() & xo == 1 & tstop >= xotime,
            cross = ifelse(condition, 1, 0),
-           event = ifelse(condition, 0, died),
+           event = ifelse(condition, 0, event),
            tstop = ifelse(condition, xotime, tstop))
   
   # fit pooled logistic regression switching models
@@ -42,7 +42,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
   switch2 <- glm(cross ~ bprog + ns2, family = binomial, data = data2)
   phat2 <- as.numeric(predict(switch2, newdata = data2, type = "response"))
   
-  # unstabilized and stablized weights
+  # stablized weights
   data3 <- data1 %>% 
     filter(trtrand == 0) %>% 
     select(id, trtrand, bprog, tstart, tstop, event) %>%
@@ -59,7 +59,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
     select(id, tstart, tstop, event, stabilized_weight, bprog, trtrand) %>%
     bind_rows(data1 %>% 
                 filter(trtrand == 1) %>%
-                mutate(unstabilized_weight = 1, stabilized_weight = 1) %>%
+                mutate(stabilized_weight = 1) %>%
                 select(id, tstart, tstop, event, 
                        stabilized_weight, bprog, trtrand))
   
