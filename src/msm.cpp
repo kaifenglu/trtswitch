@@ -388,7 +388,7 @@ List msmcpp(
   k = -1; // indicate the observed data
   auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
-            q, p, p1, p2, base_cov, numerator, denominator, 
+            q, p, p2, base_cov, numerator, denominator, 
             covariates, covariates_lgs_num, covariates_lgs_den, 
             firth, flic, ns_df, 
             stabilized_weights, trunc, trunc_upper_only, 
