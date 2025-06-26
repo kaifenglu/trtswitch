@@ -1,6 +1,4 @@
 #include "utilities.h"
-#include "survival_analysis.h"
-
 using namespace Rcpp;
 
 //' @title Simulate Data for Treatment Switching
@@ -53,6 +51,76 @@ using namespace Rcpp;
 //' @param n Number of subjects per simulation.
 //' @param NSim Number of simulated datasets.
 //' @param seed Random seed for reproducibility.
+//'
+//' @details 
+//' The simulation algorithm is adapted from Xu et al. (2022), by 
+//' simulating disease progression status and by using the multiplicative 
+//' effects of baseline and time-dependent covariates on survival time. 
+//' The design options \code{tdxo} and \code{coxo} indicate 
+//' the timing of treatment switching and the study arm eligibility 
+//' for switching, respectively. Each subject undergoes \code{followup} 
+//' treatment cycles until administrative censoring. 
+//' \enumerate{
+//'   \item At randomization, each subject is assigned treatment based on:
+//'   \deqn{R_i \sim \mbox{Bernoulli}(p_R)} 
+//'   and a baseline covariate is generated:
+//'   \deqn{X_i \sim \mbox{Bernoulli}(p_{X_1} R_i + p_{X_0} (1-R_i))}
+//'         
+//'   \item The initial survival time is drawn
+//'   from an exponential distribution with hazard:
+//'   \deqn{rate_T \exp(\beta_1 R_i + \beta_2 X_i)}
+//'   We define the event indicator at cycle \eqn{j} as
+//'   \deqn{Y_{i,j} = I(T_i \leq j\times days)}
+//'         
+//'   \item The initial states are set to
+//'   \eqn{L_{i,0} = 0}, \eqn{Z_{i,0} = 0}, \eqn{Z_{i,0} = 0},
+//'   \eqn{Y_{i,0} = 0}. For each treatment cycle \eqn{j=1,\ldots,J},
+//'   we set \eqn{tstart = (j-1) \times days}.
+//'         
+//'   \item Generate time-dependent covariates:
+//'   \deqn{\mbox{logit} P(L_{i,j}=1|\mbox{history}) = 
+//'   \gamma_0 + \gamma_1 A_{i,j-1} + \gamma_2 L_{i,j-1} + 
+//'   \gamma_3 X_i + \gamma_4 R_i}
+//'      
+//'   \item If \eqn{T_i \leq j \times days}, set \eqn{tstop = T_i} and 
+//'   \eqn{Y_{i,j} = 1}, which completes data generation
+//'   for subject \eqn{i}.
+//'           
+//'   \item If \eqn{T_i > j \times days}, set \eqn{tstop = j\times days},  
+//'   \eqn{Y_{i,j} = 0}, and perform the following before proceeding to 
+//'   the next cycle for the subject.
+//'   
+//'   \item Generate disease progression status: 
+//'   If \eqn{Z_{i,j-1} = 0},  
+//'   \deqn{\mbox{logit} P(Z_{i,j}=1 | \mbox{history}) = \zeta_0 + 
+//'   \zeta_1 L_{i,j} + \zeta_2 X_i + \zeta_3 R_i}
+//'   Otherwise, set \eqn{Z_{i,j} = 1}.
+//'     
+//'   \item Generate alternative therapy status:     
+//'   If \eqn{A_{i,j-1} = 0}, determine switching eligibility 
+//'   based on design options.        
+//'   If switching is allowed:
+//'   \deqn{\mbox{logit} P(A_{i,j} = 1 | \mbox{history}) = \alpha_0 + 
+//'   \alpha_1 L_{i,j} + \alpha_2 X_i}       
+//'   If switching is now allowed, set \eqn{A_{i,j} = 0}.      
+//'   If \eqn{A_{i,j-1} = 1}, set \eqn{A_{i,j} = 1} (once switched to 
+//'   alternative therapy, remain on alternative therapy).
+//'          
+//'   \item Update survival time based on changes in alternative 
+//'   therapy status and time-dependent covariates:
+//'   \deqn{T_i = j\times days + (T_i - j\times days) \exp\{
+//'   -(\theta_{1,1}R_i + \theta_{1,0}(1-R_i))(A_{i,j} - A_{i,j-1}) 
+//'   -\theta_2 (L_{i,j} - L_{i,j-1})\}}   
+//' }
+//' 
+//' Additional random censoring times are generated from an exponential 
+//' distribution with hazard rate \eqn{rate_C}.
+//'   
+//' To estimate the true treatment effect in a Cox marginal 
+//' structural model, one can set \eqn{\alpha_0 = -\infty}, which 
+//' effectively forces \eqn{A_{i,j} = 0} (disabling treatment switching). 
+//' The coefficient for the randomized treatment can then be estimated 
+//' using a Cox proportional hazards model.
 //'
 //' @return
 //' A list of data frames, each containing simulated longitudinal and 
