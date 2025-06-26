@@ -49,7 +49,7 @@ To address the high variability in "unstabilized" weights, researchers often opt
 You can specify weight truncation using the `trunc` and `trunc_upper_only` parameters of the `ipcw` function. The `trunc` parameter is a number between 0 and 0.5 that represents the fraction of the weight distribution to truncate. The `trunc_upper_only` parameter is a flag that indicates whether to truncate weights only from the upper end of the weight distribution.
 
 # Estimation of Hazard Ratio
-Once weights have been obtained for each event time in the data set, we fit a (potentially stratified) Cox proportional hazards model to this weighted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the weight estimation and the  subsequent model-fitting process.
+Once weights have been obtained for each event time in the data set, we fit a (potentially stratified) Cox proportional hazards model to this weighted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the weight estimation and the subsequent model-fitting process.
 
 ## Example for Pooled Logistic Regression Switching Model
 First we prepare the data.
@@ -76,7 +76,7 @@ fit1 <- ipcw(
   swtrt_control_only = TRUE, boot = FALSE)
 ```
 
-The fits for the denominator and numerator switching models are as follows, utilizing robust sandwich variance estimates to account for correlations among  observations within the same subject. 
+The fits for the denominator and numerator switching models are as follows. 
 ```{r switching models example 1}
 # denominator switching model fit
 fit1$fit_switch[[1]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]
@@ -100,7 +100,7 @@ ggplot(fit1$data_outcome %>% filter(trtrand == 0),
   scale_x_continuous("stabilized weights")
 ```
 
-Now we fit a weighted outcome Cox model and compare the treatemnt hazard ratio estimate with the reported. 
+Now we fit a weighted outcome Cox model and compare the treatment hazard ratio estimate with the reported. 
 ```{r cox example 1}
 fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
     
