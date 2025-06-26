@@ -93,8 +93,8 @@ residuals_liferegr <- function(
   elements = c(stratum, covariates, weight, offset, id)
   elements = unique(elements[elements != "" & elements != "none"])
   if (!(length(elements) == 0)) {
-    mf = model.frame(formula(paste("~", paste(elements, collapse = "+"))),
-                     data = data)
+    fml = formula(paste("~", paste(elements, collapse = "+")))
+    mf = model.frame(fml, data = data, na.action = na.omit)
   } else {
     mf = model.frame(formula("~1"), data = data)
   }
@@ -105,18 +105,15 @@ residuals_liferegr <- function(
   nvar = length(covariates)
   if (missing(covariates) || is.null(covariates) || (nvar == 1 && (
     covariates[1] == "" || tolower(covariates[1]) == "none"))) {
-    t1 = terms(formula("~1"))
     p3 = 0
   } else {
-    t1 = terms(formula(paste("~", paste(covariates, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    p3 = length(t3)
+    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
+    p3 = length(rownames(attr(terms(fml1), "factors")))
   }
   
   if (p >= 1 && p3 >= 1) {
-    mf = model.frame(t1, df)
-    mm = model.matrix(t1, mf)
+    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
+    mm <- model.matrix(fml1, mf1)
     colnames(mm) = make.names(colnames(mm))
     varnames = colnames(mm)[-1]
     for (i in 1:length(varnames)) {
