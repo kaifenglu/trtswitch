@@ -148,6 +148,8 @@
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
+#' * \code{fail}: Whether a model fails to converge.
+#'
 #' * \code{settings}: A list with the following components:
 #'
 #'     - \code{logistic_switching_model}: Whether a pooled logistic 
@@ -185,6 +187,9 @@
 #'     - \code{n_boot}: The number of bootstrap samples.
 #'
 #'     - \code{seed}: The seed to reproduce the bootstrap results.
+#'
+#' * \code{fail_boots}: The indicators for failed bootstrap samples
+#'   if \code{boot} is \code{TRUE}.
 #'
 #' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
 #'   \code{TRUE}.

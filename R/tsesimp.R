@@ -130,6 +130,8 @@
 #'   \code{"d_star"}, \code{"treated"}, \code{base_cov}, and \code{treat}.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
+#' 
+#' * \code{fail}: Whether a model fails to converge.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -168,6 +170,9 @@
 #'
 #' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} if
 #'   \code{swtrt_control_only} is \code{FALSE}.
+#'
+#' * \code{fail_boots}: The indicators for failed bootstrap samples
+#'   if \code{boot} is \code{TRUE}.
 #'
 #' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
 #'   \code{TRUE}.
