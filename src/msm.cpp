@@ -400,6 +400,8 @@ List msmcpp(
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb,
                 NumericMatrix& zb, NumericMatrix& zb_lgs_den)->List {
                   int h, i, j, n = static_cast<int>(idb.size());
+                  bool fail = 0; // whether any model fails to converge
+                  NumericVector init(1, NA_REAL);
                   
                   // order data by treat, id, and time
                   IntegerVector order = seq(0, n-1);
@@ -545,8 +547,12 @@ List msmcpp(
                     
                     List fit_den = logisregcpp(
                       data1, "", "cross", covariates_lgs_den, "", "", 
-                      "", "uid", "logit", 0, firth, flic, 0, alpha,
-                      50, 1.0e-9);
+                      "", "uid", "logit", init, 
+                      0, firth, flic, 0, alpha, 50, 1.0e-9);
+                    
+                    DataFrame sumstat_den = DataFrame(fit_den["sumstat"]);
+                    bool fail_den = sumstat_den["fail"];
+                    if (fail_den == 1) fail = 1;
                     
                     DataFrame f_den = DataFrame(fit_den["fitted"]);
                     NumericVector h_den = f_den["fitted_values"];
@@ -590,8 +596,12 @@ List msmcpp(
                     
                     List fit_num = logisregcpp(
                       data1, "", "cross", covariates_lgs_num, "", "", 
-                      "", "uid", "logit", 0, firth, flic, 0, alpha, 
-                      50, 1.0e-9);
+                      "", "uid", "logit", init, 
+                      0, firth, flic, 0, alpha, 50, 1.0e-9);
+                    
+                    DataFrame sumstat_num = DataFrame(fit_num["sumstat"]);
+                    bool fail_num = sumstat_num["fail"];
+                    if (fail_num == 1) fail = 1;
                     
                     DataFrame f_num = DataFrame(fit_num["fitted"]);
                     NumericVector h_num = f_num["fitted_values"];
@@ -757,13 +767,17 @@ List msmcpp(
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "stabilized_weight", "",
-                      "uid", ties, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                      "uid", ties, init, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                   } else {
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "tstart", "tstop",
                       "event", covariates, "unstabilized_weight", "",
-                      "uid", ties, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                      "uid", ties, init, 1, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                   }
+                  
+                  DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                  bool fail_cox = sumstat_cox["fail"];
+                  if (fail_cox == 1) fail = 1;
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
@@ -784,13 +798,15 @@ List msmcpp(
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   } else {
                     out = List::create(
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   }
                   
                   return out;
@@ -844,10 +860,12 @@ List msmcpp(
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
+  bool fail = out["fail"];
   
   // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot);
+  LogicalVector fails(n_boot);
   if (!boot) { // use Cox model to construct CI for HR if no boot
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
@@ -906,18 +924,21 @@ List msmcpp(
       out = f(idb, stratumb, tstartb, tstopb, eventb, treatb,
               swtrtb, swtrt_timeb, zb, zb_lgs_den);
       
+      fails[k] = out["fail"];
       hrhats[k] = out["hrhat"];
     }
     
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
-    NumericVector loghrs = log(hrhats);
+    LogicalVector ok = 1 - fails;
+    int n_ok = sum(ok);
+    NumericVector loghrs = log(hrhats[ok]);
     double sdloghr = sd(loghrs);
-    double tcrit = R::qt(1-alpha/2, n_boot-1, 1, 0);
+    double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
     hrlower = exp(loghr - tcrit*sdloghr);
     hrupper = exp(loghr + tcrit*sdloghr);
     hr_CI_type = "bootstrap";
-    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_boot-1, 1, 0));
+    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
   }
   
   List settings = List::create(
@@ -946,9 +967,13 @@ List msmcpp(
     Named("fit_switch") = fit_switch,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
+    Named("fail") = fail,
     Named("settings") = settings);
   
-  if (boot) result.push_back(hrhats, "hr_boots");
+  if (boot) {
+    result.push_back(fails, "fail_boots");
+    result.push_back(hrhats, "hr_boots"); 
+  }
   
   return result;
 }

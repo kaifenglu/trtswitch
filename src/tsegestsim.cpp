@@ -362,30 +362,35 @@ List tsegestsim(const int n = 500,
   StringVector covariates(2);
   covariates[0] = "trtrand";
   covariates[1] = "bprog";
-
+  
+  NumericVector init(1, NA_REAL);
   List a3 = phregcpp(a1, "", "", "time", "", "event", covariates,
-                     "", "", "", "efron", 0, 0, 0, 0, 0, 0.05, 50, 1.0e-9);
+                     "", "", "", "efron", init, 
+                     0, 0, 0, 0, 0, 0.05, 50, 1.0e-9);
   DataFrame parest = DataFrame(a3["parest"]);
   NumericVector beta = parest["beta"];
   simtrue_coxwbprog_hr = exp(beta[0]);
 
   // HR without bprog
   a3 = phregcpp(a1, "", "", "time", "", "event", "trtrand",
-                "", "", "", "efron", 0, 0, 0, 0, 0, 0.05, 50, 1.0e-9);
+                "", "", "", "efron", init, 
+                0, 0, 0, 0, 0, 0.05, 50, 1.0e-9);
   parest = DataFrame(a3["parest"]);
   beta = parest["beta"];
   simtrue_cox_hr = exp(beta[0]);
   
   // acceleration factor from AFT with bprog
   List a4 = liferegcpp(a1, "", "", "time", "", "event", covariates,
-                       "", "", "", "weibull", 0, 0, 0.05, 50, 1.0e-9);
+                       "", "", "", "weibull", init, 
+                       0, 0, 0.05, 50, 1.0e-9);
   parest = DataFrame(a4["parest"]);
   beta = parest["beta"];
   simtrue_aftwbprog_af = exp(beta[1]);
 
   // acceleration factor from AFT without bprog
   List a5 = liferegcpp(a1, "", "", "time", "", "event", "trtrand",
-                       "", "", "", "weibull", 0, 0, 0.05, 50, 1.0e-9);
+                       "", "", "", "weibull", init, 
+                       0, 0, 0.05, 50, 1.0e-9);
   parest = DataFrame(a5["parest"]);
   beta = parest["beta"];
   simtrue_aft_af = exp(beta[1]);

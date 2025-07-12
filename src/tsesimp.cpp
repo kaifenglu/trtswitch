@@ -409,6 +409,8 @@ List tsesimpcpp(const DataFrame data,
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
                 NumericMatrix& zb, NumericMatrix& zb_aft)->List {
                   int h, i, j;
+                  bool fail = 0; // whether any model fails to converge
+                  NumericVector init(1, NA_REAL);
                   
                   // order data by treat
                   IntegerVector order = seq(0, n-1);
@@ -505,8 +507,12 @@ List tsesimpcpp(const DataFrame data,
                     
                     List fit1 = liferegcpp(
                       data1, "", "", "pps", "", "event", 
-                      covariates_aft, "", "", "", dist, 0, 0, alpha, 
-                      50, 1.0e-9);
+                      covariates_aft, "", "", "", dist, init, 
+                      0, 0, alpha, 50, 1.0e-9);
+                    
+                    DataFrame sumstat1 = DataFrame(fit1["sumstat"]);
+                    bool fail1 = sumstat1["fail"];
+                    if (fail1 == 1) fail = 1;
                     
                     DataFrame parest1 = DataFrame(fit1["parest"]);
                     NumericVector beta1 = parest1["beta"];
@@ -606,8 +612,12 @@ List tsesimpcpp(const DataFrame data,
                   
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star",
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
-                    50, 1.0e-9);
+                    covariates, "", "", "", ties, init, 
+                    0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                  
+                  DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                  bool fail_cox = sumstat_cox["fail"];
+                  if (fail_cox == 1) fail = 1;
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
@@ -634,7 +644,8 @@ List tsesimpcpp(const DataFrame data,
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   } else {
                     out = List::create(
                       Named("psihat") = psi0hat,
@@ -646,7 +657,8 @@ List tsesimpcpp(const DataFrame data,
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   }
                   
                   return out;
@@ -704,11 +716,13 @@ List tsesimpcpp(const DataFrame data,
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
+  bool fail = out["fail"];
   String psi_CI_type = "AFT model";
   
   // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
+  LogicalVector fails(n_boot);
   if (!boot) { // use Cox model to construct CI for HR if no boot
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
@@ -746,6 +760,7 @@ List tsesimpcpp(const DataFrame data,
     zn_aft = subset_matrix_by_row(zn_aft, order);
     
     for (k=0; k<n_boot; k++) {
+      
       // sample the data with replacement by treatment group
       for (i=0; i<n; i++) {
         double u = R::runif(0,1);
@@ -772,6 +787,7 @@ List tsesimpcpp(const DataFrame data,
       out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
               pdb, pd_timeb, swtrtb, swtrt_timeb, zb, zb_aft);
       
+      fails[k] = out["fail"];
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
       psi1hats[k] = out["psi1hat"];
@@ -779,21 +795,25 @@ List tsesimpcpp(const DataFrame data,
     
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
-    NumericVector loghrs = log(hrhats);
+    LogicalVector ok = 1 - fails;
+    int n_ok = sum(ok);
+    NumericVector loghrs = log(hrhats[ok]);
     double sdloghr = sd(loghrs);
-    double tcrit = R::qt(1-alpha/2, n_boot-1, 1, 0);
+    double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
     hrlower = exp(loghr - tcrit*sdloghr);
     hrupper = exp(loghr + tcrit*sdloghr);
     hr_CI_type = "bootstrap";
-    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_boot-1, 1, 0));
+    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
     
     // obtain bootstrap confidence interval for psi
-    double sdpsi = sd(psihats);
+    NumericVector psihats1 = psihats[ok];
+    double sdpsi = sd(psihats1);
     psilower = psihat - tcrit*sdpsi;
     psiupper = psihat + tcrit*sdpsi;
     psi_CI_type = "bootstrap";
     
-    double sdpsi1 = sd(psi1hats);
+    NumericVector psi1hats1 = psi1hats[ok];
+    double sdpsi1 = sd(psi1hats1);
     psi1lower = psi1hat - tcrit*sdpsi1;
     psi1upper = psi1hat + tcrit*sdpsi1;
   }
@@ -824,6 +844,7 @@ List tsesimpcpp(const DataFrame data,
     Named("fit_aft") = fit_aft,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
+    Named("fail") = fail,
     Named("settings") = settings);
   
   if (!swtrt_control_only) {
@@ -833,6 +854,7 @@ List tsesimpcpp(const DataFrame data,
   }
   
   if (boot) {
+    result.push_back(fails, "fail_boots");
     result.push_back(hrhats, "hr_boots");
     result.push_back(psihats, "psi_boots");
     if (!swtrt_control_only) {

@@ -17,6 +17,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
                      std::string ties, double offset, double psi) {
   
   int i, j; 
+  NumericVector init(1, NA_REAL);
+  
   double a = exp(psi);
   double c0 = std::min(1.0, a);
   
@@ -51,7 +53,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   List fit1 = phregcpp(
     data1, "", "ustratum", "t_star", "", "d_star",
-    "", "", "", "", ties, 0, 0, 1, 0, 0, alpha, 50, 1.0e-9);
+    "", "", "", "", ties, init, 
+    0, 0, 1, 0, 0, alpha, 50, 1.0e-9);
   
   // replicate counterfactual residuals within subjects
   NumericVector resid3 = fit1["residuals"];
@@ -78,7 +81,11 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   
   List fit2 = logisregcpp(
     data2, "", "cross", covariates_lgs, "", "", 
-    "", "uid", "logit", 1, firth, flic, 0, alpha, 150, 1.0e-9);
+    "", "uid", "logit", init, 
+    1, firth, flic, 0, alpha, 150, 1.0e-9);
+  
+  DataFrame sumstat = DataFrame(fit2["sumstat"]);
+  bool fail = sumstat["fail"];
   
   DataFrame parest = DataFrame(fit2["parest"]);
   NumericVector z = parest["z"];
@@ -89,7 +96,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
     Named("fit_nullcox") = fit1,
     Named("data_logis") = data2,
     Named("fit_logis") = fit2,
-    Named("z_counterfactual") = z_counterfactual);
+    Named("z_counterfactual") = z_counterfactual,
+    Named("fail") = fail);
   
   return out;
 };
@@ -582,6 +590,8 @@ List tsegestcpp(
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
                 NumericMatrix& zb, NumericMatrix& zb_lgs)->List {
                   int h, i, j, n = static_cast<int>(idb.size());
+                  bool fail = 0; // whether any model fails to converge
+                  NumericVector init(1, NA_REAL);
                   
                   // order data by treat, id, and time
                   IntegerVector order = seq(0, n-1);
@@ -942,6 +952,9 @@ List tsegestcpp(
                         covariates_lgs, zn_lgs2, firth, flic, 
                         recensor, alpha, ties, offset, psihat);
                       
+                      bool fail_lgs = out["fail"];
+                      if (fail_lgs) fail = 1;
+                      
                       DataFrame data3 = DataFrame(out["data_nullcox"]);
                       DataFrame data4 = DataFrame(out["data_logis"]);
                       List fit3 = out["fit_nullcox"];
@@ -1025,8 +1038,12 @@ List tsegestcpp(
                   
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star",
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
-                    50, 1.0e-9);
+                    covariates, "", "", "", ties, init, 
+                    0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                  
+                  DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                  bool fail_cox = sumstat_cox["fail"];
+                  if (fail_cox == 1) fail = 1;
                   
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
@@ -1059,7 +1076,8 @@ List tsegestcpp(
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   } else {
                     out = List::create(
                       Named("psihat") = psi0hat,
@@ -1067,7 +1085,8 @@ List tsegestcpp(
                       Named("hrhat") = hrhat,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   }
                   
                   return out;
@@ -1134,10 +1153,12 @@ List tsegestcpp(
   double hrlower = out["hrlower"];
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
+  bool fail = out["fail"];
   
   // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
+  LogicalVector fails(n_boot);
   if (!boot) { // use Cox model to construct CI for HR if no boot
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
@@ -1209,6 +1230,7 @@ List tsegestcpp(
               osb, os_timeb, censor_timeb, pdb, pd_timeb, 
               swtrtb, swtrt_timeb, zb, zb_lgs);
       
+      fails[k] = out["fail"];
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
       psi1hats[k] = out["psi1hat"];
@@ -1216,21 +1238,25 @@ List tsegestcpp(
     
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
-    NumericVector loghrs = log(hrhats);
+    LogicalVector ok = 1 - fails;
+    int n_ok = sum(ok);
+    NumericVector loghrs = log(hrhats[ok]);
     double sdloghr = sd(loghrs);
-    double tcrit = R::qt(1-alpha/2, n_boot-1, 1, 0);
+    double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
     hrlower = exp(loghr - tcrit*sdloghr);
     hrupper = exp(loghr + tcrit*sdloghr);
     hr_CI_type = "bootstrap";
-    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_boot-1, 1, 0));
+    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
     
     // obtain bootstrap confidence interval for psi
-    double sdpsi = sd(psihats);
+    NumericVector psihats1 = psihats[ok];
+    double sdpsi = sd(psihats1);
     psilower = psihat - tcrit*sdpsi;
     psiupper = psihat + tcrit*sdpsi;
     psi_CI_type = "bootstrap";
     
-    double sdpsi1 = sd(psi1hats);
+    NumericVector psi1hats1 = psi1hats[ok];
+    double sdpsi1 = sd(psi1hats1);
     psi1lower = psi1hat - tcrit*sdpsi1;
     psi1upper = psi1hat + tcrit*sdpsi1;
   }
@@ -1276,6 +1302,7 @@ List tsegestcpp(
     Named("analysis_switch") = analysis_switch,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
+    Named("fail") = fail,
     Named("settings") = settings);
   
   if (!swtrt_control_only) {
@@ -1285,6 +1312,7 @@ List tsegestcpp(
   }
   
   if (boot) {
+    result.push_back(fails, "fail_boots");
     result.push_back(hrhats, "hr_boots");
     result.push_back(psihats, "psi_boots");
     if (!swtrt_control_only) {

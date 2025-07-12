@@ -493,6 +493,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
                   NumericVector& timeb, IntegerVector& eventb, 
                   IntegerVector& treatb, NumericVector& rxb, 
                   NumericVector& censor_timeb)->List {
+                    NumericVector init(1, NA_REAL);
                     
                     // obtain the estimate of psi
                     double target = 0;
@@ -520,8 +521,8 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
                       
                       List fit_outcome = phregcpp(
                         data_outcome, "", "ustratum", "t_star", "", "d_star", 
-                        "treated", "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
-                        50, 1.0e-9);
+                        "treated", "", "", "", ties, init, 
+                        0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                       
                       DataFrame parest = DataFrame(fit_outcome["parest"]);
                       NumericVector beta = parest["beta"];

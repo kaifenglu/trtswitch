@@ -25,9 +25,10 @@ double est_psi_rpsftm(
     const bool recensor,
     const bool autoswitch,
     const double alpha,
-    const std::string ties,
-    const double target) {
+    const std::string ties) {
 
+  NumericVector init(1, NA_REAL);
+  
   DataFrame Sstar = untreated(psi*treat_modifier, id, time, event, treat, 
                               rx, censor_time, recensor, autoswitch);
 
@@ -47,8 +48,8 @@ double est_psi_rpsftm(
     
     List fit = phregcpp(
       Sstar, "", "ustratum", "t_star", "", "d_star", 
-      covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
-      50, 1.0e-9);
+      covariates, "", "", "", ties, init, 
+      0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
     
     DataFrame parest = DataFrame(fit["parest"]);
     NumericVector zs = parest["z"];
@@ -61,15 +62,15 @@ double est_psi_rpsftm(
     }
     
     List fit = liferegcpp(Sstar, "", "", "t_star", "", "d_star",
-                          covariates_aft, "", "", "", dist, 0, 0, alpha, 
-                          50, 1.0e-9);
+                          covariates_aft, "", "", "", dist, init, 
+                          0, 0, alpha, 50, 1.0e-9);
     
     DataFrame parest = DataFrame(fit["parest"]);
     NumericVector zs = parest["z"];
     z = -zs[1];
   }
   
-  return z - target;
+  return z;
 }
 
 
@@ -410,7 +411,7 @@ List rpsftmcpp(const DataFrame data,
     Z[i] = est_psi_rpsftm(psi[i], q, p, idn, stratumn, timen, eventn, 
                           treatn, rxn, censor_timen, test, covariates, zn, 
                           covariates_aft, zn_aft, dist, treat_modifier, 
-                          recensor, autoswitch, alpha, ties, 0);
+                          recensor, autoswitch, alpha, ties);
   }
 
   DataFrame eval_z = DataFrame::create(
@@ -429,7 +430,9 @@ List rpsftmcpp(const DataFrame data,
                 NumericVector& rxb, NumericVector& censor_timeb,
                 NumericMatrix& zb, NumericMatrix& zb_aft)->List {
                   int i, j;
-
+                  bool fail = 0; // whether any model fails to converge
+                  NumericVector init(1, NA_REAL);
+                  
                   // obtain the estimate and confidence interval of psi
                   double psihat, psilower = 0, psiupper = 0;
                   String psi_CI_type;
@@ -441,7 +444,7 @@ List rpsftmcpp(const DataFrame data,
                         psi[i], q, p, idb, stratumb, timeb, eventb, 
                         treatb, rxb, censor_timeb, test, covariates, zb, 
                         covariates_aft, zb_aft, dist, treat_modifier, 
-                        recensor, autoswitch, alpha, ties, 0);
+                        recensor, autoswitch, alpha, ties);
                     }
 
                     auto g = [psi, Z](double target)->double{
@@ -464,12 +467,13 @@ List rpsftmcpp(const DataFrame data,
                               zb, covariates_aft, zb_aft, dist, 
                               treat_modifier, recensor, autoswitch, 
                               alpha, ties](double x)->double {
-                                return est_psi_rpsftm(
+                                double z = est_psi_rpsftm(
                                   x, q, p, idb, stratumb, timeb, eventb, 
                                   treatb, rxb, censor_timeb, test, 
                                   covariates, zb, covariates_aft, zb_aft,
                                   dist, treat_modifier, recensor, 
-                                  autoswitch, alpha, ties, target);
+                                  autoswitch, alpha, ties);
+                                return z - target;
                               };
 
                     psihat = brent(g, low_psi, hi_psi, tol);
@@ -526,9 +530,13 @@ List rpsftmcpp(const DataFrame data,
 
                   List fit_outcome = phregcpp(
                     data_outcome, "", "ustratum", "t_star", "", "d_star", 
-                    covariates, "", "", "", ties, 0, 0, 0, 0, 0, alpha, 
-                    50, 1.0e-9);
+                    covariates, "", "", "", ties, init, 
+                    0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
 
+                  DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                  bool fail_cox = sumstat_cox["fail"];
+                  if (fail_cox == 1) fail = 1;
+                  
                   DataFrame parest = DataFrame(fit_outcome["parest"]);
                   NumericVector beta = parest["beta"];
                   NumericVector pval = parest["p"];
@@ -547,12 +555,14 @@ List rpsftmcpp(const DataFrame data,
                       Named("psiupper") = psiupper,
                       Named("psi_CI_type") = psi_CI_type,
                       Named("hrhat") = hrhat,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   } else {
                     out = List::create(
                       Named("psihat") = psihat,
                       Named("hrhat") = hrhat,
-                      Named("pvalue") = pvalue);
+                      Named("pvalue") = pvalue,
+                      Named("fail") = fail);
                   }
 
                   return out;
@@ -652,10 +662,12 @@ List rpsftmcpp(const DataFrame data,
   String psi_CI_type = out["psi_CI_type"];
   double hrhat = out["hrhat"];
   double pvalue = out["pvalue"];
+  bool fail = out["fail"];
   
   // construct the confidence interval for HR
   double hrlower, hrupper;
   NumericVector hrhats(n_boot), psihats(n_boot);
+  LogicalVector fails(n_boot);
   String hr_CI_type;
   if (!boot) { // use log-rank p-value to construct CI for HR if no boot
     double loghr = log(hrhat);
@@ -718,22 +730,26 @@ List rpsftmcpp(const DataFrame data,
       List out = f(idb, stratumb, timeb, eventb, treatb, rxb, 
                    censor_timeb, zb, zb_aft);
       
+      fails[k] = out["fail"];
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
     }
     
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
-    NumericVector loghrs = log(hrhats);
+    LogicalVector ok = 1 - fails;
+    int n_ok = sum(ok);
+    NumericVector loghrs = log(hrhats[ok]);
     double sdloghr = sd(loghrs);
-    double tcrit = R::qt(1-alpha/2, n_boot-1, 1, 0);
+    double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
     hrlower = exp(loghr - tcrit*sdloghr);
     hrupper = exp(loghr + tcrit*sdloghr);
     hr_CI_type = "bootstrap";
-    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_boot-1, 1, 0));
+    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
     
     // obtain bootstrap confidence interval for psi
-    double sdpsi = sd(psihats);
+    NumericVector psihats1 = psihats[ok];
+    double sdpsi = sd(psihats1);
     psilower = psihat - tcrit*sdpsi;
     psiupper = psihat + tcrit*sdpsi;
     psi_CI_type = "bootstrap";
@@ -772,9 +788,11 @@ List rpsftmcpp(const DataFrame data,
     Named("kmstar") = kmstar,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
+    Named("fail") = fail,
     Named("settings") = settings);
 
   if (boot) {
+    result.push_back(fails, "fail_boots");
     result.push_back(hrhats, "hr_boots");
     result.push_back(psihats, "psi_boots");
   }
