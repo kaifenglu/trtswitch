@@ -43,6 +43,8 @@
 #' @param id The name of the id variable in the input data.
 #' @param ties The method for handling ties, either "breslow" or 
 #'   "efron" (default).
+#' @param init The vector of initial values. Defaults to zero for all 
+#'   variables.
 #' @param robust Whether a robust sandwich variance estimate should be
 #'   computed. In the presence of the id variable, the score residuals
 #'   will be aggregated for each id when computing the robust sandwich
@@ -83,6 +85,8 @@
 #'     - \code{robust}: Whether to use the robust variance estimate.
 #'
 #'     - \code{firth}: Whether to use Firth's penalized likelihood method.
+#'     
+#'     - \code{fail}: Whether the model fails to converge.
 #'
 #'     - \code{loglik0_unpenalized}: The unpenalized log-likelihood under null.
 #'
@@ -227,7 +231,8 @@
 phregr <- function(data, rep = "", stratum = "",
                    time = "time", time2 = "", event = "event",
                    covariates = "", weight = "", offset = "",
-                   id = "", ties = "efron", robust = FALSE,
+                   id = "", ties = "efron", 
+                   init = NA_real_,  robust = FALSE,
                    est_basehaz = TRUE, est_resid = TRUE, firth = FALSE,
                    plci = FALSE, alpha = 0.05, 
                    maxiter = 50, eps = 1.0e-9) {
@@ -273,7 +278,8 @@ phregr <- function(data, rep = "", stratum = "",
   
   fit <- phregcpp(data = df, rep = rep, stratum = stratum, time = time,
                   time2 = time2, event = event, covariates = varnames,
-                  weight = weight, offset = offset, id = id, ties = ties,
+                  weight = weight, offset = offset, id = id, 
+                  ties = ties, init = init, 
                   robust = robust, est_basehaz = est_basehaz,
                   est_resid = est_resid, firth = firth,
                   plci = plci, alpha = alpha, 

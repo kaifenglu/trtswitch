@@ -43,6 +43,11 @@
 #'   "exponential", "weibull", "lognormal", and "loglogistic" to be
 #'   modeled on the log-scale, and "normal" and "logistic" to be modeled
 #'   on the original scale.
+#' @param init A vector of initial values for the model parameters, 
+#'   including regression coefficients and the log scale parameter. 
+#'   By default, initial values are derived from an intercept-only model. 
+#'   If this approach fails, ordinary least squares (OLS) estimates, 
+#'   ignoring censoring, are used instead.
 #' @param robust Whether a robust sandwich variance estimate should be
 #'   computed. In the presence of the id variable, the score residuals
 #'   will be aggregated for each id when computing the robust sandwich
@@ -100,6 +105,8 @@
 #'
 #'     - \code{robust}: Whether the robust sandwich variance estimate
 #'       is requested.
+#'       
+#'     - \code{fail}: Whether the model fails to converge.
 #'
 #'     - \code{rep}: The replication.
 #'
@@ -209,8 +216,8 @@
 liferegr <- function(data, rep = "", stratum = "",
                      time = "time", time2 = "", event = "event",
                      covariates = "", weight = "", offset = "",
-                     id = "", dist = "weibull", robust = FALSE,
-                     plci = FALSE, alpha = 0.05, 
+                     id = "", dist = "weibull", init = NA_real_, 
+                     robust = FALSE, plci = FALSE, alpha = 0.05, 
                      maxiter = 50, eps = 1.0e-9) {
   rownames(data) = NULL
   
@@ -258,8 +265,8 @@ liferegr <- function(data, rep = "", stratum = "",
   fit <- liferegcpp(data = df, rep = rep, stratum = stratum, time = time,
                     time2 = time2, event = event, covariates = varnames,
                     weight = weight, offset = offset, id = id, dist = dist,
-                    robust = robust, plci = plci, alpha = alpha, 
-                    maxiter = maxiter, eps = eps)
+                    init = init, robust = robust, plci = plci, 
+                    alpha = alpha, maxiter = maxiter, eps = eps)
   
   fit$p <- fit$sumstat$p[1]
   fit$nvar <- fit$sumstat$nvar[1]

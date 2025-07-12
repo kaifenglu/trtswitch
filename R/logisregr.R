@@ -32,6 +32,8 @@
 #' @param link The link function linking the response probabilities to the
 #'   linear predictors. Options include "logit" (default), "probit", and
 #'   "cloglog" (complementary log-log).
+#' @param init A vector of initial values for the model parameters. 
+#'   By default, initial values are derived from an intercept-only model. 
 #' @param robust Whether a robust sandwich variance estimate should be
 #'   computed. In the presence of the id variable, the score residuals
 #'   will be aggregated for each id when computing the robust sandwich
@@ -93,6 +95,8 @@
 #'     - \code{firth}: Whether the firth's penalized likelihood is used.
 #'
 #'     - \code{flic}: Whether to apply intercept correction.
+#'     
+#'     - \code{fail}: Whether the model fails to converge.
 #'
 #'     - \code{loglik0_unpenalized}: The unpenalized log-likelihood under null.
 #'
@@ -214,7 +218,8 @@
 #' @export
 logisregr <- function(data, rep = "", event = "event", covariates = "",
                       freq = "", weight = "", offset = "", id = "",
-                      link = "logit", robust = FALSE, firth = FALSE,
+                      link = "logit", init = NA_real_, 
+                      robust = FALSE, firth = FALSE,
                       flic = FALSE, plci = FALSE, alpha = 0.05, 
                       maxiter = 50, eps = 1.0e-9) {
   
@@ -259,7 +264,8 @@ logisregr <- function(data, rep = "", event = "event", covariates = "",
   
   fit <- logisregcpp(data = df, rep = rep, event = event,
                      covariates = varnames, freq = freq, weight = weight,
-                     offset = offset, id = id, link = link, robust = robust,
+                     offset = offset, id = id, link = link, 
+                     init = init, robust = robust,
                      firth = firth, flic = flic, plci = plci,
                      alpha = alpha, maxiter = maxiter, eps = eps)
   
