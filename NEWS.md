@@ -3,6 +3,9 @@
 - eliminated redundant code for the logistic regression switching model for ipcw
 - added the marginal structural model (msm) method
 - added na.action = na.pass for model frame construction involving covariates for all methods
+- added the init parameter and the fail flag to the output to logisregr, liferegr, and phregr
+- replaced the survreg initial value method with the OLS initial value method for liferegr
+- added the fail flag to output of rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 
 # trtswitch 0.1.7
 
