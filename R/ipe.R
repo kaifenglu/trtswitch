@@ -172,6 +172,9 @@
 #' * \code{fail_boots}: The indicators for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
+#' * \code{fail_boots_data}: The data for failed bootstrap samples
+#'   if \code{boot} is \code{TRUE}.
+#'
 #' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is 
 #'   \code{TRUE}.
 #'
