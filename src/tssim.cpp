@@ -17,7 +17,10 @@ using namespace Rcpp;
 //'     \item 1: Treatment switching occurs only in the control arm.
 //'     \item 0: Treatment switching is allowed in both arms.
 //'   }
-//' @param p_R Probability of randomization to the experimental arm.
+//' @param allocation1 Number of subjects in the active treatment group in
+//'   a randomization block. Defaults to 1 for equal randomization.
+//' @param allocation2 Number of subjects in the control group in
+//'   a randomization block. Defaults to 1 for equal randomization.
 //' @param p_X_1 Probability of poor baseline prognosis in the experimental 
 //'   arm.
 //' @param p_X_0 Probability of poor baseline prognosis in the control arm.
@@ -46,24 +49,40 @@ using namespace Rcpp;
 //' @param theta1_0 Negative log time ratio for \code{A} (control arm).
 //' @param theta2 Negative log time ratio for \code{L}.
 //' @param rate_C Hazard rate for random (dropout) censoring.
-//' @param followup Number of treatment cycles per subject.
+//' @param accrualTime A vector that specifies the starting time of 
+//'   piecewise Poisson enrollment time intervals. Must start with 0, 
+//'   e.g., \code{c(0, 3)} breaks the time axis into 2 accrual intervals: 
+//'   [0, 3) and [3, Inf).
+//' @param accrualIntensity A vector of accrual intensities. One for 
+//'   each accrual time interval.
+//' @param followupTime	Follow-up time for the last enrolled subject.
+//' @param fixedFollowup Whether a fixed follow-up design is used. 
+//'   Defaults to 0 for variable follow-up.
 //' @param days Number of days in each treatment cycle.
 //' @param n Number of subjects per simulation.
 //' @param NSim Number of simulated datasets.
 //' @param seed Random seed for reproducibility.
 //'
 //' @details 
-//' The simulation algorithm is adapted from Xu et al. (2022), by 
-//' simulating disease progression status and by using the multiplicative 
-//' effects of baseline and time-dependent covariates on survival time. 
-//' The design options \code{tdxo} and \code{coxo} indicate 
+//' The simulation algorithm is adapted from Xu et al. (2022) and simulates
+//' disease progression status while incorporating the multiplicative 
+//' effects of both baseline and time-dependent covariates on survival time. 
+//' The design options \code{tdxo} and \code{coxo} specify
 //' the timing of treatment switching and the study arm eligibility 
-//' for switching, respectively. Each subject undergoes \code{followup} 
-//' treatment cycles until administrative censoring. 
+//' for switching, respectively. Time is measured in days. 
+//' 
+//' The potential follow-up time for each subject on the study design.
+//' In a fixed follow-up design, all subjects share the same follow-up
+//' duration. In contrast, under a variable follow-up design, follow-up
+//' time also depends on each subject's enrollment date.  
+//' The number of treatment cycles for a subject is determined by
+//' dividing the follow-up time by the number of days in each cycle. 
 //' \enumerate{
-//'   \item At randomization, each subject is assigned treatment based on:
-//'   \deqn{R_i \sim \mbox{Bernoulli}(p_R)} 
-//'   and a baseline covariate is generated:
+//'   \item At randomization, subjects are assigned to treatment arms 
+//'   using block randomization, with \code{allocation1} patients 
+//'   assigned to active treatment and \code{allocation2} to control
+//'   within each randomized block. A baseline covariate is 
+//'   also generated for each subject:
 //'   \deqn{X_i \sim \mbox{Bernoulli}(p_{X_1} R_i + p_{X_0} (1-R_i))}
 //'         
 //'   \item The initial survival time is drawn
@@ -128,6 +147,8 @@ using namespace Rcpp;
 //'
 //'  * \code{id}: Subject identifier.
 //'  
+//'  * \code{arrivalTime}: The enrollment time for the subject.
+//'  
 //'  * \code{trtrand}: Randomized treatment assignment (0 = control, 
 //'    1 = experimental)
 //'
@@ -189,20 +210,23 @@ using namespace Rcpp;
 //' @examples
 //'
 //' simulated.data <- tssim(
-//'   tdxo = 0, coxo = 0, p_R = 0.5, p_X_1 = 0.3, p_X_0 = 0.3, 
+//'   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
+//'   p_X_1 = 0.3, p_X_0 = 0.3, 
 //'   rate_T = 0.002, beta1 = -0.5, beta2 = 0.3, 
 //'   gamma0 = 0.3, gamma1 = -0.9, gamma2 = 0.7, gamma3 = 1.1, gamma4 = -0.8,
 //'   zeta0 = -3.5, zeta1 = 0.5, zeta2 = 0.2, zeta3 = -0.4, 
 //'   alpha0 = 0.5, alpha1 = 0.5, alpha2 = 0.4, 
 //'   theta1_1 = -0.4, theta1_0 = -0.4, theta2 = 0.2,
-//'   rate_C = 0.0000855, followup = 20, days = 30,
+//'   rate_C = 0.0000855, accrualIntensity = 20/30, 
+//'   followupTime = 600, fixedFollowup = 0, days = 30,
 //'   n = 500, NSim = 100, seed = 314159)
 //'
 //' @export
 // [[Rcpp::export]]
 List tssim(const bool tdxo = 0, 
            const bool coxo = 1, 
-           const double p_R = 0.5, 
+           const int allocation1 = 1,
+           const int allocation2 = 1,
            const double p_X_1 = NA_REAL, 
            const double p_X_0 = NA_REAL, 
            const double rate_T = NA_REAL, 
@@ -223,15 +247,22 @@ List tssim(const bool tdxo = 0,
            const double theta1_1 = NA_REAL, 
            const double theta1_0 = NA_REAL, 
            const double theta2 = NA_REAL,
-           const double rate_C = NA_REAL, 
-           const int followup = NA_INTEGER, 
+           const double rate_C = NA_REAL,
+           const NumericVector& accrualTime = 0,
+           const NumericVector& accrualIntensity = NA_REAL,
+           const double followupTime = NA_REAL,
+           const bool fixedFollowup = 0,
            const double days = NA_INTEGER,
            const int n = NA_INTEGER, 
            const int NSim = 1000, 
            const int seed = NA_INTEGER) {
   
-  if (p_R <= 0 || p_R >= 1) {
-    stop("p_R must lie between 0 and 1");
+  if (allocation1 < 1) {
+    stop("allocation1 must be a positive integer");
+  }
+  
+  if (allocation2 < 1) {
+    stop("allocation2 must be a positive integer");
   }
   
   if (p_X_1 <= 0 || p_X_1 >= 1) {
@@ -250,8 +281,36 @@ List tssim(const bool tdxo = 0,
     stop("rate_C must be nonnegative");
   }
   
-  if (followup <= 0) {
-    stop("followup must be positive");
+  if (accrualTime[0] != 0) {
+    stop("accrualTime must start with 0");
+  }
+  
+  if (accrualTime.size() > 1 && is_true(any(diff(accrualTime) <= 0))) {
+    stop("accrualTime should be increasing");
+  }
+  
+  if (is_true(any(is_na(accrualIntensity)))) {
+    stop("accrualIntensity must be provided");
+  }
+  
+  if (accrualTime.size() != accrualIntensity.size()) {
+    stop("accrualTime must have the same length as accrualIntensity");
+  }
+  
+  if (is_true(any(accrualIntensity < 0))) {
+    stop("accrualIntensity must be non-negative");
+  }
+  
+  if (R_isnancpp(followupTime)) {
+    stop("followupTime must be provided");
+  }
+  
+  if (fixedFollowup) {
+    if (followupTime <= 0) {
+      stop("followupTime must be positive for fixed follow-up");
+    }
+  } else if (followupTime < 0) {
+    stop("followupTime must be nonnegative for variable follow-up");
   }
   
   if (days <= 0) {
@@ -269,10 +328,18 @@ List tssim(const bool tdxo = 0,
   // set up random seed
   if (seed != NA_INTEGER) set_seed(seed);
   
-  int iter, i, j, J, K = n*followup;
+  
+  double accrualDuration = getAccrualDurationFromN(
+    NumericVector::create(n), accrualTime, accrualIntensity)[0];
+  int maxFollowup = 
+    static_cast<int>(std::floor((2*accrualDuration + followupTime)/days));
+  
+  int iter, i, j, J, K = n*maxFollowup;
   int id, trtrand, bprog, tpoint, L, Llag, Z, Zlag, A, Alag, Y;
   double tstart, tstop, T, C, theta1, time;
   List result(NSim);
+  int b1, b2, followup;
+  double enrollt, u;
   
   for (iter=0; iter<NSim; iter++) {
     IntegerVector idx(K), trtrandx(K), bprogx(K), tpointx(K);
@@ -280,16 +347,42 @@ List tssim(const bool tdxo = 0,
     IntegerVector diedx(K), progressedx(K), xox(K);
     NumericVector tstartx(K), tstopx(K), timeOSx(K), timePDx(K);
     NumericVector xotimex(K), censor_timex(K);
+    NumericVector arrivalTimex(K);
     
+    b1 = allocation1; b2 = allocation2;
+    enrollt = 0;
     int k = 0;
     for (i=1; i<=n; i++) { // i = subject index
       id = i;
-      trtrand = static_cast<int>(R::rbinom(1, p_R));
+      
+      // generate accrual time
+      u = R::runif(0,1);
+      enrollt = qtpwexpcpp1(u, accrualTime, accrualIntensity, enrollt, 1, 0);
+      
+      // stratified block randomization
+      u = R::runif(0,1);
+      if (u <= b1/(b1+b2+0.0)) {
+        trtrand = 1;
+        b1--;
+      } else {
+        trtrand = 0;
+        b2--;
+      }
+      if (b1 == 0 && b2 == 0) {
+        b1 = allocation1; b2 = allocation2;
+      }
+      
       bprog = static_cast<int>(R::rbinom(1, p_X_1*trtrand + 
         p_X_0*(1-trtrand)));
       T = R::rexp(1.0/(rate_T*exp(beta1*trtrand + beta2*bprog)));
       T = std::round(T);
       if (T == 0) T = 1;
+      
+      if (fixedFollowup) {
+        followup = static_cast<int>(std::floor(followupTime/days));
+      } else {
+        followup = static_cast<int>(std::floor((enrollt+followupTime)/days));
+      }
       
       for (j=1; j<=followup; j++) { // j = cycle index
         tpoint = j; tstart = days*(j-1);
@@ -322,7 +415,7 @@ List tssim(const bool tdxo = 0,
           // generate treatment switching status
           if (Alag == 0) {
             if (((tdxo == 0 && Z == 1 && Zlag == 0) || 
-                 (tdxo == 1 && Z == 1)) && 
+                (tdxo == 1 && Z == 1)) && 
                 ((coxo == 1 && trtrand == 0) || (coxo == 0))) {
               A = static_cast<int>(R::rbinom(1, R::plogis(alpha0 + 
                 alpha1*L + alpha2*bprog, 0, 1, 1, 0)));
@@ -342,6 +435,7 @@ List tssim(const bool tdxo = 0,
         
         // add the data from the current cycle
         idx[k] = id;
+        arrivalTimex[k] = std::round(enrollt);
         trtrandx[k] = trtrand;
         bprogx[k] = bprog;
         tpointx[k] = tpoint;
@@ -355,7 +449,7 @@ List tssim(const bool tdxo = 0,
         Yx[k] = Y;
         
         k++;
-
+        
         if (Y == 1) break;
       }
       
@@ -419,6 +513,7 @@ List tssim(const bool tdxo = 0,
     
     IntegerVector sub = seq(0, k-1);
     idx = idx[sub];
+    arrivalTimex = arrivalTimex[sub];
     trtrandx = trtrandx[sub];
     bprogx = bprogx[sub];
     tpointx = tpointx[sub];
@@ -440,6 +535,7 @@ List tssim(const bool tdxo = 0,
     
     DataFrame data = DataFrame::create(
       _["id"] = idx,
+      _["arrival_time"] = arrivalTimex,
       _["trtrand"] = trtrandx,
       _["bprog"] = bprogx,
       _["tpoint"] = tpointx,
@@ -462,6 +558,6 @@ List tssim(const bool tdxo = 0,
     
     result[iter] = data;
   }
-
+  
   return result;
 }
