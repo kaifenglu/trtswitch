@@ -42,7 +42,7 @@ where, by assumption, $P(A_j = 1 | A_{j-1} = 1) = 1$, i.e., the weights do not v
 To address the high variability in "unstabilized" weights, researchers often opt for "stabilized" weights. The switching model for stabilized weights involves a model for the numerator of the weight in addition to the model for the denominator. Typically, the numerator model mirrors the denominator model but includes only prognostic baseline variables. Any prognostic baseline variables included in the numerator must also be part of the weighted outcome model. 
 
 ## Truncation of Weights
-You can specify weight truncation using the `trunc` and `trunc_upper_only` parameters of the `ipcw` function. The `trunc` parameter is a number between 0 and 0.5 that represents the fraction of the weight distribution to truncate. The `trunc_upper_only` parameter is a flag that indicates whether to truncate weights only from the upper end of the weight distribution.
+You can specify weight truncation using the `trunc` and `trunc_upper_only` parameters of the `msm` function. The `trunc` parameter is a number between 0 and 0.5 that represents the fraction of the weight distribution to truncate. The `trunc_upper_only` parameter is a flag that indicates whether to truncate weights only from the upper end of the weight distribution.
 
 # Estimation of Hazard Ratio
 Once weights have been obtained for each event time in the data set, we fit a (potentially stratified) Cox proportional hazards model to this weighted data set to obtain an estimate of the hazard ratio. The Cox model includes baseline covariates, randomized treatment, and time-dependent alternative therapy. An interaction between randomized and alternative treatment can be included when patients from both treatment arms can switch to alternative therapy.
@@ -52,17 +52,19 @@ The confidence interval for the hazard ratio can be derived by bootstrapping the
 First we prepare the data.
 ```{r data example 1}
 sim1 <- tssim(
-  tdxo = 0, coxo = 0, p_R = 0.5, p_X_1 = 0.3, p_X_0 = 0.3, 
+  tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
+  p_X_1 = 0.3, p_X_0 = 0.3, 
   rate_T = 0.002, beta1 = -0.5, beta2 = 0.3, 
   gamma0 = 0.3, gamma1 = -0.9, gamma2 = 0.7, gamma3 = 1.1, gamma4 = -0.8,
   zeta0 = -3.5, zeta1 = 0.5, zeta2 = 0.2, zeta3 = -0.4, 
   alpha0 = 0.5, alpha1 = 0.5, alpha2 = 0.4, 
   theta1_1 = -0.4, theta1_0 = -0.4, theta2 = 0.2,
-  rate_C = 0.0000855, followup = 20, days = 30,
+  rate_C = 0.0000855, accrualIntensity = 20/30, 
+  followupTime = 600, fixedFollowup = 0, days = 30,
   n = 500, NSim = 100, seed = 314159)
 ```
 
-Given that the observations are collected at regular intervals, we can use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `L` serves as time-dependent covariates. Additionally, `ns1`, `ns2`, and `ns3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
+Given that the observations are collected at regular intervals, we use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `L` serves as time-dependent covariates. Additionally, `ns1`, `ns2`, and `ns3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
 ```{r analysis example 1}
 fit1 <- msm(
   sim1[[1]], id = "id", tstart = "tstart", 
