@@ -45,11 +45,13 @@ List tsesimpcpp(const DataFrame data,
   DataFrame u_stratum;
   IntegerVector d(p_stratum);
   IntegerMatrix stratan(n,p_stratum);
+  List levels(p_stratum);
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
     has_stratum = 0;
     stratumn.fill(1);
     d[0] = 1;
     stratan(_,0) = stratumn;
+    levels[0] = 1;
   } else {
     List out = bygroup(data, stratum);
     has_stratum = 1;
@@ -57,6 +59,7 @@ List tsesimpcpp(const DataFrame data,
     u_stratum = DataFrame(out["lookup"]);
     d = out["nlevels"];
     stratan = as<IntegerMatrix>(out["indices"]);
+    levels = out["lookups"];
   }
   
   IntegerVector stratumn_unique = unique(stratumn);
@@ -333,18 +336,55 @@ List tsesimpcpp(const DataFrame data,
   covariates_aft[0] = "swtrt";
   if (strata_main_effect_only) {
     k = 0;
-    for (i=0; i<p_stratum; i++) {
-      for (j=0; j<d[i]-1; j++) {
-        covariates_aft[k+j+1] = "stratum_" + std::to_string(i+1) +
-          "_level_" + std::to_string(j+1);
-        zn_aft(_,k+j) = 1.0*(stratan(_,i) == j+1);
+    for (i=0; i<p_stratum; ++i) {
+      int di = d[i]-1;
+      for (j=0; j<di; ++j) {
+        covariates_aft[k+j+1] = as<std::string>(stratum[i]);
+        if (TYPEOF(levels[i]) == STRSXP) {
+          StringVector u = levels[i];
+          std::string label = sanitize(as<std::string>(u[j]));
+          covariates_aft[k+j+1] += label;
+        } else if (TYPEOF(levels[i]) == REALSXP) {
+          NumericVector u = levels[i];
+          covariates_aft[k+j+1] += std::to_string(u[j]);
+        } else if (TYPEOF(levels[i]) == INTSXP 
+                     || TYPEOF(levels[i]) == LGLSXP) {
+          IntegerVector u = levels[i];
+          covariates_aft[k+j+1] += std::to_string(u[j]);
+        }
+        zn_aft(_,k+j) = (stratan(_,i) == j+1);
       }
-      k += d[i]-1;
+      k += di;
     }
   } else {
-    for (j=0; j<nstrata-1; j++) {
-      covariates_aft[j+1] = "stratum_" + std::to_string(j+1);
-      zn_aft(_,j) = 1.0*(stratumn == j+1);
+    for (j=0; j<nstrata-1; ++j) {
+      // locate the first observation in the stratum
+      int first_k = 0;
+      for (; first_k<n; ++first_k) {
+        if (stratumn[first_k] == j+1) break;
+      }
+      covariates_aft[j+1] = "";
+      for (i=0; i<p_stratum; ++i) {
+        IntegerVector q_col = stratan(_,i);
+        int l = q_col[first_k] - 1;
+        covariates_aft[j+1] += as<std::string>(stratum[i]);
+        if (TYPEOF(levels[i]) == STRSXP) {
+          StringVector u = levels[i];
+          std::string label = sanitize(as<std::string>(u[l]));
+          covariates_aft[j+1] += label;
+        } else if (TYPEOF(levels[i]) == REALSXP) {
+          NumericVector u = levels[i];
+          covariates_aft[j+1] += std::to_string(u[l]);
+        } else if (TYPEOF(levels[i]) == INTSXP 
+                     || TYPEOF(levels[i]) == LGLSXP) {
+          IntegerVector u = levels[i];
+          covariates_aft[j+1] += std::to_string(u[l]);
+        }
+        if (i < p_stratum-1) {
+          covariates_aft[j+1] += ".";
+        }
+      }
+      zn_aft(_,j) = (stratumn == j+1);
     }
   }
   
@@ -723,6 +763,7 @@ List tsesimpcpp(const DataFrame data,
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
   LogicalVector fails(n_boot);
+  DataFrame fail_boots_data;
   if (!boot) { // use Cox model to construct CI for HR if no boot
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
@@ -732,6 +773,14 @@ List tsesimpcpp(const DataFrame data,
     IntegerVector pdb(n), swtrtb(n);
     NumericVector timeb(n), censor_timeb(n), pd_timeb(n), swtrt_timeb(n);
     NumericMatrix zb(n,p), zb_aft(n,q+p2);
+
+    int B = n*n_boot;
+    IntegerVector boot_indexc(B);
+    IntegerVector idc(B), stratumc(B), eventc(B), treatc(B);
+    IntegerVector pdc(B), swtrtc(B);
+    NumericVector timec(B), censor_timec(B), pd_timec(B), swtrt_timec(B);
+    NumericMatrix zc_aft(B,q+p2);
+    int index1 = 0;
     
     // sort data by treatment group
     IntegerVector idx0 = which(treatn == 0);
@@ -791,8 +840,93 @@ List tsesimpcpp(const DataFrame data,
       hrhats[k] = out["hrhat"];
       psihats[k] = out["psihat"];
       psi1hats[k] = out["psi1hat"];
+      
+      if (fails[k]) {
+        for (i=0; i<n; i++) {
+          j = index1 + i;
+          boot_indexc[j] = k+1;
+          idc[j] = idb[i];
+          stratumc[j] = stratumb[i];
+          timec[j] = timeb[i];
+          eventc[j] = eventb[i];
+          treatc[j] = treatb[i];
+          censor_timec[j] = censor_timeb[i];
+          pdc[j] = pdb[i];
+          pd_timec[j] = pd_timeb[i];
+          swtrtc[j] = swtrtb[i];
+          swtrt_timec[j] = swtrt_timeb[i];
+          zc_aft(j,_) = zb_aft(i,_);
+        }
+        index1 += n;
+      }
     }
-    
+  
+    if (is_true(any(fails))) {
+      IntegerVector sub = seq(0,index1-1);
+      boot_indexc = boot_indexc[sub];
+      idc = idc[sub];
+      stratumc = stratumc[sub];
+      timec = timec[sub];
+      eventc = eventc[sub];
+      treatc = treatc[sub];
+      censor_timec = censor_timec[sub];
+      pdc = pdc[sub];
+      pd_timec = pd_timec[sub];
+      swtrtc = swtrtc[sub];
+      swtrt_timec = swtrt_timec[sub];
+      zc_aft = subset_matrix_by_row(zc_aft,sub);
+      
+      fail_boots_data = DataFrame::create(
+        Named("boot_index") = boot_indexc,
+        Named("time") = timec,
+        Named("event") = eventc,
+        Named("treated") = treatc,
+        Named("censor_time") = censor_timec,
+        Named("pd") = pdc,
+        Named("pd_time") = pd_timec,
+        Named("swtrt") = swtrtc,
+        Named("swtrt_time") = swtrt_timec
+      );
+      
+      for (j=0; j<q+p2; j++) {
+        String zj = covariates_aft[j+1];
+        NumericVector u = zc_aft(_,j);
+        fail_boots_data.push_back(u, zj);
+      }
+      
+      if (TYPEOF(data[id]) == INTSXP) {
+        fail_boots_data.push_back(idwi[idc-1], id);
+      } else if (TYPEOF(data[id]) == REALSXP) {
+        fail_boots_data.push_back(idwn[idc-1], id);
+      } else if (TYPEOF(data[id]) == STRSXP) {
+        fail_boots_data.push_back(idwc[idc-1], id);
+      }
+      
+      if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+        fail_boots_data.push_back(treatwi[1-treatc], treat);
+      } else if (TYPEOF(data[treat]) == REALSXP) {
+        fail_boots_data.push_back(treatwn[1-treatc], treat);
+      } else if (TYPEOF(data[treat]) == STRSXP) {
+        fail_boots_data.push_back(treatwc[1-treatc], treat);
+      }
+      
+      if (has_stratum) {
+        for (i=0; i<p_stratum; i++) {
+          String s = stratum[i];
+          if (TYPEOF(data[s]) == INTSXP) {
+            IntegerVector stratumwi = u_stratum[s];
+            fail_boots_data.push_back(stratumwi[stratumc-1], s);
+          } else if (TYPEOF(data[s]) == REALSXP) {
+            NumericVector stratumwn = u_stratum[s];
+            fail_boots_data.push_back(stratumwn[stratumc-1], s);
+          } else if (TYPEOF(data[s]) == STRSXP) {
+            StringVector stratumwc = u_stratum[s];
+            fail_boots_data.push_back(stratumwc[stratumc-1], s);
+          }
+        }
+      }
+    }
+  
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
     LogicalVector ok = 1 - fails;
@@ -859,6 +993,9 @@ List tsesimpcpp(const DataFrame data,
     result.push_back(psihats, "psi_boots");
     if (!swtrt_control_only) {
       result.push_back(psi1hats, "psi_trt_boots");
+    }
+    if (is_true(any(fails))) {
+      result.push_back(fail_boots_data, "fail_boots_data");
     }
   }
   
