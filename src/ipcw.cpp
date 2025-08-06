@@ -51,9 +51,11 @@ List ipcwcpp(
     if (p == 0 || is_true(any(is_na(match(numerator, base_cov))))) {
       stop("numerator must be a subset of base_cov");
     }
-    
-    if (is_true(any(is_na(match(numerator, denominator))))) {
-      stop("numerator must be a subset of denominator");
+  }
+  
+  if (p > 0) {
+    if (p2 == 0 || is_true(any(is_na(match(base_cov, denominator))))) {
+      stop("base_cov must be a subset of denominator");
     }
   }
   
@@ -97,11 +99,13 @@ List ipcwcpp(
   DataFrame u_stratum;
   IntegerVector d(p_stratum);
   IntegerMatrix stratan(n,p_stratum);
+  List levels(p_stratum);
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
     has_stratum = 0;
     stratumn.fill(1);
     d[0] = 1;
     stratan(_,0) = stratumn;
+    levels[0] = 1;
   } else {
     List out = bygroup(data, stratum);
     has_stratum = 1;
@@ -109,6 +113,7 @@ List ipcwcpp(
     u_stratum = DataFrame(out["lookup"]);
     d = out["nlevels"];
     stratan = as<IntegerMatrix>(out["indices"]);
+    levels = out["lookups"];
   }
   
   IntegerVector stratumn_unique = unique(stratumn);
@@ -241,7 +246,7 @@ List ipcwcpp(
       stop("swtrt_time must be nonnegative");
     }
   }
-
+  
   StringVector covariates(p+1);
   NumericMatrix zn(n,p);
   covariates[0] = "treated";
@@ -286,18 +291,55 @@ List ipcwcpp(
   NumericMatrix zn_lgs_den(n,q+p2);
   if (strata_main_effect_only) {
     k = 0;
-    for (i=0; i<p_stratum; i++) {
-      for (j=0; j<d[i]-1; j++) {
-        covariates_lgs_den[k+j] = "stratum_" + std::to_string(i+1) +
-          "_level_" + std::to_string(j+1);
-        zn_lgs_den(_,k+j) = 1.0*(stratan(_,i) == j+1);
+    for (i=0; i<p_stratum; ++i) {
+      int di = d[i]-1;
+      for (j=0; j<di; ++j) {
+        covariates_lgs_den[k+j] = as<std::string>(stratum[i]);
+        if (TYPEOF(levels[i]) == STRSXP) {
+          StringVector u = levels[i];
+          std::string label = sanitize(as<std::string>(u[j]));
+          covariates_lgs_den[k+j] += label;
+        } else if (TYPEOF(levels[i]) == REALSXP) {
+          NumericVector u = levels[i];
+          covariates_lgs_den[k+j] += std::to_string(u[j]);
+        } else if (TYPEOF(levels[i]) == INTSXP 
+                     || TYPEOF(levels[i]) == LGLSXP) {
+          IntegerVector u = levels[i];
+          covariates_lgs_den[k+j] += std::to_string(u[j]);
+        }
+        zn_lgs_den(_,k+j) = (stratan(_,i) == j+1);
       }
-      k += d[i]-1;
+      k += di;
     }
   } else {
-    for (j=0; j<nstrata-1; j++) {
-      covariates_lgs_den[j] = "stratum_" + std::to_string(j+1);
-      zn_lgs_den(_,j) = 1.0*(stratumn == j+1);
+    for (j=0; j<nstrata-1; ++j) {
+      // locate the first observation in the stratum
+      int first_k = 0;
+      for (; first_k<n; ++first_k) {
+        if (stratumn[first_k] == j+1) break;
+      }
+      covariates_lgs_den[j] = "";
+      for (i=0; i<p_stratum; ++i) {
+        IntegerVector q_col = stratan(_,i);
+        int l = q_col[first_k] - 1;
+        covariates_lgs_den[j] += as<std::string>(stratum[i]);
+        if (TYPEOF(levels[i]) == STRSXP) {
+          StringVector u = levels[i];
+          std::string label = sanitize(as<std::string>(u[l]));
+          covariates_lgs_den[j] += label;
+        } else if (TYPEOF(levels[i]) == REALSXP) {
+          NumericVector u = levels[i];
+          covariates_lgs_den[j] += std::to_string(u[l]);
+        } else if (TYPEOF(levels[i]) == INTSXP 
+                     || TYPEOF(levels[i]) == LGLSXP) {
+          IntegerVector u = levels[i];
+          covariates_lgs_den[j] += std::to_string(u[l]);
+        }
+        if (i < p_stratum-1) {
+          covariates_lgs_den[j] += ".";
+        }
+      }
+      zn_lgs_den(_,j) = (stratumn == j+1);
     }
   }
   
@@ -388,8 +430,7 @@ List ipcwcpp(
     Named("time") = tstopn1,
     Named("event") = eventn1);
   
-  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event", 
-                        0, 0);
+  DataFrame lr = lrtest(lrdata, "", "stratum", "treat", "time", "event",0,0);
   double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
@@ -606,7 +647,7 @@ List ipcwcpp(
                       z2_cox_den = c_matrices(z20_cox_den, z21_cox_den);
                       n2 = n20 + n21;
                     }
-
+                    
                     // initialize weights
                     NumericVector w2(n2, NA_REAL), sw2(n2, NA_REAL);
                     
@@ -620,7 +661,7 @@ List ipcwcpp(
                       IntegerVector cross3 = cross2[l];
                       NumericMatrix z3_cox_den = 
                         subset_matrix_by_row(z2_cox_den, l);
-
+                      
                       // prepare the data for fitting the switching model
                       DataFrame data1 = DataFrame::create(
                         Named("uid") = id3,
@@ -924,7 +965,7 @@ List ipcwcpp(
                       
                       // convert to probability of remaining uncensored
                       NumericVector pstay_num = 1.0 - h_num;
-
+                      
                       NumericVector surv_num(n2);
                       for (i=0; i<nids2; i++) {
                         surv_num[idx[i]] = pstay_num[idx[i]];
@@ -936,7 +977,7 @@ List ipcwcpp(
                       // unstabilized and stabilized weights
                       NumericVector w = 1.0/surv_den;
                       NumericVector sw = surv_num/surv_den;
-
+                      
                       // truncate the weights if requested
                       if (trunc > 0.0) {
                         // truncated unstabilized weights
@@ -1130,7 +1171,7 @@ List ipcwcpp(
       }
     }
   }
-
+  
   
   double hrhat = out["hrhat"];
   double hrlower = out["hrlower"];
@@ -1142,6 +1183,7 @@ List ipcwcpp(
   String hr_CI_type;
   NumericVector hrhats(n_boot);
   LogicalVector fails(n_boot);
+  DataFrame fail_boots_data;
   if (!boot) { // use Cox model to construct CI for HR if no boot
     hr_CI_type = "Cox model";
   } else { // bootstrap the entire process to construct CI for HR
@@ -1152,7 +1194,16 @@ List ipcwcpp(
     IntegerVector nobs = diff(idx);
     int N = max(nobs)*nids;
     
+    int B = N*n_boot;
+    IntegerVector boot_indexc(B);
+    IntegerVector oidc(B);
+    IntegerVector idc(B), stratumc(B), treatc(B), eventc(B), swtrtc(B);
+    NumericVector tstartc(B), tstopc(B), swtrt_timec(B);
+    NumericMatrix zc_lgs_den(B, q+p2);
+    int index1 = 0;
+    
     for (k=0; k<n_boot; k++) {
+      IntegerVector oidb(N); // original id
       IntegerVector idb(N), stratumb(N), treatb(N), eventb(N), swtrtb(N);
       NumericVector tstartb(N), tstopb(N), swtrt_timeb(N);
       NumericMatrix zb(N, p), zb_cox_den(N, p2), zb_lgs_den(N, q+p2);
@@ -1168,9 +1219,11 @@ List ipcwcpp(
         }
         
         // create unique ids for bootstrap data sets
+        int oidb1 = idn[idx[i]];
         int idb1 = idn[idx[i]] + h*nids;
         
         for (j=idx[i]; j<idx[i+1]; j++) {
+          oidb[l] = oidb1;
           idb[l] = idb1;
           stratumb[l] = stratumn[j];
           tstartb[l] = tstartn[j];
@@ -1187,6 +1240,7 @@ List ipcwcpp(
       }
       
       IntegerVector sub = Range(0,l-1);
+      oidb = oidb[sub];
       idb = idb[sub];
       stratumb = stratumb[sub];
       tstartb = tstartb[sub];
@@ -1204,6 +1258,89 @@ List ipcwcpp(
       
       fails[k] = out["fail"];
       hrhats[k] = out["hrhat"];
+      
+      if (fails[k]) {
+        for (i=0; i<l; i++) {
+          j = index1 + i;
+          boot_indexc[j] = k+1;
+          oidc[j] = oidb[i];
+          idc[j] = idb[i];
+          stratumc[j] = stratumb[i];
+          tstartc[j] = tstartb[i];
+          tstopc[j] = tstopb[i];
+          eventc[j] = eventb[i];
+          treatc[j] = treatb[i];
+          swtrtc[j] = swtrtb[i];
+          swtrt_timec[j] = swtrt_timeb[i];
+          zc_lgs_den(j,_) = zb_lgs_den(i,_);
+        }
+        index1 += l;
+      }
+    }
+    
+    if (is_true(any(fails))) {
+      IntegerVector sub = seq(0,index1-1);
+      boot_indexc = boot_indexc[sub];
+      oidc = oidc[sub];
+      idc = idc[sub];
+      stratumc = stratumc[sub];
+      tstartc = tstartc[sub];
+      tstopc = tstopc[sub];
+      eventc = eventc[sub];
+      treatc = treatc[sub];
+      swtrtc = swtrtc[sub];
+      swtrt_timec = swtrt_timec[sub];
+      zc_lgs_den = subset_matrix_by_row(zc_lgs_den,sub);
+      
+      fail_boots_data = DataFrame::create(
+        Named("boot_index") = boot_indexc,
+        Named("uid") = idc,
+        Named("tstart") = tstartc,
+        Named("tstop") = tstopc,
+        Named("event") = eventc,
+        Named("treated") = treatc,
+        Named("swtrt") = swtrtc,
+        Named("swtrt_time") = swtrt_timec
+      );
+      
+      for (j=0; j<q+p2; j++) {
+        String zj = covariates_lgs_den[j];
+        NumericVector u = zc_lgs_den(_,j);
+        fail_boots_data.push_back(u, zj);
+      }
+      
+      
+      if (TYPEOF(data[id]) == INTSXP) {
+        fail_boots_data.push_back(idwi[oidc-1], id);
+      } else if (TYPEOF(data[id]) == REALSXP) {
+        fail_boots_data.push_back(idwn[oidc-1], id);
+      } else if (TYPEOF(data[id]) == STRSXP) {
+        fail_boots_data.push_back(idwc[oidc-1], id);
+      }
+      
+      if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+        fail_boots_data.push_back(treatwi[1-treatc], treat);
+      } else if (TYPEOF(data[treat]) == REALSXP) {
+        fail_boots_data.push_back(treatwn[1-treatc], treat);
+      } else if (TYPEOF(data[treat]) == STRSXP) {
+        fail_boots_data.push_back(treatwc[1-treatc], treat);
+      }
+      
+      if (has_stratum) {
+        for (i=0; i<p_stratum; i++) {
+          String s = stratum[i];
+          if (TYPEOF(data[s]) == INTSXP) {
+            IntegerVector stratumwi = u_stratum[s];
+            fail_boots_data.push_back(stratumwi[stratumc-1], s);
+          } else if (TYPEOF(data[s]) == REALSXP) {
+            NumericVector stratumwn = u_stratum[s];
+            fail_boots_data.push_back(stratumwn[stratumc-1], s);
+          } else if (TYPEOF(data[s]) == STRSXP) {
+            StringVector stratumwc = u_stratum[s];
+            fail_boots_data.push_back(stratumwc[stratumc-1], s);
+          }
+        }
+      }
     }
     
     // obtain bootstrap confidence interval for HR
@@ -1251,6 +1388,9 @@ List ipcwcpp(
   if (boot) {
     result.push_back(fails, "fail_boots");
     result.push_back(hrhats, "hr_boots"); 
+    if (is_true(any(fails))) {
+      result.push_back(fail_boots_data, "fail_boots_data");
+    }
   }
   
   return result;
