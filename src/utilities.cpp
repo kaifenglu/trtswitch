@@ -884,3 +884,87 @@ DataFrame unswitched(
   
   return result;
 }
+
+
+std::string sanitize(const std::string& s) {
+  std::string out = s;
+  for (char &c : out) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
+      c = '.';
+    }
+  }
+  return out;
+}
+
+// [[Rcpp::export]]
+double qtpwexpcpp1(const double p,
+                   const NumericVector& piecewiseSurvivalTime,
+                   const NumericVector& lambda,
+                   const double lowerBound,
+                   const bool lowertail,
+                   const bool logp) {
+  int j, j1, m = static_cast<int>(piecewiseSurvivalTime.size());
+  double q, u = p, v, v1;
+  
+  // cumulative hazard from lowerBound until the quantile
+  if (logp) u = exp(p);
+  if (!lowertail) u = 1.0 - u;
+  
+  v1 = -log(1.0 - u);
+  
+  // identify the time interval containing the lowerBound
+  for (j=0; j<m; j++) {
+    if (piecewiseSurvivalTime[j] > lowerBound) break;
+  }
+  j1 = (j==0 ? 0 : j-1); // to handle floating point precision
+  
+  if (j1 == m-1) { // in the last interval
+    q = (lambda[j1]==0.0 ? 1.0e+8 : v1/lambda[j1] + lowerBound);
+  } else {
+    // accumulate the pieces on the cumulative hazard scale
+    v = 0;
+    for (j=j1; j<m-1; j++) {
+      if (j==j1) {
+        v += lambda[j]*(piecewiseSurvivalTime[j+1] - lowerBound);
+      } else {
+        v += lambda[j]*(piecewiseSurvivalTime[j+1] -
+          piecewiseSurvivalTime[j]);
+      }
+      if (v >= v1) break;
+    }
+    
+    if (j == m-1) { // in the last interval
+      q = (lambda[j]==0.0 ? 1.0e+8 :
+             (v1 - v)/lambda[j] + piecewiseSurvivalTime[j]);
+    } else {
+      q = (lambda[j]==0.0 ? 1.0e+8 :
+             piecewiseSurvivalTime[j+1] - (v - v1)/lambda[j]);
+    }
+  }
+  
+  return q;
+}
+
+// [[Rcpp::export]]
+NumericVector getAccrualDurationFromN(
+    const NumericVector& nsubjects = NA_REAL,
+    const NumericVector& accrualTime = 0,
+    const NumericVector& accrualIntensity = NA_REAL) {
+  int i, j, I = static_cast<int>(nsubjects.size());
+  int J = static_cast<int>(accrualTime.size());
+  NumericVector t(I), p(J);
+  
+  p[0] = 0;
+  for (j=0; j<J-1; j++) {
+    p[j+1] = p[j] + accrualIntensity[j]*(accrualTime[j+1] - accrualTime[j]);
+  }
+  
+  IntegerVector m = findInterval3(nsubjects, p);
+  
+  for (i=0; i<I; i++) {
+    j = m[i] - 1;
+    t[i] = accrualTime[j] + (nsubjects[i] - p[j])/accrualIntensity[j];
+  }
+  
+  return t;
+}
