@@ -71,4 +71,19 @@ DataFrame unswitched(
     const bool recensor,
     const bool autoswitch);
 
+std::string sanitize(const std::string& s);
+
+double qtpwexpcpp1(const double p,
+                   const NumericVector& piecewiseSurvivalTime,
+                   const NumericVector& lambda,
+                   const double lowerBound,
+                   const bool lowertail,
+                   const bool logp);
+
+NumericVector getAccrualDurationFromN(
+    const NumericVector& nsubjects,
+    const NumericVector& accrualTime,
+    const NumericVector& accrualIntensity);
+
+
 #endif // __UTILITIES__
