@@ -1,3 +1,23 @@
+# trtswitch 0.1.9
+
+- added fail_boots_data to include the failed bootstrap sample data
+- used strata variable names and values for dummy variables in logistic regression and life regression models
+- updated the tssim function to allow both fixed and variable follow-up designs
+- used stratified bootstrapping for the rpsftm, ipe, tsesimp, tsegest, ipcw, and msm functions
+- allowed event, pd, and swtrt to take real values 1 or 0 in rpsftm, ipe, tsesimp, tsegest, ipcw, and msm functions
+- added martingale residuals for lifereg for event or right-censored survival data
+- added time-dependent covariate visit7on and used cattdc instead of catlag for tsegest sample call
+- added interval splitting if treatment switching occurs between visits for ipcw, msm, and tsegest
+- added a small number to os_time if needed to ensure pd_time is less than os_time for tsesimp and tsegest
+- added getpsiest and getpsiend utility functions for psi estimation of rpsftm, ipe, and tsegest
+- updated the condition to include post progression data up to switching in tsegest
+- updated the condition for time-dependent crossover indicator in tsegest
+- updated the algorithm for generating timePFSobs in tsegestsim
+- removed catlag and xotime_upper from the output data set of tsegestsim
+- applied weights to the next interval for ipcw and msm using logistic regression switching model
+- updated tssim to use Z and A to denote the alternative therapy status at the start instead of end of interval
+- updated logisregr, liferegr and phregr to allow zero events to run with trivial output
+
 # trtswitch 0.1.8
 
 - eliminated redundant code for the logistic regression switching model for ipcw

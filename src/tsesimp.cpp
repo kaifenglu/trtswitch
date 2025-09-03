@@ -120,14 +120,24 @@ List tsesimpcpp(const DataFrame data,
     stop("data must contain the event variable");
   }
   
-  if (TYPEOF(data[event]) != INTSXP && TYPEOF(data[event]) != LGLSXP) {
-    stop("event must take integer or logical values");
-  }
-  
-  IntegerVector eventnz = data[event];
-  IntegerVector eventn = clone(eventnz);
-  if (is_true(any((eventn != 1) & (eventn != 0)))) {
-    stop("event must be 1 or 0");
+  IntegerVector eventn(n);
+  if (TYPEOF(data[event]) == LGLSXP || TYPEOF(data[event]) == INTSXP) {
+    IntegerVector eventnz = data[event];
+    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
+      stop("event must be 1 or 0 for each subject");
+    } else {
+      eventn = clone(eventnz);
+    }
+  } else if (TYPEOF(data[event]) == REALSXP) {
+    NumericVector eventnz = data[event];
+    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
+      stop("event must be 1 or 0 for each subject");
+    } else {
+      NumericVector eventnz2 = clone(eventnz);
+      eventn = as<IntegerVector>(eventnz2);
+    }
+  } else {
+    stop("event must take logical, integer, or real values");
   }
   
   if (is_true(all(eventn == 0))) {
@@ -213,14 +223,24 @@ List tsesimpcpp(const DataFrame data,
     stop("data must contain the pd variable");
   }
   
-  if (TYPEOF(data[pd]) != INTSXP && TYPEOF(data[pd]) != LGLSXP) {
-    stop("pd must take integer or logical values");
-  }
-  
-  IntegerVector pdnz = data[pd];
-  IntegerVector pdn = clone(pdnz);
-  if (is_true(any((pdn != 1) & (pdn != 0)))) {
-    stop("pd must be 1 or 0");
+  IntegerVector pdn(n);
+  if (TYPEOF(data[pd]) == LGLSXP || TYPEOF(data[pd]) == INTSXP) {
+    IntegerVector pdnz = data[pd];
+    if (is_true(any((pdnz != 1) & (pdnz != 0)))) {
+      stop("pd must be 1 or 0 for each subject");
+    } else {
+      pdn = clone(pdnz);
+    }
+  } else if (TYPEOF(data[pd]) == REALSXP) {
+    NumericVector pdnz = data[pd];
+    if (is_true(any((pdnz != 1) & (pdnz != 0)))) {
+      stop("pd must be 1 or 0 for each subject");
+    } else {
+      NumericVector pdnz2 = clone(pdnz);
+      pdn = as<IntegerVector>(pdnz2);
+    }
+  } else {
+    stop("pd must take logical, integer, or real values");
   }
   
   if (!has_pd_time) {
@@ -247,14 +267,24 @@ List tsesimpcpp(const DataFrame data,
     stop("data must contain the swtrt variable");
   }
   
-  if (TYPEOF(data[swtrt]) != INTSXP && TYPEOF(data[swtrt]) != LGLSXP) {
-    stop("swtrt must take integer or logical values");
-  }
-  
-  IntegerVector swtrtnz = data[swtrt];
-  IntegerVector swtrtn = clone(swtrtnz);
-  if (is_true(any((swtrtn != 1) & (swtrtn != 0)))) {
-    stop("swtrt must be 1 or 0");
+  IntegerVector swtrtn(n);
+  if (TYPEOF(data[swtrt]) == LGLSXP || TYPEOF(data[swtrt]) == INTSXP) {
+    IntegerVector swtrtnz = data[swtrt];
+    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
+      stop("swtrt must be 1 or 0 for each subject");
+    } else {
+      swtrtn = clone(swtrtnz);
+    }
+  } else if (TYPEOF(data[swtrt]) == REALSXP) {
+    NumericVector swtrtnz = data[swtrt];
+    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
+      stop("swtrt must be 1 or 0 for each subject");
+    } else {
+      NumericVector swtrtnz2 = clone(swtrtnz);
+      swtrtn = as<IntegerVector>(swtrtnz2);
+    }
+  } else {
+    stop("swtrt must take logical, integer, or real values");
   }
   
   if (is_false(any((pdn == 1) & (swtrtn == 1) & (treatn == 0)))) {
@@ -302,6 +332,13 @@ List tsesimpcpp(const DataFrame data,
     }
     if (swtrtn[i] == 1 && swtrt_timen[i] < offset) {
       stop("swtrt_time must be great than or equal to offset");
+    }
+  }
+  
+  // ensure pd time < os time
+  for (i=0; i<n; i++) {
+    if (pdn[i] == 1 && pd_timen[i] == timen[i]) {
+      timen[i] = timen[i] + 1.0e-8;
     }
   }
   
@@ -452,31 +489,14 @@ List tsesimpcpp(const DataFrame data,
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
-                  // order data by treat
-                  IntegerVector order = seq(0, n-1);
-                  std::sort(order.begin(), order.end(), [&](int i, int j) {
-                    return (treatb[i] < treatb[j]);
-                  });
-                  
-                  idb = idb[order];
-                  stratumb = stratumb[order];
-                  timeb = timeb[order];
-                  eventb = eventb[order];
-                  treatb = treatb[order];
-                  censor_timeb = censor_timeb[order];
-                  pdb = pdb[order];
-                  pd_timeb = pd_timeb[order];
-                  swtrtb = swtrtb[order];
-                  swtrt_timeb = swtrt_timeb[order];
-                  zb = subset_matrix_by_row(zb, order);
-                  zb_aft = subset_matrix_by_row(zb_aft, order);
-                  
                   // time and event adjusted for treatment switching
                   NumericVector t_star = clone(timeb);
                   IntegerVector d_star = clone(eventb);
                   
-                  double psi0hat = 0, psi0lower = 0, psi0upper = 0;
-                  double psi1hat = 0, psi1lower = 0, psi1upper = 0;
+                  double psi0hat = NA_REAL;
+                  double psi0lower = NA_REAL, psi0upper = NA_REAL;
+                  double psi1hat = NA_REAL;
+                  double psi1lower = NA_REAL, psi1upper=NA_REAL;
                   
                   // initialize data_aft and fit_aft
                   List data_aft(2), fit_aft(2);
@@ -517,6 +537,11 @@ List tsesimpcpp(const DataFrame data,
                   }
                   
                   DataFrame data_outcome;
+                  List fit_outcome;
+                  double hrhat = NA_REAL, hrlower = NA_REAL, 
+                    hrupper = NA_REAL, pvalue = NA_REAL;
+                  
+                  bool psimissing = 0;
                   
                   // treat arms that include patients who switched treatment
                   IntegerVector treats(1);
@@ -561,31 +586,6 @@ List tsesimpcpp(const DataFrame data,
                     double psilower = -(beta1[1] + zcrit*sebeta1[1]);
                     double psiupper = -(beta1[1] - zcrit*sebeta1[1]);
                     
-                    // calculate counter-factual survival times
-                    double a = exp(psihat);
-                    double c0 = std::min(1.0, a);
-                    for (i=0; i<n; i++) {
-                      if (treatb[i] == h) {
-                        double b2, u_star, c_star;
-                        if (swtrtb[i] == 1) {
-                          b2 = pdb[i] == 1 ? pd_timeb[i] : swtrt_timeb[i];
-                          b2 = b2 - offset;
-                          u_star = b2 + (timeb[i] - b2)*a;
-                        } else {
-                          u_star = timeb[i];
-                        }
-                        
-                        if (recensor) {
-                          c_star = censor_timeb[i]*c0;
-                          t_star[i] = std::min(u_star, c_star);
-                          d_star[i] = c_star < u_star ? 0 : eventb[i];
-                        } else {
-                          t_star[i] = u_star;
-                          d_star[i] = eventb[i];
-                        }
-                      }
-                    }
-                    
                     // update treatment-specific causal parameter estimates
                     if (h == 0) {
                       psi0hat = psihat;
@@ -597,76 +597,107 @@ List tsesimpcpp(const DataFrame data,
                       psi1upper = psiupper;
                     }
                     
-                    // update data_aft and fit_aft
-                    if (k == -1) {
-                      IntegerVector stratum2 = stratumb[l];
-                      
-                      if (has_stratum) {
-                        for (i=0; i<p_stratum; i++) {
-                          String s = stratum[i];
-                          if (TYPEOF(data[s]) == INTSXP) {
-                            IntegerVector stratumwi = u_stratum[s];
-                            data1.push_back(stratumwi[stratum2-1], s);
-                          } else if (TYPEOF(data[s]) == REALSXP) {
-                            NumericVector stratumwn = u_stratum[s];
-                            data1.push_back(stratumwn[stratum2-1], s);
-                          } else if (TYPEOF(data[s]) == STRSXP) {
-                            StringVector stratumwc = u_stratum[s];
-                            data1.push_back(stratumwc[stratum2-1], s);
+                    if (!std::isnan(psihat)) {
+                      // calculate counter-factual survival times
+                      double a = exp(psihat);
+                      double c0 = std::min(1.0, a);
+                      for (i=0; i<n; i++) {
+                        if (treatb[i] == h) {
+                          double b2, u_star, c_star;
+                          if (swtrtb[i] == 1) {
+                            b2 = pdb[i] == 1 ? pd_timeb[i] : swtrt_timeb[i];
+                            b2 = b2 - offset;
+                            u_star = b2 + (timeb[i] - b2)*a;
+                          } else {
+                            u_star = timeb[i];
+                          }
+                          
+                          if (recensor) {
+                            c_star = censor_timeb[i]*c0;
+                            t_star[i] = std::min(u_star, c_star);
+                            d_star[i] = c_star < u_star ? 0 : eventb[i];
+                          } else {
+                            t_star[i] = u_star;
+                            d_star[i] = eventb[i];
                           }
                         }
                       }
                       
-                      if (TYPEOF(data[id]) == INTSXP) {
-                        data1.push_front(idwi[id2-1], id);
-                      } else if (TYPEOF(data[id]) == REALSXP) {
-                        data1.push_front(idwn[id2-1], id);
-                      } else if (TYPEOF(data[id]) == STRSXP) {
-                        data1.push_front(idwc[id2-1], id);
+                      // update data_aft and fit_aft
+                      if (k == -1) {
+                        IntegerVector stratum2 = stratumb[l];
+                        
+                        if (has_stratum) {
+                          for (i=0; i<p_stratum; i++) {
+                            String s = stratum[i];
+                            if (TYPEOF(data[s]) == INTSXP) {
+                              IntegerVector stratumwi = u_stratum[s];
+                              data1.push_back(stratumwi[stratum2-1], s);
+                            } else if (TYPEOF(data[s]) == REALSXP) {
+                              NumericVector stratumwn = u_stratum[s];
+                              data1.push_back(stratumwn[stratum2-1], s);
+                            } else if (TYPEOF(data[s]) == STRSXP) {
+                              StringVector stratumwc = u_stratum[s];
+                              data1.push_back(stratumwc[stratum2-1], s);
+                            }
+                          }
+                        }
+                        
+                        if (TYPEOF(data[id]) == INTSXP) {
+                          data1.push_front(idwi[id2-1], id);
+                        } else if (TYPEOF(data[id]) == REALSXP) {
+                          data1.push_front(idwn[id2-1], id);
+                        } else if (TYPEOF(data[id]) == STRSXP) {
+                          data1.push_front(idwc[id2-1], id);
+                        }
+                        
+                        List data_x = data_aft[h];
+                        data_x["data"] = data1;
+                        data_aft[h] = data_x;
+                        
+                        List fit_x = fit_aft[h];
+                        fit_x["fit"] = fit1;
+                        fit_aft[h] = fit_x;
                       }
-                      
-                      List data_x = data_aft[h];
-                      data_x["data"] = data1;
-                      data_aft[h] = data_x;
-                      
-                      List fit_x = fit_aft[h];
-                      fit_x["fit"] = fit1;
-                      fit_aft[h] = fit_x;
+                    } else {
+                      psimissing = 1;
                     }
                   }
                   
-                  // Cox model for hypothetical treatment effect estimate
-                  data_outcome = DataFrame::create(
-                    Named("uid") = idb,
-                    Named("t_star") = t_star,
-                    Named("d_star") = d_star,
-                    Named("treated") = treatb);
-                  
-                  data_outcome.push_back(stratumb, "ustratum");
-                  
-                  for (j=0; j<p; j++) {
-                    String zj = covariates[j+1];
-                    NumericVector u = zb(_,j);
-                    data_outcome.push_back(u, zj);
+                  if (!psimissing) {
+                    // Cox model for hypothetical treatment effect estimate
+                    data_outcome = DataFrame::create(
+                      Named("uid") = idb,
+                      Named("t_star") = t_star,
+                      Named("d_star") = d_star,
+                      Named("treated") = treatb);
+                    
+                    data_outcome.push_back(stratumb, "ustratum");
+                    
+                    for (j=0; j<p; j++) {
+                      String zj = covariates[j+1];
+                      NumericVector u = zb(_,j);
+                      data_outcome.push_back(u, zj);
+                    }
+                    
+                    fit_outcome = phregcpp(
+                      data_outcome, "", "ustratum", "t_star", "", "d_star",
+                      covariates, "", "", "", ties, init, 
+                      0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                    
+                    DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                    bool fail_cox = sumstat_cox["fail"];
+                    if (fail_cox == 1) fail = 1;
+                    
+                    DataFrame parest = DataFrame(fit_outcome["parest"]);
+                    NumericVector beta = parest["beta"];
+                    NumericVector sebeta = parest["sebeta"];
+                    NumericVector pval = parest["p"];
+                    hrhat = exp(beta[0]);
+                    hrlower = exp(beta[0] - zcrit*sebeta[0]);
+                    hrupper = exp(beta[0] + zcrit*sebeta[0]);
+                    pvalue = pval[0];
                   }
-                  
-                  List fit_outcome = phregcpp(
-                    data_outcome, "", "ustratum", "t_star", "", "d_star",
-                    covariates, "", "", "", ties, init, 
-                    0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
-                  
-                  DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
-                  bool fail_cox = sumstat_cox["fail"];
-                  if (fail_cox == 1) fail = 1;
-                  
-                  DataFrame parest = DataFrame(fit_outcome["parest"]);
-                  NumericVector beta = parest["beta"];
-                  NumericVector sebeta = parest["sebeta"];
-                  NumericVector pval = parest["p"];
-                  double hrhat = exp(beta[0]);
-                  double hrlower = exp(beta[0] - zcrit*sebeta[0]);
-                  double hrupper = exp(beta[0] + zcrit*sebeta[0]);
-                  double pvalue = pval[0];
                   
                   List out;
                   if (k == -1) {
@@ -685,7 +716,8 @@ List tsesimpcpp(const DataFrame data,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
                       Named("pvalue") = pvalue,
-                      Named("fail") = fail);
+                      Named("fail") = fail,
+                      Named("psimissing") = psimissing);
                   } else {
                     out = List::create(
                       Named("psihat") = psi0hat,
@@ -698,7 +730,8 @@ List tsesimpcpp(const DataFrame data,
                       Named("hrlower") = hrlower,
                       Named("hrupper") = hrupper,
                       Named("pvalue") = pvalue,
-                      Named("fail") = fail);
+                      Named("fail") = fail,
+                      Named("psimissing") = psimissing);
                   }
                   
                   return out;
@@ -711,40 +744,6 @@ List tsesimpcpp(const DataFrame data,
   List fit_aft = out["fit_aft"];
   DataFrame data_outcome = DataFrame(out["data_outcome"]);
   List fit_outcome = out["fit_outcome"];
-
-  IntegerVector uid = data_outcome["uid"];
-  if (TYPEOF(data[id]) == INTSXP) {
-    data_outcome.push_front(idwi[uid-1], id);
-  } else if (TYPEOF(data[id]) == REALSXP) {
-    data_outcome.push_front(idwn[uid-1], id);
-  } else if (TYPEOF(data[id]) == STRSXP) {
-    data_outcome.push_front(idwc[uid-1], id);
-  }
-  
-  IntegerVector treated = data_outcome["treated"];
-  if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
-    data_outcome.push_back(treatwi[1-treated], treat);
-  } else if (TYPEOF(data[treat]) == REALSXP) {
-    data_outcome.push_back(treatwn[1-treated], treat);
-  } else if (TYPEOF(data[treat]) == STRSXP) {
-    data_outcome.push_back(treatwc[1-treated], treat);
-  }
-  
-  if (has_stratum) {
-    for (i=0; i<p_stratum; i++) {
-      String s = stratum[i];
-      if (TYPEOF(data[s]) == INTSXP) {
-        IntegerVector stratumwi = u_stratum[s];
-        data_outcome.push_back(stratumwi[stratumn-1], s);
-      } else if (TYPEOF(data[s]) == REALSXP) {
-        NumericVector stratumwn = u_stratum[s];
-        data_outcome.push_back(stratumwn[stratumn-1], s);
-      } else if (TYPEOF(data[s]) == STRSXP) {
-        StringVector stratumwc = u_stratum[s];
-        data_outcome.push_back(stratumwc[stratumn-1], s);
-      }
-    }
-  }
   
   double psihat = out["psihat"];
   double psilower = out["psilower"];
@@ -757,201 +756,250 @@ List tsesimpcpp(const DataFrame data,
   double hrupper = out["hrupper"];
   double pvalue = out["pvalue"];
   bool fail = out["fail"];
+  bool psimissing = out["psimissing"];
   String psi_CI_type = "AFT model";
   
-  // construct the confidence interval for HR
   String hr_CI_type;
   NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
   LogicalVector fails(n_boot);
   DataFrame fail_boots_data;
-  if (!boot) { // use Cox model to construct CI for HR if no boot
-    hr_CI_type = "Cox model";
-  } else { // bootstrap the entire process to construct CI for HR
-    if (seed != NA_INTEGER) set_seed(seed);
-    
-    IntegerVector idb(n), stratumb(n), eventb(n), treatb(n);
-    IntegerVector pdb(n), swtrtb(n);
-    NumericVector timeb(n), censor_timeb(n), pd_timeb(n), swtrt_timeb(n);
-    NumericMatrix zb(n,p), zb_aft(n,q+p2);
-
-    int B = n*n_boot;
-    IntegerVector boot_indexc(B);
-    IntegerVector idc(B), stratumc(B), eventc(B), treatc(B);
-    IntegerVector pdc(B), swtrtc(B);
-    NumericVector timec(B), censor_timec(B), pd_timec(B), swtrt_timec(B);
-    NumericMatrix zc_aft(B,q+p2);
-    int index1 = 0;
-    
-    // sort data by treatment group
-    IntegerVector idx0 = which(treatn == 0);
-    IntegerVector idx1 = which(treatn == 1);
-    int n0 = static_cast<int>(idx0.size());
-    int n1 = static_cast<int>(idx1.size());
-    IntegerVector order(n);
-    for (i=0; i<n0; i++) {
-      order[i] = idx0[i];
-    }
-    for (i=0; i<n1; i++){
-      order[n0+i] = idx1[i];
+  
+  if (!psimissing) {
+    IntegerVector uid = data_outcome["uid"];
+    if (TYPEOF(data[id]) == INTSXP) {
+      data_outcome.push_front(idwi[uid-1], id);
+    } else if (TYPEOF(data[id]) == REALSXP) {
+      data_outcome.push_front(idwn[uid-1], id);
+    } else if (TYPEOF(data[id]) == STRSXP) {
+      data_outcome.push_front(idwc[uid-1], id);
     }
     
-    idn = idn[order];
-    stratumn = stratumn[order];
-    timen = timen[order];
-    eventn = eventn[order];
-    treatn = treatn[order];
-    censor_timen = censor_timen[order];
-    pdn = pdn[order];
-    pd_timen = pd_timen[order];
-    swtrtn = swtrtn[order];
-    swtrt_timen = swtrt_timen[order];
-    zn = subset_matrix_by_row(zn, order);
-    zn_aft = subset_matrix_by_row(zn_aft, order);
+    IntegerVector treated = data_outcome["treated"];
+    if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+      data_outcome.push_back(treatwi[1-treated], treat);
+    } else if (TYPEOF(data[treat]) == REALSXP) {
+      data_outcome.push_back(treatwn[1-treated], treat);
+    } else if (TYPEOF(data[treat]) == STRSXP) {
+      data_outcome.push_back(treatwc[1-treated], treat);
+    }
     
-    for (k=0; k<n_boot; k++) {
+    if (has_stratum) {
+      for (i=0; i<p_stratum; i++) {
+        String s = stratum[i];
+        if (TYPEOF(data[s]) == INTSXP) {
+          IntegerVector stratumwi = u_stratum[s];
+          data_outcome.push_back(stratumwi[stratumn-1], s);
+        } else if (TYPEOF(data[s]) == REALSXP) {
+          NumericVector stratumwn = u_stratum[s];
+          data_outcome.push_back(stratumwn[stratumn-1], s);
+        } else if (TYPEOF(data[s]) == STRSXP) {
+          StringVector stratumwc = u_stratum[s];
+          data_outcome.push_back(stratumwc[stratumn-1], s);
+        }
+      }
+    }
+    
+    // construct the confidence interval for HR
+    if (!boot) { // use Cox model to construct CI for HR if no boot
+      hr_CI_type = "Cox model";
+    } else { // bootstrap the entire process to construct CI for HR
+      if (seed != NA_INTEGER) set_seed(seed);
       
-      // sample the data with replacement by treatment group
-      for (i=0; i<n; i++) {
-        double u = R::runif(0,1);
-        if (i < n0) {
-          j = static_cast<int>(std::floor(u*n0));
-        } else {
-          j = n0 + static_cast<int>(std::floor(u*n1));
+      IntegerVector idb(n), stratumb(n), eventb(n), treatb(n);
+      IntegerVector pdb(n), swtrtb(n);
+      NumericVector timeb(n), censor_timeb(n), pd_timeb(n), swtrt_timeb(n);
+      NumericMatrix zb(n,p), zb_aft(n,q+p2);
+      
+      int B = n*n_boot;
+      IntegerVector boot_indexc(B);
+      IntegerVector idc(B), stratumc(B), eventc(B), treatc(B);
+      IntegerVector pdc(B), swtrtc(B);
+      NumericVector timec(B), censor_timec(B), pd_timec(B), swtrt_timec(B);
+      NumericMatrix zc_aft(B,q+p2);
+      int index1 = 0;
+      
+      // sort data by treatment group, stratum and id
+      IntegerVector order = seq(0, n-1);
+      if (has_stratum) {
+        std::sort(order.begin(), order.end(), [&](int i, int j) {
+          return ((treatn[i] < treatn[j]) ||
+                  ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) || 
+                  ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                  (idn[i] < idn[j])));
+        });
+      } else {
+        std::sort(order.begin(), order.end(), [&](int i, int j) {
+          return ((treatn[i] < treatn[j]) ||
+                  ((treatn[i] == treatn[j]) && (idn[i] < idn[j])));
+        });
+      }
+      
+      idn = idn[order];
+      stratumn = stratumn[order];
+      timen = timen[order];
+      eventn = eventn[order];
+      treatn = treatn[order];
+      censor_timen = censor_timen[order];
+      pdn = pdn[order];
+      pd_timen = pd_timen[order];
+      swtrtn = swtrtn[order];
+      swtrt_timen = swtrt_timen[order];
+      zn = subset_matrix_by_row(zn, order);
+      zn_aft = subset_matrix_by_row(zn_aft, order);
+      
+      IntegerVector tsx(1,0); // first observation within each treat/stratum
+      for (i=1; i<n; i++) {
+        if ((treatn[i] != treatn[i-1]) || 
+            ((treatn[i] == treatn[i-1]) && (stratumn[i] != stratumn[i-1]))) {
+          tsx.push_back(i);
+        }
+      }
+      
+      int ntss = static_cast<int>(tsx.size());
+      tsx.push_back(n);
+      
+      for (k=0; k<n_boot; k++) {
+        // sample the data with replacement by treatment group and stratum
+        for (int h=0; h<ntss; h++) {
+          for (i=tsx[h]; i<tsx[h+1]; i++) {
+            double u = R::runif(0,1);
+            j = tsx[h] + static_cast<int>(std::floor(u*(tsx[h+1]-tsx[h])));
+            
+            idb[i] = idn[j];
+            stratumb[i] = stratumn[j];
+            timeb[i] = timen[j];
+            eventb[i] = eventn[j];
+            treatb[i] = treatn[j];
+            censor_timeb[i] = censor_timen[j];
+            pdb[i] = pdn[j];
+            pd_timeb[i] = pd_timen[j];
+            swtrtb[i] = swtrtn[j];
+            swtrt_timeb[i] = swtrt_timen[j];
+            zb(i,_) = zn(j,_);
+            zb_aft(i,_) = zn_aft(j,_);
+          }
         }
         
-        idb[i] = idn[j];
-        stratumb[i] = stratumn[j];
-        timeb[i] = timen[j];
-        eventb[i] = eventn[j];
-        treatb[i] = treatn[j];
-        censor_timeb[i] = censor_timen[j];
-        pdb[i] = pdn[j];
-        pd_timeb[i] = pd_timen[j];
-        swtrtb[i] = swtrtn[j];
-        swtrt_timeb[i] = swtrt_timen[j];
-        zb(i,_) = zn(j,_);
-        zb_aft(i,_) = zn_aft(j,_);
-      }
-      
-      out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
-              pdb, pd_timeb, swtrtb, swtrt_timeb, zb, zb_aft);
-      
-      fails[k] = out["fail"];
-      hrhats[k] = out["hrhat"];
-      psihats[k] = out["psihat"];
-      psi1hats[k] = out["psi1hat"];
-      
-      if (fails[k]) {
-        for (i=0; i<n; i++) {
-          j = index1 + i;
-          boot_indexc[j] = k+1;
-          idc[j] = idb[i];
-          stratumc[j] = stratumb[i];
-          timec[j] = timeb[i];
-          eventc[j] = eventb[i];
-          treatc[j] = treatb[i];
-          censor_timec[j] = censor_timeb[i];
-          pdc[j] = pdb[i];
-          pd_timec[j] = pd_timeb[i];
-          swtrtc[j] = swtrtb[i];
-          swtrt_timec[j] = swtrt_timeb[i];
-          zc_aft(j,_) = zb_aft(i,_);
+        out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
+                pdb, pd_timeb, swtrtb, swtrt_timeb, zb, zb_aft);
+        
+        fails[k] = out["fail"];
+        hrhats[k] = out["hrhat"];
+        psihats[k] = out["psihat"];
+        psi1hats[k] = out["psi1hat"];
+        
+        if (fails[k]) {
+          for (i=0; i<n; i++) {
+            j = index1 + i;
+            boot_indexc[j] = k+1;
+            idc[j] = idb[i];
+            stratumc[j] = stratumb[i];
+            timec[j] = timeb[i];
+            eventc[j] = eventb[i];
+            treatc[j] = treatb[i];
+            censor_timec[j] = censor_timeb[i];
+            pdc[j] = pdb[i];
+            pd_timec[j] = pd_timeb[i];
+            swtrtc[j] = swtrtb[i];
+            swtrt_timec[j] = swtrt_timeb[i];
+            zc_aft(j,_) = zb_aft(i,_);
+          }
+          index1 += n;
         }
-        index1 += n;
-      }
-    }
-  
-    if (is_true(any(fails))) {
-      IntegerVector sub = seq(0,index1-1);
-      boot_indexc = boot_indexc[sub];
-      idc = idc[sub];
-      stratumc = stratumc[sub];
-      timec = timec[sub];
-      eventc = eventc[sub];
-      treatc = treatc[sub];
-      censor_timec = censor_timec[sub];
-      pdc = pdc[sub];
-      pd_timec = pd_timec[sub];
-      swtrtc = swtrtc[sub];
-      swtrt_timec = swtrt_timec[sub];
-      zc_aft = subset_matrix_by_row(zc_aft,sub);
-      
-      fail_boots_data = DataFrame::create(
-        Named("boot_index") = boot_indexc,
-        Named("time") = timec,
-        Named("event") = eventc,
-        Named("treated") = treatc,
-        Named("censor_time") = censor_timec,
-        Named("pd") = pdc,
-        Named("pd_time") = pd_timec,
-        Named("swtrt") = swtrtc,
-        Named("swtrt_time") = swtrt_timec
-      );
-      
-      for (j=0; j<q+p2; j++) {
-        String zj = covariates_aft[j+1];
-        NumericVector u = zc_aft(_,j);
-        fail_boots_data.push_back(u, zj);
       }
       
-      if (TYPEOF(data[id]) == INTSXP) {
-        fail_boots_data.push_back(idwi[idc-1], id);
-      } else if (TYPEOF(data[id]) == REALSXP) {
-        fail_boots_data.push_back(idwn[idc-1], id);
-      } else if (TYPEOF(data[id]) == STRSXP) {
-        fail_boots_data.push_back(idwc[idc-1], id);
-      }
-      
-      if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
-        fail_boots_data.push_back(treatwi[1-treatc], treat);
-      } else if (TYPEOF(data[treat]) == REALSXP) {
-        fail_boots_data.push_back(treatwn[1-treatc], treat);
-      } else if (TYPEOF(data[treat]) == STRSXP) {
-        fail_boots_data.push_back(treatwc[1-treatc], treat);
-      }
-      
-      if (has_stratum) {
-        for (i=0; i<p_stratum; i++) {
-          String s = stratum[i];
-          if (TYPEOF(data[s]) == INTSXP) {
-            IntegerVector stratumwi = u_stratum[s];
-            fail_boots_data.push_back(stratumwi[stratumc-1], s);
-          } else if (TYPEOF(data[s]) == REALSXP) {
-            NumericVector stratumwn = u_stratum[s];
-            fail_boots_data.push_back(stratumwn[stratumc-1], s);
-          } else if (TYPEOF(data[s]) == STRSXP) {
-            StringVector stratumwc = u_stratum[s];
-            fail_boots_data.push_back(stratumwc[stratumc-1], s);
+      if (is_true(any(fails))) {
+        IntegerVector sub = seq(0,index1-1);
+        boot_indexc = boot_indexc[sub];
+        idc = idc[sub];
+        stratumc = stratumc[sub];
+        timec = timec[sub];
+        eventc = eventc[sub];
+        treatc = treatc[sub];
+        censor_timec = censor_timec[sub];
+        pdc = pdc[sub];
+        pd_timec = pd_timec[sub];
+        swtrtc = swtrtc[sub];
+        swtrt_timec = swtrt_timec[sub];
+        zc_aft = subset_matrix_by_row(zc_aft,sub);
+        
+        fail_boots_data = DataFrame::create(
+          Named("boot_index") = boot_indexc,
+          Named("time") = timec,
+          Named("event") = eventc,
+          Named("treated") = treatc,
+          Named("censor_time") = censor_timec,
+          Named("pd") = pdc,
+          Named("pd_time") = pd_timec,
+          Named("swtrt") = swtrtc,
+          Named("swtrt_time") = swtrt_timec
+        );
+        
+        for (j=0; j<q+p2; j++) {
+          String zj = covariates_aft[j+1];
+          NumericVector u = zc_aft(_,j);
+          fail_boots_data.push_back(u, zj);
+        }
+        
+        if (TYPEOF(data[id]) == INTSXP) {
+          fail_boots_data.push_back(idwi[idc-1], id);
+        } else if (TYPEOF(data[id]) == REALSXP) {
+          fail_boots_data.push_back(idwn[idc-1], id);
+        } else if (TYPEOF(data[id]) == STRSXP) {
+          fail_boots_data.push_back(idwc[idc-1], id);
+        }
+        
+        if (TYPEOF(data[treat]) == LGLSXP || TYPEOF(data[treat]) == INTSXP) {
+          fail_boots_data.push_back(treatwi[1-treatc], treat);
+        } else if (TYPEOF(data[treat]) == REALSXP) {
+          fail_boots_data.push_back(treatwn[1-treatc], treat);
+        } else if (TYPEOF(data[treat]) == STRSXP) {
+          fail_boots_data.push_back(treatwc[1-treatc], treat);
+        }
+        
+        if (has_stratum) {
+          for (i=0; i<p_stratum; i++) {
+            String s = stratum[i];
+            if (TYPEOF(data[s]) == INTSXP) {
+              IntegerVector stratumwi = u_stratum[s];
+              fail_boots_data.push_back(stratumwi[stratumc-1], s);
+            } else if (TYPEOF(data[s]) == REALSXP) {
+              NumericVector stratumwn = u_stratum[s];
+              fail_boots_data.push_back(stratumwn[stratumc-1], s);
+            } else if (TYPEOF(data[s]) == STRSXP) {
+              StringVector stratumwc = u_stratum[s];
+              fail_boots_data.push_back(stratumwc[stratumc-1], s);
+            }
           }
         }
       }
+      
+      // obtain bootstrap confidence interval for HR
+      double loghr = log(hrhat);
+      LogicalVector ok = (1 - fails) & !is_na(hrhats);
+      int n_ok = sum(ok);
+      NumericVector loghrs = log(hrhats[ok]);
+      double sdloghr = sd(loghrs);
+      double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
+      hrlower = exp(loghr - tcrit*sdloghr);
+      hrupper = exp(loghr + tcrit*sdloghr);
+      hr_CI_type = "bootstrap";
+      pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
+      
+      // obtain bootstrap confidence interval for psi
+      NumericVector psihats1 = psihats[ok];
+      double sdpsi = sd(psihats1);
+      psilower = psihat - tcrit*sdpsi;
+      psiupper = psihat + tcrit*sdpsi;
+      psi_CI_type = "bootstrap";
+      
+      NumericVector psi1hats1 = psi1hats[ok];
+      double sdpsi1 = sd(psi1hats1);
+      psi1lower = psi1hat - tcrit*sdpsi1;
+      psi1upper = psi1hat + tcrit*sdpsi1;
     }
-  
-    // obtain bootstrap confidence interval for HR
-    double loghr = log(hrhat);
-    LogicalVector ok = 1 - fails;
-    int n_ok = sum(ok);
-    NumericVector loghrs = log(hrhats[ok]);
-    double sdloghr = sd(loghrs);
-    double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
-    hrlower = exp(loghr - tcrit*sdloghr);
-    hrupper = exp(loghr + tcrit*sdloghr);
-    hr_CI_type = "bootstrap";
-    pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
-    
-    // obtain bootstrap confidence interval for psi
-    NumericVector psihats1 = psihats[ok];
-    double sdpsi = sd(psihats1);
-    psilower = psihat - tcrit*sdpsi;
-    psiupper = psihat + tcrit*sdpsi;
-    psi_CI_type = "bootstrap";
-    
-    NumericVector psi1hats1 = psi1hats[ok];
-    double sdpsi1 = sd(psi1hats1);
-    psi1lower = psi1hat - tcrit*sdpsi1;
-    psi1upper = psi1hat + tcrit*sdpsi1;
   }
-  
+
   List settings = List::create(
     Named("aft_dist") = aft_dist,
     Named("strata_main_effect_only") = strata_main_effect_only,
@@ -979,6 +1027,7 @@ List tsesimpcpp(const DataFrame data,
     Named("data_outcome") = data_outcome,
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
+    Named("psimissing") = psimissing,
     Named("settings") = settings);
   
   if (!swtrt_control_only) {

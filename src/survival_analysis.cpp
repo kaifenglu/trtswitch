@@ -35,7 +35,7 @@ NumericVector fsurvci(double surv, double sesurv, std::string ct, double z) {
     lower = pow(sin(asin(sqrt(surv)) - hw), 2);
     upper = pow(sin(asin(sqrt(surv)) + hw), 2);
   }
-
+  
   return NumericVector::create(lower, upper);
 }
 
@@ -93,59 +93,59 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
                        const std::string transform = "loglog",
                        const NumericVector& probs = NA_REAL) {
   int i, j;
-
+  
   if (is_true(any(is_na(time)))) {
     stop("time must be provided");
   }
-
+  
   if (is_true(any(is_na(event)))) {
     stop("event must be provided");
   }
-
+  
   if (is_true(any((event != 1) & (event != 0)))) {
     stop("event must be 1 or 0");
   }
-
+  
   if (is_true(all(event == 0))) {
     stop("at least 1 event is needed");
   }
-
+  
   if (cilevel <= 0 || cilevel >= 1) {
     stop("cilevel must lie between 0 and 1");
   }
-
+  
   std::string ct = transform;
   std::for_each(ct.begin(), ct.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if (!(ct == "linear" || ct == "plain" || ct == "log" ||
       ct == "loglog" || ct == "log-log" || ct == "cloglog" ||
       ct == "asinsqrt" || ct == "arcsin"|| ct == "asin" ||
       ct == "logit")) {
     stop("Invalid value for transform");
   }
-
+  
   if (is_true(any((probs <= 0) | (probs >= 1)))) {
     stop("Elements of probs must lie between 0 and 1");
   }
-
+  
   int n = static_cast<int>(time.size());
-
+  
   // sort by time, and event with event in descending order
   IntegerVector order = seq(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     return (time[i] < time[j]) ||
       ((time[i] == time[j]) && (event[i] > event[j]));
   });
-
+  
   NumericVector time2 = time[order];
   IntegerVector event2 = event[order];
-
+  
   NumericVector time0(n, NA_REAL), nrisk0(n), nevent0(n);
   NumericVector surv0(n), sesurv0(n);
   double t = 0, nrisk = n, nevent = 0, surv = 1, vcumhaz = 0, sesurv;
-
+  
   i = 0;
   bool cache = 0; // buffer for the current event time
   for (j=0; j<n; j++) {
@@ -160,16 +160,16 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
           vcumhaz = NA_REAL;
         }
         sesurv = surv*sqrt(vcumhaz);
-
+        
         time0[i] = t;
         nrisk0[i] = nrisk;
         nevent0[i] = nevent;
         surv0[i] = surv;
         sesurv0[i] = sesurv;
-
+        
         i++;
       }
-
+      
       // update the buffer for the current event time
       t = time2[j];
       nrisk = n-j;
@@ -187,20 +187,20 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
         vcumhaz = NA_REAL;
       }
       sesurv = surv*sqrt(vcumhaz);
-
+      
       time0[i] = t;
       nrisk0[i] = nrisk;
       nevent0[i] = nevent;
       surv0[i] = surv;
       sesurv0[i] = sesurv;
-
+      
       i++;
-
+      
       // empty the buffer for the current event time
       cache = 0;
     }
   }
-
+  
   // add the info for the last event
   if (cache) {
     surv = surv*(1.0 - nevent/nrisk);
@@ -210,16 +210,16 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
       vcumhaz = NA_REAL;
     }
     sesurv = surv*sqrt(vcumhaz);
-
+    
     time0[i] = t;
     nrisk0[i] = nrisk;
     nevent0[i] = nevent;
     surv0[i] = surv;
     sesurv0[i] = sesurv;
-
+    
     i++;
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(time0);
   time0 = time0[sub];
@@ -227,12 +227,12 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
   nevent0 = nevent0[sub];
   surv0 = surv0[sub];
   sesurv0 = sesurv0[sub];
-
-
+  
+  
   int n0 = sum(sub);
   NumericVector z(n0, NA_REAL), grad(n0, NA_REAL);
   double zcrit = R::qnorm((1+cilevel)/2,0,1,1,0);
-
+  
   int m = static_cast<int>(probs.size());
   NumericVector quantile(m), lower(m), upper(m);
   for (j=0; j<m; j++) {
@@ -257,14 +257,14 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
         }
       }
     }
-
+    
     IntegerVector index;
     for (i = 0; i < z.size(); i++) {
       if (!std::isnan(z[i]) && std::abs(z[i]) <= zcrit) {
         index.push_back(i);
       }
     }
-
+    
     if (index.size() == 0) {
       lower[j] = NA_REAL;
       upper[j] = NA_REAL;
@@ -272,14 +272,14 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
       lower[j] = time0[min(index)];
       upper[j] = max(index) < n0-1 ? time0[max(index)+1] : NA_REAL;
     }
-
+    
     if (is_true(any(surv0 < q))) {
       quantile[j] = time0[min(which(surv0 < q))];
     } else {
       quantile[j] = NA_REAL;
     }
   }
-
+  
   DataFrame result = DataFrame::create(
     Named("prob") = probs,
     Named("quantile") = quantile,
@@ -288,7 +288,7 @@ DataFrame survQuantile(const NumericVector& time = NA_REAL,
     Named("cilevel") = cilevel,
     Named("transform") = ct
   );
-
+  
   return result;
 }
 
@@ -364,7 +364,7 @@ DataFrame kmest(const DataFrame data,
                 const double conflev = 0.95,
                 const bool keep_censor = 0) {
   int h, i, j, n = data.nrows();
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -378,7 +378,7 @@ DataFrame kmest(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -392,61 +392,61 @@ DataFrame kmest(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
-
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
-
+  
   if (!has_event) {
     stop("data must contain the event variable");
   }
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
-
+  
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each subject");
   }
-
+  
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each subject");
   }
-
-
+  
+  
   std::string ct = conftype;
   std::for_each(ct.begin(), ct.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" ||
       ct=="logit" || ct=="arcsin")) {
     stop("conftype must be none, plain, log, log-log, logit, or arcsin");
   }
-
+  
   if (conflev <= 0 || conflev >= 1) {
     stop("conflev must lie between 0 and 1");
   }
-
+  
   // confidence interval for survival probability
   double z = R::qnorm((1+conflev)/2,0,1,1,0);
-
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   timen = timen[order];
   eventn = eventn[order];
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -454,27 +454,27 @@ DataFrame kmest(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   int N = 2*n; // account for additional time 0 rows
   IntegerVector rep0(N, NA_INTEGER);
   IntegerVector stratum0(N), size0(N);
   NumericVector time0(N), nrisk0(N), nevent0(N), ncensor0(N);
   NumericVector surv0(N), sesurv0(N);
   NumericVector lower0(N), upper0(N);
-
+  
   int index = 0;
   for (h=0; h<nreps; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
     int iter = repn[q1[0]];
-
+    
     IntegerVector stratum1 = stratumn[q1];
     NumericVector time1 = timen[q1];
     IntegerVector event1 = eventn[q1];
-
+    
     // sort by stratum, time, and event with event in descending order
     IntegerVector order1 = seq(0, n1-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -483,11 +483,11 @@ DataFrame kmest(const DataFrame data,
         ((stratum1[i] == stratum1[j]) && (time1[i] == time1[j]) &&
         (event1[i] > event1[j]));
     });
-
+    
     stratum1 = stratum1[order1];
     time1 = time1[order1];
     event1 = event1[order1];
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx1(1,0);
     for (i=1; i<n1; i++) {
@@ -495,15 +495,15 @@ DataFrame kmest(const DataFrame data,
         idx1.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(idx1.size());
     idx1.push_back(n1);
-
+    
     for (i=0; i<nstrata; i++) {
       IntegerVector q2 = Range(idx1[i], idx1[i+1]-1);
       NumericVector time2 = time1[q2];
       IntegerVector event2 = event1[q2];
-
+      
       int s = stratum1[q2[0]], n2 = static_cast<int>(q2.size());
       double t = 0, nrisk = n2, nevent = 0, ncensor = 0,
         surv = 1, vcumhaz = 0, sesurv = 0;
@@ -520,15 +520,15 @@ DataFrame kmest(const DataFrame data,
           ncensor0[index] = ncensor;
           surv0[index] = surv;
           sesurv0[index] = sesurv;
-
+          
           if (ct != "none") {
             lower0[index] = 0;
             upper0[index] = 0;
           }
-
+          
           index++;
         }
-
+        
         if ((j == 0) || ((j >= 1) && (time2[j] > time2[j-1]))) {
           // new time, add the information for the previous time if needed
           if (cache) {
@@ -539,7 +539,7 @@ DataFrame kmest(const DataFrame data,
               vcumhaz = NA_REAL;
             }
             sesurv = surv*sqrt(vcumhaz);
-
+            
             rep0[index] = iter;
             stratum0[index] = s;
             size0[index] = n2;
@@ -549,20 +549,20 @@ DataFrame kmest(const DataFrame data,
             ncensor0[index] = ncensor;
             surv0[index] = surv;
             sesurv0[index] = sesurv;
-
+            
             if (ct != "none") {
               NumericVector ci = fsurvci(surv, sesurv, ct, z);
               lower0[index] = ci[0];
               upper0[index] = ci[1];
             }
-
+            
             index++;
           }
-
+          
           // update the buffer for the current event time
           t = time2[j];
           nrisk = n2-j;
-
+          
           if (event2[j] == 1) {
             nevent = 1;
             ncensor = 0;
@@ -580,7 +580,7 @@ DataFrame kmest(const DataFrame data,
           }
         }
       }
-
+      
       // add the info for the last time point
       if (cache) {
         surv = surv*(1.0 - nevent/nrisk);
@@ -590,7 +590,7 @@ DataFrame kmest(const DataFrame data,
           vcumhaz = NA_REAL;
         }
         sesurv = surv*sqrt(vcumhaz);
-
+        
         rep0[index] = iter;
         stratum0[index] = s;
         size0[index] = n2;
@@ -600,24 +600,24 @@ DataFrame kmest(const DataFrame data,
         ncensor0[index] = ncensor;
         surv0[index] = surv;
         sesurv0[index] = sesurv;
-
+        
         if (ct != "none") {
           NumericVector ci = fsurvci(surv, sesurv, ct, z);
           lower0[index] = ci[0];
           upper0[index] = ci[1];
         }
-
+        
         index++;
       }
     }
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(rep0);
   if (is_false(any(sub))) {
     stop("no replication enables valid inference");
   }
-
+  
   rep0 = rep0[sub];
   stratum0 = stratum0[sub];
   size0 = size0[sub];
@@ -627,7 +627,7 @@ DataFrame kmest(const DataFrame data,
   ncensor0 = ncensor0[sub];
   surv0 = surv0[sub];
   sesurv0 = sesurv0[sub];
-
+  
   DataFrame result = DataFrame::create(
     _["size"] = size0,
     _["time"] = time0,
@@ -636,14 +636,14 @@ DataFrame kmest(const DataFrame data,
     _["ncensor"] = ncensor0,
     _["survival"] = surv0,
     _["stderr"] = sesurv0);
-
+  
   if (ct != "none") {
     result.push_back(lower0[sub], "lower");
     result.push_back(upper0[sub], "upper");
     result.push_back(conflev, "conflev");
     result.push_back(conftype, "conftype");
   }
-
+  
   if (has_stratum) {
     for (i=0; i<p_stratum; i++) {
       String s = stratum[i];
@@ -659,7 +659,7 @@ DataFrame kmest(const DataFrame data,
       }
     }
   }
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -675,7 +675,7 @@ DataFrame kmest(const DataFrame data,
       }
     }
   }
-
+  
   return result;
 }
 
@@ -764,7 +764,7 @@ DataFrame kmdiff(const DataFrame data,
                  const double survDiffH0 = 0,
                  const double conflev = 0.95) {
   int h, i, j, k, n = data.nrows();
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -778,7 +778,7 @@ DataFrame kmdiff(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -792,25 +792,25 @@ DataFrame kmdiff(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_treat = hasVariable(data, treat);
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
-
+  
   if (!has_treat) {
     stop("data must contain the treat variable");
   }
-
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
-
+  
   if (!has_event) {
     stop("data must contain the event variable");
   }
-
-
+  
+  
   // create the numeric treat variable
   IntegerVector treatn(n);
   IntegerVector treatwi;
@@ -855,50 +855,50 @@ DataFrame kmdiff(const DataFrame data,
   } else {
     stop("incorrect type for the treat variable in the input data");
   }
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
-
+  
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each subject");
   }
-
+  
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each subject");
   }
-
-
+  
+  
   if (std::isnan(milestone)) {
     stop("milestone must be provided");
   }
-
+  
   if (milestone <= 0) {
     stop("milestone must be positive");
   }
-
+  
   if (survDiffH0 <= -1 || survDiffH0 >= 1) {
     stop("survDiffH0 must lie between -1 and 1");
   }
-
+  
   if (conflev <= 0 || conflev >= 1) {
     stop("conflev must lie between 0 and 1");
   }
-
-
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   treatn = treatn[order];
   timen = timen[order];
   eventn = eventn[order];
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -906,41 +906,41 @@ DataFrame kmdiff(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   IntegerVector rep0(nreps, NA_INTEGER);
   NumericVector surv10(nreps), surv20(nreps), survDiff0(nreps);
   NumericVector vsurv10(nreps), vsurv20(nreps), vsurvDiff0(nreps);
   NumericVector survDiffZ0(nreps), survDiffPValue0(nreps);
   NumericVector lower0(nreps), upper0(nreps);
-
+  
   double z = R::qnorm((1+conflev)/2,0,1,1,0);
-
+  
   bool noerr = 1;
   int index = 0;
   for (h=0; h<nreps; h++) {
     bool skip = 0;
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector stratum1 = stratumn[q1];
     IntegerVector treat1 = treatn[q1];
     NumericVector time1 = timen[q1];
     IntegerVector event1 = eventn[q1];
-
+    
     // sort by stratum in descending order
     IntegerVector order1 = seq(0, n1-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
       return stratum1[i] < stratum1[j];
     });
-
+    
     stratum1 = stratum1[order1];
     treat1 = treat1[order1];
     time1 = time1[order1];
     event1 = event1[order1];
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx1(1,0);
     for (i=1; i<n1; i++) {
@@ -948,10 +948,10 @@ DataFrame kmdiff(const DataFrame data,
         idx1.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(idx1.size());
     idx1.push_back(n1);
-
+    
     // whether the milestone exceeds the largest observed time
     for (i=0; i<nstrata; i++) {
       IntegerVector q2 = Range(idx1[i], idx1[i+1]-1);
@@ -959,7 +959,7 @@ DataFrame kmdiff(const DataFrame data,
       NumericVector time2 = time1[q2];
       NumericVector time21 = time2[treat2==1];
       NumericVector time22 = time2[treat2==2];
-
+      
       if (milestone > std::min(max(time21), max(time22))) {
         std::string reperr;
         if (!has_rep) {
@@ -982,8 +982,8 @@ DataFrame kmdiff(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         std::string stratumerr;
         if (!has_stratum) {
           stratumerr = "";
@@ -1005,8 +1005,8 @@ DataFrame kmdiff(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         int k = milestone > max(time21) ? 0 : 1;
         std::string treaterr;
         if ((TYPEOF(data[treat]) == LGLSXP) ||
@@ -1017,46 +1017,46 @@ DataFrame kmdiff(const DataFrame data,
         } else {
           treaterr = " " + treat + " = " + treatwc[k];
         }
-
+        
         std::string str1 = "The milestone is larger than";
         std::string str2 = "the largest observed time for";
         std::string errmsg = str1 + " " + str2 + treaterr;
         if (!reperr.empty() || !stratumerr.empty()) {
           errmsg = errmsg + ":" + reperr + stratumerr;
         }
-
+        
         if (noerr) {
           Rcout << errmsg << "\n";
           Rcout << "Additional warning messages are suppressed" << "\n";
           noerr = 0;
         }
-
+        
         skip = 1;
         break;
       }
     }
-
+    
     // skip the replication if there is a stratum with max time < milestone
     if (skip) continue;
-
+    
     DataFrame dfin = DataFrame::create(
       _["stratum"] = stratum1,
       _["treat"] = treat1,
       _["time"] = time1,
       _["event"] = event1);
-
+    
     DataFrame dfout = kmest(dfin, "stratum", "treat", "time", "event",
                             "none", 0.95, 0);
-
+    
     IntegerVector stratum2 = dfout["stratum"];
     IntegerVector treat2 = dfout["treat"];
     IntegerVector treatsize = dfout["size"];
     NumericVector time2 = dfout["time"];
     NumericVector survival2 = dfout["survival"];
     NumericVector stderr2 = dfout["stderr"];
-
+    
     int n2 = static_cast<int>(stratum2.size());
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx2(1,0);
     for (i=1; i<n2; i++) {
@@ -1064,9 +1064,9 @@ DataFrame kmdiff(const DataFrame data,
         idx2.push_back(i);
       }
     }
-
+    
     idx2.push_back(n2);
-
+    
     IntegerVector m(nstrata, 0); // number of subjects in each stratum
     for (i=0; i<nstrata; i++) {
       int j1 = idx2[i], j2 = idx2[i+1] - 1;
@@ -1092,8 +1092,8 @@ DataFrame kmdiff(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         std::string stratumerr;
         if (!has_stratum) {
           stratumerr = "";
@@ -1115,8 +1115,8 @@ DataFrame kmdiff(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         int k = treat2[j1] != 1 ? 0 : 1;
         std::string treaterr;
         if ((TYPEOF(data[treat]) == LGLSXP) ||
@@ -1127,32 +1127,32 @@ DataFrame kmdiff(const DataFrame data,
         } else {
           treaterr = " " + treat + " = " + treatwc[k];
         }
-
+        
         std::string str1 = "The data set does not contain";
         std::string errmsg = str1 + treaterr;
         if (!reperr.empty() || !stratumerr.empty()) {
           errmsg = errmsg + ":" + reperr + stratumerr;
         }
-
+        
         if (noerr) {
           Rcout << errmsg << "\n";
           Rcout << "Additional warning messages are suppressed" << "\n";
           noerr = 0;
         }
-
+        
         skip = 1;
         break;
       }
-
+      
       m[i] += treatsize[j1] + treatsize[j2];
     }
-
+    
     // skip the replication if there is a stratum without both treatments
     if (skip) continue;
-
+    
     double M = sum(m);
     NumericVector p(nstrata);
-
+    
     double surv1 = 0.0, surv2 = 0.0, vsurv1 = 0.0, vsurv2 = 0.0;
     for (i=0; i<nstrata; i++) {
       p[i] = m[i]/M; // fraction of subjects in the stratum
@@ -1161,7 +1161,7 @@ DataFrame kmdiff(const DataFrame data,
       NumericVector timex = time2[q];
       NumericVector survivalx = survival2[q];
       NumericVector stderrx = stderr2[q];
-
+      
       NumericVector surv(2), vsurv(2);
       for (j=0; j<2; j++) {
         LogicalVector sub = (treatx == j+1);
@@ -1169,12 +1169,12 @@ DataFrame kmdiff(const DataFrame data,
         NumericVector survival0 = survivalx[sub];
         NumericVector stderr0 = stderrx[sub];
         int K = sum(sub);
-
+        
         // find the latest event time before milestone for each treat
         for (k = 0; k < K; k++) {
           if (time0[k] > milestone) break;
         }
-
+        
         if (k == 0) {
           surv[j] = 1;
           vsurv[j] = 0;
@@ -1184,13 +1184,13 @@ DataFrame kmdiff(const DataFrame data,
           vsurv[j] = stderr0[k]*stderr0[k];
         }
       }
-
+      
       surv1 += p[i]*surv[0];
       surv2 += p[i]*surv[1];
       vsurv1 += p[i]*p[i]*vsurv[0];
       vsurv2 += p[i]*p[i]*vsurv[1];
     }
-
+    
     rep0[index] = repn[idx[h]];
     surv10[index] = surv1;
     surv20[index] = surv2;
@@ -1203,16 +1203,16 @@ DataFrame kmdiff(const DataFrame data,
     survDiffPValue0[index] = 1.0 - R::pnorm(survDiffZ0[index],0,1,1,0);
     lower0[index] = survDiff0[index] - z*sesurvDiff;
     upper0[index] = survDiff0[index] + z*sesurvDiff;
-
+    
     index++;
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(rep0);
   if (is_false(any(sub))) {
     stop("no replication enables valid inference");
   }
-
+  
   rep0 = rep0[sub];
   surv10 = surv10[sub];
   surv20 = surv20[sub];
@@ -1224,7 +1224,7 @@ DataFrame kmdiff(const DataFrame data,
   survDiffPValue0 = survDiffPValue0[sub];
   lower0 = lower0[sub];
   upper0 = upper0[sub];
-
+  
   DataFrame result = DataFrame::create(
     _["milestone"] = milestone,
     _["survDiffH0"] = survDiffH0,
@@ -1239,7 +1239,7 @@ DataFrame kmdiff(const DataFrame data,
     _["lower"] = lower0,
     _["upper"] = upper0,
     _["conflev"] = conflev);
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -1255,7 +1255,7 @@ DataFrame kmdiff(const DataFrame data,
       }
     }
   }
-
+  
   return result;
 }
 
@@ -1323,7 +1323,7 @@ DataFrame lrtest(const DataFrame data,
                  const double rho1 = 0,
                  const double rho2 = 0) {
   int h, i, j, k, n = data.nrows();
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -1337,7 +1337,7 @@ DataFrame lrtest(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -1351,16 +1351,16 @@ DataFrame lrtest(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_treat = hasVariable(data, treat);
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
-
+  
   if (!has_treat) stop("data must contain the treat variable");
   if (!has_time) stop("data must contain the time variable");
   if (!has_event) stop("data must contain the event variable");
-
+  
   // create the numeric treat variable
   IntegerVector treatn(n);
   IntegerVector treatwi;
@@ -1405,36 +1405,36 @@ DataFrame lrtest(const DataFrame data,
   } else {
     stop("incorrect type for the treat variable in the input data");
   }
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
-
+  
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each subject");
   }
-
+  
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each subject");
   }
-
-
+  
+  
   if (rho1 < 0) stop("rho1 must be non-negative");
   if (rho2 < 0) stop("rho2 must be non-negative");
-
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   treatn = treatn[order];
   timen = timen[order];
   eventn = eventn[order];
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -1442,26 +1442,26 @@ DataFrame lrtest(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   IntegerVector rep0(nreps, NA_INTEGER);
   NumericVector uscore0(nreps), vscore0(nreps);
   NumericVector logRankZ0(nreps), logRankPValue0(nreps);
-
+  
   bool noerr = 1;
   int index = 0;
   for (h=0; h<nreps; h++) {
     bool skip = 0;
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector stratum1 = stratumn[q1];
     IntegerVector treat1 = treatn[q1];
     NumericVector time1 = timen[q1];
     IntegerVector event1 = eventn[q1];
-
+    
     // sort by stratum, time, and event with event in descending order
     IntegerVector order1 = seq(0, n1-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -1470,12 +1470,12 @@ DataFrame lrtest(const DataFrame data,
         ((stratum1[i] == stratum1[j]) && (time1[i] == time1[j]) &&
         (event1[i] > event1[j]));
     });
-
+    
     stratum1 = stratum1[order1];
     treat1 = treat1[order1];
     time1 = time1[order1];
     event1 = event1[order1];
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx1(1,0);
     for (i=1; i<n1; i++) {
@@ -1483,10 +1483,10 @@ DataFrame lrtest(const DataFrame data,
         idx1.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(idx1.size());
     idx1.push_back(n1);
-
+    
     double uscore = 0.0, vscore = 0.0;
     for (i=0; i<nstrata; i++) {
       IntegerVector q = Range(idx1[i], idx1[i+1]-1);
@@ -1494,11 +1494,11 @@ DataFrame lrtest(const DataFrame data,
       NumericVector time2 = time1[q];
       IntegerVector event2 = event1[q];
       int n2 = static_cast<int>(q.size());
-
+      
       // running index of number of subjects at risk
       int nriskx = n2;
       int nrisk1x = sum(treat2 == 1), nrisk2x = sum(treat2 == 2);
-
+      
       if ((nrisk1x == 0) || (nrisk2x == 0)) {
         std::string reperr;
         if (!has_rep) {
@@ -1521,7 +1521,7 @@ DataFrame lrtest(const DataFrame data,
             }
           }
         }
-
+        
         std::string stratumerr;
         if (!has_stratum) {
           stratumerr = "";
@@ -1543,8 +1543,8 @@ DataFrame lrtest(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         k = nrisk1x == 0 ? 0 : 1;
         std::string treaterr;
         if ((TYPEOF(data[treat]) == LGLSXP) ||
@@ -1555,32 +1555,32 @@ DataFrame lrtest(const DataFrame data,
         } else {
           treaterr = " " + treat + " = " + treatwc[k];
         }
-
+        
         std::string str1 = "Warning: The data set does not contain";
         std::string errmsg = str1 + treaterr;
         if (!reperr.empty() || !stratumerr.empty()) {
           errmsg = errmsg + ":" + reperr + stratumerr;
         }
-
+        
         if (noerr) {
           Rcout << errmsg << "\n";
           Rcout << "Additional warning messages are suppressed" << "\n";
           noerr = 0;
         }
-
+        
         skip = 1;
         break;
       }
-
+      
       double nrisk = nriskx, nrisk1 = nrisk1x, nrisk2 = nrisk2x;
       double nevent = 0, nevent1 = 0, nevent2 = 0;
       double surv = 1.0;
-
+      
       NumericVector nrisk0(n2, NA_REAL), nevent0(n2);
       NumericVector nrisk10(n2), nevent10(n2);
       NumericVector nrisk20(n2), nevent20(n2);
       NumericVector surv0(n2);
-
+      
       int index1 = 0;
       bool cache = 0;
       for (j=0; j<n2; j++) {
@@ -1590,7 +1590,7 @@ DataFrame lrtest(const DataFrame data,
           // add the info for the previous event
           if (cache) {
             surv = surv*(1.0 - nevent/nrisk);
-
+            
             nrisk0[index1] = nrisk;
             nevent0[index1] = nevent;
             nrisk10[index1] = nrisk1;
@@ -1598,10 +1598,10 @@ DataFrame lrtest(const DataFrame data,
             nrisk20[index1] = nrisk2;
             nevent20[index1] = nevent2;
             surv0[index1] = surv;
-
+            
             index1++;
           }
-
+          
           // update the cache for the current event time
           nrisk = nriskx;
           nrisk1 = nrisk1x;
@@ -1609,7 +1609,7 @@ DataFrame lrtest(const DataFrame data,
           nevent = 1;
           nevent1 = (treat2[j] == 1);
           nevent2 = (treat2[j] == 2);
-
+          
           cache = 1;
         } else if ((j >= 1) && (event2[j] == 1) && (event2[j-1] == 1) &&
           (time2[j] == time2[j-1])) { // tied event
@@ -1620,7 +1620,7 @@ DataFrame lrtest(const DataFrame data,
           // new censoring
           // add the info for the previous event
           surv = surv*(1.0 - nevent/nrisk);
-
+          
           nrisk0[index1] = nrisk;
           nevent0[index1] = nevent;
           nrisk10[index1] = nrisk1;
@@ -1628,22 +1628,22 @@ DataFrame lrtest(const DataFrame data,
           nrisk20[index1] = nrisk2;
           nevent20[index1] = nevent2;
           surv0[index1] = surv;
-
+          
           index1++;
-
+          
           // empty the cache for the current event time
           cache = 0;
         }
-
+        
         nriskx--;
         if (treat2[j] == 1) nrisk1x--;
         if (treat2[j] == 2) nrisk2x--;
       }
-
+      
       // add the info for the last event
       if (cache) {
         surv = surv*(1.0 - nevent/nrisk);
-
+        
         nrisk0[index1] = nrisk;
         nevent0[index1] = nevent;
         nrisk10[index1] = nrisk1;
@@ -1651,10 +1651,10 @@ DataFrame lrtest(const DataFrame data,
         nrisk20[index1] = nrisk2;
         nevent20[index1] = nevent2;
         surv0[index1] = surv;
-
+        
         index1++;
       }
-
+      
       // only keep nonmissing records
       double uscore1 = 0.0, vscore1 = 0.0;
       LogicalVector sub = !is_na(nrisk0);
@@ -1666,7 +1666,7 @@ DataFrame lrtest(const DataFrame data,
         nrisk20 = nrisk20[sub];
         nevent20 = nevent20[sub];
         surv0 = surv0[sub];
-
+        
         int K = sum(sub);
         NumericVector w(K);
         surv0.push_front(1.0);
@@ -1684,7 +1684,7 @@ DataFrame lrtest(const DataFrame data,
           }
           w[k] = w1*w2;
         }
-
+        
         for (k=0; k<K; k++) {
           uscore1 += w[k]*(nevent10[k] - nevent0[k]*nrisk10[k]/nrisk0[k]);
           if (nrisk0[k] > 1.0) {
@@ -1693,35 +1693,35 @@ DataFrame lrtest(const DataFrame data,
           }
         }
       }
-
+      
       uscore += uscore1;
       vscore += vscore1;
     }
-
+    
     // skip the replication if there is a stratum without both treatments
     if (skip) continue;
-
+    
     rep0[index] = repn[idx[h]];
     uscore0[index] = uscore;
     vscore0[index] = vscore;
     logRankZ0[index] = uscore/sqrt(vscore);
     logRankPValue0[index] = R::pnorm(logRankZ0[index],0,1,1,0);
-
+    
     index++;
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(rep0);
   if (is_false(any(sub))) {
     stop("no replication enables valid inference");
   }
-
+  
   rep0 = rep0[sub];
   uscore0 = uscore0[sub];
   vscore0 = vscore0[sub];
   logRankZ0 = logRankZ0[sub];
   logRankPValue0 = logRankPValue0[sub];
-
+  
   DataFrame result = DataFrame::create(
     _["uscore"] = uscore0,
     _["vscore"] = vscore0,
@@ -1729,7 +1729,7 @@ DataFrame lrtest(const DataFrame data,
     _["logRankPValue"] = logRankPValue0,
     _["rho1"] = rho1,
     _["rho2"] = rho2);
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -1745,7 +1745,7 @@ DataFrame lrtest(const DataFrame data,
       }
     }
   }
-
+  
   return result;
 }
 
@@ -1816,7 +1816,7 @@ DataFrame rmest(const DataFrame data,
                 const double conflev = 0.95,
                 const bool biascorrection = 0) {
   int h, i, j, k, n = data.nrows();
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -1830,7 +1830,7 @@ DataFrame rmest(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -1844,57 +1844,57 @@ DataFrame rmest(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
-
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
-
+  
   if (!has_event) {
     stop("data must contain the event variable");
   }
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
-
+  
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each subject");
   }
-
+  
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each subject");
   }
-
-
+  
+  
   if (std::isnan(milestone)) {
     stop("milestone must be provided");
   }
-
+  
   if (milestone <= 0) {
     stop("milestone must be positive");
   }
-
+  
   if (conflev <= 0 || conflev >= 1) {
     stop("conflev must lie between 0 and 1");
   }
-
-
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   timen = timen[order];
   eventn = eventn[order];
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -1902,27 +1902,27 @@ DataFrame rmest(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   IntegerVector rep0(n, NA_INTEGER);
   IntegerVector stratum0(n), size0(n);
   NumericVector rmst0(n), stderr0(n);
   NumericVector lower0(n), upper0(n);
-
+  
   double z = R::qnorm((1+conflev)/2,0,1,1,0);
-
+  
   bool noerr = 1;
   int index = 0;
   for (h=0; h<nreps; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector stratum1 = stratumn[q1];
     NumericVector time1 = timen[q1];
     IntegerVector event1 = eventn[q1];
-
+    
     // sort by stratum, time, and event with event in descending order
     IntegerVector order1 = seq(0, n1-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -1931,11 +1931,11 @@ DataFrame rmest(const DataFrame data,
         ((stratum1[i] == stratum1[j]) && (time1[i] == time1[j]) &&
         (event1[i] > event1[j]));
     });
-
+    
     stratum1 = stratum1[order1];
     time1 = time1[order1];
     event1 = event1[order1];
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx1(1,0);
     for (i=1; i<n1; i++) {
@@ -1943,16 +1943,16 @@ DataFrame rmest(const DataFrame data,
         idx1.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(idx1.size());
     idx1.push_back(n1);
-
+    
     for (i=0; i<nstrata; i++) {
       IntegerVector q2 = Range(idx1[i], idx1[i+1]-1);
       NumericVector time2 = time1[q2];
       IntegerVector event2 = event1[q2];
       int n2 = static_cast<int>(q2.size());
-
+      
       if (milestone > max(time2)) {
         std::string reperr;
         if (!has_rep) {
@@ -1975,8 +1975,8 @@ DataFrame rmest(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         std::string stratumerr;
         if (!has_stratum) {
           stratumerr = "";
@@ -1998,28 +1998,28 @@ DataFrame rmest(const DataFrame data,
             }
           }
         }
-
-
+        
+        
         std::string str1 = "The milestone is larger than";
         std::string str2 = "the largest observed time";
         std::string errmsg = str1 + " " + str2;
         if (!reperr.empty() || !stratumerr.empty()) {
           errmsg = errmsg + ":" + reperr + stratumerr;
         }
-
+        
         if (noerr) {
           Rcout << errmsg << "\n";
           Rcout << "Additional warning messages are suppressed" << "\n";
           noerr = 0;
         }
-
+        
         continue;
       }
-
+      
       NumericVector time0(n2, NA_REAL);
       NumericVector nrisk0(n2), nevent0(n2), surv0(n2);
       int index1 = 0;
-
+      
       double t = 0, nrisk = n2, nevent = 0, surv = 1.0;
       bool cache = 0;
       for (j=0; j<n2; j++) {
@@ -2029,20 +2029,20 @@ DataFrame rmest(const DataFrame data,
           // add the info for the previous event
           if (cache) {
             surv = surv*(1.0 - nevent/nrisk);
-
+            
             time0[index1] = t;
             nrisk0[index1] = nrisk;
             nevent0[index1] = nevent;
             surv0[index1] = surv;
-
+            
             index1++;
           }
-
+          
           // update the buffer for the current event time
           t = time2[j];
           nrisk = n2-j;
           nevent = 1;
-
+          
           cache = 1;
         } else if ((j >= 1) && (event2[j] == 1) && (event2[j-1] == 1) &&
           (time2[j] == time2[j-1])) { // tied event
@@ -2051,31 +2051,31 @@ DataFrame rmest(const DataFrame data,
           // new censoring
           // add the info for the previous event
           surv = surv*(1.0 - nevent/nrisk);
-
+          
           time0[index1] = t;
           nrisk0[index1] = nrisk;
           nevent0[index1] = nevent;
           surv0[index1] = surv;
-
+          
           index1++;
-
+          
           // empty the cache for the current event time
           cache = 0;
         }
       }
-
+      
       // add the info for the last event
       if (cache) {
         surv = surv*(1.0 - nevent/nrisk);
-
+        
         time0[index1] = t;
         nrisk0[index1] = nrisk;
         nevent0[index1] = nevent;
         surv0[index1] = surv;
-
+        
         index1++;
       }
-
+      
       // only keep nonmissing records
       int N;
       LogicalVector sub = !is_na(time0);
@@ -2090,32 +2090,32 @@ DataFrame rmest(const DataFrame data,
         nrisk0 = nrisk0[sub];
         nevent0 = nevent0[sub];
         surv0 = surv0[sub];
-
+        
         // locate the latest event time before milestone
         NumericVector milestone1(1, milestone);
         N = findInterval3(milestone1, time0)[0];
-
+        
         // prepend time zero information
         time0.push_front(0.0);
         nrisk0.push_front(n2);
         nevent0.push_front(0.0);
         surv0.push_front(1.0);
       }
-
+      
       // replace the last time of interest with milestone
       if (N == time0.size() - 1) {
         time0.push_back(milestone);
       } else {
         time0[N+1] = milestone;
       }
-
+      
       // calculate the partial sum of the trapezoid integration
       NumericVector rmstx(N+1);
       rmstx[0] = surv0[0]*(time0[1] - time0[0]);
       for (k=1; k<=N; k++) {
         rmstx[k] = rmstx[k-1] + surv0[k]*(time0[k+1] - time0[k]);
       }
-
+      
       // calculate rmst and its variance
       double u = rmstx[N];
       double v = 0.0;
@@ -2127,14 +2127,14 @@ DataFrame rmest(const DataFrame data,
           v += nevent0[k]*a*a/(nrisk0[k]*(nrisk0[k] - nevent0[k]));
         }
       }
-
+      
       // apply bias correction if requested
       if (biascorrection) {
         double m1 = 0;
         for (k=1; k<=N; k++) {
           m1 += nevent0[k];
         }
-
+        
         if (m1 <= 1.0) {
           std::string reperr;
           if (!has_rep) {
@@ -2157,8 +2157,8 @@ DataFrame rmest(const DataFrame data,
               }
             }
           }
-
-
+          
+          
           std::string stratumerr;
           if (!has_stratum) {
             stratumerr = "";
@@ -2180,15 +2180,15 @@ DataFrame rmest(const DataFrame data,
               }
             }
           }
-
-
+          
+          
           std::string str1 = "Bias correction is not done due to no or";
           std::string str2 = "only 1 event before the milestone time:";
           std::string errmsg = str1 + " " + str2;
           if (!reperr.empty() || !stratumerr.empty()) {
             errmsg = errmsg + ":" + reperr + stratumerr;
           }
-
+          
           if (noerr) {
             Rcout << errmsg << "\n";
             Rcout << "Additional warning messages are suppressed" << "\n";
@@ -2198,7 +2198,7 @@ DataFrame rmest(const DataFrame data,
           v = m1/(m1 - 1.0)*v;
         }
       }
-
+      
       rep0[index] = repn[idx[h]];
       stratum0[index] = stratum1[idx1[i]];
       size0[index] = n2;
@@ -2206,17 +2206,17 @@ DataFrame rmest(const DataFrame data,
       stderr0[index] = sqrt(v);
       lower0[index] = u - z*stderr0[index];
       upper0[index] = u + z*stderr0[index];
-
+      
       index++;
     }
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(rep0);
   if (is_false(any(sub))) {
     stop("no replication enables valid inference");
   }
-
+  
   rep0 = rep0[sub];
   stratum0 = stratum0[sub];
   size0 = size0[sub];
@@ -2224,8 +2224,8 @@ DataFrame rmest(const DataFrame data,
   stderr0 = stderr0[sub];
   lower0 = lower0[sub];
   upper0 = upper0[sub];
-
-
+  
+  
   DataFrame result = DataFrame::create(
     _["size"] = size0,
     _["milestone"] = milestone,
@@ -2235,7 +2235,7 @@ DataFrame rmest(const DataFrame data,
     _["upper"] = upper0,
     _["conflev"] = conflev,
     _["biascorrection"] = biascorrection);
-
+  
   if (has_stratum) {
     for (i=0; i<p_stratum; i++) {
       String s = stratum[i];
@@ -2251,7 +2251,7 @@ DataFrame rmest(const DataFrame data,
       }
     }
   }
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -2267,7 +2267,7 @@ DataFrame rmest(const DataFrame data,
       }
     }
   }
-
+  
   return result;
 }
 
@@ -2363,7 +2363,7 @@ DataFrame rmdiff(const DataFrame data,
                  const double conflev = 0.95,
                  const bool biascorrection = 0) {
   int h, i, j, n = data.nrows();
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -2377,7 +2377,7 @@ DataFrame rmdiff(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -2391,25 +2391,25 @@ DataFrame rmdiff(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_treat = hasVariable(data, treat);
   bool has_time = hasVariable(data, time);
   bool has_event = hasVariable(data, event);
-
+  
   if (!has_treat) {
     stop("data must contain the treat variable");
   }
-
+  
   if (!has_time) {
     stop("data must contain the time variable");
   }
-
+  
   if (!has_event) {
     stop("data must contain the event variable");
   }
-
-
+  
+  
   // create the numeric treat variable
   IntegerVector treatn(n);
   IntegerVector treatwi;
@@ -2454,47 +2454,47 @@ DataFrame rmdiff(const DataFrame data,
   } else {
     stop("incorrect type for the treat variable in the input data");
   }
-
-
+  
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
-
+  
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each subject");
   }
-
+  
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each subject");
   }
-
-
+  
+  
   if (std::isnan(milestone)) {
     stop("milestone must be provided");
   }
-
+  
   if (milestone <= 0) {
     stop("milestone must be positive");
   }
-
+  
   if (conflev <= 0 || conflev >= 1) {
     stop("conflev must lie between 0 and 1");
   }
-
-
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   treatn = treatn[order];
   timen = timen[order];
   eventn = eventn[order];
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -2502,45 +2502,45 @@ DataFrame rmdiff(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   IntegerVector rep0(nreps, NA_INTEGER);
   NumericVector rmst10(nreps), rmst20(nreps), rmstDiff0(nreps);
   NumericVector vrmst10(nreps), vrmst20(nreps), vrmstDiff0(nreps);
   NumericVector rmstDiffZ0(nreps), rmstDiffPValue0(nreps);
   NumericVector lower0(nreps), upper0(nreps);
-
+  
   double z = R::qnorm((1.0 + conflev)/2.0,0,1,1,0);
-
+  
   bool noerr = 1;
   int index = 0;
   for (h=0; h<nreps; h++) {
     bool skip = 0;
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
-
+    
     IntegerVector stratum1 = stratumn[q1];
     IntegerVector treat1 = treatn[q1];
     NumericVector time1 = timen[q1];
     IntegerVector event1 = eventn[q1];
-
+    
     DataFrame dfin = DataFrame::create(
       _["stratum"] = stratum1,
       _["treat"] = treat1,
       _["time"] = time1,
       _["event"] = event1);
-
+    
     DataFrame dfout = rmest(dfin, "stratum", "treat", "time", "event",
                             milestone, 0.95, biascorrection);
-
+    
     IntegerVector stratum2 = dfout["stratum"];
     IntegerVector treat2 = dfout["treat"];
     IntegerVector treatsize = dfout["size"];
     NumericVector rmstime2 = dfout["rmst"];
     NumericVector stderr2 = dfout["stderr"];
     int n2 = static_cast<int>(stratum2.size());
-
+    
     // identify the locations of the unique values of stratum
     IntegerVector idx2(1,0);
     for (i=1; i<n2; i++) {
@@ -2548,10 +2548,10 @@ DataFrame rmdiff(const DataFrame data,
         idx2.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(idx2.size());
     idx2.push_back(n2);
-
+    
     IntegerVector m(nstrata, 0); // number of subjects in each stratum
     for (i=0; i<nstrata; i++) {
       int j1 = idx2[i], j2 = idx2[i+1] - 1;
@@ -2577,7 +2577,7 @@ DataFrame rmdiff(const DataFrame data,
             }
           }
         }
-
+        
         std::string stratumerr;
         if (!has_stratum) {
           stratumerr = "";
@@ -2599,7 +2599,7 @@ DataFrame rmdiff(const DataFrame data,
             }
           }
         }
-
+        
         int k = treat2[j1] != 1 ? 0 : 1;
         std::string treaterr;
         if ((TYPEOF(data[treat]) == LGLSXP) ||
@@ -2610,32 +2610,32 @@ DataFrame rmdiff(const DataFrame data,
         } else {
           treaterr = " " + treat + " = " + treatwc[k];
         }
-
+        
         std::string str1 = "The data set does not contain";
         std::string errmsg = str1 + treaterr;
         if (!reperr.empty() || !stratumerr.empty()) {
           errmsg = errmsg + ":" + reperr + stratumerr;
         }
-
+        
         if (noerr) {
           Rcout << errmsg << "\n";
           Rcout << "Additional warning messages are suppressed" << "\n";
           noerr = 0;
         }
-
+        
         skip = 1;
         break;
       }
-
+      
       m[i] += treatsize[j1] + treatsize[j2];
     }
-
+    
     // skip the replication if there is a stratum without both treatments
     if (skip) continue;
-
+    
     double M = sum(m);
     NumericVector p(nstrata);
-
+    
     double rmst1 = 0.0, rmst2 = 0.0, vrmst1 = 0.0, vrmst2 = 0.0;
     for (i=0; i<nstrata; i++) {
       p[i] = m[i]/M; // fraction of subjects in the stratum
@@ -2643,13 +2643,13 @@ DataFrame rmdiff(const DataFrame data,
       NumericVector rmst = rmstime2[q];
       NumericVector stderrx = stderr2[q];
       NumericVector vrmst = stderrx*stderrx;
-
+      
       rmst1 += p[i]*rmst[0];
       rmst2 += p[i]*rmst[1];
       vrmst1 += p[i]*p[i]*vrmst[0];
       vrmst2 += p[i]*p[i]*vrmst[1];
     }
-
+    
     rep0[index] = repn[idx[h]];
     rmst10[index] = rmst1;
     rmst20[index] = rmst2;
@@ -2662,16 +2662,16 @@ DataFrame rmdiff(const DataFrame data,
     rmstDiffPValue0[index] = 1.0 - R::pnorm(rmstDiffZ0[index],0,1,1,0);
     lower0[index] = rmstDiff0[index] - z*sermstDiff;
     upper0[index] = rmstDiff0[index] + z*sermstDiff;
-
+    
     index++;
   }
-
+  
   // only keep nonmissing records
   LogicalVector sub = !is_na(rep0);
   if (is_false(any(sub))) {
     stop("no replication enables valid inference");
   }
-
+  
   rep0 = rep0[sub];
   rmst10 = rmst10[sub];
   rmst20 = rmst20[sub];
@@ -2683,7 +2683,7 @@ DataFrame rmdiff(const DataFrame data,
   rmstDiffPValue0 = rmstDiffPValue0[sub];
   lower0 = lower0[sub];
   upper0 = upper0[sub];
-
+  
   DataFrame result = DataFrame::create(
     _["milestone"] = milestone,
     _["rmstDiffH0"] = rmstDiffH0,
@@ -2699,7 +2699,7 @@ DataFrame rmdiff(const DataFrame data,
     _["upper"] = upper0,
     _["conflev"] = conflev,
     _["biascorrection"] = biascorrection);
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -2715,7 +2715,7 @@ DataFrame rmdiff(const DataFrame data,
       }
     }
   }
-
+  
   return result;
 }
 
@@ -2729,7 +2729,7 @@ double f_llik_1(int p, NumericVector par, void *ex) {
   int n = param->z.nrow();
   int nvar = param->z.ncol();
   int person, i, k;
-
+  
   NumericVector eta(n);
   for (person = 0; person < n; person++) {
     eta[person] = param->offset[person];
@@ -2737,7 +2737,7 @@ double f_llik_1(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector sig(n, 1.0);
   if (param->dist != "exponential") {
     for (person = 0; person < n; person++) {
@@ -2745,12 +2745,12 @@ double f_llik_1(int p, NumericVector par, void *ex) {
       sig[person] = exp(par[k]);
     }
   }
-
+  
   double loglik = 0;
   for (person = 0; person < n; person++) {
     double wt = param->weight[person];
     double sigma = sig[person];
-
+    
     if (param->status[person] == 1) { // event
       double logsig = log(sigma);
       if (param->dist == "exponential" || param->dist == "weibull") {
@@ -2827,7 +2827,7 @@ double f_llik_1(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return loglik;
 }
 
@@ -2838,7 +2838,7 @@ NumericVector f_score_1(int p, NumericVector par, void *ex) {
   int n = param->z.nrow();
   int nvar = param->z.ncol();
   int person, i, k;
-
+  
   NumericVector eta(n);
   for (person = 0; person < n; person++) {
     eta[person] = param->offset[person];
@@ -2846,7 +2846,7 @@ NumericVector f_score_1(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector sig(n, 1.0);
   if (param->dist != "exponential") {
     for (person = 0; person < n; person++) {
@@ -2854,14 +2854,14 @@ NumericVector f_score_1(int p, NumericVector par, void *ex) {
       sig[person] = exp(par[k]);
     }
   }
-
+  
   NumericVector score(p);
   for (person = 0; person < n; person++) {
     double wt = param->weight[person];
     double sigma = sig[person];
     NumericVector z = param->z(person, _)/sigma;
     k = param->strata[person] + nvar - 1;
-
+    
     if (param->status[person] == 1) { // event
       if (param->dist == "exponential") {
         double u = (log(param->tstop[person]) - eta[person])/sigma;
@@ -3055,7 +3055,7 @@ NumericVector f_score_1(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return score;
 }
 
@@ -3066,7 +3066,7 @@ NumericMatrix f_info_1(int p, NumericVector par, void *ex) {
   int n = param->z.nrow();
   int nvar = param->z.ncol();
   int person, i, j, k;
-
+  
   NumericVector eta(n);
   for (person = 0; person < n; person++) {
     eta[person] = param->offset[person];
@@ -3074,7 +3074,7 @@ NumericMatrix f_info_1(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector sig(n, 1.0);
   if (param->dist != "exponential") {
     for (person = 0; person < n; person++) {
@@ -3082,14 +3082,14 @@ NumericMatrix f_info_1(int p, NumericVector par, void *ex) {
       sig[person] = exp(par[k]);
     }
   }
-
+  
   NumericMatrix imat(p,p);
   for (person = 0; person < n; person++) {
     double wt = param->weight[person];
     double sigma = sig[person];
     NumericVector z = param->z(person, _)/sigma;
     k = param->strata[person] + nvar - 1;
-
+    
     if (param->status[person] == 1) { // event
       if (param->dist == "exponential") {
         double u = (log(param->tstop[person]) - eta[person])/sigma;
@@ -3438,13 +3438,13 @@ NumericMatrix f_info_1(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   for (i=0; i<p-1; i++) {
     for (j=i+1; j<p; j++) {
       imat(i,j) = imat(j,i);
     }
   }
-
+  
   return imat;
 }
 
@@ -3454,7 +3454,7 @@ List f_der_eta_tau_1(NumericVector eta, NumericVector sig, void *ex) {
   aftparams *param = (aftparams *) ex;
   int n = param->z.nrow();
   int i;
-
+  
   NumericVector g(n), dg(n), ddg(n), ds(n), dds(n), dsg(n);
   for (i = 0; i < n; i++) {
     double sigma = sig[i];
@@ -3661,7 +3661,7 @@ List f_der_eta_tau_1(NumericVector eta, NumericVector sig, void *ex) {
       }
     }
   }
-
+  
   List result = List::create(
     Named("g") = g,
     Named("dg") = dg,
@@ -3670,7 +3670,7 @@ List f_der_eta_tau_1(NumericVector eta, NumericVector sig, void *ex) {
     Named("dds") = dds,
     Named("dsg") = dsg
   );
-
+  
   return result;
 }
 
@@ -3681,7 +3681,7 @@ NumericMatrix f_ressco_1(int p, NumericVector par, void *ex) {
   int n = param->z.nrow();
   int nvar = param->z.ncol();
   int person, i, k;
-
+  
   NumericVector eta(n);
   for (person = 0; person < n; person++) {
     eta[person] = param->offset[person];
@@ -3689,7 +3689,7 @@ NumericMatrix f_ressco_1(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector sig(n, 1.0);
   if (param->dist != "exponential") {
     for (person = 0; person < n; person++) {
@@ -3697,13 +3697,13 @@ NumericMatrix f_ressco_1(int p, NumericVector par, void *ex) {
       sig[person] = exp(par[k]);
     }
   }
-
+  
   NumericMatrix resid(n, p);
   for (person = 0; person < n; person++) {
     double sigma = sig[person];
     NumericVector z = param->z(person, _)/sigma;
     k = param->strata[person] + nvar - 1;
-
+    
     if (param->status[person] == 1) { // event
       if (param->dist == "exponential") {
         double u = (log(param->tstop[person]) - eta[person])/sigma;
@@ -3898,7 +3898,7 @@ NumericMatrix f_ressco_1(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return resid;
 }
 
@@ -3908,7 +3908,7 @@ NumericMatrix f_jj_1(int p, NumericVector par, void *ex) {
   aftparams *param = (aftparams *) ex;
   int n = param->z.nrow();
   int person, i, j;
-
+  
   NumericMatrix resid = f_ressco_1(p, par, param);
   NumericMatrix jj(p,p);
   for (person = 0; person < n; person++) {
@@ -3919,7 +3919,7 @@ NumericMatrix f_jj_1(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return jj;
 }
 
@@ -3931,12 +3931,12 @@ List liferegloop(int p, NumericVector par, void *ex,
   aftparams *param = (aftparams *) ex;
   int i, j, iter, halving = 0;
   bool fail;
-
+  
   int nstrata = param->nstrata;
   int nvar = param->z.ncol();
   int nsub = param->z.nrow();
   NumericMatrix z1 = param->z;
-
+  
   // standardize the design matrix
   NumericVector mu(nvar), sigma(nvar);
   NumericMatrix z2(nsub, nvar);
@@ -3951,7 +3951,7 @@ List liferegloop(int p, NumericVector par, void *ex,
     }
     z2(_,i) = (u - mu[i])/sigma[i];
   }
-
+  
   // corresponding initial beta
   NumericVector beta(p), newbeta(p);
   beta[0] = par[0];
@@ -3964,10 +3964,10 @@ List liferegloop(int p, NumericVector par, void *ex,
       beta[i] = par[i];
     }
   }
-
+  
   aftparams para = {param->dist, param->strata, param->tstart, param->tstop,
                     param->status, param->weight, param->offset, z2, nstrata};
-
+  
   double toler = 1e-12;
   double loglik, newlk;
   NumericVector u(p);
@@ -3976,21 +3976,21 @@ List liferegloop(int p, NumericVector par, void *ex,
   NumericVector u1(ncolfit);
   NumericMatrix imat1(ncolfit, ncolfit);
   NumericMatrix jj1(ncolfit, ncolfit);
-
+  
   // initial log likelihood
   loglik = f_llik_1(p, beta, &para);
   u = f_score_1(p, beta, &para);
   for (i=0; i<ncolfit; i++) {
     u1[i] = u[colfit[i]];
   }
-
+  
   imat = f_info_1(p, beta, &para);
   for (i=0; i<ncolfit; i++) {
     for (j=0; j<ncolfit; j++) {
       imat1(i,j) = imat(colfit[i], colfit[j]);
     }
   }
-
+  
   i = cholesky2(imat1, ncolfit, toler);
   if (i < 0) {
     jj = f_jj_1(p, beta, &para);
@@ -3999,40 +3999,40 @@ List liferegloop(int p, NumericVector par, void *ex,
         jj1(i,j) = jj(colfit[i], colfit[j]);
       }
     }
-
+    
     i = cholesky2(jj1, ncolfit, toler);
     chsolve2(jj1, ncolfit, u1);
   } else {
     chsolve2(imat1, ncolfit, u1);
   }
-
+  
   u.fill(0);
   for (i=0; i<ncolfit; i++) {
     u[colfit[i]] = u1[i];
   }
-
+  
   // new beta
   for (i=0; i<p; i++) {
     newbeta[i] = beta[i] + u[i];
   }
-
+  
   for (iter=0; iter<maxiter; iter++) {
     // new log likelihood
     newlk = f_llik_1(p, newbeta, &para);
-
+    
     // check convergence
     fail = std::isnan(newlk) || std::isinf(newlk) == 1;
-
+    
     if (!fail && halving == 0 && fabs(1 - (loglik/newlk)) < eps) {
       break;
     }
-
+    
     if (fail || newlk < loglik) { // adjust step size if likelihood decreases
       halving++;
       for (i=0; i<p; i++) {
         newbeta[i] = (beta[i] + newbeta[i]) /2;
       }
-
+      
       // special handling of sigmas
       if (halving == 1 && param->dist != "exponential") {
         for (i=0; i<nstrata; i++) {
@@ -4043,24 +4043,24 @@ List liferegloop(int p, NumericVector par, void *ex,
       }
     } else { // update beta normally
       halving = 0;
-
+      
       for (i=0; i<p; i++) {
         beta[i] = newbeta[i];
       }
       loglik = newlk;
-
+      
       u = f_score_1(p, beta, &para);
       for (i=0; i<ncolfit; i++) {
         u1[i] = u[colfit[i]];
       }
-
+      
       imat = f_info_1(p, beta, &para);
       for (i=0; i<ncolfit; i++) {
         for (j=0; j<ncolfit; j++) {
           imat1(i,j) = imat(colfit[i], colfit[j]);
         }
       }
-
+      
       i = cholesky2(imat1, ncolfit, toler);
       if (i < 0) {
         jj = f_jj_1(p, beta, &para);
@@ -4069,39 +4069,39 @@ List liferegloop(int p, NumericVector par, void *ex,
             jj1(i,j) = jj(colfit[i], colfit[j]);
           }
         }
-
+        
         i = cholesky2(jj1, ncolfit, toler);
         chsolve2(jj1, ncolfit, u1);
       } else {
         chsolve2(imat1, ncolfit, u1);
       }
-
+      
       u.fill(0);
       for (i=0; i<ncolfit; i++) {
         u[colfit[i]] = u1[i];
       }
-
+      
       for (i=0; i<p; i++) {
         newbeta[i] = beta[i] + u[i];
       }
     }
   }
-
+  
   if (iter == maxiter) fail = 1;
-
+  
   // parameter estimates on the original scale of the design matrix
   for (i=1; i<nvar; i++) {
     newbeta[i] = newbeta[i]/sigma[i];
     newbeta[0] = newbeta[0] - newbeta[i]*mu[i];
   }
-
+  
   imat = f_info_1(p, newbeta, param);
   for (i=0; i<ncolfit; i++) {
     for (j=0; j<ncolfit; j++) {
       imat1(i,j) = imat(colfit[i], colfit[j]);
     }
   }
-
+  
   NumericMatrix var1 = invsympd(imat1, ncolfit, toler);
   NumericMatrix var(p,p);
   for (i=0; i<ncolfit; i++) {
@@ -4109,7 +4109,7 @@ List liferegloop(int p, NumericVector par, void *ex,
       var(colfit[i], colfit[j]) = var1(i,j);
     }
   }
-
+  
   return List::create(
     Named("coef") = newbeta,
     Named("iter") = iter,
@@ -4124,10 +4124,10 @@ double liferegplloop(int p, NumericVector par, void *ex,
                      int maxiter, double eps,
                      int k, int which, double l0) {
   aftparams *param = (aftparams *) ex;
-
+  
   int i, j, iter;
   bool fail = 0;
-
+  
   double toler = 1e-12;
   NumericVector beta(p), newbeta(p);
   double loglik, newlk;
@@ -4136,18 +4136,18 @@ double liferegplloop(int p, NumericVector par, void *ex,
   NumericMatrix imat(p,p);
   NumericMatrix jj(p,p);
   NumericMatrix v(p,p);
-
+  
   // initial beta and log likelihood
   for (i=0; i<p; i++) {
     beta[i] = par[i];
   }
-
+  
   loglik = f_llik_1(p, beta, param);
   u = f_score_1(p, beta, param);
-
+  
   imat = f_info_1(p, beta, param);
   jj = clone(imat);
-
+  
   i = cholesky2(jj, p, toler);
   if (i < 0) {
     jj = f_jj_1(p, beta, param);
@@ -4156,7 +4156,7 @@ double liferegplloop(int p, NumericVector par, void *ex,
     v = invsympd(imat, p, toler);
   }
   v = -1.0*v;
-
+  
   // Lagrange multiplier method as used in SAS PROC LOGISTIC
   double w = 0;
   for (i=0; i<p; i++) {
@@ -4164,43 +4164,43 @@ double liferegplloop(int p, NumericVector par, void *ex,
       w += u[i]*v(i,j)*u[j];
     }
   }
-
+  
   double underroot = 2*(l0 - loglik + 0.5*w)/v(k,k);
   double lambda = underroot < 0.0 ? 0.0 : which*sqrt(underroot);
   u[k] += lambda;
-
+  
   delta.fill(0.0);
   for (i=0; i<p; i++) {
     for (j=0; j<p; j++) {
       delta[i] -= v(i,j)*u[j];
     }
   }
-
+  
   // update beta
   for (i=0; i<p; i++) {
     newbeta[i] = beta[i] + delta[i];
   }
-
+  
   for (iter=0; iter<maxiter; iter++) {
     newlk = f_llik_1(p, newbeta, param);
-
+    
     // check convergence
     fail = std::isnan(newlk) || std::isinf(newlk) == 1;
-
+    
     if (!fail && fabs(newlk - l0) < eps && w < eps) {
       break;
     }
-
+    
     for (i=0; i<p; i++) {
       beta[i] = newbeta[i];
     }
     loglik = newlk;
-
+    
     u = f_score_1(p, beta, param);
-
+    
     imat = f_info_1(p, beta, param);
     jj = clone(imat);
-
+    
     i = cholesky2(jj, p, toler);
     if (i < 0) {
       jj = f_jj_1(p, beta, param);
@@ -4209,7 +4209,7 @@ double liferegplloop(int p, NumericVector par, void *ex,
       v = invsympd(imat, p, toler);
     }
     v = -1.0*v;
-
+    
     // Lagrange multiplier method as used in SAS PROC LOGISTIC
     w = 0;
     for (i=0; i<p; i++) {
@@ -4217,11 +4217,11 @@ double liferegplloop(int p, NumericVector par, void *ex,
         w += u[i]*v(i,j)*u[j];
       }
     }
-
+    
     underroot = 2*(l0 - loglik + 0.5*w)/v(k,k);
     lambda = underroot < 0.0 ? 0.0 : which*sqrt(underroot);
     u[k] += lambda;
-
+    
     delta.fill(0.0);
     for (i=0; i<p; i++) {
       for (j=0; j<p; j++) {
@@ -4233,13 +4233,13 @@ double liferegplloop(int p, NumericVector par, void *ex,
       newbeta[i] = beta[i] + delta[i];
     }
   }
-
+  
   if (iter == maxiter) fail = 1;
-
+  
   if (fail) {
     warning("The algorithm in liferegplloop did not converge");
   }
-
+  
   return newbeta[k];
 }
 
@@ -4262,18 +4262,18 @@ List liferegcpp(const DataFrame data,
                 const double alpha = 0.05,
                 const int maxiter = 50,
                 const double eps = 1.0e-9) {
-
+  
   int h, i, j, k, n = data.nrows();
   int nvar = static_cast<int>(covariates.size()) + 1;
   if (nvar == 2 && (covariates[0] == "" || covariates[0] == "none")) {
     nvar = 1;
   }
-
+  
   std::string dist1 = dist;
   std::for_each(dist1.begin(), dist1.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if ((dist1 == "log-logistic") || (dist1 == "llogistic")) {
     dist1 = "loglogistic";
   } else if  ((dist1 == "log-normal") || (dist1 == "lnormal")) {
@@ -4281,7 +4281,7 @@ List liferegcpp(const DataFrame data,
   } else if (dist1 == "gaussian") {
     dist1 = "normal";
   }
-
+  
   if (!((dist1 == "exponential") || (dist1 == "weibull") ||
       (dist1 == "lognormal") || (dist1 == "loglogistic") ||
       (dist1 == "normal") || (dist1 == "logistic"))) {
@@ -4290,8 +4290,8 @@ List liferegcpp(const DataFrame data,
     std::string errmsg = str1 + " " + str2;
     stop(errmsg);
   }
-
-
+  
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -4305,8 +4305,8 @@ List liferegcpp(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   IntegerVector stratumn(n);
   int p_stratum = static_cast<int>(stratum.size());
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
@@ -4315,20 +4315,20 @@ List liferegcpp(const DataFrame data,
     List out = bygroup(data, stratum);
     stratumn = out["index"];
   }
-
-
+  
+  
   IntegerVector stratumn1 = unique(stratumn);
   int nstrata = static_cast<int>(stratumn1.size());
   int p = dist1 == "exponential" ? nvar : (nvar+nstrata);
-
+  
   if (dist1 == "exponential" && nstrata > 1) {
     stop("Stratification is not valid with the exponential distribution");
   }
-
-
+  
+  
   bool has_time = hasVariable(data, time);
   if (!has_time) stop("data must contain the time variable");
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   for (i=0; i<n; i++) {
@@ -4341,7 +4341,7 @@ List liferegcpp(const DataFrame data,
       stop(errmsg);
     }
   }
-
+  
   bool has_time2 = hasVariable(data, time2);
   NumericVector time2n(n);
   if (has_time2) {
@@ -4358,12 +4358,12 @@ List liferegcpp(const DataFrame data,
       }
     }
   }
-
+  
   bool has_event = hasVariable(data, event);
   if (!has_time2 && !has_event) {
     stop("data must contain the event variable for right censored data");
   }
-
+  
   IntegerVector eventn(n);
   if (has_event) {
     IntegerVector eventnz = data[event];
@@ -4371,17 +4371,13 @@ List liferegcpp(const DataFrame data,
     if (is_true(any((eventn != 1) & (eventn != 0)))) {
       stop("event must be 1 or 0 for each subject");
     }
-
-    if (is_true(all(eventn == 0))) {
-      stop("at least 1 event is needed to fit the parametric model");
-    }
   }
-
+  
   NumericMatrix zn(n,nvar);
   for (i=0; i<n; i++) {
     zn(i,0) = 1; // intercept
   }
-
+  
   for (j=0; j<nvar-1; j++) {
     String zj = covariates[j];
     if (!hasVariable(data, zj)) {
@@ -4392,10 +4388,10 @@ List liferegcpp(const DataFrame data,
       zn(i,j+1) = u[i];
     }
   }
-
-
+  
+  
   bool has_weight = hasVariable(data, weight);
-
+  
   NumericVector weightn(n, 1.0);
   if (has_weight) {
     NumericVector weightnz = data[weight];
@@ -4404,18 +4400,18 @@ List liferegcpp(const DataFrame data,
       stop("weight must be greater than 0");
     }
   }
-
-
+  
+  
   bool has_offset = hasVariable(data, offset);
-
+  
   NumericVector offsetn(n);
   if (has_offset) {
     NumericVector offsetnz = data[offset];
     offsetn = clone(offsetnz);
   }
-
+  
   bool has_id = hasVariable(data, id);
-
+  
   // create the numeric id variable
   IntegerVector idn(n);
   if (!has_id) {
@@ -4440,14 +4436,14 @@ List liferegcpp(const DataFrame data,
       stop("incorrect type for the id variable in the input data");
     }
   }
-
-
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   timen = timen[order];
@@ -4457,7 +4453,7 @@ List liferegcpp(const DataFrame data,
   offsetn = offsetn[order];
   idn = idn[order];
   zn = subset_matrix_by_row(zn, order);
-
+  
   // exclude observations with missing values
   LogicalVector sub(n,1);
   for (i=0; i<n; i++) {
@@ -4471,7 +4467,7 @@ List liferegcpp(const DataFrame data,
       if (std::isnan(zn(i,j+1))) sub[i] = 0;
     }
   }
-
+  
   order = which(sub);
   repn = repn[order];
   stratumn = stratumn[order];
@@ -4483,7 +4479,7 @@ List liferegcpp(const DataFrame data,
   idn = idn[order];
   zn = subset_matrix_by_row(zn, order);
   n = sum(sub);
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -4491,28 +4487,29 @@ List liferegcpp(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   // variables in the output data sets
   IntegerVector rep01 = seq(1,nreps);
   IntegerVector nobs(nreps), nevents(nreps);
   NumericVector loglik0(nreps), loglik1(nreps);
   IntegerVector niter(nreps);
   LogicalVector fails(nreps);
-
+  
   IntegerVector rep0(nreps*p);
   StringVector par0(nreps*p);
   NumericVector beta0(nreps*p), sebeta0(nreps*p), rsebeta0(nreps*p);
+  NumericVector z0(nreps*p), expbeta0(nreps*p);
   NumericMatrix vbeta0(nreps*p,p), rvbeta0(nreps*p,p);
   NumericVector lb0(nreps*p), ub0(nreps*p), prob0(nreps*p);
   StringVector clparm0(nreps*p);
-
+  
   for (h=0; h<nreps; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector stratum1 = stratumn[q1];
     NumericVector time1 = timen[q1];
     NumericVector time21 = time2n[q1];
@@ -4521,7 +4518,7 @@ List liferegcpp(const DataFrame data,
     NumericVector offset1 = offsetn[q1];
     IntegerVector id1 = idn[q1];
     NumericMatrix z1 = subset_matrix_by_row(zn, q1);
-
+    
     // unify right censored data with interval censored data
     NumericVector tstart(n1), tstop(n1);
     if (!has_time2) {
@@ -4533,7 +4530,7 @@ List liferegcpp(const DataFrame data,
       tstart = time1;
       tstop = time21;
     }
-
+    
     IntegerVector status(n1);
     for (i=0; i<n1; i++) {
       if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
@@ -4550,14 +4547,51 @@ List liferegcpp(const DataFrame data,
         status[i] = -1; // exclude the observation
       }
     }
-
+    
     nobs[h] = n1;
     nevents[h] = sum(status == 1);
-
+    
+    if (nevents[h] == 0) {
+      for (i=0; i<p; i++) {
+        int k = h*p+i;
+        rep0[k] = h+1;
+        
+        if (i==0) {
+          par0[k] = "(Intercept)";
+        } else if (i < nvar) {
+          par0[k] = covariates[i-1];
+        } else {
+          if (nstrata == 1) {
+            par0[k] = "Log(scale)";
+          } else {
+            std::string str1 = "Log(scale ";
+            std::string str2 = ")";
+            par0[k] = str1 + std::to_string(i-nvar+1) + str2;
+          }
+        }
+        
+        beta0[k] = NA_REAL;
+        sebeta0[k] = 0;
+        rsebeta0[k] = 0;
+        z0[k] = NA_REAL;
+        expbeta0[k] = NA_REAL;
+        for (j=0; j<p; j++) {
+          vbeta0(k,j) = 0;
+          rvbeta0(k,j) = 0;
+        }
+        lb0[k] = NA_REAL;
+        ub0[k] = NA_REAL;
+        prob0[k] = NA_REAL;
+        clparm0[k] = "Wald";
+      }
+      
+      continue;
+    }
+    
     // exclude records with invalid status
     IntegerVector q2 = which(status != -1);
     int n2 = static_cast<int>(q2.size());
-
+    
     if (n2 < n1) {
       stratum1 = stratum1[q2];
       tstart = tstart[q2];
@@ -4568,7 +4602,7 @@ List liferegcpp(const DataFrame data,
       id1 = id1[q2];
       z1 = subset_matrix_by_row(z1,q2);
     }
-
+    
     // intercept only model
     NumericVector time0(n2);
     for (i=0; i<n2; i++) {
@@ -4580,16 +4614,16 @@ List liferegcpp(const DataFrame data,
         time0[i] = (tstart[i] + tstop[i])/2;
       }
     }
-
+    
     NumericVector y0 = clone(time0);
     if ((dist1 == "exponential") || (dist1 == "weibull") ||
         (dist1 == "lognormal") || (dist1 == "loglogistic")) {
       y0 = log(y0);
     }
-
+    
     double int0 = mean(y0);
     double logsig0 = log(sd(y0));
-
+    
     NumericVector bint0(p);
     int ncolfit0 = dist1 == "exponential" ? 1 : nstrata + 1;
     IntegerVector colfit0(ncolfit0);
@@ -4602,26 +4636,26 @@ List liferegcpp(const DataFrame data,
       for (i=0; i<nstrata; i++) {
         bint0[nvar+i] = logsig0;
       }
-
+      
       colfit0[0] = 0;
       for (i=0; i<nstrata; i++) {
         colfit0[i+1] = nvar+i;
       }
     }
-
+    
     // parameter estimates and standard errors for the null model
     aftparams param = {dist1, stratum1, tstart, tstop, status, weight1,
-                          offset1, z1, nstrata};
-
+                       offset1, z1, nstrata};
+    
     List outint = liferegloop(p, bint0, &param, maxiter, eps,
                               colfit0, ncolfit0);
     NumericVector bint = outint["coef"];
     NumericMatrix vbint = as<NumericMatrix>(outint["var"]);
-
+    
     NumericVector b(p);
     NumericMatrix vb(p,p);
     List out;
-
+    
     if (nvar > 1) {
       IntegerVector colfit = seq(0,p-1);
       if (is_false(any(is_na(init))) && init.size() == p) {
@@ -4629,7 +4663,7 @@ List liferegcpp(const DataFrame data,
       } else {
         out = liferegloop(p, bint, &param, maxiter, eps, colfit, p);
       }
-        
+      
       bool fail = out["fail"];
       if (fail) {
         // obtain initial values for model parameters using OLS
@@ -4672,9 +4706,9 @@ List liferegcpp(const DataFrame data,
         out = liferegloop(p, binit, &param, maxiter, eps, colfit, p);
         fail = out["fail"];
       }
-
+      
       if (fail) warning("The algorithm in liferegr did not converge");
-
+      
       b = out["coef"];
       vb = as<NumericMatrix>(out["var"]);
     } else {
@@ -4682,15 +4716,15 @@ List liferegcpp(const DataFrame data,
       vb = vbint;
       out = outint;
     }
-
+    
     NumericVector seb(p);
     for (j=0; j<p; j++) {
       seb[j] = sqrt(vb(j,j));
     }
-
+    
     for (i=0; i<p; i++) {
       rep0[h*p+i] = h+1;
-
+      
       if (i==0) {
         par0[h*p+i] = "(Intercept)";
       } else if (i < nvar) {
@@ -4704,22 +4738,22 @@ List liferegcpp(const DataFrame data,
           par0[h*p+i] = str1 + std::to_string(i-nvar+1) + str2;
         }
       }
-
+      
       beta0[h*p+i] = b[i];
       sebeta0[h*p+i] = seb[i];
       for (j=0; j<p; j++) {
         vbeta0(h*p+i,j) = vb(i,j);
       }
     }
-
+    
     niter[h] = out["iter"];
     fails[h] = out["fail"];
-
+    
     // robust variance estimates
     NumericVector rseb(p);  // robust standard error for betahat
     if (robust) {
       NumericMatrix ressco = f_ressco_1(p, b, &param);
-
+      
       int nr; // number of rows in the score residual matrix
       if (!has_id) {
         for (i=0; i<n2; i++) {
@@ -4733,7 +4767,7 @@ List liferegcpp(const DataFrame data,
         std::sort(order.begin(), order.end(), [&](int i, int j) {
           return id1[i] < id1[j];
         });
-
+        
         IntegerVector id2 = id1[order];
         IntegerVector idx(1,0);
         for (i=1; i<n2; i++) {
@@ -4741,12 +4775,12 @@ List liferegcpp(const DataFrame data,
             idx.push_back(i);
           }
         }
-
+        
         int nids = static_cast<int>(idx.size());
         idx.push_back(n2);
-
+        
         NumericVector weight2 = weight1[order];
-
+        
         NumericMatrix ressco2(nids,p);
         for (i=0; i<nids; i++) {
           for (j=0; j<p; j++) {
@@ -4755,11 +4789,11 @@ List liferegcpp(const DataFrame data,
             }
           }
         }
-
+        
         ressco = ressco2;  // update the score residuals
         nr = nids;
       }
-
+      
       NumericMatrix D(nr,p); // DFBETA
       for (i=0; i<nr; i++) {
         for (j=0; j<p; j++) {
@@ -4768,7 +4802,7 @@ List liferegcpp(const DataFrame data,
           }
         }
       }
-
+      
       NumericMatrix rvb(p,p); // robust variance matrix for betahat
       for (j=0; j<p; j++) {
         for (k=0; k<p; k++) {
@@ -4777,11 +4811,11 @@ List liferegcpp(const DataFrame data,
           }
         }
       }
-
+      
       for (i=0; i<p; i++) {
         rseb[i] = sqrt(rvb(i,i));
       }
-
+      
       for (i=0; i<p; i++) {
         rsebeta0[h*p+i] = rseb[i];
         for (j=0; j<p; j++) {
@@ -4789,20 +4823,20 @@ List liferegcpp(const DataFrame data,
         }
       }
     }
-
+    
     // profile likelihood confidence interval for regression coefficients
     NumericVector lb(p), ub(p), prob(p);
     StringVector clparm(p);
-
+    
     double zcrit = R::qnorm(1-alpha/2,0,1,1,0);
     if (plci) {
       double lmax = f_llik_1(p, b, &param);
       double l0 = lmax - 0.5*R::qchisq(1-alpha, 1, 1, 0);
-
+      
       for (k=0; k<p; k++) {
         lb[k] = liferegplloop(p, b, &param, maxiter, eps, k, -1, l0);
         ub[k] = liferegplloop(p, b, &param, maxiter, eps, k, 1, l0);
-
+        
         IntegerVector colfit1(p-1);
         for (i=0; i<k; i++) {
           colfit1[i] = i;
@@ -4810,7 +4844,7 @@ List liferegcpp(const DataFrame data,
         for (i=k+1; i<p; i++) {
           colfit1[i-1] = i;
         }
-
+        
         NumericVector b0(p);
         List out0 = liferegloop(p, b0, &param, maxiter, eps, colfit1, p-1);
         double lmax0 = out0["loglik"];
@@ -4831,24 +4865,23 @@ List liferegcpp(const DataFrame data,
         clparm[k] = "Wald";
       }
     }
-
+    
     for (i=0; i<p; i++) {
       lb0[h*p+i] = lb[i];
       ub0[h*p+i] = ub[i];
       prob0[h*p+i] = prob[i];
       clparm0[h*p+i] = clparm[i];
     }
-
+    
     // log-likelihoods
     loglik0[h] = outint["loglik"];
     loglik1[h] = out["loglik"];
   }
-
-  NumericVector expbeta0 = exp(beta0);
-  NumericVector z0(nreps*p);
+  
+  expbeta0 = exp(beta0);
   if (!robust) z0 = beta0/sebeta0;
   else z0 = beta0/rsebeta0;
-
+  
   DataFrame sumstat = List::create(
     _["n"] = nobs,
     _["nevents"] = nevents,
@@ -4860,7 +4893,7 @@ List liferegcpp(const DataFrame data,
     _["nvar"] = nvar-1,
     _["robust"] = robust,
     _["fail"] = fails);
-
+  
   DataFrame parest;
   if (!robust) {
     parest = DataFrame::create(
@@ -4889,7 +4922,7 @@ List liferegcpp(const DataFrame data,
       _["sebeta_naive"] = sebeta0,
       _["vbeta_naive"] = vbeta0);
   }
-
+  
   if (has_rep) {
     for (i=0; i<p_rep; i++) {
       String s = rep[i];
@@ -4908,11 +4941,11 @@ List liferegcpp(const DataFrame data,
       }
     }
   }
-
+  
   List result = List::create(
     _["sumstat"] = sumstat,
     _["parest"] = parest);
-
+  
   return result;
 }
 
@@ -4933,18 +4966,18 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
                                    const std::string type = "response",
                                    const bool collapse = 0,
                                    const bool weighted = 0) {
-
+  
   int i, j, k, n = data.nrows();
   int nvar = static_cast<int>(covariates.size()) + 1;
   if (nvar == 2 && (covariates[0] == "" || covariates[0] == "none")) {
     nvar = 1;
   }
-
+  
   std::string dist1 = dist;
   std::for_each(dist1.begin(), dist1.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if ((dist1 == "log-logistic") || (dist1 == "llogistic")) {
     dist1 = "loglogistic";
   } else if  ((dist1 == "log-normal") || (dist1 == "lnormal")) {
@@ -4952,7 +4985,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
   } else if (dist1 == "gaussian") {
     dist1 = "normal";
   }
-
+  
   if (!((dist1 == "exponential") || (dist1 == "weibull") ||
       (dist1 == "lognormal") || (dist1 == "loglogistic") ||
       (dist1 == "normal") || (dist1 == "logistic"))) {
@@ -4961,7 +4994,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     std::string errmsg = str1 + " " + str2;
     stop(errmsg);
   }
-
+  
   IntegerVector stratumn(n);
   int p_stratum = static_cast<int>(stratum.size());
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
@@ -4970,20 +5003,20 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     List out = bygroup(data, stratum);
     stratumn = out["index"];
   }
-
-
+  
+  
   IntegerVector stratumn1 = unique(stratumn);
   int nstrata = static_cast<int>(stratumn1.size());
   int p = dist1 == "exponential" ? nvar : (nvar+nstrata);
-
+  
   if (dist1 == "exponential" && nstrata > 1) {
     stop("Stratification is not valid with the exponential distribution");
   }
-
-
+  
+  
   bool has_time = hasVariable(data, time);
   if (!has_time) stop("data must contain the time variable");
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   for (i=0; i<n; i++) {
@@ -4996,7 +5029,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       stop(errmsg);
     }
   }
-
+  
   bool has_time2 = hasVariable(data, time2);
   NumericVector time2n(n);
   if (has_time2) {
@@ -5013,12 +5046,12 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       }
     }
   }
-
+  
   bool has_event = hasVariable(data, event);
   if (!has_time2 && !has_event) {
     stop("data must contain the event variable for right censored data");
   }
-
+  
   IntegerVector eventn(n);
   if (has_event) {
     IntegerVector eventnz = data[event];
@@ -5026,17 +5059,13 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     if (is_true(any((eventn != 1) & (eventn != 0)))) {
       stop("event must be 1 or 0 for each subject");
     }
-
-    if (is_true(all(eventn == 0))) {
-      stop("at least 1 event is needed to fit the parametric model");
-    }
   }
-
+  
   NumericMatrix zn(n,nvar);
   for (i=0; i<n; i++) {
     zn(i,0) = 1; // intercept
   }
-
+  
   for (j=0; j<nvar-1; j++) {
     String zj = covariates[j];
     if (!hasVariable(data, zj)) {
@@ -5047,10 +5076,10 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       zn(i,j+1) = u[i];
     }
   }
-
-
+  
+  
   bool has_weight = hasVariable(data, weight);
-
+  
   NumericVector weightn(n, 1.0);
   if (has_weight) {
     NumericVector weightnz = data[weight];
@@ -5059,18 +5088,18 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       stop("weight must be greater than 0");
     }
   }
-
-
+  
+  
   bool has_offset = hasVariable(data, offset);
-
+  
   NumericVector offsetn(n);
   if (has_offset) {
     NumericVector offsetnz = data[offset];
     offsetn = clone(offsetnz);
   }
-
+  
   bool has_id = hasVariable(data, id);
-
+  
   // create the numeric id variable
   IntegerVector idn(n);
   if (!has_id) {
@@ -5095,7 +5124,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       stop("incorrect type for the id variable in the input data");
     }
   }
-
+  
   // exclude observations with missing values
   LogicalVector sub(n,1);
   for (i=0; i<n; i++) {
@@ -5109,7 +5138,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       if (std::isnan(zn(i,j+1))) sub[i] = 0;
     }
   }
-
+  
   IntegerVector q1 = which(sub);
   stratumn = stratumn[q1];
   timen = timen[q1];
@@ -5120,7 +5149,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
   idn = idn[q1];
   zn = subset_matrix_by_row(zn, q1);
   int n1 = sum(sub);
-
+  
   // unify right censored data with interval censored data
   NumericVector tstart(n1), tstop(n1);
   if (!has_time2) {
@@ -5132,7 +5161,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     tstart = timen;
     tstop = time2n;
   }
-
+  
   IntegerVector status(n1);
   for (i=0; i<n1; i++) {
     if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
@@ -5149,11 +5178,11 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       status[i] = -1; // exclude the observation
     }
   }
-
+  
   // exclude records with invalid status
   IntegerVector q2 = which(status != -1);
   int n2 = static_cast<int>(q2.size());
-
+  
   if (n2 < n1) {
     stratumn = stratumn[q2];
     tstart = tstart[q2];
@@ -5164,7 +5193,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     idn = idn[q2];
     zn = subset_matrix_by_row(zn,q2);
   }
-
+  
   NumericVector eta(n2);
   for (i = 0; i < n2; i++) {
     eta[i] = offsetn[i];
@@ -5172,7 +5201,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       eta[i] += beta[j]*zn(i,j);
     }
   }
-
+  
   NumericVector sig(n2, 1.0);
   if (dist1 != "exponential") {
     for (i = 0; i < n2; i++) {
@@ -5180,7 +5209,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       sig[i] = exp(beta[j]);
     }
   }
-
+  
   int K = 1;
   if (type == "dfbeta" || type == "dfbetas") {
     K = p;
@@ -5216,12 +5245,32 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
           yhat0[i] = 0.5*(tstart[i] + tstop[i]);
         }
       }
-
+      
       if (dist1 == "exponential" || dist1 == "weibull" ||
           dist1 == "lognormal" || dist1 == "loglogistic") {
         rr(i,0) = exp(yhat0[i]) - exp(eta[i]);
       } else {
         rr(i,0) = yhat0[i] - eta[i];
+      }
+    }
+  } else if (type == "martingale") {
+    if (!(dist1 == "exponential" || dist1 == "weibull" ||
+        dist1 == "lognormal" || dist1 == "loglogistic")) {
+      stop("incorrect type of distribution");
+    }
+    
+    for (i = 0; i < n2; i++) {
+      if (status[i] == 0 || status[i] == 1) { // right-censored or event
+        double y = (log(tstart[i]) - eta[i])/sig[i];
+        if (dist1 == "exponential" || dist1 == "weibull") {
+          rr(i,0) = (status[i] == 1) - exp(y);
+        } else if (dist1 == "lognormal") {
+          rr(i,0) = (status[i] == 1) + R::pnorm(y,0,1,0,1);
+        } else { // loglogistic
+          rr(i,0) = (status[i] == 1) + R::plogis(y,0,1,0,1);
+        }
+      } else {
+        rr(i,0) = NA_REAL;
       }
     }
   } else {
@@ -5230,7 +5279,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     List der = f_der_eta_tau_1(eta, sig, &param);
     NumericVector g = der["g"], dg = der["dg"], ddg = der["ddg"];
     NumericVector ds = der["ds"], dds = der["dds"], dsg = der["dsg"];
-
+    
     if (type == "deviance") {
       NumericVector loglik(n2);
       for (i = 0; i < n2; i++) {
@@ -5263,7 +5312,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
             loglik[i] = log((exp(width/2) - 1)/(exp(width/2) + 1));
           }
         }
-
+        
         double val = -dg[i]/ddg[i];
         rr(i,0) = ((val>0) - (val<0))*sqrt(2*(loglik[i] - g[i]));
       }
@@ -5278,21 +5327,21 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
           score[j] = dg[i]*zn(i,j);
         }
         for (j=nvar; j<p; j++) {
-           score[j] = stratumn[i] == j-nvar+1 ? ds[i] : 0;
+          score[j] = stratumn[i] == j-nvar+1 ? ds[i] : 0;
         }
-
+        
         for (k=0; k<p; k++) {
           for (j=0; j<p; j++) {
             resid[k] += score[j]*vbeta(j,k);
           }
         }
-
+        
         if (type == "dfbetas") {
           for (k=0; k<p; k++) {
             resid[k] /= sqrt(vbeta(k,k));
           }
         }
-
+        
         if (type == "ldcase") {
           for (k=0; k<p; k++) {
             rr(i,0) += resid[k]*score[k];
@@ -5312,13 +5361,13 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
         for (j=nvar; j<p; j++) {
           rscore[j] = stratumn[i] == j-nvar+1 ? -dsg[i]*sig[i] : 0;
         }
-
+        
         for (k=0; k<p; k++) {
           for (j=0; j<p; j++) {
             temp[k] += rscore[j]*vbeta(j,k);
           }
         }
-
+        
         for (k=0; k<p; k++) {
           rr(i,0) += temp[k]*rscore[k];
         }
@@ -5332,18 +5381,18 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
         for (j=nvar; j<p; j++) {
           sscore[j] = stratumn[i] == j-nvar+1 ? dds[i] : 0;
         }
-
+        
         for (k=0; k<p; k++) {
           for (j=0; j<p; j++) {
             temp[k] += sscore[j]*vbeta(j,k);
           }
         }
-
+        
         for (k=0; k<p; k++) {
           rr(i,0) += temp[k]*sscore[k];
         }
       }
-    } else { // matrix type
+    } else if (type == "matrix") { // matrix type
       for (i = 0; i < n2; i++) {
         rr(i,0) = g[i];
         rr(i,1) = dg[i];
@@ -5352,9 +5401,11 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
         rr(i,4) = dds[i];
         rr(i,5) = dsg[i];
       }
+    } else {
+      stop("invalid type of residuals");
     }
   }
-
+  
   // case weights
   if (weighted) {
     for (i = 0; i < n2; i++) {
@@ -5363,7 +5414,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
       }
     }
   }
-
+  
   // collapse if needed
   if (collapse) {
     // order data by id
@@ -5371,7 +5422,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
     std::sort(order.begin(), order.end(), [&](int i, int j) {
       return idn[i] < idn[j];
     });
-
+    
     IntegerVector id2 = idn[order];
     IntegerVector idx(1,0);
     for (i=1; i<n2; i++) {
@@ -5379,10 +5430,10 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
         idx.push_back(i);
       }
     }
-
+    
     int nids = static_cast<int>(idx.size());
     idx.push_back(n2);
-
+    
     // collapse over id
     NumericMatrix rr2(nids,K);
     for (i=0; i<nids; i++) {
@@ -5392,10 +5443,10 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
         }
       }
     }
-
+    
     rr = rr2;
   }
-
+  
   return rr;
 }
 
@@ -5407,7 +5458,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
 double f_llik_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, k, person;
-
+  
   double loglik = 0;        // log-likelihood value
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
@@ -5416,7 +5467,7 @@ double f_llik_2(int p, NumericVector par, void *ex) {
   double risk;              // weighted risk, w*exp(zbeta)
   double denom = 0;         // s0(beta,k,t)
   double denom2 = 0;        // sum of weighted risks for the deaths
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -5424,7 +5475,7 @@ double f_llik_2(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -5434,7 +5485,7 @@ double f_llik_2(int p, NumericVector par, void *ex) {
       i1 = person;
       denom = 0;
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -5447,12 +5498,12 @@ double f_llik_2(int p, NumericVector par, void *ex) {
         denom2 += risk;
         loglik += param->weight[person]*eta[person];
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1 < param->nused; i1++) {
       p1 = param->order1[i1];
@@ -5460,7 +5511,7 @@ double f_llik_2(int p, NumericVector par, void *ex) {
       risk = param->weight[p1]*exp(eta[p1]);
       denom -= risk;
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -5473,14 +5524,14 @@ double f_llik_2(int p, NumericVector par, void *ex) {
           loglik -= meanwt*log(denom);
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       deadwt = 0;
       denom2 = 0;
     }
   }
-
+  
   return loglik;
 }
 
@@ -5489,7 +5540,7 @@ double f_llik_2(int p, NumericVector par, void *ex) {
 NumericVector f_score_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, k, person;
-
+  
   NumericVector u(p);       // score vector
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
@@ -5501,7 +5552,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
   NumericVector a(p);       // s1(beta,k,t)
   NumericVector a2(p);      // sum of w*exp(zbeta)*z for the deaths
   double xbar;              // zbar(beta,k,t)
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -5509,7 +5560,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -5522,7 +5573,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
         a[i] = 0;
       }
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -5541,12 +5592,12 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
           u[i] += param->weight[person]*param->z(person,i);
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -5557,7 +5608,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
         a[i] -= risk*param->z(p1,i);
       }
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -5578,7 +5629,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       deadwt = 0;
@@ -5588,7 +5639,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return u;
 }
 
@@ -5597,7 +5648,7 @@ NumericVector f_score_2(int p, NumericVector par, void *ex) {
 NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, j, k, person;
-
+  
   NumericMatrix imat(p,p);  // information matrix
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
@@ -5611,7 +5662,7 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
   double xbar;              // zbar(beta,k,t)
   NumericMatrix cmat(p,p);  // s2(beta,k,t)
   NumericMatrix cmat2(p,p); // sum of w*exp(zbeta)*z*z' for the deaths
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -5619,7 +5670,7 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -5635,7 +5686,7 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
         }
       }
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -5659,12 +5710,12 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -5678,7 +5729,7 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
         }
       }
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -5705,7 +5756,7 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       // reset for next death time
       ndead = 0;
       deadwt = 0;
@@ -5718,13 +5769,13 @@ NumericMatrix f_info_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   for (i=0; i<p-1; i++) {
     for (j=i+1; j<p; j++) {
       imat(i,j) = imat(j,i);
     }
   }
-
+  
   return imat;
 }
 
@@ -5734,16 +5785,16 @@ double f_pen_llik_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   double loglik = f_llik_2(p, par, param);
   NumericMatrix imat = f_info_2(p, par, param);
-
+  
   // obtain the determinant of imat
   double toler = 1e-12;
   int i = cholesky2(imat, p, toler);
-
+  
   double v = 0;
   for (i=0; i<p; i++) {
     v += log(imat(i,i));
   }
-
+  
   return loglik + 0.5*v;
 }
 
@@ -5752,7 +5803,7 @@ double f_pen_llik_2(int p, NumericVector par, void *ex) {
 NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int h, i, j, k, l, person;
-
+  
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
   double deadwt = 0;        // sum of weights for the deaths
@@ -5767,7 +5818,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
   NumericMatrix cmat2(p,p); // sum of w*exp(zbeta)*z*z' for the deaths
   NumericMatrix dmat(p,p*p);  // q2(beta,k,t)
   NumericMatrix dmat2(p,p*p); // sum of w*exp(zbeta)*z*z*z' for the deaths
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -5775,11 +5826,11 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector u(p);       // score vector
   NumericMatrix imat(p,p);  // information matrix
   NumericMatrix dimat(p,p*p);
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -5799,7 +5850,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
         }
       }
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -5832,12 +5883,12 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -5855,7 +5906,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
         }
       }
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -5898,7 +5949,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       deadwt = 0;
@@ -5914,14 +5965,14 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   // fill the symmetric elements of the imat matrix
   for (i=0; i<p-1; i++) {
     for (j=i+1; j<p; j++) {
       imat(i,j) = imat(j,i);
     }
   }
-
+  
   // fill the symmetric elements of the dimat array
   for (i=0; i<p-1; i++) {
     for (j=i+1; j<p; j++) {
@@ -5930,7 +5981,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   for (j=0; j<p-1; j++) {
     for (i=j; i<p; i++) {
       for (k=j+1; k<p; k++) {
@@ -5938,7 +5989,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   for (i=0; i<p-1; i++) {
     for (j=i+1; j<p; j++) {
       for (k=i+1; k<p; k++) {
@@ -5946,23 +5997,23 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   // obtain the penalized score vector
   double toler = 1e-12;
   i = cholesky2(imat, p, toler);
-
+  
   double temp;
   NumericMatrix y(p,p);
   NumericVector g(p);
   for (k=0; k<p; k++) {
-
+    
     // partial derivative of the information matrix w.r.t. beta[k]
     for (i=0; i<p; i++) {
       for (j=0; j<p; j++) {
         y(i,j) = dimat(i,k*p+j);
       }
     }
-
+    
     // solve(imat, y)
     for (h=0; h<p; h++) {
       for (i=0; i<p; i++) {
@@ -5971,7 +6022,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
           temp -= y(j,h)*imat(j,i);
         y(i,h) = temp;
       }
-
+      
       for (i=p-1; i>=0; i--) {
         if (imat(i,i) == 0) y(i,h) = 0;
         else {
@@ -5982,15 +6033,15 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
         }
       }
     }
-
+    
     // trace
     for (i=0; i<p; i++) {
       g[k] += y(i,i);
     }
-
+    
     g[k] = u[k] + 0.5*g[k];
   }
-
+  
   return g;
 }
 
@@ -5999,7 +6050,7 @@ NumericVector f_pen_score_2(int p, NumericVector par, void *ex) {
 NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, j, k, person, n = static_cast<int>(param->tstart.size());
-
+  
   NumericMatrix resid(n,p);
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
@@ -6011,10 +6062,10 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
   NumericVector a(p);       // s1(beta,k,t)
   NumericVector a2(p);      // sum of w*exp(zbeta)*z for the deaths
   double xbar;              // zbar(beta,k,t)
-
+  
   double downwt, hazard, cumhaz = 0;
   NumericVector xhaz(p), mh1(p), mh2(p), mh3(p);
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -6022,9 +6073,9 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   NumericVector score = exp(eta);
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -6045,7 +6096,7 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
         xhaz[i] = 0;
       }
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -6054,7 +6105,7 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
       for (i=0; i<p; i++) {
         resid(person,i) = score[person]*(param->z(person,i)*cumhaz - xhaz[i]);
       }
-
+      
       risk = param->weight[person]*score[person];
       if (param->event[person] == 0) {
         denom += risk;
@@ -6069,12 +6120,12 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
           a2[i] += risk*param->z(person,i);
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -6087,7 +6138,7 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
         a[i] -= risk*param->z(p1,i);
       }
     }
-
+    
     // update the cumulative sums at death times
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -6123,7 +6174,7 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
             mh3[i]  += xbar/ndead;
           }
         }
-
+        
         for (j=person-1; j>=person-ndead; j--) {
           for (i=0; i<p; i++) {
             resid(j,i) += (param->z(j,i) - mh3[i]) +
@@ -6131,7 +6182,7 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       // reset for next death time
       ndead = 0;
       deadwt = 0;
@@ -6141,14 +6192,14 @@ NumericMatrix f_ressco_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   // finish those remaining in the final stratum
   for (; i1<param->nused; i1++) {
     p1 = param->order1[i1];
     for (i=0; i<p; i++)
       resid(p1,i) -= score[p1]*(param->z(p1,i)*cumhaz - xhaz[i]);
   }
-
+  
   return resid;
 }
 
@@ -6158,7 +6209,7 @@ NumericMatrix f_jj_2(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int n = param->z.nrow();
   int person, i, j;
-
+  
   NumericMatrix resid = f_ressco_2(p, par, param);
   NumericMatrix jj(p,p);
   for (person = 0; person < n; person++) {
@@ -6169,7 +6220,7 @@ NumericMatrix f_jj_2(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return jj;
 }
 
@@ -6181,9 +6232,9 @@ List phregloop(int p, NumericVector par, void *ex,
   coxparams *param = (coxparams *) ex;
   int i, j, iter, halving = 0;
   bool fail;
-
+  
   NumericMatrix z1 = param->z;
-
+  
   double toler = 1e-12;
   NumericVector beta(p), newbeta(p);
   double loglik, newlk = 0;
@@ -6191,12 +6242,12 @@ List phregloop(int p, NumericVector par, void *ex,
   NumericMatrix imat(p,p);
   NumericVector u1(ncolfit);
   NumericMatrix imat1(ncolfit, ncolfit);
-
+  
   // initial beta and log likelihood
   for (i=0; i<p; i++) {
     beta[i] = par[i];
   }
-
+  
   if (!firth) {
     loglik = f_llik_2(p, beta, param);
     u = f_score_2(p, beta, param);
@@ -6207,39 +6258,39 @@ List phregloop(int p, NumericVector par, void *ex,
   for (i=0; i<ncolfit; i++) {
     u1[i] = u[colfit[i]];
   }
-
+  
   imat = f_info_2(p, beta, param);
   for (i=0; i<ncolfit; i++) {
     for (j=0; j<ncolfit; j++) {
       imat1(i,j) = imat(colfit[i], colfit[j]);
     }
   }
-
+  
   i = cholesky2(imat1, ncolfit, toler);
-
+  
   chsolve2(imat1, ncolfit, u1);
-
+  
   u.fill(0);
   for (i=0; i<ncolfit; i++) {
     u[colfit[i]] = u1[i];
   }
-
+  
   for (i=0; i<p; i++) {
     newbeta[i] = beta[i] + u[i];
   }
-
+  
   for (iter=0; iter<maxiter; iter++) {
     // new log likelihood
     if (!firth) newlk = f_llik_2(p, newbeta, param);
     else newlk = f_pen_llik_2(p, newbeta, param);
-
+    
     // check convergence
     fail = std::isnan(newlk) || std::isinf(newlk) == 1;
-
+    
     if (!fail && halving == 0 && fabs(1 - (loglik/newlk)) < eps) {
       break;
     }
-
+    
     if (fail || newlk < loglik) { // adjust step size if likelihood decreases
       halving++;
       for (i=0; i<p; i++) {
@@ -6247,48 +6298,48 @@ List phregloop(int p, NumericVector par, void *ex,
       }
     } else { // update beta normally
       halving = 0;
-
+      
       for (i=0; i<p; i++) {
         beta[i] = newbeta[i];
       }
       loglik = newlk;
-
+      
       if (!firth) u = f_score_2(p, beta, param);
       else u = f_pen_score_2(p, beta, param);
       for (i=0; i<ncolfit; i++) {
         u1[i] = u[colfit[i]];
       }
-
+      
       imat = f_info_2(p, beta, param);
       for (i=0; i<ncolfit; i++) {
         for (j=0; j<ncolfit; j++) {
           imat1(i,j) = imat(colfit[i], colfit[j]);
         }
       }
-
+      
       i = cholesky2(imat1, ncolfit, toler);
-
+      
       chsolve2(imat1, ncolfit, u1);
       u.fill(0);
       for (i=0; i<ncolfit; i++) {
         u[colfit[i]] = u1[i];
       }
-
+      
       for (i=0; i<p; i++) {
         newbeta[i] = beta[i] + u[i];
       }
     }
   }
-
+  
   if (iter == maxiter) fail = 1;
-
+  
   imat = f_info_2(p, newbeta, param);
   for (i=0; i<ncolfit; i++) {
     for (j=0; j<ncolfit; j++) {
       imat1(i,j) = imat(colfit[i], colfit[j]);
     }
   }
-
+  
   NumericMatrix var1 = invsympd(imat1, ncolfit, toler);
   NumericMatrix var(p,p);
   for (i=0; i<ncolfit; i++) {
@@ -6296,7 +6347,7 @@ List phregloop(int p, NumericVector par, void *ex,
       var(colfit[i], colfit[j]) = var1(i,j);
     }
   }
-
+  
   return List::create(
     Named("coef") = newbeta,
     Named("iter") = iter,
@@ -6311,22 +6362,22 @@ double phregplloop(int p, NumericVector par, void *ex,
                    int maxiter, double eps, bool firth,
                    int k, int which, double l0) {
   coxparams *param = (coxparams *) ex;
-
+  
   int i, j, iter;
   bool fail = 0;
-
+  
   NumericVector beta(p), newbeta(p);
   double loglik, newlk;
   NumericVector u(p);
   NumericVector delta(p);
   NumericMatrix imat(p,p);
   NumericMatrix v(p,p);
-
+  
   // initial beta and log likelihood
   for (i=0; i<p; i++) {
     beta[i] = par[i];
   }
-
+  
   if (!firth) {
     loglik = f_llik_2(p, beta, param);
     u = f_score_2(p, beta, param);
@@ -6334,14 +6385,14 @@ double phregplloop(int p, NumericVector par, void *ex,
     loglik = f_pen_llik_2(p, beta, param);
     u = f_pen_score_2(p, beta, param);
   }
-
+  
   imat = f_info_2(p, beta, param);
-
+  
   // Lagrange multiplier method as used in SAS PROC LOGISTIC
   double toler = 1e-12;
   v = invsympd(imat, p, toler);
   v = -1.0*v;
-
+  
   double w = 0;
   for (i=0; i<p; i++) {
     for (j=0; j<p; j++) {
@@ -6351,44 +6402,44 @@ double phregplloop(int p, NumericVector par, void *ex,
   double underroot = 2*(l0 - loglik + 0.5*w)/v(k,k);
   double lambda = underroot < 0.0 ? 0.0 : which*sqrt(underroot);
   u[k] += lambda;
-
+  
   delta.fill(0.0);
   for (i=0; i<p; i++) {
     for (j=0; j<p; j++) {
       delta[i] -= v(i,j)*u[j];
     }
   }
-
+  
   // update beta
   for (i=0; i<p; i++) {
     newbeta[i] = beta[i] + delta[i];
   }
-
+  
   for (iter=0; iter<maxiter; iter++) {
     if (!firth) newlk = f_llik_2(p, newbeta, param);
     else newlk = f_pen_llik_2(p, newbeta, param);
-
+    
     // check convergence
     fail = std::isnan(newlk) || std::isinf(newlk) == 1;
-
+    
     if (!fail && fabs(newlk - l0) < eps && w < eps) {
       break;
     }
-
+    
     for (i=0; i<p; i++) {
       beta[i] = newbeta[i];
     }
     loglik = newlk;
-
+    
     if (!firth) u = f_score_2(p, beta, param);
     else u = f_pen_score_2(p, beta, param);
-
+    
     imat = f_info_2(p, beta, param);
-
+    
     // Lagrange multiplier method as used in SAS PROC LOGISTIC
     v = invsympd(imat, p, toler);
     v = -1.0*v;
-
+    
     w = 0;
     for (i=0; i<p; i++) {
       for (j=0; j<p; j++) {
@@ -6398,7 +6449,7 @@ double phregplloop(int p, NumericVector par, void *ex,
     underroot = 2*(l0 - loglik + 0.5*w)/v(k,k);
     lambda = underroot < 0.0 ? 0.0 : which*sqrt(underroot);
     u[k] += lambda;
-
+    
     delta.fill(0.0);
     for (i=0; i<p; i++) {
       for (j=0; j<p; j++) {
@@ -6410,13 +6461,13 @@ double phregplloop(int p, NumericVector par, void *ex,
       newbeta[i] = beta[i] + delta[i];
     }
   }
-
+  
   if (iter == maxiter) fail = 1;
-
+  
   if (fail) {
     warning("The algorithm in phregplloop did not converge");
   }
-
+  
   return newbeta[k];
 }
 
@@ -6425,7 +6476,7 @@ double phregplloop(int p, NumericVector par, void *ex,
 List f_basehaz(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, k, person;
-
+  
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
   int ncens = 0;            // number of censored at this time point
@@ -6437,7 +6488,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
   NumericVector a(p);       // s1(beta,k,t)
   NumericVector a2(p);      // sum of w*exp(zbeta)*z for the deaths
   int natrisk = 0;
-
+  
   // locate the first observation within each stratum
   IntegerVector istratum(1,0);
   for (i=1; i<param->nused; i++) {
@@ -6445,10 +6496,10 @@ List f_basehaz(int p, NumericVector par, void *ex) {
       istratum.push_back(i);
     }
   }
-
+  
   int nstrata = static_cast<int>(istratum.size());
   istratum.push_back(param->nused);
-
+  
   // add time 0 to each stratum
   int J = nstrata;
   for (i=0; i<nstrata; i++) {
@@ -6457,11 +6508,11 @@ List f_basehaz(int p, NumericVector par, void *ex) {
     utime = unique(utime);
     J += static_cast<int>(utime.size());
   }
-
+  
   IntegerVector stratum(J);
   NumericVector time(J), nrisk(J), nevent(J), ncensor(J), haz(J), varhaz(J);
   NumericMatrix gradhaz(J,p);
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -6469,7 +6520,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -6481,7 +6532,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
       stratum[j] = istrata;
       time[j] = 0;
       nrisk[j] = natrisk;
-
+      
       istrata = param->strata[person]; // reset temporary variables
       i1 = person;
       natrisk = 0;
@@ -6490,7 +6541,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
         a[i] = 0;
       }
     }
-
+    
     dtime = param->tstop[person];
     bool first = 1;
     while (person < param->nused && param->tstop[person] == dtime) {
@@ -6500,7 +6551,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
         time[j] = dtime;
         first = 0;
       }
-
+      
       // walk through this set of tied times
       risk = param->weight[person]*exp(eta[person]);
       natrisk++;
@@ -6518,12 +6569,12 @@ List f_basehaz(int p, NumericVector par, void *ex) {
           a2[i] += risk*param->z(person,i);
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -6535,7 +6586,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
         a[i] -= risk*param->z(p1,i);
       }
     }
-
+    
     // add to the main terms
     nrisk[j] = natrisk;
     nevent[j] = ndead;
@@ -6562,7 +6613,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
           }
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       deadwt = 0;
@@ -6572,12 +6623,12 @@ List f_basehaz(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   // add time 0 for the first stratum
   stratum[0] = istrata;
   time[0] = 0;
   nrisk[0] = natrisk;
-
+  
   List result = List::create(
     _["stratum"] = stratum,
     _["time"] = time,
@@ -6587,9 +6638,9 @@ List f_basehaz(int p, NumericVector par, void *ex) {
     _["haz"] = haz,
     _["varhaz"] = varhaz
   );
-
+  
   if (p > 0) result.push_back(gradhaz, "gradhaz");
-
+  
   return result;
 }
 
@@ -6598,7 +6649,7 @@ List f_basehaz(int p, NumericVector par, void *ex) {
 NumericVector f_resmart(int p, NumericVector par, void *ex) {
   int i, person;
   coxparams *param = (coxparams *) ex;
-
+  
   double dtime;             // distinct time
   double ndead = 0;         // number of deaths at this time point
   double deadwt = 0;        // sum of weights for the deaths
@@ -6606,7 +6657,7 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
   double risk;              // weighted risk, w*exp(zbeta)
   double denom = 0;         // s0(beta,k,t)
   double denom2 = 0;        // sum of weighted risks for the deaths
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -6614,19 +6665,19 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int n = static_cast<int>(param->tstop.size());
   NumericVector resid(n);
   for (person = 0; person < param->nused; person++) {
     resid[person] = param->event[person];
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
   int j, j0 = 0, j1, j2;
   double hazard;
-
+  
   for (person = 0; person < param->nused; ) {
     if (param->strata[person] != istrata) { // hit a new stratum
       istrata = param->strata[person]; // reset temporary variables
@@ -6634,9 +6685,9 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
       j0 = person;  // first person in the stratum
       denom = 0;
     }
-
+    
     dtime = param->tstop[person];
-
+    
     j1 = person;   // first person in the stratum with the tied time
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -6648,14 +6699,14 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
         deadwt += param->weight[person];
         denom2 += risk;
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     j2 = person-1; // last person in the stratum with the tied time
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -6663,11 +6714,11 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
       risk = param->weight[p1]*exp(eta[p1]);
       denom -= risk;
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       denom += denom2;
-
+      
       for (j=j0; j<=j2; j++) {
         if (param->tstart[j] < dtime) {
           if (param->method == 0 || ndead == 1) {
@@ -6675,7 +6726,7 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
           } else {
             meanwt = deadwt/ndead;
             hazard = 0;
-
+            
             if (j<j1 || param->event[j]==0) {
               for (i=0; i<ndead; i++) {
                 hazard += meanwt/(denom - i/ndead*denom2);
@@ -6689,14 +6740,14 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
           resid[j] -= hazard*exp(eta[j]);
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       deadwt = 0;
       denom2 = 0;
     }
   }
-
+  
   return resid;
 }
 
@@ -6705,11 +6756,11 @@ NumericVector f_resmart(int p, NumericVector par, void *ex) {
 List f_ressch(int p, NumericVector par, void *ex) {
   coxparams *param = (coxparams *) ex;
   int i, k, person;
-
+  
   int nevent = sum(param->event);
   NumericMatrix resid(nevent, p);
   IntegerVector index(nevent);
-
+  
   double dtime;             // distinct time
   int ndead = 0;            // number of deaths at this time point
   double risk;              // weighted risk, w*exp(zbeta)
@@ -6717,7 +6768,7 @@ List f_ressch(int p, NumericVector par, void *ex) {
   double denom2 = 0;        // sum of weighted risks for the deaths
   NumericVector a(p);       // s1(beta,k,t)
   NumericVector a2(p);      // sum of w*exp(zbeta)*z for the deaths
-
+  
   NumericVector eta(param->nused);
   for (person = 0; person < param->nused; person++) {
     eta[person] = param->offset[person];
@@ -6725,7 +6776,7 @@ List f_ressch(int p, NumericVector par, void *ex) {
       eta[person] += par[i]*param->z(person,i);
     }
   }
-
+  
   int istrata = param->strata[0]; // current stratum
   int i1 = 0;                     // index of descending start time
   int p1;                         // corresponding location in input data
@@ -6740,7 +6791,7 @@ List f_ressch(int p, NumericVector par, void *ex) {
         a[i] = 0;
       }
     }
-
+    
     dtime = param->tstop[person];
     while (person < param->nused && param->tstop[person] == dtime) {
       // walk through this set of tied times
@@ -6754,19 +6805,19 @@ List f_ressch(int p, NumericVector par, void *ex) {
         j--;
         resid(j,_) = param->z(person,_);
         index[j] = person;
-
+        
         ndead++;
         denom2 += risk;
         for (i=0; i<p; i++) {
           a2[i] += risk*param->z(person,i);
         }
       }
-
+      
       person++;
-
+      
       if (person < param->nused && param->strata[person] != istrata) break;
     }
-
+    
     // remove subjects no longer at risk
     for (; i1<param->nused; i1++) {
       p1 = param->order1[i1];
@@ -6777,7 +6828,7 @@ List f_ressch(int p, NumericVector par, void *ex) {
         a[i] -= risk*param->z(p1,i);
       }
     }
-
+    
     // add to the main terms
     if (ndead > 0) {
       if (param->method == 0 || ndead == 1) {
@@ -6797,13 +6848,13 @@ List f_ressch(int p, NumericVector par, void *ex) {
         }
         xbar = xbar/ndead;
       }
-
+      
       for (k=0; k<ndead; k++) {
         for (i=0; i<p; i++) {
           resid(j+k,i) -= xbar[i];
         }
       }
-
+      
       // reset for the next death time
       ndead = 0;
       denom2 = 0;
@@ -6812,7 +6863,7 @@ List f_ressch(int p, NumericVector par, void *ex) {
       }
     }
   }
-
+  
   return List::create(
     Named("resid") = resid,
     Named("index") = index);
@@ -6840,13 +6891,13 @@ List phregcpp(const DataFrame data,
               const double alpha = 0.05,
               const int maxiter = 50,
               const double eps = 1.0e-9) {
-
+  
   int h, i, j, k, n = data.nrows();
   int p = static_cast<int>(covariates.size());
   if (p == 1 && (covariates[0] == "" || covariates[0] == "none")) {
     p = 0;
   }
-
+  
   bool has_rep;
   IntegerVector repn(n);
   DataFrame u_rep;
@@ -6860,7 +6911,7 @@ List phregcpp(const DataFrame data,
     repn = out["index"];
     u_rep = DataFrame(out["lookup"]);
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   DataFrame u_stratum;
@@ -6874,19 +6925,19 @@ List phregcpp(const DataFrame data,
     stratumn = out["index"];
     u_stratum = DataFrame(out["lookup"]);
   }
-
-
+  
+  
   bool has_time = hasVariable(data, time);
   if (!has_time) stop("data must contain the time variable");
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each observation");
   }
-
+  
   bool has_time2 = hasVariable(data, time2);
-
+  
   NumericVector time2n(n);
   if (has_time2) {
     NumericVector time2nz = data[time2];
@@ -6895,18 +6946,14 @@ List phregcpp(const DataFrame data,
       stop("time2 must be greater than time for each observation");
     }
   }
-
+  
   bool has_event = hasVariable(data, event);
   if (!has_event) stop("data must contain the event variable");
-
+  
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each observation");
-  }
-
-  if (is_true(all(eventn == 0))) {
-    stop("at least 1 event is needed to fit the Cox model");
   }
 
   NumericMatrix zn(n,p);
@@ -6922,9 +6969,9 @@ List phregcpp(const DataFrame data,
       }
     }
   }
-
+  
   bool has_weight = hasVariable(data, weight);
-
+  
   NumericVector weightn(n, 1.0);
   if (has_weight) {
     NumericVector weightnz = data[weight];
@@ -6933,18 +6980,18 @@ List phregcpp(const DataFrame data,
       stop("weight must be greater than 0");
     }
   }
-
+  
   bool has_offset = hasVariable(data, offset);
-
+  
   NumericVector offsetn(n);
   if (has_offset) {
     NumericVector offsetnz = data[offset];
     offsetn = clone(offsetnz);
   }
-
-
+  
+  
   bool has_id = hasVariable(data, id);
-
+  
   IntegerVector idn(n);
   if (!has_id) {
     idn = seq(1,n);
@@ -6968,26 +7015,26 @@ List phregcpp(const DataFrame data,
       stop("incorrect type for the id variable in the input data");
     }
   }
-
+  
   if (robust && has_time2 && !has_id) {
     stop("id is needed for counting process data with robust variance");
   }
-
-
+  
+  
   std::string meth = ties;
   std::for_each(meth.begin(), meth.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   int method = meth == "efron" ? 1 : 0;
-
-
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
     return repn[i] < repn[j];
   });
-
+  
   repn = repn[order];
   stratumn = stratumn[order];
   timen = timen[order];
@@ -6997,7 +7044,7 @@ List phregcpp(const DataFrame data,
   offsetn = offsetn[order];
   idn = idn[order];
   if (p > 0) zn = subset_matrix_by_row(zn, order);
-
+  
   // exclude observations with missing values
   LogicalVector sub(n,1);
   for (i=0; i<n; i++) {
@@ -7011,7 +7058,7 @@ List phregcpp(const DataFrame data,
       if (std::isnan(zn(i,j))) sub[i] = 0;
     }
   }
-
+  
   order = which(sub);
   repn = repn[order];
   stratumn = stratumn[order];
@@ -7023,7 +7070,7 @@ List phregcpp(const DataFrame data,
   idn = idn[order];
   if (p > 0) zn = subset_matrix_by_row(zn, order);
   n = sum(sub);
-
+  
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -7031,10 +7078,10 @@ List phregcpp(const DataFrame data,
       idx.push_back(i);
     }
   }
-
+  
   int nreps = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   // variables in the output data sets
   IntegerVector rep01 = seq(1,nreps);
   IntegerVector nobs(nreps), nevents(nreps);
@@ -7043,14 +7090,15 @@ List phregcpp(const DataFrame data,
   NumericVector scoretest(nreps);
   IntegerVector niter(nreps);
   LogicalVector fails(nreps);
-
+  
   IntegerVector rep0(nreps*p);
   StringVector par0(nreps*p);
   NumericVector beta0(nreps*p), sebeta0(nreps*p), rsebeta0(nreps*p);
+  NumericVector z0(nreps*p), expbeta0(nreps*p);
   NumericMatrix vbeta0(nreps*p,p), rvbeta0(nreps*p,p);
   NumericVector lb0(nreps*p), ub0(nreps*p), prob0(nreps*p);
   StringVector clparm0(nreps*p);
-
+  
   // baseline hazards
   int N = 2*n; // account for additional time 0 rows
   IntegerVector drep(N, NA_INTEGER), dstratum(N);
@@ -7060,14 +7108,13 @@ List phregcpp(const DataFrame data,
   int n0 = 0;
   int bign0 = 0;
   double toler = 1e-12;
-
-  DataFrame basehaz2;
+  
   NumericVector resmart(n);
-
+  
   for (h=0; h<nreps; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector stratum1 = stratumn[q1];
     NumericVector time1 = timen[q1];
     NumericVector time21 = time2n[q1];
@@ -7075,13 +7122,64 @@ List phregcpp(const DataFrame data,
     NumericVector weight1 = weightn[q1];
     NumericVector offset1 = offsetn[q1];
     IntegerVector id1 = idn[q1];
-
+    
     NumericMatrix z1(n1,p);
     if (p > 0) z1 = subset_matrix_by_row(zn, q1);
-
+    
     nobs[h] = n1;
     nevents[h] = sum(event1);
-
+    
+    if (nevents[h] == 0) {
+      if (p > 0) {
+        for (i=0; i<p; i++) {
+          int k = h*p+i;
+          rep0[k] = h+1;
+          par0[k] = covariates[i];
+          beta0[k] = NA_REAL;
+          sebeta0[k] = 0;
+          rsebeta0[k] = 0;
+          z0[k] = NA_REAL;
+          expbeta0[k] = NA_REAL;
+          for (j=0; j<p; j++) {
+            vbeta0(k,j) = 0;
+            rvbeta0(k,j) = 0;
+          }
+          lb0[k] = NA_REAL;
+          ub0[k] = NA_REAL;
+          prob0[k] = NA_REAL;
+          clparm0[k] = "Wald";
+        }
+      }
+      
+      // baseline hazard
+      if (est_basehaz) {
+        drep[n0] = h+1;
+        dstratum[n0] = 1;
+        dtime[n0] = 0;
+        dnrisk[n0] = n1;
+        dnevent[n0] = 0;
+        dncensor[n0] = 0;
+        dhaz[n0] = 0;
+        dvarhaz[n0] = 0;
+        if (p > 0) {
+          for (i=0; i<p; i++) {
+            dgradhaz(n0,i) = 0;
+          }
+        }
+        n0++;
+      }
+      
+      // martingale residuals
+      if (est_resid) {
+        for (i=0; i<n1; i++) {
+          resmart[bign0+i] = 0;
+        }
+        bign0 += n1;
+      }
+      
+      continue;
+    }
+    
     // unify right censored data with counting process data
     NumericVector tstart(n1), tstop(n1);
     if (!has_time2) {
@@ -7090,18 +7188,18 @@ List phregcpp(const DataFrame data,
       tstart = time1;
       tstop = time21;
     }
-
+    
     // sort by stratum
     IntegerVector order0 = seq(0, n1-1);
     std::sort(order0.begin(), order0.end(), [&](int i, int j) {
       return stratum1[i] < stratum1[j];
     });
-
+    
     IntegerVector stratum1z = stratum1[order0];
     NumericVector tstartz = tstart[order0];
     NumericVector tstopz = tstop[order0];
     IntegerVector event1z = event1[order0];
-
+    
     // locate the first observation within each stratum
     IntegerVector istratum(1,0);
     for (i=1; i<n1; i++) {
@@ -7109,10 +7207,10 @@ List phregcpp(const DataFrame data,
         istratum.push_back(i);
       }
     }
-
+    
     int nstrata = static_cast<int>(istratum.size());
     istratum.push_back(n1);
-
+    
     // ignore subjects not at risk for any event time
     IntegerVector ignore1z(n1);
     for (i=0; i<nstrata; i++) {
@@ -7134,14 +7232,14 @@ List phregcpp(const DataFrame data,
         }
       }
     }
-
+    
     IntegerVector ignore1(n1);
     for (i=0; i<n1; i++) {
       ignore1[order0[i]] = ignore1z[i];
     }
-
+    
     int nused = n1 - sum(ignore1);
-
+    
     // sort by stopping time in descending order within each stratum
     IntegerVector order2 = seq(0, n1-1);
     std::sort(order2.begin(), order2.end(), [&](int i, int j) {
@@ -7152,7 +7250,7 @@ List phregcpp(const DataFrame data,
         ((ignore1[i] == ignore1[j]) && (stratum1[i] == stratum1[j]) &&
         (tstop[i] == tstop[j]) && (event1[i] < event1[j]));
     });
-
+    
     IntegerVector stratum1a = stratum1[order2];
     NumericVector tstarta = tstart[order2];
     NumericVector tstopa = tstop[order2];
@@ -7163,7 +7261,7 @@ List phregcpp(const DataFrame data,
     IntegerVector ignore1a = ignore1[order2];
     NumericMatrix z1a;
     if (p > 0) z1a = subset_matrix_by_row(z1, order2);
-
+    
     // sort by starting time in descending order within each stratum
     IntegerVector order1 = seq(0, n1-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -7172,23 +7270,23 @@ List phregcpp(const DataFrame data,
         ((ignore1a[i] == ignore1a[j]) && (stratum1a[i] == stratum1a[j]) &&
         (tstarta[i] > tstarta[j]));
     });
-
+    
     coxparams param = {nused, stratum1a, tstarta, tstopa, event1a,
                        weight1a, offset1a, z1a, order1, method};
-
+    
     NumericVector bint(p);
-
-
+    
+    
     // prepare the data for estimating the baseline hazards at all time points
     List basehaz1;
-
+    
     // sort by stopping time in descending order within each stratum
     IntegerVector order2x = seq(0, n1-1);
     std::sort(order2x.begin(), order2x.end(), [&](int i, int j) {
       return (stratum1[i] > stratum1[j]) ||
         ((stratum1[i] == stratum1[j]) && (tstop[i] > tstop[j]));
     });
-
+    
     IntegerVector stratum1x = stratum1[order2x];
     NumericVector tstartx = tstart[order2x];
     NumericVector tstopx = tstop[order2x];
@@ -7199,17 +7297,17 @@ List phregcpp(const DataFrame data,
     IntegerVector ignore1x = ignore1[order2x];
     NumericMatrix z1x(n1,p);
     if (p > 0) z1x = subset_matrix_by_row(z1, order2x);
-
+    
     // sort by starting time in descending order within each stratum
     IntegerVector order1x = seq(0, n1-1);
     std::sort(order1x.begin(), order1x.end(), [&](int i, int j) {
       return (stratum1x[i] > stratum1x[j]) ||
         ((stratum1x[i] == stratum1x[j]) && (tstartx[i] > tstartx[j]));
     });
-
+    
     coxparams paramx = {n1, stratum1x, tstartx, tstopx, event1x,
                         weight1x, offset1x, z1x, order1x, method};
-
+    
     NumericVector b(p);
     NumericMatrix vb(p,p);
     if (p > 0) {
@@ -7223,15 +7321,15 @@ List phregcpp(const DataFrame data,
       
       bool fail = out["fail"];
       if (fail) warning("The algorithm in phregr did not converge");
-
+      
       b = out["coef"];
       vb = as<NumericMatrix>(out["var"]);
-
+      
       NumericVector seb(p);
       for (j=0; j<p; j++) {
         seb[j] = sqrt(vb(j,j));
       }
-
+      
       for (i=0; i<p; i++) {
         rep0[h*p+i] = h+1;
         par0[h*p+i] = covariates[i];
@@ -7241,7 +7339,7 @@ List phregcpp(const DataFrame data,
           vbeta0(h*p+i,j) = vb(i,j);
         }
       }
-
+      
       // score statistic
       NumericVector scoreint = f_score_2(p, bint, &param);
       NumericMatrix infobint = f_info_2(p, bint, &param);
@@ -7251,7 +7349,7 @@ List phregcpp(const DataFrame data,
           scoretest[h] += scoreint[i]*vbint(i,j)*scoreint[j];
         }
       }
-
+      
       niter[h] = out["iter"];
       fails[h] = out["fail"];
       
@@ -7259,7 +7357,7 @@ List phregcpp(const DataFrame data,
       NumericVector rseb(p);  // robust standard error for betahat
       if (robust) {
         NumericMatrix ressco = f_ressco_2(p, b, &param);
-
+        
         int nr; // number of rows in the score residual matrix
         if (!has_id) {
           for (i=0; i<n1; i++) {
@@ -7273,7 +7371,7 @@ List phregcpp(const DataFrame data,
           std::sort(order.begin(), order.end(), [&](int i, int j) {
             return id1a[i] < id1a[j];
           });
-
+          
           IntegerVector id2 = id1a[order];
           IntegerVector idx(1,0);
           for (i=1; i<n1; i++) {
@@ -7281,12 +7379,12 @@ List phregcpp(const DataFrame data,
               idx.push_back(i);
             }
           }
-
+          
           int nids = static_cast<int>(idx.size());
           idx.push_back(n1);
-
+          
           NumericVector weight2 = weight1a[order];
-
+          
           NumericMatrix ressco2(nids,p);
           for (i=0; i<nids; i++) {
             for (j=0; j<p; j++) {
@@ -7295,12 +7393,12 @@ List phregcpp(const DataFrame data,
               }
             }
           }
-
+          
           ressco = ressco2;  // update the score residuals
           nr = nids;
         }
-
-
+        
+        
         NumericMatrix D(nr,p); // DFBETA
         for (i=0; i<nr; i++) {
           for (j=0; j<p; j++) {
@@ -7309,7 +7407,7 @@ List phregcpp(const DataFrame data,
             }
           }
         }
-
+        
         NumericMatrix rvb(p,p); // robust variance matrix for betahat
         for (j=0; j<p; j++) {
           for (k=0; k<p; k++) {
@@ -7318,11 +7416,11 @@ List phregcpp(const DataFrame data,
             }
           }
         }
-
+        
         for (i=0; i<p; i++) {
           rseb[i] = sqrt(rvb(i,i));
         }
-
+        
         for (i=0; i<p; i++) {
           rsebeta0[h*p+i] = rseb[i];
           for (j=0; j<p; j++) {
@@ -7330,11 +7428,11 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       // profile likelihood confidence interval for regression coefficients
       NumericVector lb(p), ub(p), prob(p);
       StringVector clparm(p);
-
+      
       double zcrit = R::qnorm(1-alpha/2,0,1,1,0);
       if (plci) {
         double lmax;
@@ -7344,11 +7442,11 @@ List phregcpp(const DataFrame data,
           lmax = f_llik_2(p, b, &param);
         }
         double l0 = lmax - 0.5*R::qchisq(1-alpha, 1, 1, 0);
-
+        
         for (k=0; k<p; k++) {
           lb[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, -1, l0);
           ub[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, 1, l0);
-
+          
           IntegerVector colfit1(p-1);
           for (i=0; i<k; i++) {
             colfit1[i] = i;
@@ -7356,7 +7454,7 @@ List phregcpp(const DataFrame data,
           for (i=k+1; i<p; i++) {
             colfit1[i-1] = i;
           }
-
+          
           NumericVector b0(p);
           List out0 = phregloop(p, b0, &param, maxiter, eps, firth,
                                 colfit1, p-1);
@@ -7378,7 +7476,7 @@ List phregcpp(const DataFrame data,
           clparm[k] = "Wald";
         }
       }
-
+      
       for (i=0; i<p; i++) {
         lb0[h*p+i] = lb[i];
         ub0[h*p+i] = ub[i];
@@ -7386,24 +7484,24 @@ List phregcpp(const DataFrame data,
         clparm0[h*p+i] = clparm[i];
       }
     }
-
+    
     // log-likelihoods
     if (firth) {
       loglik(h,0) = f_pen_llik_2(p, bint, &param);
       loglik(h,1) = f_pen_llik_2(p, b, &param);
-
+      
       regloglik(h,0) = f_llik_2(p, bint, &param);
       regloglik(h,1) = f_llik_2(p, b, &param);
     } else {
       loglik(h,0) = f_llik_2(p, bint, &param);
       loglik(h,1) = f_llik_2(p, b, &param);
     }
-
-
+    
+    
     // estimate baseline hazard
     if (est_basehaz) {
       basehaz1 = f_basehaz(p, b, &paramx);
-
+      
       IntegerVector dstratum1 = basehaz1["stratum"];
       NumericVector dtime1 = basehaz1["time"];
       NumericVector dnrisk1 = basehaz1["nrisk"];
@@ -7412,7 +7510,7 @@ List phregcpp(const DataFrame data,
       NumericVector dhaz1 = basehaz1["haz"];
       NumericVector dvarhaz1 = basehaz1["varhaz"];
       int J = static_cast<int>(dstratum1.size());
-
+      
       // add to output data frame
       for (j=0; j<J; j++) {
         drep[n0+j] = h+1;
@@ -7423,7 +7521,7 @@ List phregcpp(const DataFrame data,
         dncensor[n0+j] = dncensor1[j];
         dhaz[n0+j] = dhaz1[j];
         dvarhaz[n0+j] = dvarhaz1[j];
-
+        
         if (p > 0) {
           NumericMatrix dgradhaz1 = basehaz1["gradhaz"];
           for (i=0; i<p; i++) {
@@ -7431,23 +7529,23 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       n0 += J;
     }
-
+    
     // martingale residuals
     if (est_resid) {
       NumericVector resid = f_resmart(p, b, &param);
-
+      
       for (i=0; i<n1; i++) {
         resmart[bign0 + order2[i]] = resid[i];
       }
-
+      
       bign0 += n1;
     }
   }
-
-
+  
+  
   if (est_basehaz) {
     IntegerVector sub = which(!is_na(drep));
     drep = drep[sub];
@@ -7460,14 +7558,13 @@ List phregcpp(const DataFrame data,
     dvarhaz = dvarhaz[sub];
     if (p > 0) dgradhaz = subset_matrix_by_row(dgradhaz, sub);
   }
-
+  
   List result;
   if (p > 0) {
-    NumericVector expbeta0 = exp(beta0);
-    NumericVector z0(nreps*p);
+    expbeta0 = exp(beta0);
     if (!robust) z0 = beta0/sebeta0;
     else z0 = beta0/rsebeta0;
-
+    
     DataFrame sumstat = List::create(
       _["n"] = nobs,
       _["nevents"] = nevents,
@@ -7480,12 +7577,12 @@ List phregcpp(const DataFrame data,
       _["robust"] = robust,
       _["firth"] = firth,
       _["fail"] = fails);
-
+    
     if (firth) {
       sumstat.push_back(regloglik(_,0), "loglik0_unpenalized");
       sumstat.push_back(regloglik(_,1), "loglik1_unpenalized");
     }
-
+    
     DataFrame parest;
     if (!robust) {
       parest = DataFrame::create(
@@ -7514,7 +7611,7 @@ List phregcpp(const DataFrame data,
         _["sebeta_naive"] = sebeta0,
         _["vbeta_naive"] = vbeta0);
     }
-
+    
     if (has_rep) {
       for (i=0; i<p_rep; i++) {
         String s = rep[i];
@@ -7533,11 +7630,11 @@ List phregcpp(const DataFrame data,
         }
       }
     }
-
+    
     result = List::create(
       _["sumstat"] = sumstat,
       _["parest"] = parest);
-
+    
     if (est_basehaz) {
       DataFrame basehaz = DataFrame::create(
         _["time"] = dtime,
@@ -7548,7 +7645,7 @@ List phregcpp(const DataFrame data,
         _["varhaz"] = dvarhaz,
         _["gradhaz"] = dgradhaz
       );
-
+      
       if (has_stratum) {
         for (i=0; i<p_stratum; i++) {
           String s = stratum[i];
@@ -7564,7 +7661,7 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       if (has_rep) {
         for (i=0; i<p_rep; i++) {
           String s = rep[i];
@@ -7580,10 +7677,10 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       result.push_back(basehaz, "basehaz");
     }
-
+    
     if (est_resid) {
       result.push_back(resmart, "residuals");
     }
@@ -7600,12 +7697,12 @@ List phregcpp(const DataFrame data,
       _["robust"] = robust,
       _["firth"] = firth,
       _["fail"] = fails);
-
+    
     if (firth) {
       sumstat.push_back(regloglik(_,0), "loglik0_unpenalized");
       sumstat.push_back(regloglik(_,1), "loglik1_unpenalized");
     }
-
+    
     if (has_rep) {
       for (i=0; i<p_rep; i++) {
         String s = rep[i];
@@ -7621,10 +7718,10 @@ List phregcpp(const DataFrame data,
         }
       }
     }
-
+    
     result = List::create(
       _["sumstat"] = sumstat);
-
+    
     if (est_basehaz) {
       DataFrame basehaz = DataFrame::create(
         _["time"] = dtime,
@@ -7634,7 +7731,7 @@ List phregcpp(const DataFrame data,
         _["haz"] = dhaz,
         _["varhaz"] = dvarhaz
       );
-
+      
       if (has_stratum) {
         for (i=0; i<p_stratum; i++) {
           String s = stratum[i];
@@ -7650,7 +7747,7 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       if (has_rep) {
         for (i=0; i<p_rep; i++) {
           String s = rep[i];
@@ -7666,15 +7763,15 @@ List phregcpp(const DataFrame data,
           }
         }
       }
-
+      
       result.push_back(basehaz, "basehaz");
     }
-
+    
     if (est_resid) {
       result.push_back(resmart, "residuals");
     }
   }
-
+  
   return result;
 }
 
@@ -7694,26 +7791,26 @@ DataFrame survfit_phregcpp(const int p,
                            const bool sefit = 1,
                            const String conftype = "log-log",
                            const double conflev = 0.95) {
-
+  
   int h, i, j, k, n0 = basehaz.nrows(), n = newdata.nrows();
   int nvar = static_cast<int>(covariates.size());
-
+  
   std::string ct = conftype;
   std::for_each(ct.begin(), ct.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" ||
       ct=="logit" || ct=="arcsin")) {
     stop("conftype must be none, plain, log, log-log, logit, or arcsin");
   }
-
+  
   if (conflev <= 0 || conflev >= 1) {
     stop("conflev must lie between 0 and 1");
   }
-
+  
   double zcrit = R::qnorm((1+conflev)/2,0,1,1,0);
-
+  
   IntegerVector stratumn0(n0);
   DataFrame u_stratum0;
   IntegerVector nlevels;
@@ -7728,14 +7825,14 @@ DataFrame survfit_phregcpp(const int p,
     nlevels = out["nlevels"];
     lookups = out["lookups"];
   }
-
+  
   bool nullmodel = (p == 0 || (nvar == 1 &&
                     (covariates[0] == "" || covariates[0] == "none")));
-
+  
   if (!nullmodel && nvar != p) {
     stop("incorrect number of covariates for the Cox model");
   }
-
+  
   NumericMatrix zn(n,p);
   for (j=0; j<p; j++) {
     String zj = covariates[j];
@@ -7747,7 +7844,7 @@ DataFrame survfit_phregcpp(const int p,
       zn(i,j) = u[i];
     }
   }
-
+  
   bool has_stratum;
   IntegerVector stratumn(n);
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
@@ -7774,23 +7871,23 @@ DataFrame survfit_phregcpp(const int p,
         StringVector w = lookups[i];
         idx = match(v,w) - 1;
       }
-
+      
       stratumn = stratumn + idx*orep;
     }
-
+    
     stratumn = stratumn + 1;
   }
-
-
+  
+  
   bool has_offset = hasVariable(newdata, offset);
-
+  
   NumericVector offsetn(n);
   if (has_offset) {
     NumericVector offsetnz = newdata[offset];
     offsetn = clone(offsetnz);
   }
-
-
+  
+  
   NumericVector time0 = basehaz["time"];
   NumericVector nrisk0 = basehaz["nrisk"];
   NumericVector nevent0 = basehaz["nevent"];
@@ -7804,11 +7901,11 @@ DataFrame survfit_phregcpp(const int p,
     NumericVector u = basehaz[col_name];
     ghaz0(_,j) = u;
   }
-
-
+  
+  
   // whether the input data has the counting process style of input
   bool has_id = hasVariable(newdata, id);
-
+  
   // create the numeric id variable
   IntegerVector idn(n);
   IntegerVector idwi;
@@ -7836,14 +7933,14 @@ DataFrame survfit_phregcpp(const int p,
       stop("incorrect type for the id variable in newdata");
     }
   }
-
+  
   NumericVector risk(n);
   NumericVector zbeta = clone(offsetn);
   for (j=0; j<p; j++) {
     zbeta = zbeta + beta[j]*zn(_,j);
   }
   risk = exp(zbeta);
-
+  
   // unify right-censoring data with counting process data
   NumericVector tstartn(n), tstopn(n);
   if (!has_id) { // right-censored data
@@ -7853,37 +7950,37 @@ DataFrame survfit_phregcpp(const int p,
   } else {
     bool has_tstart = hasVariable(newdata, tstart);
     if (!has_tstart) stop("newdata must contain the tstart variable");
-
+    
     NumericVector tstartnz = newdata[tstart];
     tstartn = clone(tstartnz);
     if (is_true(any(tstartn < 0))) {
       stop("tstart must be nonnegative for each observation");
     }
-
+    
     bool has_tstop = hasVariable(newdata, tstop);
     if (!has_tstop) stop("newdata must contain the tstop variable");
-
+    
     NumericVector tstopnz = newdata[tstop];
     tstopn = clone(tstopnz);
     if (is_true(any(tstopn <= tstartn))) {
       stop("tstop must be greater than tstart for each observation");
     }
   }
-
-
+  
+  
   // order data by id and tstop, assuming consecutive intervals
   IntegerVector order = seq(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     return ((idn[i] < idn[j]) ||
             ((idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
   });
-
+  
   idn = idn[order];
   stratumn = stratumn[order];
   tstopn = tstopn[order];
   risk = risk[order];
   zn = subset_matrix_by_row(zn, order);
-
+  
   // count number of observations for each id
   IntegerVector idx(1,0);
   for (i=1; i<n; i++) {
@@ -7891,88 +7988,88 @@ DataFrame survfit_phregcpp(const int p,
       idx.push_back(i);
     }
   }
-
+  
   int nids = static_cast<int>(idx.size());
   idx.push_back(n);
-
+  
   int m = 0;
   for (h=0; h<nids; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
     IntegerVector stratum1 = stratumn[q1];
     NumericVector tstop1 = tstopn[q1];
-
+    
     // match the stratum in basehaz
     IntegerVector idx1 = which(stratumn0 == stratum1[0]);
     NumericVector time1 = time0[idx1];
-
+    
     // left-open and right-closed intervals containing the event time
     // this is to obtain the value of time-dependent covariates
     IntegerVector idx2 = rev(n1 - findInterval3(rev(-time1), rev(-tstop1)));
     int m1 = max(which(idx2 < n1));
-
+    
     if (m1 != NA_INTEGER) {
       m1 = m1 + 1;
       m += m1;
     }
   }
-
+  
   NumericVector time(m);
   NumericVector nrisk(m), nevent(m), ncensor(m);
   NumericVector cumhaz(m), vcumhaz(m), secumhaz(m);
   IntegerVector strata(m);
   NumericMatrix z(m,p);
   IntegerVector ids(m);
-
+  
   // process by id
   int l = 0;
   for (h=0; h<nids; h++) {
     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
     int n1 = static_cast<int>(q1.size());
-
+    
     IntegerVector id1 = idn[q1];
     IntegerVector stratum1 = stratumn[q1];
     NumericVector tstop1 = tstopn[q1];
     NumericVector risk1 = risk[q1];
     NumericMatrix z1 = subset_matrix_by_row(zn, q1);
-
+    
     // match the stratum in basehaz
     IntegerVector idx1 = which(stratumn0 == stratum1[0]);
     NumericVector time1 = time0[idx1];
     NumericVector nrisk1 = nrisk0[idx1];
     NumericVector nevent1 = nevent0[idx1];
     NumericVector ncensor1 = ncensor0[idx1];
-
+    
     // left-open and right-closed intervals containing the event time
     IntegerVector idx2 = rev(n1 - findInterval3(rev(-time1), rev(-tstop1)));
     int m1 = max(which(idx2 < n1));
-
+    
     if (m1 != NA_INTEGER) {
       m1 = m1 + 1;
       IntegerVector idx3 = idx1[Range(0, m1-1)];
       NumericVector haz1 = haz0[idx3];
-
+      
       // cumulative hazards
       for (i=0; i<m1; i++) {
         time[l+i] = time1[i];
         nrisk[l+i] = nrisk1[i];
         nevent[l+i] = nevent1[i];
         ncensor[l+i] = ncensor1[i];
-
+        
         k = idx2[i];
         ids[l+i] = id1[k];
         strata[l+i] = stratum1[k];
         for (j=0; j<p; j++) {
           z(l+i,j) = z1(k,j);
         }
-
+        
         if (i==0) {
           cumhaz[l+i] = haz1[i]*risk1[k];
         } else {
           cumhaz[l+i] = cumhaz[l+i-1] + haz1[i]*risk1[k];
         }
       }
-
+      
       if (sefit) {
         NumericVector vhaz1 = vhaz0[idx3];
         NumericMatrix ghaz1(m1,p);
@@ -7981,7 +8078,7 @@ DataFrame survfit_phregcpp(const int p,
             ghaz1(i,j) = ghaz0(idx3[i],j);
           }
         }
-
+        
         NumericMatrix a(m1,p);
         for (j=0; j<p; j++) {
           for (i=0; i<m1; i++) {
@@ -7993,7 +8090,7 @@ DataFrame survfit_phregcpp(const int p,
             }
           }
         }
-
+        
         // calculate the first component of variance
         for (i=0; i<m1; i++) {
           k = idx2[i];
@@ -8003,7 +8100,7 @@ DataFrame survfit_phregcpp(const int p,
             vcumhaz[l+i] = vcumhaz[l+i-1] + vhaz1[i]*risk1[k]*risk1[k];
           }
         }
-
+        
         // add the second component of variance
         for (i=0; i<m1; i++) {
           for (j=0; j<p; j++) {
@@ -8014,13 +8111,13 @@ DataFrame survfit_phregcpp(const int p,
           secumhaz[l+i] = sqrt(vcumhaz[l+i]);
         }
       }
-
+      
       l += m1;
     }
   }
-
+  
   NumericVector surv = exp(-cumhaz);
-
+  
   DataFrame result = DataFrame::create(
     _["time"] = time,
     _["nrisk"] = nrisk,
@@ -8028,30 +8125,30 @@ DataFrame survfit_phregcpp(const int p,
     _["ncensor"] = ncensor,
     _["cumhaz"] = cumhaz,
     _["surv"] = surv);
-
+  
   if (sefit) {
     NumericVector sesurv = surv*secumhaz;
-
+    
     NumericVector lower(m), upper(m);
     for (i=0; i<m; i++) {
       NumericVector ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
       lower[i] = ci[0];
       upper[i] = ci[1];
     }
-
+    
     result.push_back(sesurv, "sesurv");
     result.push_back(lower, "lower");
     result.push_back(upper, "upper");
     result.push_back(conflev, "conflev");
     result.push_back(conftype, "conftype");
   }
-
+  
   for (j=0; j<p; j++) {
     NumericVector u = z(_,j);
     String zj = covariates[j];
     result.push_back(u, zj);
   }
-
+  
   if (has_stratum) {
     for (i=0; i<p_stratum; i++) {
       String s = stratum[i];
@@ -8067,7 +8164,7 @@ DataFrame survfit_phregcpp(const int p,
       }
     }
   }
-
+  
   if (has_id) {
     if (TYPEOF(newdata[id]) == INTSXP) {
       result.push_front(idwi[ids-1], id);
@@ -8077,7 +8174,7 @@ DataFrame survfit_phregcpp(const int p,
       result.push_front(idwc[ids-1], id);
     }
   }
-
+  
   return result;
 }
 
@@ -8100,9 +8197,9 @@ List residuals_phregcpp(const int p,
                         const std::string type = "schoenfeld",
                         const bool collapse = 0,
                         const bool weighted = 0) {
-
+  
   int i, j, k, n = data.nrows();
-
+  
   IntegerVector stratumn(n);
   DataFrame u_stratum;
   int p_stratum = static_cast<int>(stratum.size());
@@ -8113,18 +8210,18 @@ List residuals_phregcpp(const int p,
     stratumn = out["index"];
     u_stratum = out["lookup"];
   }
-
+  
   bool has_time = hasVariable(data, time);
   if (!has_time) stop("data must contain the time variable");
-
+  
   NumericVector timenz = data[time];
   NumericVector timen = clone(timenz);
   if (is_true(any(timen < 0))) {
     stop("time must be nonnegative for each observation");
   }
-
+  
   bool has_time2 = hasVariable(data, time2);
-
+  
   NumericVector time2n(n);
   if (has_time2) {
     NumericVector time2nz = data[time2];
@@ -8133,20 +8230,16 @@ List residuals_phregcpp(const int p,
       stop("time2 must be greater than time for each observation");
     }
   }
-
+  
   bool has_event = hasVariable(data, event);
   if (!has_event) stop("data must contain the event variable");
-
+  
   IntegerVector eventnz = data[event];
   IntegerVector eventn = clone(eventnz);
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each observation");
   }
-
-  if (is_true(all(eventn == 0))) {
-    stop("at least 1 event is needed to fit the Cox model");
-  }
-
+  
   NumericMatrix zn(n,p);
   if (p > 0) {
     for (j=0; j<p; j++) {
@@ -8160,9 +8253,9 @@ List residuals_phregcpp(const int p,
       }
     }
   }
-
+  
   bool has_weight = hasVariable(data, weight);
-
+  
   NumericVector weightn(n, 1.0);
   if (has_weight) {
     NumericVector weightnz = data[weight];
@@ -8171,17 +8264,17 @@ List residuals_phregcpp(const int p,
       stop("weight must be greater than 0");
     }
   }
-
+  
   bool has_offset = hasVariable(data, offset);
-
+  
   NumericVector offsetn(n);
   if (has_offset) {
     NumericVector offsetnz = data[offset];
     offsetn = clone(offsetnz);
   }
-
+  
   bool has_id = hasVariable(data, id);
-
+  
   IntegerVector idn(n);
   IntegerVector idwi(n);
   NumericVector idwn(n);
@@ -8208,14 +8301,14 @@ List residuals_phregcpp(const int p,
       stop("incorrect type for the id variable in the input data");
     }
   }
-
+  
   std::string meth = ties;
   std::for_each(meth.begin(), meth.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
-
+  
   int method = meth == "efron" ? 1 : 0;
-
+  
   // unify right censored data with counting process data
   NumericVector tstart(n), tstop(n);
   if (!has_time2) {
@@ -8224,18 +8317,18 @@ List residuals_phregcpp(const int p,
     tstart = timen;
     tstop = time2n;
   }
-
+  
   // sort by stratum
   IntegerVector order0 = seq(0, n-1);
   std::sort(order0.begin(), order0.end(), [&](int i, int j) {
     return stratumn[i] < stratumn[j];
   });
-
+  
   IntegerVector stratum1z = stratumn[order0];
   NumericVector tstartz = tstart[order0];
   NumericVector tstopz = tstop[order0];
   IntegerVector event1z = eventn[order0];
-
+  
   // locate the first observation within each stratum
   IntegerVector istratum(1,0);
   for (i=1; i<n; i++) {
@@ -8243,10 +8336,10 @@ List residuals_phregcpp(const int p,
       istratum.push_back(i);
     }
   }
-
+  
   int nstrata = static_cast<int>(istratum.size());
   istratum.push_back(n);
-
+  
   // ignore subjects not at risk for any event time
   IntegerVector ignore1z(n);
   for (i=0; i<nstrata; i++) {
@@ -8268,14 +8361,14 @@ List residuals_phregcpp(const int p,
       }
     }
   }
-
+  
   IntegerVector ignore(n);
   for (i=0; i<n; i++) {
     ignore[order0[i]] = ignore1z[i];
   }
-
+  
   int nused = n - sum(ignore);
-
+  
   IntegerVector order = seq(0, n-1);
   IntegerVector idx(1,0);
   int nids = n;
@@ -8283,26 +8376,26 @@ List residuals_phregcpp(const int p,
     std::sort(order.begin(), order.end(), [&](int i, int j) {
       return idn[i] < idn[j];
     });
-
+    
     IntegerVector id2 = idn[order];
     for (i=1; i<n; i++) {
       if (id2[i] != id2[i-1]) {
         idx.push_back(i);
       }
     }
-
+    
     nids = static_cast<int>(idx.size());
     idx.push_back(n);
   }
-
-
+  
+  
   List result;
   if (type == "martingale") {
     NumericVector rr = clone(resmart);
     if (weighted) {
       rr = rr*weightn;
     }
-
+    
     if (collapse) { // collapse over id
       NumericVector rr2(nids);
       for (i=0; i<nids; i++) {
@@ -8310,21 +8403,21 @@ List residuals_phregcpp(const int p,
           rr2[i] += rr[order[j]];
         }
       }
-
+      
       rr = rr2;
     }
-
+    
     result = List::create(
       Named("resid") = rr);
   } else if (type == "deviance") {
     NumericVector rr = clone(resmart);
     IntegerVector status = clone(eventn);
     int m = n;
-
+    
     if (weighted) {
       rr = rr*weightn;
     }
-
+    
     if (collapse) { // collapse over id
       NumericVector rr2(nids);
       IntegerVector status2(nids);
@@ -8335,17 +8428,17 @@ List residuals_phregcpp(const int p,
           status2[i] += eventn[k];
         }
       }
-
+      
       rr = rr2;
       status = status2;
       m = nids;
     }
-
+    
     for (i=0; i<m; i++) {
       double temp = status[i] == 0 ? 0 : status[i]*log(status[i] - rr[i]);
       rr[i] = ((rr[i]>0) - (rr[i]<0))*sqrt(-2*(rr[i] + temp));
     }
-
+    
     result = List::create(
       Named("resid") = rr);
   } else if (p == 0) {
@@ -8363,7 +8456,7 @@ List residuals_phregcpp(const int p,
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
           (tstop[i] == tstop[j]) && (eventn[i] < eventn[j]));
       });
-
+      
       IntegerVector stratum1 = stratumn[order2];
       NumericVector tstart1 = tstart[order2];
       NumericVector tstop1 = tstop[order2];
@@ -8372,7 +8465,7 @@ List residuals_phregcpp(const int p,
       NumericVector offset1 = offsetn[order2];
       IntegerVector ignore1 = ignore[order2];
       NumericMatrix z1 = subset_matrix_by_row(zn, order2);
-
+      
       // sort by starting time in descending order within each stratum
       IntegerVector order1 = seq(0, n-1);
       std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -8381,17 +8474,17 @@ List residuals_phregcpp(const int p,
           ((ignore1[i] == ignore1[j]) && (stratum1[i] == stratum1[j]) &&
           (tstart1[i] > tstart1[j]));
       });
-
+      
       coxparams param = {nused, stratum1, tstart1, tstop1, event1,
                          weight1, offset1, z1, order1, method};
-
+      
       NumericMatrix ressco = f_ressco_2(p, beta, &param);
-
+      
       NumericMatrix score(n,p);
       for (i=0; i<n; i++) {
         score(order2[i],_) = ressco(i,_); // original order
       }
-
+      
       if (type == "dfbeta" || type == "dfbetas") {
         for (i=0; i<n; i++) {
           for (k=0; k<p; k++) {
@@ -8406,7 +8499,7 @@ List residuals_phregcpp(const int p,
       } else {
         rr = score;
       }
-
+      
       if (weighted) {
         for (i=0; i<n; i++) {
           for (k=0; k<p; k++) {
@@ -8414,7 +8507,7 @@ List residuals_phregcpp(const int p,
           }
         }
       }
-
+      
       if (collapse) { // collapse over id
         NumericMatrix rr2(nids,p);
         for (i=0; i<nids; i++) {
@@ -8424,10 +8517,10 @@ List residuals_phregcpp(const int p,
             }
           }
         }
-
+        
         rr = rr2;
       }
-
+      
       result = List::create(
         Named("resid") = rr);
     } else if (type == "schoenfeld" || type == "scaledsch") {
@@ -8444,7 +8537,7 @@ List residuals_phregcpp(const int p,
           (tstop[i] == tstop[j]) && (eventn[i] == eventn[j]) &&
           (idn[i] > idn[j]));
       });
-
+      
       IntegerVector stratum1 = stratumn[order2];
       NumericVector tstart1 = tstart[order2];
       NumericVector tstop1 = tstop[order2];
@@ -8454,7 +8547,7 @@ List residuals_phregcpp(const int p,
       IntegerVector id1 = idn[order2];
       IntegerVector ignore1 = ignore[order2];
       NumericMatrix z1 = subset_matrix_by_row(zn, order2);
-
+      
       // sort by starting time in descending order within each stratum
       IntegerVector order1 = seq(0, n-1);
       std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -8463,17 +8556,17 @@ List residuals_phregcpp(const int p,
           ((ignore1[i] == ignore1[j]) && (stratum1[i] == stratum1[j]) &&
           (tstart1[i] > tstart1[j]));
       });
-
+      
       coxparams param = {nused, stratum1, tstart1, tstop1, event1,
                          weight1, offset1, z1, order1, method};
-
+      
       List out = f_ressch(p, beta, &param);
       rr = as<NumericMatrix>(out["resid"]);
       IntegerVector index = out["index"];
       IntegerVector stratum2 = stratum1[index];
       NumericVector time2x = tstop1[index];
       int ndead = static_cast<int>(index.size());
-
+      
       if (weighted) {
         for (i=0; i<ndead; i++) {
           for (k=0; k<p; k++) {
@@ -8481,7 +8574,7 @@ List residuals_phregcpp(const int p,
           }
         }
       }
-
+      
       if (type == "scaledsch") {
         NumericMatrix rr2(ndead,p);
         for (i=0; i<ndead; i++) {
@@ -8494,11 +8587,11 @@ List residuals_phregcpp(const int p,
         }
         rr = rr2;
       }
-
+      
       result = List::create(
         Named("resid") = rr,
         Named("time") = time2x);
-
+      
       IntegerVector stratum2x = unique(stratum2);
       if (stratum2x.size() > 1) {
         DataFrame strata;
@@ -8519,6 +8612,6 @@ List residuals_phregcpp(const int p,
       }
     }
   }
-
+  
   return result;
 }

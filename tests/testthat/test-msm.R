@@ -16,76 +16,71 @@ testthat::test_that("msm: pooled logistic regression switching model", {
     followupTime = 600, fixedFollowup = 0, days = 30,
     n = 500, NSim = 100, seed = 314159)
   
+  data1 <- sim1[[1]] %>% 
+    mutate(os = died, ostime = timeOS, event = Y)
+  
   fit1 <- msm(
-    sim1[[1]], id = "id", tstart = "tstart", 
+    data1, id = "id", tstart = "tstart", 
     tstop = "tstop", event = "Y", treat = "trtrand", 
-    swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
-    numerator = "bprog", denominator = c("bprog", "L"), 
+    swtrt = "xo", swtrt_time = "xotime", 
+    base_cov = "bprog", numerator = "bprog", 
+    denominator = c("bprog", "L"), 
     ns_df = 3, swtrt_control_only = TRUE, boot = FALSE)
   
   # exclude observations after treatment switch
-  data1 <- sim1[[1]] %>%
-    filter(xo == 0 | tstart < xotime) %>%
+  data2 <- data1 %>%
+    filter(ifelse(xo == 1, tstart < xotime, tstop < ostime)) %>%
     group_by(id) %>%
     mutate(condition = row_number() == n() & xo == 1 & tstop >= xotime,
-           cross = ifelse(condition, 1, 0),
-           tstop = ifelse(condition, xotime, tstop))
+           cross = ifelse(condition, 1, 0)) %>%
+    ungroup()
   
   # fit pooled logistic regression switching models
-  data2 <- data1 %>% filter(trtrand == 0)
+  data3 <- data2 %>% filter(trtrand == 0)
   
-  ns1 <- ns(data2$tstop[data2$cross == 1], df = 3)
-  ns2 <- ns(data2$tstop, knots = attr(ns1, "knots"), 
-            Boundary.knots = attr(ns1, "Boundary.knots"))
-  switch1 <- glm(cross ~ bprog + L + ns2, family = binomial, 
-                 data = data2)
-  h_den <- as.numeric(predict(switch1, newdata = data2, type = "response"))
+  s1 <- ns(data3$tstop[data3$cross == 1], df = 3)
+  s2 <- ns(data3$tstop, knots = attr(s1, "knots"), 
+           Boundary.knots = attr(s1, "Boundary.knots"))
+  switch1 <- glm(cross ~ bprog + L + s2, 
+                 family = binomial, data = data3)
+  phat1 <- as.numeric(predict(switch1, newdata = data3, type = "response"))
   
-  switch2 <- glm(cross ~ bprog + ns2, family = binomial, data = data2)
-  h_num <- as.numeric(predict(switch2, newdata = data2, type = "response"))
+  switch2 <- glm(cross ~ bprog + s2, family = binomial, data = data3)
+  phat2 <- as.numeric(predict(switch2, newdata = data3, type = "response"))
   
-  # stablized weights
-  data3 <- data2 %>% 
-    ungroup() %>%
-    mutate(pstay_den = 1-h_den, pstay_num = 1-h_num) %>%
-    mutate(p0_den = ifelse(cross == 1, h_den, pstay_den),
-           p0_num = ifelse(cross == 1, h_num, pstay_num)) %>%
-    group_by(id) %>%
-    mutate(p_den = cumprod(p0_den), p_num = cumprod(p0_num),
-           stabilized_weight = p_num/p_den) %>%
-    select(id, tstart, tstop, Y, stabilized_weight, bprog, trtrand)
-  
-  data4 <- data1 %>%
+  # stabilized weights and time-dependent covariates
+  data4 <- data1 %>% 
+    filter(trtrand == 0) %>% 
+    select(id, trtrand, bprog, tstart, tstop, event, xo, xotime) %>%
     left_join(data3 %>% 
-                select(id, tstop, stabilized_weight), 
-              by = c("id", "tstop")) %>%
-    mutate(sw = ifelse(is.na(stabilized_weight), 1, stabilized_weight))
-  
-  
-  # set up time-dependent treatment switching indicators
-  dt1 <- sim1[[1]] %>%
-    mutate(cross = ifelse(xo == 1 & tstop >= xotime, 1, 0))
-  
-  # weights do not change after treatment switch
-  dt2 <- dt1 %>% 
-    filter(trtrand == 0) %>%
-    left_join(data4 %>% select(id, tstop, sw), 
-              by = c("id", "tstop")) %>%
+                mutate(tstart = tstop,
+                       o_den = ifelse(cross, phat1, 1-phat1), 
+                       o_num = ifelse(cross, phat2, 1-phat2)) %>%
+                select(id, tstart, o_den, o_num), 
+              by = c("id", "tstart")) %>%
+    mutate(o_den = ifelse(is.na(o_den), 1, o_den),
+           o_num = ifelse(is.na(o_num), 1, o_num)) %>%
     group_by(id) %>%
-    arrange(tstop, .by_group = TRUE) %>%
-    fill(sw, .direction = "down") %>%   # LOCF
-    bind_rows(dt1 %>% 
+    mutate(p_den = cumprod(o_den), p_num = cumprod(o_num),
+           stabilized_weight = p_num/p_den) %>%
+    select(id, tstart, tstop, event, stabilized_weight, bprog, 
+           trtrand, xo, xotime) %>%
+    ungroup() %>%
+    bind_rows(data1 %>% 
                 filter(trtrand == 1) %>%
-                mutate(sw = 1) %>%
-                select(id, tstart, tstop, Y, sw, bprog, trtrand, cross))
+                mutate(stabilized_weight = 1) %>%
+                select(id, tstart, tstop, event, stabilized_weight, bprog, 
+                       trtrand, xo, xotime)) %>%
+    mutate(cross = ifelse(xo == 1, tstart >= xotime, 0))
   
-  fit <- coxph(Surv(tstart, tstop, Y) ~ trtrand + bprog + cross, 
-               data = dt2, weight = sw,
+  fit <- coxph(Surv(tstart, tstop, event) ~ trtrand + bprog + cross, 
+               data = data4, weight = stabilized_weight,
                 id = id, ties = "efron", robust = TRUE)
   
   hr1 <- as.numeric(exp(cbind(fit$coefficients, confint(fit)))["trtrand",])
   
-  testthat::expect_equal(dt2$sw, fit1$data_outcome$stabilized_weight)
+  testthat::expect_equal(data4$stabilized_weight, 
+                         fit1$data_outcome$stabilized_weight)
   
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })

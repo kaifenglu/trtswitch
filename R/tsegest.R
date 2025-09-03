@@ -201,6 +201,8 @@
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{fail}: Whether a model fails to converge.
+#' 
+#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -282,6 +284,8 @@
 #'
 #' @examples
 #' 
+#' library(dplyr)
+#' 
 #' sim1 <- tsegestsim(
 #'   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
 #'   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
@@ -292,17 +296,20 @@
 #'   ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
 #'   milestone = 546, outputRawDataset = 1, seed = 2000)
 #'   
+#' data1 <- sim1$paneldata %>%
+#'   mutate(visit7on = ifelse(progressed, tstop > timePFSobs + 105, 0))
+#'
 #' fit1 <- tsegest(
-#'   data = sim1$paneldata, id = "id", 
+#'   data = data1, id = "id", 
 #'   tstart = "tstart", tstop = "tstop", event = "event", 
 #'   treat = "trtrand", censor_time = "censor_time", 
 #'   pd = "progressed", pd_time = "timePFSobs", 
 #'   swtrt = "xo", swtrt_time = "xotime", 
-#'   base_cov = "bprog", conf_cov = "bprog*catlag", 
-#'   strata_main_effect_only = TRUE,
+#'   base_cov = "bprog", 
+#'   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
 #'   recensor = TRUE, admin_recensor_only = TRUE, 
 #'   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-#'   tol = 1.0e-6, boot = FALSE)
+#'   tol = 1.0e-6, offset = 0, boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI)
 #' 
@@ -338,7 +345,8 @@ tsegest <- function(data, id = "id", stratum = "",
     p = 0
   } else {
     fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
+    vnames = rownames(attr(terms(fml1), "factors"))
+    p = length(vnames)
   }
 
   if (p >= 1) {
@@ -361,7 +369,8 @@ tsegest <- function(data, id = "id", stratum = "",
     p2 = 0
   } else {
     fml2 = formula(paste("~", paste(conf_cov, collapse = "+")))
-    p2 = length(rownames(attr(terms(fml2), "factors")))
+    vnames2 = rownames(attr(terms(fml2), "factors"))
+    p2 = length(vnames2)
   }
 
   if (p2 >= 1) {
@@ -392,63 +401,57 @@ tsegest <- function(data, id = "id", stratum = "",
     alpha = alpha, ties = ties, tol = tol, offset = offset, 
     boot = boot, n_boot = n_boot, seed = seed)
   
-  K = ifelse(swtrt_control_only, 1, 2)
-  for (h in 1:K) {
-    out$analysis_switch$data_logis[[h]]$data$uid <- NULL
-    out$analysis_switch$data_nullcox[[h]]$data$ustratum <- NULL
-  }
-  
-  out$data_outcome$uid <- NULL
-  out$data_outcome$ustratum <- NULL
-  
-  df[, "tstart"] = df[, tstart]
-  df[, "tstop"] = df[, tstop]
-  
-  if (p >= 1) {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    
-    add_vars <- setdiff(t3, varnames)
-    if (length(add_vars) > 0) {
-      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
-                                by = id, all.x = TRUE, sort = FALSE)
+  if (!out$psimissing) {
+    K = ifelse(swtrt_control_only, 1, 2)
+    for (h in 1:K) {
+      out$analysis_switch$data_logis[[h]]$data$uid <- NULL
+      out$analysis_switch$data_nullcox[[h]]$data$ustratum <- NULL
     }
     
-    del_vars <- setdiff(varnames, t3)
-    if (length(del_vars) > 0) {
-      out$data_outcome[, del_vars] <- NULL
-    }
-  }
-  
-  if (p2 >= 1) {
-    t1 = terms(formula(paste("~", paste(conf_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
+    out$data_outcome$uid <- NULL
+    out$data_outcome$ustratum <- NULL
     
-    tem_vars <- c(pd_time, swtrt, swtrt_time)
-    add_vars <- c(setdiff(t3, varnames2), tem_vars)
-    if (length(add_vars) > 0) {
+    df[, "tstart"] = df[, tstart]
+    df[, "tstop"] = df[, tstop]
+    
+    if (p >= 1) {
+      add_vars <- setdiff(vnames, varnames)
+      if (length(add_vars) > 0) {
+        out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                  by = id, all.x = TRUE, sort = FALSE)
+      }
+      
+      del_vars <- setdiff(varnames, vnames)
+      if (length(del_vars) > 0) {
+        out$data_outcome[, del_vars] <- NULL
+      }
+    }
+    
+    if (p2 >= 1) {
+      tem_vars <- c(pd_time, swtrt, swtrt_time)
+      add_vars <- c(setdiff(vnames2, varnames2), tem_vars)
+      if (length(add_vars) > 0) {
+        for (h in 1:K) {
+          out$analysis_switch$data_logis[[h]]$data <- 
+            merge(out$analysis_switch$data_logis[[h]]$data, 
+                  df[, c(id, "tstart", "tstop", add_vars)], 
+                  by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
+        }
+      }
+      
+      del_vars <- setdiff(varnames2, vnames2)
+      if (length(del_vars) > 0) {
+        for (h in 1:K) {
+          out$analysis_switch$data_logis[[h]]$data[, del_vars] <- NULL
+        }
+      }
+      
       for (h in 1:K) {
         out$analysis_switch$data_logis[[h]]$data <- 
-          merge(out$analysis_switch$data_logis[[h]]$data, 
-                df[, c(id, "tstart", "tstop", add_vars)], 
-                by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
+          out$analysis_switch$data_logis[[h]]$data[
+            , !startsWith(names(out$analysis_switch$data_logis[[h]]$data), 
+                          "stratum_")]
       }
-    }
-    
-    del_vars <- setdiff(varnames2, t3)
-    if (length(del_vars) > 0) {
-      for (h in 1:K) {
-        out$analysis_switch$data_logis[[h]]$data[, del_vars] <- NULL
-      }
-    }
-    
-    for (h in 1:K) {
-      out$analysis_switch$data_logis[[h]]$data <- 
-        out$analysis_switch$data_logis[[h]]$data[
-          , !startsWith(names(out$analysis_switch$data_logis[[h]]$data), 
-                        "stratum_")]
     }
   }
   

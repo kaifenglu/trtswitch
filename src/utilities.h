@@ -85,5 +85,10 @@ NumericVector getAccrualDurationFromN(
     const NumericVector& accrualTime,
     const NumericVector& accrualIntensity);
 
+double getpsiest(const double target, const NumericVector& psi, 
+                 const NumericVector& Z);
+
+double getpsiend(const std::function<double(double)>& f,
+                 const bool lowerend, const double initialend);
 
 #endif // __UTILITIES__

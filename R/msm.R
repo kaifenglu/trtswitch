@@ -215,6 +215,8 @@
 #'
 #' @examples
 #'
+#' library(dplyr)
+#' 
 #' sim1 <- tssim(
 #'   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
 #'   p_X_1 = 0.3, p_X_0 = 0.3, 
@@ -230,8 +232,9 @@
 #' fit1 <- msm(
 #'   sim1[[1]], id = "id", tstart = "tstart", 
 #'   tstop = "tstop", event = "Y", treat = "trtrand", 
-#'   swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
-#'   numerator = "bprog", denominator = c("bprog", "L"), 
+#'   swtrt = "xo", swtrt_time = "xotime", 
+#'   base_cov = "bprog", numerator = "bprog", 
+#'   denominator = c("bprog", "L"), 
 #'   ns_df = 3, swtrt_control_only = TRUE, boot = FALSE)
 #'   
 #' c(fit1$hr, fit1$hr_CI)
@@ -266,7 +269,8 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     p = 0
   } else {
     fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
+    vnames = rownames(attr(terms(fml1), "factors"))
+    p = length(vnames)
   }
   
   if (p >= 1) {
@@ -289,7 +293,8 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     p2 = 0
   } else {
     fml2 = formula(paste("~", paste(numerator, collapse = "+")))
-    p2 = length(rownames(attr(terms(fml2), "factors")))
+    vnames2 = rownames(attr(terms(fml2), "factors"))
+    p2 = length(vnames2)
   }
   
   if (p2 >= 1) {
@@ -312,7 +317,8 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     p3 = 0
   } else {
     fml3 = formula(paste("~", paste(denominator, collapse = "+")))
-    p3 = length(rownames(attr(terms(fml3), "factors")))
+    vnames3 = rownames(attr(terms(fml3), "factors"))
+    p3 = length(vnames3)
   }
   
   if (p3 >= 1) {
@@ -366,18 +372,14 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
   df_sorted_last <- df_sorted[last_observations_indices, ]
   
   if (p >= 1) {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    
-    add_vars <- setdiff(t3, varnames)
+    add_vars <- setdiff(vnames, varnames)
     if (length(add_vars) > 0) {
       out$data_outcome <- merge(out$data_outcome, 
                                 df_sorted_last[, c(id, add_vars)], 
                                 by = id, all.x = TRUE, sort = FALSE)
     }
     
-    del_vars <- setdiff(varnames, t3)
+    del_vars <- setdiff(varnames, vnames)
     if (length(del_vars) > 0) {
       out$data_outcome[, del_vars] <- NULL
     }
@@ -398,12 +400,8 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     data1[condition, event] <- 0
     data1[condition, tstop] <- data1[condition, swtrt_time]
     
-    t1 = terms(formula(paste("~", paste(denominator, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    
     tem_vars <- c(swtrt, swtrt_time)
-    add_vars <- c(setdiff(t3, varnames3), tem_vars)
+    add_vars <- c(setdiff(vnames3, varnames3), tem_vars)
     if (length(add_vars) > 0) {
       for (h in 1:K) {
         out$data_switch[[h]]$data <- 
@@ -413,7 +411,7 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
       }
     }
     
-    del_vars <- setdiff(varnames3, t3)
+    del_vars <- setdiff(varnames3, vnames3)
     if (length(del_vars) > 0) {
       for (h in 1:K) {
         out$data_switch[[h]]$data[, del_vars] <- NULL

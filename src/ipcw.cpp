@@ -151,14 +151,24 @@ List ipcwcpp(
     stop("data must contain the event variable"); 
   }
   
-  if (TYPEOF(data[event]) != INTSXP && TYPEOF(data[event]) != LGLSXP) {
-    stop("event must take integer or logical values");
-  }
-  
-  IntegerVector eventnz = data[event];
-  IntegerVector eventn = clone(eventnz);
-  if (is_true(any((eventn != 1) & (eventn != 0)))) {
-    stop("event must be 1 or 0 for each subject");
+  IntegerVector eventn(n);
+  if (TYPEOF(data[event]) == LGLSXP || TYPEOF(data[event]) == INTSXP) {
+    IntegerVector eventnz = data[event];
+    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
+      stop("event must be 1 or 0 for each subject");
+    } else {
+      eventn = clone(eventnz);
+    }
+  } else if (TYPEOF(data[event]) == REALSXP) {
+    NumericVector eventnz = data[event];
+    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
+      stop("event must be 1 or 0 for each subject");
+    } else {
+      NumericVector eventnz2 = clone(eventnz);
+      eventn = as<IntegerVector>(eventnz2);
+    }
+  } else {
+    stop("event must take logical, integer, or real values");
   }
   
   if (is_true(all(eventn == 0))) {
@@ -220,14 +230,24 @@ List ipcwcpp(
     stop("data must contain the swtrt variable"); 
   }
   
-  if (TYPEOF(data[swtrt]) != INTSXP && TYPEOF(data[swtrt]) != LGLSXP) {
-    stop("swtrt must take integer or logical values");
-  }
-  
-  IntegerVector swtrtnz = data[swtrt];
-  IntegerVector swtrtn = clone(swtrtnz);
-  if (is_true(any((swtrtn != 1) & (swtrtn != 0)))) {
-    stop("swtrt must be 1 or 0 for each subject");
+  IntegerVector swtrtn(n);
+  if (TYPEOF(data[swtrt]) == LGLSXP || TYPEOF(data[swtrt]) == INTSXP) {
+    IntegerVector swtrtnz = data[swtrt];
+    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
+      stop("swtrt must be 1 or 0 for each subject");
+    } else {
+      swtrtn = clone(swtrtnz);
+    }
+  } else if (TYPEOF(data[swtrt]) == REALSXP) {
+    NumericVector swtrtnz = data[swtrt];
+    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
+      stop("swtrt must be 1 or 0 for each subject");
+    } else {
+      NumericVector swtrtnz2 = clone(swtrtnz);
+      swtrtn = as<IntegerVector>(swtrtnz2);
+    }
+  } else {
+    stop("swtrt must take logical, integer, or real values");
   }
   
   if (!has_swtrt_time) {
@@ -258,8 +278,8 @@ List ipcwcpp(
     if (zj == treat) {
       stop("treat should be excluded from base_cov");
     }
-    NumericVector u = data[zj];
     covariates[j+1] = zj;
+    NumericVector u = data[zj];
     zn(_,j) = u;
   }
   
@@ -383,14 +403,74 @@ List ipcwcpp(
   }
   
   
-  // order data by treat, id, and time
+  // split at treatment switching into two observations if treatment 
+  // switching occurs strictly between tstart and tstop for a subject
+  LogicalVector tosplit(n);
+  for (i=0; i<n; i++) {
+    tosplit[i] = swtrtn[i] == 1 && swtrt_timen[i] > tstartn[i] && 
+      swtrt_timen[i] < tstopn[i] ? 1 : 0;
+  }
+  
+  k = sum(tosplit);
+  if (k > 0) {
+    // copy old matrices to new matrices
+    NumericMatrix zn1(n+k, zn.ncol());
+    NumericMatrix zn_cox_den1(n+k, zn_cox_den.ncol());
+    NumericMatrix zn_lgs_den1(n+k, zn_lgs_den.ncol());
+    for (i=0; i<n; i++) {
+      zn1(i,_) = zn(i,_);
+      zn_cox_den1(i,_) = zn_cox_den(i,_);
+      zn_lgs_den1(i,_) = zn_lgs_den(i,_);
+    }
+    
+    IntegerVector sub = which(tosplit);
+    for (i=0; i<k; i++) {
+      // append a new observation by changing tstart
+      int l = sub[i];
+      idn.push_back(idn[l]);
+      stratumn.push_back(stratumn[l]);
+      tstartn.push_back(swtrt_timen[l]);
+      tstopn.push_back(tstopn[l]);
+      eventn.push_back(eventn[l]);
+      treatn.push_back(treatn[l]);
+      swtrtn.push_back(swtrtn[l]);
+      swtrt_timen.push_back(swtrt_timen[l]);
+      zn1(n+i,_) = zn(l,_);
+      zn_cox_den1(n+i,_) = zn_cox_den(l,_);
+      zn_lgs_den1(n+i,_) = zn_lgs_den(l,_);
+      
+      // change tstop and event for the old observation
+      tstopn[l] = swtrt_timen[l];
+      eventn[l] = 0;
+    }
+    
+    // update number of rows and old matrices
+    n = n + k;
+    zn = zn1;
+    zn_cox_den = zn_cox_den1;
+    zn_lgs_den = zn_lgs_den1;
+  }
+  
+  
+  // sort data by treatment group, stratum, id, and time
   IntegerVector order = seq(0, n-1);
-  std::sort(order.begin(), order.end(), [&](int i, int j) {
-    return ((treatn[i] < treatn[j]) ||
-            ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
-            ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) &&
-            (tstopn[i] < tstopn[j])));
-  });
+  if (has_stratum) {
+    std::sort(order.begin(), order.end(), [&](int i, int j) {
+      return ((treatn[i] < treatn[j]) ||
+              ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
+              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+              (idn[i] < idn[j])) ||
+              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+              (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
+    });
+  } else {
+    std::sort(order.begin(), order.end(), [&](int i, int j) {
+      return ((treatn[i] < treatn[j]) ||
+              ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
+              ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
+              (tstopn[i] < tstopn[j])));
+    });
+  }
   
   idn = idn[order];
   stratumn = stratumn[order];
@@ -417,6 +497,20 @@ List ipcwcpp(
   IntegerVector idx1(nids); // last observation within an id
   for (i=0; i<nids; i++) {
     idx1[i] = idx[i+1]-1;
+  }
+  
+  IntegerVector osn(n);
+  NumericVector os_timen(n);
+  for (i=0; i<nids; i++) {
+    k = idx1[i];
+    for (j=idx[i]; j<idx[i+1]; j++) {
+      osn[j] = eventn[k];
+      os_timen[j] = tstopn[k];
+    }
+  }
+  
+  if (is_true(any(ifelse(swtrtn == 1, swtrt_timen > os_timen, 0)))) {
+    stop("swtrt_time must be less than or equal to os_time");
   }
   
   IntegerVector stratumn1 = stratumn[idx1];
@@ -446,37 +540,18 @@ List ipcwcpp(
                 IntegerVector& idb, IntegerVector& stratumb,
                 NumericVector& tstartb, NumericVector& tstopb,
                 IntegerVector& eventb, IntegerVector& treatb,
+                NumericVector& os_timeb, 
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb,
                 NumericMatrix& zb, NumericMatrix& zb_cox_den,
                 NumericMatrix& zb_lgs_den)->List {
-                  int h, i, j, n = static_cast<int>(idb.size());
+                  int h, i, j;
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
-                  // order data by treat, id, and time
-                  IntegerVector order = seq(0, n-1);
-                  std::sort(order.begin(), order.end(), [&](int i, int j) {
-                    return ((treatb[i] < treatb[j]) ||
-                            ((treatb[i]==treatb[j]) && (idb[i] < idb[j])) ||
-                            ((treatb[i]==treatb[j]) && (idb[i]== idb[j]) &&
-                            (tstopb[i] < tstopb[j])));
-                  });
-                  
-                  idb = idb[order];
-                  stratumb = stratumb[order];
-                  tstartb = tstartb[order];
-                  tstopb = tstopb[order];
-                  eventb = eventb[order];
-                  treatb = treatb[order];
-                  swtrtb = swtrtb[order];
-                  swtrt_timeb = swtrt_timeb[order];
-                  zb = subset_matrix_by_row(zb, order);
-                  zb_cox_den = subset_matrix_by_row(zb_cox_den, order);
-                  zb_lgs_den = subset_matrix_by_row(zb_lgs_den, order);
-                  
-                  // exclude observations after treatment switch
-                  IntegerVector l = which((swtrtb == 0) |
-                    (tstartb < swtrt_timeb));
+                  // exclude observations after treatment switch for ipcw
+                  LogicalVector c1 = ifelse(
+                    swtrtb == 1, tstartb < swtrt_timeb, 1);
+                  IntegerVector l = which(c1);
                   IntegerVector id1 = idb[l];
                   IntegerVector stratum1 = stratumb[l];
                   NumericVector tstart1 = tstartb[l];
@@ -485,25 +560,24 @@ List ipcwcpp(
                   IntegerVector treat1 = treatb[l];
                   IntegerVector swtrt1 = swtrtb[l];
                   NumericVector swtrt_time1 = swtrt_timeb[l];
+                  NumericVector os_time1 = os_timeb[l];
                   NumericMatrix z1 = subset_matrix_by_row(zb, l);
                   NumericMatrix z1_cox_den = 
                     subset_matrix_by_row(zb_cox_den, l);
                   NumericMatrix z1_lgs_den = 
                     subset_matrix_by_row(zb_lgs_den, l);
-                  
-                  // set up crossover and event indicators
                   int n1 = static_cast<int>(l.size());
+                  
+                  // set up crossover indicators
                   IntegerVector cross1(n1);
                   for (i=0; i<n1; i++) {
                     if (i == n1-1 || id1[i] != id1[i+1]) {
                       if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
                         cross1[i] = 1;
-                        event1[i] = 0;
-                        tstop1[i] = swtrt_time1[i];
                       }
                     }
                   }
-                  
+                
                   // initialize data_switch and fit_switch
                   List data_switch(2), fit_switch(2);
                   if (k == -1) {
@@ -588,31 +662,31 @@ List ipcwcpp(
                     } else {
                       // extract data for the control group
                       IntegerVector l = which(treat1 == 0);
-                      IntegerVector id0 = id1[l];
-                      IntegerVector stratum0 = stratum1[l];
-                      NumericVector tstart0 = tstart1[l];
-                      NumericVector tstop0 = tstop1[l];
-                      IntegerVector event0 = event1[l];
-                      IntegerVector treat0 = treat1[l];
-                      IntegerVector cross0 = cross1[l];
-                      NumericMatrix z0 = subset_matrix_by_row(z1, l);
-                      NumericMatrix z0_cox_den = 
+                      IntegerVector id10 = id1[l];
+                      IntegerVector stratum10 = stratum1[l];
+                      NumericVector tstart10 = tstart1[l];
+                      NumericVector tstop10 = tstop1[l];
+                      IntegerVector event10 = event1[l];
+                      IntegerVector treat10 = treat1[l];
+                      IntegerVector cross10 = cross1[l];
+                      NumericMatrix z10 = subset_matrix_by_row(z1, l);
+                      NumericMatrix z10_cox_den = 
                         subset_matrix_by_row(z1_cox_den, l);
                       
                       // replicate event times within each subject
-                      DataFrame a = survsplit(tstart0, tstop0, cut);
+                      DataFrame a = survsplit(tstart10, tstop10, cut);
                       IntegerVector censor = a["censor"];
                       l = a["row"];
-                      IntegerVector id20 = id0[l];
-                      IntegerVector stratum20 = stratum0[l];
+                      IntegerVector id20 = id10[l];
+                      IntegerVector stratum20 = stratum10[l];
                       NumericVector tstart20 = a["start"];
                       NumericVector tstop20 = a["end"];
-                      IntegerVector event20 = event0[l];
-                      IntegerVector treat20 = treat0[l];
-                      IntegerVector cross20 = cross0[l];
-                      NumericMatrix z20 = subset_matrix_by_row(z0, l);
+                      IntegerVector event20 = event10[l];
+                      IntegerVector treat20 = treat10[l];
+                      IntegerVector cross20 = cross10[l];
+                      NumericMatrix z20 = subset_matrix_by_row(z10, l);
                       NumericMatrix z20_cox_den = 
-                        subset_matrix_by_row(z0_cox_den, l);
+                        subset_matrix_by_row(z10_cox_den, l);
                       int n20 = static_cast<int>(l.size());
                       for (i=0; i<n20; i++) {
                         if (censor[i] == 1) {
@@ -680,7 +754,7 @@ List ipcwcpp(
                       List fit_den = phregcpp(
                         data1, "", "ustratum", "tstart", "tstop", "cross",
                         denominator, "", "", "uid", ties, init, 
-                        1, 1, 0, 0, 0, alpha, 50, 1.0e-9);
+                        0, 1, 0, 0, 0, alpha, 50, 1.0e-9);
                       
                       // obtain the survival probabilities for crossover
                       DataFrame sumstat_den = DataFrame(fit_den["sumstat"]);
@@ -703,7 +777,7 @@ List ipcwcpp(
                       List fit_num = phregcpp(
                         data1, "", "ustratum", "tstart", "tstop", "cross", 
                         numerator, "", "", "uid", ties, init, 
-                        1, 1, 0, 0, 0, alpha, 50, 1.0e-9);
+                        0, 1, 0, 0, 0, alpha, 50, 1.0e-9);
                       
                       NumericVector surv_num(m);
                       if (p1 > 0) {
@@ -819,9 +893,9 @@ List ipcwcpp(
                       }
                       
                       // weights in the outcome model by matching id and time
-                      IntegerVector idx = km_den["uid"];
-                      NumericVector timex = km_den["time"];
-                      IntegerVector sub = match3(id3, tstop3, idx, timex);
+                      IntegerVector id4 = km_den["uid"];
+                      NumericVector time4 = km_den["time"];
+                      IntegerVector sub = match3(id3, tstop3, id4, time4);
                       NumericVector w3 = w[sub];
                       NumericVector sw3 = sw[sub];
                       w2[l] = w3;
@@ -870,12 +944,13 @@ List ipcwcpp(
                       data_outcome.push_back(u,zj);
                     }
                   } else { // logistic regression switching model
-                    // initialize weights
                     NumericVector w1(n1, 1.0), sw1(n1, 1.0);
                     
                     // fit the switching models by treatment group
                     for (h=0; h<K; h++) {
-                      IntegerVector l = which(treat1 == h);
+                      LogicalVector c2 = ifelse(
+                        swtrt1 == 1, tstart1 < swtrt_time1, tstop1 < os_time1);
+                      IntegerVector l = which(c2 & (treat1 == h));
                       IntegerVector id2 = id1[l];
                       IntegerVector stratum2 = stratum1[l];
                       NumericVector tstart2 = tstart1[l];
@@ -929,28 +1004,6 @@ List ipcwcpp(
                       DataFrame f_den = DataFrame(fit_den["fitted"]);
                       NumericVector h_den = f_den["fitted_values"];
                       
-                      // convert to probability of remaining uncensored
-                      NumericVector pstay_den = 1.0 - h_den;
-                      
-                      // obtain cumulative products within a subject
-                      IntegerVector idx(1,0);
-                      for (i=1; i<n2; i++) {
-                        if (id2[i] != id2[i-1]) {
-                          idx.push_back(i);
-                        }
-                      }
-                      
-                      int nids2 = static_cast<int>(idx.size());
-                      idx.push_back(n2);
-                      
-                      NumericVector surv_den(n2);
-                      for (i=0; i<nids2; i++) {
-                        surv_den[idx[i]] = pstay_den[idx[i]];
-                        for (j=idx[i]+1; j<idx[i+1]; j++) {
-                          surv_den[j] = surv_den[j-1]*pstay_den[j];
-                        }
-                      }
-                      
                       List fit_num = logisregcpp(
                         data1, "", "cross", covariates_lgs_num, "", "", 
                         "", "uid", "logit", init, 
@@ -963,33 +1016,62 @@ List ipcwcpp(
                       DataFrame f_num = DataFrame(fit_num["fitted"]);
                       NumericVector h_num = f_num["fitted_values"];
                       
-                      // convert to probability of remaining uncensored
-                      NumericVector pstay_num = 1.0 - h_num;
+                      // convert to probability of observed response 
+                      NumericVector o_den(n2), o_num(n2);
+                      for (i=0; i<n2; i++) {
+                        o_den[i] = cross2[i] == 1 ? h_den[i] : 1 - h_den[i];
+                        o_num[i] = cross2[i] == 1 ? h_num[i] : 1 - h_num[i];
+                      }
                       
-                      NumericVector surv_num(n2);
-                      for (i=0; i<nids2; i++) {
-                        surv_num[idx[i]] = pstay_num[idx[i]];
-                        for (j=idx[i]+1; j<idx[i+1]; j++) {
-                          surv_num[j] = surv_num[j-1]*pstay_num[j];
+                      // obtain cumulative products within a subject
+                      l = which(treat1 == h);
+                      IntegerVector id3 = id1[l];
+                      IntegerVector swtrt3 = swtrt1[l];
+                      int n3 = static_cast<int>(l.size());
+                      
+                      IntegerVector idx3(1,0);
+                      for (i=1; i<n3; i++) {
+                        if (id3[i] != id3[i-1]) {
+                          idx3.push_back(i);
                         }
                       }
                       
+                      IntegerVector swtrt3u = swtrt3[idx3];
+                      
+                      int nids3 = static_cast<int>(idx3.size());
+                      idx3.push_back(n3);
+                      
+                      NumericVector p_den(n3, 1.0), p_num(n3, 1.0);
+                      
+                      int m = 0;
+                      for (i=0; i<nids3; i++) {
+                        int r = m - idx3[i] - 1;
+                        for (j=idx3[i]+1; j<idx3[i+1]; j++) {
+                          p_den[j] = p_den[j-1]*o_den[r+j];
+                          p_num[j] = p_num[j-1]*o_num[r+j];
+                        }
+                        
+                        int ni = idx3[i+1] - idx3[i];
+                        int mi = swtrt3u[i] == 1 ? ni : ni - 1;
+                        m += mi;
+                      }
+                      
                       // unstabilized and stabilized weights
-                      NumericVector w = 1.0/surv_den;
-                      NumericVector sw = surv_num/surv_den;
+                      NumericVector w = 1.0/p_den;
+                      NumericVector sw = p_num/p_den;
                       
                       // truncate the weights if requested
                       if (trunc > 0.0) {
                         // truncated unstabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n2; i++) {
+                          for (i=0; i<n3; i++) {
                             if (w[i] > upper) w[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(w, trunc);
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n2; i++) {
+                          for (i=0; i<n3; i++) {
                             if (w[i] < lower) {
                               w[i] = lower;
                             } else if (w[i] > upper) {
@@ -1001,13 +1083,13 @@ List ipcwcpp(
                         // truncated stabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n2; i++) {
+                          for (i=0; i<n3; i++) {
                             if (sw[i] > upper) sw[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(sw, trunc);
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n2; i++) {
+                          for (i=0; i<n3; i++) {
                             if (sw[i] < lower) {
                               sw[i] = lower;
                             } else if (sw[i] > upper) {
@@ -1129,7 +1211,7 @@ List ipcwcpp(
                   return out;
                 };
   
-  List out = f(idn, stratumn, tstartn, tstopn, eventn, treatn,
+  List out = f(idn, stratumn, tstartn, tstopn, eventn, treatn, os_timen,
                swtrtn, swtrt_timen, zn, zn_cox_den, zn_lgs_den);
   
   List data_switch = out["data_switch"];
@@ -1189,53 +1271,65 @@ List ipcwcpp(
   } else { // bootstrap the entire process to construct CI for HR
     if (seed != NA_INTEGER) set_seed(seed);
     
-    int n0 = sum(treatn1==0);
-    int n1 = sum(treatn1==1);
     IntegerVector nobs = diff(idx);
     int N = max(nobs)*nids;
     
     int B = N*n_boot;
     IntegerVector boot_indexc(B);
     IntegerVector oidc(B);
-    IntegerVector idc(B), stratumc(B), treatc(B), eventc(B), swtrtc(B);
-    NumericVector tstartc(B), tstopc(B), swtrt_timec(B);
+    IntegerVector idc(B), stratumc(B), eventc(B), treatc(B);
+    IntegerVector osc(B), swtrtc(B);
+    NumericVector tstartc(B), tstopc(B), os_timec(B), swtrt_timec(B);
     NumericMatrix zc_lgs_den(B, q+p2);
     int index1 = 0;
     
+    IntegerVector tsx(1,0); // first id within each treat/stratum
+    for (i=1; i<nids; i++) {
+      if ((treatn1[i] != treatn1[i-1]) || 
+          ((treatn1[i] == treatn1[i-1]) && 
+          (stratumn1[i] != stratumn1[i-1]))) {
+        tsx.push_back(i);
+      }
+    }
+    
+    int ntss = static_cast<int>(tsx.size());
+    tsx.push_back(nids);
+    
     for (k=0; k<n_boot; k++) {
-      IntegerVector oidb(N); // original id
-      IntegerVector idb(N), stratumb(N), treatb(N), eventb(N), swtrtb(N);
-      NumericVector tstartb(N), tstopb(N), swtrt_timeb(N);
+      IntegerVector oidb(N);
+      IntegerVector idb(N), stratumb(N), eventb(N), treatb(N);
+      IntegerVector osb(N), swtrtb(N);
+      NumericVector tstartb(N), tstopb(N), os_timeb(N), swtrt_timeb(N);
       NumericMatrix zb(N, p), zb_cox_den(N, p2), zb_lgs_den(N, q+p2);
       
-      // sample the subject-level data with replacement by treatment group
+      // sample the subject-level data with replacement by treat/stratum
       int l = 0;
-      for (int h=0; h<nids; h++) {
-        double u = R::runif(0,1);
-        if (h < n0) {
-          i = static_cast<int>(std::floor(u*n0));
-        } else {
-          i = n0 + static_cast<int>(std::floor(u*n1));
-        }
-        
-        // create unique ids for bootstrap data sets
-        int oidb1 = idn[idx[i]];
-        int idb1 = idn[idx[i]] + h*nids;
-        
-        for (j=idx[i]; j<idx[i+1]; j++) {
-          oidb[l] = oidb1;
-          idb[l] = idb1;
-          stratumb[l] = stratumn[j];
-          tstartb[l] = tstartn[j];
-          tstopb[l] = tstopn[j];
-          eventb[l] = eventn[j];
-          treatb[l] = treatn[j];
-          swtrtb[l] = swtrtn[j];
-          swtrt_timeb[l] = swtrt_timen[j];
-          zb(l,_) = zn(j,_);
-          zb_cox_den(l,_) = zn_cox_den(j,_);
-          zb_lgs_den(l,_) = zn_lgs_den(j,_);
-          l++;
+      for (int h=0; h<ntss; h++) {
+        for (int r=tsx[h]; r<tsx[h+1]; r++) {
+          double u = R::runif(0,1);
+          i = tsx[h] + static_cast<int>(std::floor(u*(tsx[h+1]-tsx[h])));
+          
+          // create unique ids for bootstrap data sets
+          int oidb1 = idn[idx[i]];
+          int idb1 = idn[idx[i]] + r*nids;
+          
+          for (j=idx[i]; j<idx[i+1]; j++) {
+            oidb[l] = oidb1;
+            idb[l] = idb1;
+            stratumb[l] = stratumn[j];
+            tstartb[l] = tstartn[j];
+            tstopb[l] = tstopn[j];
+            eventb[l] = eventn[j];
+            treatb[l] = treatn[j];
+            osb[l] = osn[j];
+            os_timeb[l] = os_timen[j];
+            swtrtb[l] = swtrtn[j];
+            swtrt_timeb[l] = swtrt_timen[j];
+            zb(l,_) = zn(j,_);
+            zb_cox_den(l,_) = zn_cox_den(j,_);
+            zb_lgs_den(l,_) = zn_lgs_den(j,_);
+            l++;
+          }
         }
       }
       
@@ -1247,13 +1341,15 @@ List ipcwcpp(
       tstopb = tstopb[sub];
       eventb = eventb[sub];
       treatb = treatb[sub];
+      osb = osb[sub];
+      os_timeb = os_timeb[sub];
       swtrtb = swtrtb[sub];
       swtrt_timeb = swtrt_timeb[sub];
       zb = subset_matrix_by_row(zb, sub);
       zb_cox_den = subset_matrix_by_row(zb_cox_den, sub);
       zb_lgs_den = subset_matrix_by_row(zb_lgs_den, sub);
       
-      out = f(idb, stratumb, tstartb, tstopb, eventb, treatb,
+      out = f(idb, stratumb, tstartb, tstopb, eventb, treatb, os_timeb,
               swtrtb, swtrt_timeb, zb, zb_cox_den, zb_lgs_den);
       
       fails[k] = out["fail"];
@@ -1270,6 +1366,8 @@ List ipcwcpp(
           tstopc[j] = tstopb[i];
           eventc[j] = eventb[i];
           treatc[j] = treatb[i];
+          osc[j] = osb[i];
+          os_timec[j] = os_timeb[i];
           swtrtc[j] = swtrtb[i];
           swtrt_timec[j] = swtrt_timeb[i];
           zc_lgs_den(j,_) = zb_lgs_den(i,_);
@@ -1288,6 +1386,8 @@ List ipcwcpp(
       tstopc = tstopc[sub];
       eventc = eventc[sub];
       treatc = treatc[sub];
+      osc = osc[sub];
+      os_timec = os_timec[sub];
       swtrtc = swtrtc[sub];
       swtrt_timec = swtrt_timec[sub];
       zc_lgs_den = subset_matrix_by_row(zc_lgs_den,sub);
@@ -1299,6 +1399,8 @@ List ipcwcpp(
         Named("tstop") = tstopc,
         Named("event") = eventc,
         Named("treated") = treatc,
+        Named("os") = osc,
+        Named("os_time") = os_timec,
         Named("swtrt") = swtrtc,
         Named("swtrt_time") = swtrt_timec
       );
@@ -1345,7 +1447,7 @@ List ipcwcpp(
     
     // obtain bootstrap confidence interval for HR
     double loghr = log(hrhat);
-    LogicalVector ok = 1 - fails;
+    LogicalVector ok = (1 - fails) & !is_na(hrhats);
     int n_ok = sum(ok);
     NumericVector loghrs = log(hrhats[ok]);
     double sdloghr = sd(loghrs);

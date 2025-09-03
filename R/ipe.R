@@ -130,6 +130,8 @@
 #'
 #' * \code{fail}: Whether a model fails to converge.
 #'
+#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
+#'
 #' * \code{settings}: A list with the following components:
 #'
 #'     - \code{aft_dist}: The distribution for time to event for the AFT
@@ -259,7 +261,8 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     p = 0
   } else {
     fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
+    vnames = rownames(attr(terms(fml1), "factors"))
+    p = length(vnames)
   }
 
   if (p >= 1) {
@@ -287,37 +290,35 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     autoswitch = autoswitch, alpha = alpha, ties = ties, 
     tol = tol, boot = boot, n_boot = n_boot, seed = seed)
   
-  out$Sstar$uid <- NULL
-  out$Sstar$ustratum <- NULL
-  out$data_aft$uid <- NULL
-  out$data_aft$ustratum <- NULL
-  out$data_outcome$uid <- NULL
-  out$data_outcome$ustratum <- NULL
-  
-  if (p >= 1) {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
+  if (!out$psimissing) {
+    out$Sstar$uid <- NULL
+    out$Sstar$ustratum <- NULL
+    out$data_aft$uid <- NULL
+    out$data_aft$ustratum <- NULL
+    out$data_outcome$uid <- NULL
+    out$data_outcome$ustratum <- NULL
     
-    add_vars <- setdiff(t3, varnames)
-    if (length(add_vars) > 0) {
-      out$Sstar <- merge(out$Sstar, df[, c(id, add_vars)], 
-                            by = id, all.x = TRUE, sort = FALSE)
-      out$data_aft <- merge(out$data_aft, df[, c(id, add_vars)], 
-                            by = id, all.x = TRUE, sort = FALSE)
-      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
-                                by = id, all.x = TRUE, sort = FALSE)
+    if (p >= 1) {
+      add_vars <- setdiff(vnames, varnames)
+      if (length(add_vars) > 0) {
+        out$Sstar <- merge(out$Sstar, df[, c(id, add_vars)], 
+                           by = id, all.x = TRUE, sort = FALSE)
+        out$data_aft <- merge(out$data_aft, df[, c(id, add_vars)], 
+                              by = id, all.x = TRUE, sort = FALSE)
+        out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                  by = id, all.x = TRUE, sort = FALSE)
+      }
+      
+      del_vars <- setdiff(varnames, vnames)
+      if (length(del_vars) > 0) {
+        out$Sstar[, del_vars] <- NULL
+        out$data_aft[, del_vars] <- NULL
+        out$data_outcome[, del_vars] <- NULL
+      }
+      
+      out$data_aft <- out$data_aft[
+        , !startsWith(names(out$data_aft), "stratum_")]
     }
-    
-    del_vars <- setdiff(varnames, t3)
-    if (length(del_vars) > 0) {
-      out$Sstar[, del_vars] <- NULL
-      out$data_aft[, del_vars] <- NULL
-      out$data_outcome[, del_vars] <- NULL
-    }
-    
-    out$data_aft <- out$data_aft[
-      , !startsWith(names(out$data_aft), "stratum_")]
   }
   
   out

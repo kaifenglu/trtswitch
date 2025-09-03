@@ -57,7 +57,7 @@ testthat::test_that("tsesimp: weibull aft", {
                                     dco-1 + (tstop-dco+1)*exp(psi)), tstop),
              c_star = pmin(dcut, dcut*exp(psi)),
              t_star = pmin(u_star, c_star),
-             d_star = event*(u_star <= c_star))
+             d_star = ifelse(c_star < u_star, 0, event))
   })
   
   data2 <- do.call(rbind, tablist)

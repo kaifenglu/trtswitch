@@ -15,10 +15,10 @@ testthat::test_that("rpsftm: control to active switch", {
   
   f <- function(psi) {
     data1 %>%
-      mutate(u_star = progyrs*((1-rx) + rx*exp(psi)),
+      mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),
              c_star = ifelse(imm==0, pmin(censyrs, censyrs*exp(psi)), 1e10),
              t_star = pmin(u_star, c_star),
-             d_star = prog*(u_star <= c_star))
+             d_star = ifelse(c_star < u_star, 0, prog))
   }
   
   g <- function(psi) {
@@ -30,23 +30,22 @@ testthat::test_that("rpsftm: control to active switch", {
   }
   
   # psi based on log-rank test
-  psi <- uniroot(g, c(-1,1), tol = 1e-6)$root
+  psi <- uniroot(g, c(-2,2), tol = 1e-6)$root
   
-  # observed on treated and counterfactual on control
   data2 <- data1 %>%
     filter(imm == 0) %>%
     mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),
            c_star = pmin(censyrs, censyrs*exp(psi)),
            t_star = pmin(u_star, c_star),
-           d_star = prog*(u_star <= c_star)) %>%
+           d_star = ifelse(c_star < u_star, 0, prog)) %>%
     select(-c("u_star", "c_star")) %>%
     bind_rows(data1 %>%
                 filter(imm == 1) %>%
                 mutate(t_star = progyrs, 
                        d_star = prog))
   
-  fit <- phregr(data2, time = "t_star", event = "d_star", covariates = "imm")
-  beta = as.numeric(fit$beta[1])
+  fit <- coxph(Surv(t_star, d_star) ~ imm, data = data2)
+  beta = as.numeric(fit$coefficients[1])
   se = beta/z_lr
   
   zcrit = qnorm(0.975)

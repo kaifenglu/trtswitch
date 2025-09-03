@@ -28,10 +28,11 @@ To derive the g-estimate of $\psi$, we utilize a logistic regression model for s
 \[
   \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk}
 \]
-alongside a structural model for counterfactual survival times
+alongside a structural model for counterfactual post progression survival times
 \[
   U_{i,\psi} =  T_{C_i} + e^{\psi}T_{E_i}
 \]
+Here $T_{C_i}$ refers to the time spent after disease progression on control treatment, and $T_{E_i}$ refers to the time spent after disease progression on the experimental treatment.
 
 ## Key Components 
 
@@ -43,7 +44,7 @@ alongside a structural model for counterfactual survival times
 
 - **Confounders $x_{ijk}$**: These are the confounding variables measured for subject $i$ at observation $k$.
 
-- **Counteractual Survival Time $U_{i,\psi}$**: This represents the counterfactual survival time for subject $i$ based on a specific value of $\psi$. In case of censoring, we define $D_{i,\psi}^* = \min(C_i, e^{\psi}C_i)$, where $C_i$ is the censoring time for the subject. Additionally, we denote $\Delta_i$ as the observed event indicators. We then define $U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*)$ and $\Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*)$ to represent the recensored counterfactual survival times and event indicators, respectively. Next, we fit a null Cox model to the dataset $(U_{i,\psi}^*, \Delta_{i,\psi}^*)$ to patients with disease progression. The martingale residuals from this model are then used to replace $U_{i,\psi}$ in the pooled logistic regression switching model. 
+- **Counteractual Survival Time $U_{i,\psi}$**: This represents the counterfactual post progression survival time for subject $i$ based on a specific value of $\psi$. In case of recensoring, we define $D_{i,\psi}^* = \min(C_i, e^{\psi}C_i)$, where $C_i$ is the censoring time for the subject. Additionally, we denote $\Delta_i$ as the observed event indicators. We then define $U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*)$ and $\Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*)$ to represent the recensored counterfactual survival times and event indicators, respectively. Next, we fit a null Cox model to the dataset $(U_{i,\psi}^*, \Delta_{i,\psi}^*)$ to patients with disease progression. The martingale residuals from this model are then used to replace $U_{i,\psi}$ in the pooled logistic regression switching model. 
 
 # Estimation of Hazard Ratio
 Once $\psi$ has been estimated, we can derive an adjusted data set and fit a (potentially stratified) Cox proportional hazards model to the adjusted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the entire adjustment and subsequent model-fitting process.
@@ -63,19 +64,22 @@ sim1 <- tsegestsim(
 ```
 
 Next we apply the TSE method with g-estimation. 
-```{r analysis}
+```{r analysis}  
+data1 <- sim1$paneldata %>%
+  mutate(visit7on = ifelse(progressed == 1, tstop > timePFSobs + 105, 0))
+  
 fit1 <- tsegest(
-  data = sim1$paneldata, id = "id", 
+  data = data1, id = "id", 
   tstart = "tstart", tstop = "tstop", event = "event", 
   treat = "trtrand", censor_time = "censor_time", 
   pd = "progressed", pd_time = "timePFSobs", 
   swtrt = "xo", swtrt_time = "xotime", 
-  base_cov = "bprog", conf_cov = "bprog*catlag", 
-  low_psi = -2, hi_psi = 2, n_eval_z = 101, 
+  base_cov = "bprog", 
+  conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
   strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-  tol = 1.0e-6, offset = 1, boot = FALSE)
+  tol = 1.0e-6, offset = 0, boot = FALSE)
 ```
 
 The Kaplan-Meier plot for the control arm demonstrates that treatment switching can occur at the secondary baseline and at each of the ensuing five scheduled visits, spaced 21 days apart.
@@ -136,17 +140,18 @@ Finally, to ensure the uncertainty is accurately represented, the entire adjustm
 ````{verbatim}
 ```{r boot}
 fit2 <- tsegest(
-  data = sim1$paneldata, id = "id", 
+  data = data1, id = "id", 
   tstart = "tstart", tstop = "tstop", event = "died", 
   treat = "trtrand", censor_time = "censor_time", 
   pd = "progressed", pd_time = "timePFSobs", 
   swtrt = "xo", swtrt_time = "xotime", 
-  base_cov = "bprog", conf_cov = "bprog*catlag", 
+  base_cov = "bprog", 
+  conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"),
   low_psi = -2, hi_psi = 2, n_eval_z = 101, 
   strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-  tol = 1.0e-6, offset = 1, boot = TRUE, 
+  tol = 1.0e-6, offset = 0, boot = TRUE, 
   n_boot = 1000, seed = 12345)
 
 c(fit2$hr, fit2$hr_CI)

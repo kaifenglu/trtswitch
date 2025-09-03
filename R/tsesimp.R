@@ -133,6 +133,8 @@
 #' 
 #' * \code{fail}: Whether a model fails to converge.
 #'
+#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
+#' 
 #' * \code{settings}: A list with the following components:
 #'
 #'     - \code{aft_dist}: The distribution for time to event for the AFT
@@ -263,7 +265,8 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     p = 0
   } else {
     fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
+    vnames = rownames(attr(terms(fml1), "factors"))
+    p = length(vnames)
   }
 
   if (p >= 1) {
@@ -286,7 +289,8 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     p2 = 0
   } else {
     fml2 = formula(paste("~", paste(base2_cov, collapse = "+")))
-    p2 = length(rownames(attr(terms(fml2), "factors")))
+    vnames2 = rownames(attr(terms(fml2), "factors"))
+    p2 = length(vnames2)
   }
 
   if (p2 >= 1) {
@@ -315,53 +319,46 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     ties = ties, offset = offset, 
     boot = boot, n_boot = n_boot, seed = seed)
   
-  out$data_outcome$uid <- NULL
-  out$data_outcome$ustratum <- NULL
-  
-  
-  if (p >= 1) {
-    t1 = terms(formula(paste("~", paste(base_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
+  if (!out$psimissing) {
+    out$data_outcome$uid <- NULL
+    out$data_outcome$ustratum <- NULL
     
-    add_vars <- setdiff(t3, varnames)
-    if (length(add_vars) > 0) {
-      out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
-                                by = id, all.x = TRUE, sort = FALSE)
-    }
-    
-    del_vars <- setdiff(varnames, t3)
-    if (length(del_vars) > 0) {
-      out$data_outcome[, del_vars] <- NULL
-    }
-  }
-  
-  if (p2 >= 1) {
-    t1 = terms(formula(paste("~", paste(base2_cov, collapse = "+"))))
-    t2 = attr(t1, "factors")
-    t3 = rownames(t2)
-    
-    K = ifelse(swtrt_control_only, 1, 2)
-    tem_vars <- c(pd_time, swtrt_time, time)
-    add_vars <- c(setdiff(t3, varnames2), tem_vars)
-    if (length(add_vars) > 0) {
-      for (h in 1:K) {
-        out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
-                                        df[, c(id, add_vars)], 
-                                        by = id, all.x = TRUE, sort = FALSE)
+    if (p >= 1) {
+      add_vars <- setdiff(vnames, varnames)
+      if (length(add_vars) > 0) {
+        out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
+                                  by = id, all.x = TRUE, sort = FALSE)
+      }
+      
+      del_vars <- setdiff(varnames, vnames)
+      if (length(del_vars) > 0) {
+        out$data_outcome[, del_vars] <- NULL
       }
     }
     
-    del_vars <- setdiff(varnames2, t3)
-    if (length(del_vars) > 0) {
-      for (h in 1:K) {
-        out$data_aft[[h]]$data[, del_vars] <- NULL
+    if (p2 >= 1) {
+      K = ifelse(swtrt_control_only, 1, 2)
+      tem_vars <- c(pd_time, swtrt_time, time)
+      add_vars <- c(setdiff(vnames2, varnames2), tem_vars)
+      if (length(add_vars) > 0) {
+        for (h in 1:K) {
+          out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
+                                          df[, c(id, add_vars)], 
+                                          by = id, all.x = TRUE, sort = FALSE)
+        }
       }
-    }
-    
-    for (h in 1:K) {
-      out$data_aft[[h]]$data <- out$data_aft[[h]]$data[
-        , !startsWith(names(out$data_aft[[h]]$data), "stratum_")]
+      
+      del_vars <- setdiff(varnames2, vnames2)
+      if (length(del_vars) > 0) {
+        for (h in 1:K) {
+          out$data_aft[[h]]$data[, del_vars] <- NULL
+        }
+      }
+      
+      for (h in 1:K) {
+        out$data_aft[[h]]$data <- out$data_aft[[h]]$data[
+          , !startsWith(names(out$data_aft[[h]]$data), "stratum_")]
+      }
     }
   }
 

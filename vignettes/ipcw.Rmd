@@ -31,19 +31,27 @@ Finally, an "outcome" model utilizing IPCW-weighted survival times is employed t
 The switching model can be implemented using either pooled logistic regression or proportional hazards regression with time-dependent covariates.
 
 ## Pooled Logistic Regression Model
+Let $A_{i,j}$ denote the indicator of alternative therapy for subject $i$ in treatment cycle $j$. We assume that once a patient switched to an alternative therapy, he/she will stay on the alternative therapy. Let $X_i$ denote the baseline covariates for subject $i$ and $L_{i,j}$ denote the time-dependent covariates for subject $i$ at the start of cycle $j$. For the pooled logistic regression model for treatment switching, the full data will be used for patients who didn't switch treatment, while the partial data up to and including the treatment cycle when the patient switched treatment will be used for patients who switched treatment. The logistic regression model is used to estimate
+$$P(A_j = a_{i,j} | A_{j-1} = 0, \bar{L}_{j} = \bar{l}_{i,j}, X = x_i)$$
+where $x_i$, $l_{i,j}$, and $a_{i,j}$ denote the observed value of baseline covariates, time-dependent covariates at the start of cycle $j$, and alternative therapy status for cycle $j$ of subject $i$, respectively. A subject is on alternative therapy in cycle $j$ if and only if treatment switching has occurred at the start of that cycle, which is equivalent to switching having occurred by the end of cycle $j−1$. Consequently, lagged values of time-dependent covariates are often used in the logistic regression model. Natural cubic splines can be used to model visit-specific intercepts for the pooled logistic regression model. The unstabilized weights for subject $i$ for cycle $t$ are given by 
+$$w_i(t) = \prod_{j=1}^{t} \frac{1}{P(A_j = a_{i,j} | \bar{A}_{j-1} = \bar{a}_{i,j-1}, \bar{L}_{j} = \bar{l}_{i,j}, X = x_i)}$$
+In the IPCW method, all visits that occur after treatment switching are excluded from the weighted outcome model. Accordingly, the weights are defined as the inverse probability of not having switched at the start of each cycle.
+
 When using pooled logistic regression for the switching model, the following specifications can be made:
 
 - **Visit-Specific Intercepts**: These can be modeled using a natural cubic spline with specified degrees of freedom, denoted as $\nu$ (corresponding to the `ns_df` parameter of the `ipcw` function). The boundary and internal knots can be based on the range and percentiles of observed treatment switching times, respectively. Here, $\nu$ equals the number of internal knots plus one; a value of $\nu=0$ indicates a common intercept, while $\nu=1$ leads to a linear effect of visit. By default, $\nu=3$, which implies two internal knots for the cubic spline.
 
-- **Stratification Factors**: If more than one stratification factor exists, they can be included in the logistic model either as main effects only (`strata_main_effect_only = TRUE`) or as all possible combinations of the  levels of the stratification factors (`strata_main_effect_only = FALSE`). 
+- **Stratification Factors**: If more than one stratification factor exists, they can be included in the logistic model either as main effects only (`strata_main_effect_only = TRUE`) or as all possible combinations of the levels of the stratification factors (`strata_main_effect_only = FALSE`). 
 
 - **Handling Nonconvergence**: If the pooled logistic regression model encounters issues such as complete or quasi-complete separation, Firth's bias-reducing penalized likelihood method (`firth = TRUE`) can be applied alongside intercept correction (`flic = TRUE`) to yield more accurate predicted probabilities. 
 
 ## Proportional Hazards Model
 When using a Cox model with time-dependent covariates as the switching model, adjacent observations within a subject may be combined as long as the values of time-dependent covariates do not change over each combined interval. This approach saves data storage but observations across subjects will not be aligned at regular intervals. In this case, unique event times across treatment arms should be replicated within each subject, enabling the availability of weights at each event time.
 
+In the time-dependent Cox switching model, survival times are artificially censored at the point of treatment switching. The IPCW weight is then defined as the probability of not having switched treatment by the end of the time interval. This is to account for the irregular visit structure for the time-dependent Cox switching model.
+
 ## Stabilized Weights
-To address the high variability in "unstabilized" weights, researchers often opt for "stabilized" weights. The switching model for stabilized weights involves a model for the numerator of the weight in addition to the model for the denominator. Typically, the numerator model mirrors the denominator model but includes only prognostic baseline variables. Any prognostic baseline variables included in the numerator must also be part of the weighted outcome model. 
+To address the high variability in "unstabilized" weights, researchers often opt for "stabilized" weights. The switching model for stabilized weights involves a model for the numerator of the weight in addition to the model for the denominator. Typically, the numerator model mirrors the denominator model but includes only prognostic baseline variables. Any baseline variables included in the numerator must be part of the weighted outcome model. Any baseline variables included in the weighted outcome model must also be part of the denominator.
 
 ## Truncation of Weights
 You can specify weight truncation using the `trunc` and `trunc_upper_only` parameters of the `ipcw` function. The `trunc` parameter is a number between 0 and 0.5 that represents the fraction of the weight distribution to truncate. The `trunc_upper_only` parameter is a flag that indicates whether to truncate weights only from the upper end of the weight distribution.
@@ -54,29 +62,32 @@ Once weights have been obtained for each event time in the data set, we fit a (p
 ## Example for Pooled Logistic Regression Switching Model
 First we prepare the data.
 ```{r data example 1}
-sim1 <- tsegestsim(
-  n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
-  trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
-  scale1 = 360, shape2 = 1.7, scale2 = 688, 
-  pmix = 0.5, admin = 5000, pcatnotrtbprog = 0.5, 
-  pcattrtbprog = 0.25, pcatnotrt = 0.2, pcattrt = 0.1, 
-  catmult = 0.5, tdxo = 1, ppoor = 0.1, pgood = 0.04, 
-  ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
-  milestone = 546, outputRawDataset = 1, seed = 2000)
+sim1 <- tssim(
+  tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
+  p_X_1 = 0.3, p_X_0 = 0.3, 
+  rate_T = 0.002, beta1 = -0.5, beta2 = 0.3, 
+  gamma0 = 0.3, gamma1 = -0.9, gamma2 = 0.7, gamma3 = 1.1, gamma4 = -0.8,
+  zeta0 = -3.5, zeta1 = 0.5, zeta2 = 0.2, zeta3 = -0.4, 
+  alpha0 = 0.5, alpha1 = 0.5, alpha2 = 0.4, 
+  theta1_1 = -0.4, theta1_0 = -0.4, theta2 = 0.2,
+  rate_C = 0.0000855, accrualIntensity = 20/30, 
+  followupTime = 600, fixedFollowup = 0, days = 30,
+  n = 500, NSim = 100, seed = 314159)
 ```
 
-Given that the observations are collected at regular intervals, we can use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `catlag` and the interaction between `bprog` and `catlag` serve as time-dependent covariates. Additionally, `ns1`, `ns2`, and `ns3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
+Given that the observations are collected at regular intervals, we can use a pooled logistic regression switching model. In this model, the prognostic baseline variable is represented by `bprog`, while `L` serves as a time-dependent covariate. Additionally, `ns1`, `ns2`, and `ns3` are the three terms for the natural cubic spline with $\nu=3$ degrees of freedom for visit-specific intercepts.  
 ```{r analysis example 1}
 fit1 <- ipcw(
-  sim1$paneldata, id = "id", tstart = "tstart", 
-  tstop = "tstop", event = "died", treat = "trtrand", 
-  swtrt = "xo", swtrt_time = "xotime", base_cov = "bprog", 
-  numerator = "bprog", denominator = "bprog*catlag", 
+  sim1[[1]], id = "id", tstart = "tstart", 
+  tstop = "tstop", event = "Y", treat = "trtrand", 
+  swtrt = "xo", swtrt_time = "xotime", 
+  base_cov = "bprog", numerator = "bprog", 
+  denominator = c("bprog", "L"),
   logistic_switching_model = TRUE, ns_df = 3,
   swtrt_control_only = TRUE, boot = FALSE)
 ```
 
-The fits for the denominator and numerator switching models are as follows. 
+The fits for the denominator and numerator switching models for the control arm are as follows, utilizing robust sandwich variance estimates to account for correlations among  observations within the same subject. 
 ```{r switching models example 1}
 # denominator switching model fit
 fit1$fit_switch[[1]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]

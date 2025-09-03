@@ -22,7 +22,7 @@ library(survival)
 ```
 
 # Introduction
-The iterative parameter estimation (IPE) method is an alternative to the rank preserving structural failure time model (RPSDTM) method to adjust for treatment switching within a counterfactual framework. Both methods assume a common treatment effect. However, instead of using g-estimation to find the optimal value of $\psi$, the IPE method iteratively fits a parametric survival model.
+The iterative parameter estimation (IPE) method is an alternative to the rank preserving structural failure time model (RPSFTM) method to adjust for treatment switching within a counterfactual framework. Both methods assume a common treatment effect. However, instead of using g-estimation to find the optimal value of $\psi$, the IPE method iteratively fits a parametric survival model.
 
 # Estimation of $\psi$
 
@@ -39,7 +39,7 @@ With an initial estimate of $\psi$ from the intention-to-treat (ITT) analysis us
   U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*),
 \]
 \[
-  \Delta_{i,\psi}^* = I(U_{i,\psi} \leq D_{i,\psi}^*).
+  \Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*).
 \]
 
 2. Fit an AFT model to the adjusted data set consisting of 
@@ -67,7 +67,7 @@ We start by preparing the data and then apply the IPE method:
 data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 
 fit1 <- ipe(
-  data, time = "progyrs", event = "prog", treat = "imm", 
+  data, id = "id", time = "progyrs", event = "prog", treat = "imm", 
   rx = "rx", censor_time = "censyrs", aft_dist = "weibull",
   boot = FALSE)
 ```
@@ -115,7 +115,7 @@ shilong2 <- shilong1 %>%
 Now let us apply the IPE method using the Brent's method for root finding:
 ```{r SHIVA analysis}
 fit2 <- ipe(
-  shilong2, time = "tstop", event = "event",
+  shilong2, id = "id", time = "tstop", event = "event",
   treat = "bras.f", rx = "rx", censor_time = "dcut",
   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
                "pathway.f"),
@@ -136,14 +136,14 @@ f <- function(psi) {
     mutate(u_star = tstop*(1 - rx + rx*exp(psi)),
            c_star = pmin(dcut, dcut*exp(psi)),
            t_star = pmin(u_star, c_star),
-           d_star = event*(u_star <= c_star)) %>%
+           d_star = ifelse(c_star < u_star, 0, event)) %>%
     select(-c("u_star", "c_star")) %>%
     bind_rows(shilong2 %>%
                 filter(treated == 1) %>%
                 mutate(u_star = tstop*(rx + (1-rx)*exp(-psi)),
                        c_star = pmin(dcut, dcut*exp(-psi)),
                        t_star = pmin(u_star, c_star),
-                       d_star = event*(u_star <= c_star)))
+                       d_star = ifelse(c_star < u_star, 0, event)))
   
   fit_aft <- survreg(Surv(t_star, d_star) ~ treated + agerand + sex.f +  
                        tt_Lnum + rmh_alea.c + pathway.f, data = data1)  

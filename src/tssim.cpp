@@ -71,7 +71,6 @@ using namespace Rcpp;
 //' the timing of treatment switching and the study arm eligibility 
 //' for switching, respectively. Time is measured in days. 
 //' 
-//' The potential follow-up time for each subject on the study design.
 //' In a fixed follow-up design, all subjects share the same follow-up
 //' duration. In contrast, under a variable follow-up design, follow-up
 //' time also depends on each subject's enrollment date.  
@@ -92,7 +91,7 @@ using namespace Rcpp;
 //'   \deqn{Y_{i,j} = I(T_i \leq j\times days)}
 //'         
 //'   \item The initial states are set to
-//'   \eqn{L_{i,0} = 0}, \eqn{Z_{i,0} = 0}, \eqn{Z_{i,0} = 0},
+//'   \eqn{L_{i,0} = 0}, \eqn{Z_{i,0} = 0}, \eqn{A_{i,0} = 0},
 //'   \eqn{Y_{i,0} = 0}. For each treatment cycle \eqn{j=1,\ldots,J},
 //'   we set \eqn{tstart = (j-1) \times days}.
 //'         
@@ -160,14 +159,14 @@ using namespace Rcpp;
 //'
 //'  * \code{tstop}: End day of the treatment cycle.
 //'
-//'  * \code{L}: Time-dependent covariate predicting survival and switching; 
-//'    affected by treatment switching.
+//'  * \code{L}: Time-dependent covariate at \code{tstart} predicting 
+//'    survival and switching; affected by treatment switching.
 //'
 //'  * \code{Llag}: Lagged value of \code{L}.
 //'
-//'  * \code{Z}: Disease progression status at \code{tstop}.
+//'  * \code{Z}: Disease progression status at \code{tstart}.
 //'
-//'  * \code{A}: Treatment switching status at \code{tstop}.
+//'  * \code{A}: Treatment switching status at \code{tstart}.
 //'
 //'  * \code{Alag}: Lagged value of \code{A}.
 //'
@@ -335,7 +334,7 @@ List tssim(const bool tdxo = 0,
     static_cast<int>(std::floor((2*accrualDuration + followupTime)/days));
   
   int iter, i, j, J, K = n*maxFollowup;
-  int id, trtrand, bprog, tpoint, L, Llag, Z, Zlag, A, Alag, Y;
+  int id, trtrand, bprog, tpoint, L, Llag, Z, Zlag, A, Alag, Alag2, Y;
   double tstart, tstop, T, C, theta1, time;
   List result(NSim);
   int b1, b2, followup;
@@ -343,7 +342,8 @@ List tssim(const bool tdxo = 0,
   
   for (iter=0; iter<NSim; iter++) {
     IntegerVector idx(K), trtrandx(K), bprogx(K), tpointx(K);
-    IntegerVector Lx(K), Llagx(K), Zx(K), Ax(K), Alagx(K), Yx(K);
+    IntegerVector Lx(K), Llagx(K), Zx(K), Zlagx(K);
+    IntegerVector Ax(K), Alagx(K), Alag2x(K), Yx(K);
     IntegerVector diedx(K), progressedx(K), xox(K);
     NumericVector tstartx(K), tstopx(K), timeOSx(K), timePDx(K);
     NumericVector xotimex(K), censor_timex(K);
@@ -387,9 +387,9 @@ List tssim(const bool tdxo = 0,
       for (j=1; j<=followup; j++) { // j = cycle index
         tpoint = j; tstart = days*(j-1);
         if (j == 1) {
-          Llag = 0; Zlag = 0; Alag = 0;          
+          Llag = 0; Zlag = 0; Alag2 = 0; Alag = 0;
         } else {
-          Llag = L; Zlag = Z; Alag = A;
+          Llag = L; Zlag = Z; Alag2 = Alag; Alag = A;
         }
         
         // generate time-dependent covariate
@@ -444,8 +444,10 @@ List tssim(const bool tdxo = 0,
         Lx[k] = L;
         Llagx[k] = Llag;
         Zx[k] = Z;
+        Zlagx[k] = Zlag;
         Ax[k] = A;
         Alagx[k] = Alag;
+        Alag2x[k] = Alag2;
         Yx[k] = Y;
         
         k++;
@@ -508,6 +510,13 @@ List tssim(const bool tdxo = 0,
         for (j=1; j<=J; j++) {
           xotimex[k-1-J+j] = NA_REAL;
         }
+      }
+      
+      // shift disease progression and alternative therapy status downward
+      for (j=1; j<=J; j++) {
+        Zx[k-1-J+j] = Zlagx[k-1-J+j];
+        Ax[k-1-J+j] = Alagx[k-1-J+j];
+        Alagx[k-1-J+j] = Alag2x[k-1-J+j];
       }
     }
     

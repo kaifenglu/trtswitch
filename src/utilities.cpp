@@ -463,7 +463,7 @@ NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
 //'
 //' * \code{censor}: Whether the subrecord lies strictly within a record
 //'   in the input data (1 for all but the last interval and 0 for the 
-//'   last interval with cutpoint set equal to tstop).
+//'   last interval).
 //'
 //' * \code{interval}: The interval number derived from cut (starting 
 //'   from 0 if the interval lies to the left of the first cutpoint).
@@ -967,4 +967,87 @@ NumericVector getAccrualDurationFromN(
   }
   
   return t;
+}
+
+
+// [[Rcpp::export]]
+double getpsiest(const double target, const NumericVector& psi, 
+                 const NumericVector& Z) {
+  int i, n = static_cast<int>(psi.size());
+  double psilo = NA_REAL, psihi = NA_REAL, psiest = NA_REAL;
+  
+  int ilo = 0;
+  for (i=0; i<n; ++i) {
+    if (!std::isnan(Z[i]) && Z[i] >= target) {
+      psilo = psi[i];
+      ilo = i;
+    }
+  }
+  
+  int ihi = n-1;
+  for (i=n-1; i>=0; --i) {
+    if (!std::isnan(Z[i]) && Z[i] <= target) {
+      psihi = psi[i];
+      ihi = i;
+    }
+  }
+  
+  if (!std::isnan(psilo) && !std::isnan(psihi)) {
+    double zlo = std::fabs(Z[ilo] - target);
+    double zhi = std::fabs(Z[ihi] - target);
+    psiest = (psilo*zhi + psihi*zlo)/(zhi + zlo);
+  }
+  
+  return psiest;
+}
+
+
+// [[Rcpp::plugins(cpp11)]]
+double getpsiend(const std::function<double(double)>& f,
+                 const bool lowerend, const double initialend) {
+  double psiend = initialend;
+  double zend = f(psiend);
+  if (lowerend) {
+    if (std::isnan(zend)) {
+      while (std::isnan(zend) && psiend <= 10) {
+        psiend = psiend + 1;
+        zend = f(psiend);
+      }
+      if (psiend > 10) {
+        psiend = NA_REAL;
+      }
+    }
+    
+    if (zend < 0) {
+      while (!std::isnan(zend) && zend < 0 && psiend >= -10) {
+        psiend = psiend - 1;
+        zend = f(psiend);
+      }
+      if (std::isnan(zend) || psiend < -10) {
+        psiend = NA_REAL;
+      }
+    }
+  } else { // upper end
+    if (std::isnan(zend)) {
+      while (std::isnan(zend) && psiend >= -10) {
+        psiend = psiend - 1;
+        zend = f(psiend);
+      }
+      if (psiend < -10) {
+        psiend = NA_REAL;
+      }
+    }
+    
+    if (zend > 0) {
+      while (!std::isnan(zend) && zend > 0 && psiend <= 10) {
+        psiend = psiend + 1;
+        zend = f(psiend);
+      }
+      if (std::isnan(zend) || psiend > 10) {
+        psiend = NA_REAL;
+      }
+    }
+  }
+  
+  return psiend;
 }

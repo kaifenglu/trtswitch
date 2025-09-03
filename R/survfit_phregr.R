@@ -77,6 +77,7 @@
 #'                         newdata = data.frame(
 #'                           stratum = as.integer(c(1,1,2,2)),
 #'                           treat = c(1,0,1,0)))
+#' head(surv1)
 #'
 #' # Example 2 with counting process data and robust variance estimate
 #' fit2 <- phregr(data = heart %>% mutate(rx = as.numeric(transplant) - 1),
@@ -90,6 +91,7 @@
 #'                           start = c(0,36,0,26),
 #'                           stop = c(36,39,26,153),
 #'                           rx = c(0,1,0,1)))
+#' head(surv2)
 #'
 #' @export
 survfit_phregr <- function(object, newdata, sefit = TRUE,

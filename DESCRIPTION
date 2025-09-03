@@ -2,7 +2,7 @@ Package: trtswitch
 Type: Package
 Title: Treatment Switching
 Version: 0.1.9
-Date: 2025-08-12
+Date: 2025-09-03
 Authors@R: 
     person("Kaifeng", "Lu", , "kaifenglu@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6160-7119"))
@@ -15,7 +15,6 @@ Suggests:
     dplyr (>= 1.1.4),
     tidyr (>= 1.3.1),
     survival (>= 3.5-7),
-    geepack (>= 1.3.12),
     ggplot2 (>= 3.3.6),
     knitr (>= 1.45),
     rmarkdown (>= 2.25)

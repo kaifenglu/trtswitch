@@ -27,8 +27,6 @@ The TSE method assumes the no unmeasured confounding condition, meaning treatmen
 # Estimation of $\psi$
 The simple TSE method involves applying an accelerated failure time (AFT) model that compares post-progression survival in control group switchers with post-progression survival in control group non-switchers. Prognostic variables measured at the secondary baseline are included to account for differences between the groups. The treatment effect of switching is estimated as a time ratio and used to adjust the survival times of switchers.
 
-Although $\psi$ is estimated solely from control group patients who experienced disease progression, it will also be applied to adjust the survival times of patients who switched treatments before disease progression, under the assumption that there are only a limited number of such cases.
-
 # Estimation of Hazard Ratio
 Once $\psi$ has been estimated, we can derive an adjusted data set and fit a (potentially stratified) Cox proportional hazards model to the adjusted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the entire adjustment and subsequent model-fitting process.
 
@@ -58,7 +56,7 @@ shilong3 <- shilong1 %>%
 Next we apply the simple TSE method. 
 ```{r analysis}
 fit1 <- tsesimp(
-  data = shilong3, time = "tstop", event = "event",
+  data = shilong3, id = "id", time = "tstop", event = "event",
   treat = "bras.f", censor_time = "dcut", pd = "pd",
   pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
@@ -95,7 +93,7 @@ Finally, to ensure the uncertainty is accurately represented, the entire adjustm
 
 ```{r boot}
 fit2 <- tsesimp(
-  data = shilong3, time = "tstop", event = "event",
+  data = shilong3, id = "id", time = "tstop", event = "event",
   treat = "bras.f", censor_time = "dcut", pd = "pd",
   pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",

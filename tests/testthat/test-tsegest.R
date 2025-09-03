@@ -1,5 +1,4 @@
 library(dplyr, warn.conflicts = FALSE)
-library(geepack)
 library(survival)
 
 testthat::test_that("tsegest: logistic g-estimation", {
@@ -13,93 +12,94 @@ testthat::test_that("tsegest: logistic g-estimation", {
     ppoormet = 0.4, pgoodmet = 0.2, xomult = 1.4188308, 
     milestone = 546, outputRawDataset = 1, seed = 2000)
   
+  data1 <- sim1$paneldata %>%
+    mutate(visit7on = ifelse(progressed == 1, tstop > timePFSobs + 105, 0))
+  
   fit1 <- tsegest(
-    data = sim1$paneldata, id = "id", 
+    data = data1, id = "id", 
     tstart = "tstart", tstop = "tstop", event = "event", 
     treat = "trtrand", censor_time = "censor_time", 
     pd = "progressed", pd_time = "timePFSobs", 
     swtrt = "xo", swtrt_time = "xotime", 
-    base_cov = "bprog", conf_cov = "bprog*catlag", 
-    low_psi = -2, hi_psi = 2, strata_main_effect_only = TRUE,
+    base_cov = "bprog", 
+    conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
+    strata_main_effect_only = TRUE,
     recensor = TRUE, admin_recensor_only = TRUE, 
     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-    tol = 1.0e-6, boot = FALSE)
+    tol = 1.0e-6, offset = 0, boot = FALSE)
   
+
   # last observation within each subject
-  data1 <- sim1$paneldata %>%
+  data2 <- data1 %>%
     group_by(id) %>%
     slice(n()) %>%
-    mutate(os = died, ostime = tstop) %>% 
+    mutate(ostime = tstop, os = event) %>% 
     select(id, trtrand, progressed, timePFSobs, os, ostime, 
            censor_time, xo, xotime, bprog)
   
+  data1 <- data1 %>% 
+    left_join(data2 %>% select(id, os, ostime), by = "id")
+  
   # post progression data up to switching 
-  data2 <- sim1$paneldata %>%
+  data3 <- data1 %>%
     filter(trtrand == 0 & progressed == 1 & tstop >= timePFSobs & 
-             ((xo == 0) | (xo == 1 & tstop <= xotime)))
+             ifelse(xo == 1, tstart < xotime, tstop < ostime)) %>%
+    mutate(y = ifelse(xo == 1 & tstop >= xotime, 1, 0))
   
   # re-baseline
-  data3a <- data2 %>% 
-    left_join(data1 %>% 
-                select(id, os, ostime), 
-              by = "id") %>%
+  data4 <- data3 %>% 
     group_by(id) %>%
     slice(1) %>%
-    mutate(ostime = ostime - timePFSobs + 1,
-           censor_time = censor_time - timePFSobs + 1,
-           xotime = xotime - timePFSobs + 1) %>%
+    mutate(ostime = ostime - timePFSobs,
+           censor_time = censor_time - timePFSobs,
+           xotime = xotime - timePFSobs) %>%
     ungroup()
   
-  # setup treatment switching indicators
-  data3b <- data2 %>%
-    left_join(data1 %>% 
-                select(id, os, ostime), 
-              by = "id") %>%
-    mutate(y = ifelse(xo == 1 & tstop == xotime, 1, 0))
-  
   f <- function(psi, target) {
-    data4a <- data3a %>%
-      mutate(u_star = ifelse(xo == 1, xotime - 1 + 
-                               (ostime - xotime + 1)*exp(psi), 
+    data5 <- data4 %>%
+      mutate(u_star = ifelse(xo == 1, xotime + (ostime - xotime)*exp(psi), 
                              ostime), 
              c_star = pmin(censor_time, censor_time*exp(psi)),
              t_star = pmin(u_star, c_star),
-             d_star = os*(u_star <= c_star))
+             d_star = ifelse(c_star < u_star, 0, os))
     
-    fit_cox <- coxph(Surv(t_star, d_star) ~ 1, data = data4a)
+    fit_cox <- coxph(Surv(t_star, d_star) ~ 1, data = data5)
     resid <- fit_cox$residuals
     
-    data4b <- data3b %>%
-      left_join(data4a %>% 
+    data6 <- data3 %>%
+      left_join(data5 %>% 
                   mutate(resid = resid) %>%
                   select(id, resid), by = "id")
     
-    fit_lgs <- geeglm(y ~ resid + bprog*catlag,
-                      family = binomial, data = data4b, id = id)
+    fit_lgs <- logisregr(data6, event = "y", 
+                         covariates = c("resid", "bprog*cattdc", 
+                                        "timePFSobs", "visit7on"),
+                         id = "id", robust = 1)
     
-    z_lgs <- coefficients(fit_lgs)/sqrt(diag(vcov(fit_lgs)))
+    z_lgs <- fit_lgs$parest$z
     
-    as.numeric(z_lgs["resid"]) - target
+    as.numeric(z_lgs[2]) - target
   }
   
-  psi <- uniroot(f, c(-1,1), 0, tol = 1.0e-6)$root
+  psi <- uniroot(f, c(-2,2), 0, tol = 1.0e-6)$root
+  psi_lower <- uniroot(f, c(-2,2), 1.96, tol = 1.0e-6)$root
+  psi_upper <- uniroot(f, c(-2,2), -1.96, tol = 1.0e-6)$root
   
-  data4 <- data1 %>%
+  data7 <- data2 %>%
     filter(trtrand == 0) %>%
-    mutate(u_star = ifelse(xo == 1, xotime - 1 + 
-                             (ostime - xotime + 1)*exp(psi), 
+    mutate(u_star = ifelse(xo == 1, xotime + (ostime - xotime)*exp(psi), 
                            ostime), 
            c_star = pmin(censor_time, censor_time*exp(psi)),
            t_star = pmin(u_star, c_star),
-           d_star = os*(u_star <= c_star)) %>%
+           d_star = ifelse(c_star < u_star, 0, os)) %>%
     select(id, t_star, d_star, trtrand, bprog) %>%
-    bind_rows(data1 %>% 
+    bind_rows(data2 %>% 
                 filter(trtrand == 1) %>%
                 mutate(t_star = ostime, d_star = os) %>%
                 select(id, t_star, d_star, trtrand, bprog))
   
   fit <- coxph(Surv(t_star, d_star) ~ trtrand + bprog, 
-               data = data4, ties = "efron")
+               data = data7, ties = "efron")
   
   hr1 <- as.numeric(exp(cbind(fit$coefficients, confint(fit)))["trtrand",])
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))

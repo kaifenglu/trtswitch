@@ -20,7 +20,7 @@ testthat::test_that("ipe: control to active switch", {
       mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),
              c_star = pmin(censyrs, censyrs*exp(psi)),
              t_star = pmin(u_star, c_star),
-             d_star = prog*(u_star <= c_star)) %>%
+             d_star = ifelse(c_star < u_star, 0, prog)) %>%
       select(-c("u_star", "c_star")) %>%
       bind_rows(data1 %>%
                   filter(imm == 1) %>%
@@ -36,7 +36,7 @@ testthat::test_that("ipe: control to active switch", {
   }
   
   # psi based on AFT model
-  psi <- uniroot(g, c(-1,1), tol = 1e-6)$root
+  psi <- uniroot(g, c(-2,2), tol = 1e-6)$root
   
   data2 <- f(psi)
   fit <- coxph(Surv(t_star, d_star) ~ imm, data = data2)

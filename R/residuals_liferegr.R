@@ -1,24 +1,29 @@
 #' @title Residuals for Parametric Regression Models for Failure Time Data
-#' @description Obtains the response, deviance, dfbeta, and likelihood
-#' displacement residuals for a parametric regression model for failure 
-#' time data.
+#' @description Obtains the response, martingale, deviance, dfbeta, and 
+#' likelihood displacement residuals for a parametric regression model 
+#' for failure time data.
 #'
 #' @param object The output from the \code{phregr} call.
 #' @param type The type of residuals desired, with options including
-#'   \code{"response"}, \code{"deviance"}, \code{"dfbeta"},
-#'   \code{"dfbetas"}, \code{"working"}, \code{"ldcase"}, 
+#'   \code{"response"}, \code{"martingale"}, \code{"deviance"}, 
+#'   \code{"dfbeta"}, \code{"dfbetas"}, \code{"working"}, \code{"ldcase"}, 
 #'   \code{"ldresp"}, \code{"ldshape"}, and \code{"matrix"}.
 #' @param collapse Whether to collapse the residuals by \code{id}.
 #' @param weighted Whether to compute weighted residuals.
 #'
 #' @details
 #' The algorithms follow the \code{residuals.survreg} function in the 
-#' \code{survival} package.
+#' \code{survival} package, except for martingale residuals, which 
+#' are defined only for event or right-censored data for exponential, 
+#' weibull, lognormal, and loglogistic distributions.
 #'
 #' @return 
 #' Either a vector or a matrix of residuals, depending on the specified type:
 #' 
 #' * \code{response} residuals are on the scale of the original data. 
+#' 
+#' * \code{martingale} residuals are event indicators minus the cumulative
+#'   hazards for event or right-censored data.
 #' 
 #' * \code{working} residuals are on the scale of the linear predictor. 
 #' 
@@ -65,11 +70,12 @@
 #'   time = "time", time2 = "durable",
 #'   covariates = c("age", "quant"), dist = "normal")
 #'
-#'  resid <- residuals_liferegr(fit1, type = "response")
+#' resid <- residuals_liferegr(fit1, type = "response")
+#' head(resid)
 #'
 #' @export
 residuals_liferegr <- function(
-    object, type=c("response", "deviance", "dfbeta", "dfbetas",
+    object, type=c("response", "martingale", "deviance", "dfbeta", "dfbetas",
                    "working", "ldcase", "ldresp", "ldshape", "matrix"),
     collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
   
@@ -165,8 +171,9 @@ residuals_liferegr <- function(
                             collapse = collapse,
                             weighted = weighted)
   
-  if (type=="response" || type=="deviance" || type=="working" ||
-      type=="ldcase" || type=="ldresp" || type=="ldshape") {
+  if (type=="response" || type=="martingale" || type=="deviance" || 
+      type=="working" || type=="ldcase" || type=="ldresp" || 
+      type=="ldshape") {
     rr <- as.numeric(rr)
   } else if (type=="dfbeta" || type=="dfbetas") {
     colnames(rr) <- param

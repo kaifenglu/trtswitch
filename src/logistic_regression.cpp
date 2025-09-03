@@ -655,10 +655,6 @@ List logisregcpp(const DataFrame data,
     if (is_true(any((eventn != 1) & (eventn != 0)))) {
       stop("event must be 1 or 0 for each subject");
     }
-
-    if (is_true(all(eventn == 0))) {
-      stop("at least 1 event is needed to fit the parametric model");
-    }
   }
 
   NumericMatrix zn(n,p);
@@ -795,6 +791,7 @@ List logisregcpp(const DataFrame data,
   IntegerVector rep0(nreps*p);
   StringVector par0(nreps*p);
   NumericVector beta0(nreps*p), sebeta0(nreps*p), rsebeta0(nreps*p);
+  NumericVector z0(nreps*p), expbeta0(nreps*p);
   NumericMatrix vbeta0(nreps*p,p), rvbeta0(nreps*p,p);
   NumericVector lb0(nreps*p), ub0(nreps*p), prob0(nreps*p);
   StringVector clparm0(nreps*p);
@@ -817,6 +814,41 @@ List logisregcpp(const DataFrame data,
     nobs[h] = sum(freq1);
     nevents[h] = sum(freq1*event1);
 
+    if (nevents[h] == 0) {
+      for (i=0; i<p; i++) {
+        int k = h*p+i;
+        rep0[k] = h+1;
+        
+        if (i==0) {
+          par0[h*p+i] = "(Intercept)";
+        } else {
+          par0[h*p+i] = covariates[i-1];
+        }
+        
+        beta0[k] = NA_REAL;
+        sebeta0[k] = 0;
+        rsebeta0[k] = 0;
+        z0[k] = NA_REAL;
+        expbeta0[k] = NA_REAL;
+        for (j=0; j<p; j++) {
+          vbeta0(k,j) = 0;
+          rvbeta0(k,j) = 0;
+        }
+        lb0[k] = NA_REAL;
+        ub0[k] = NA_REAL;
+        prob0[k] = NA_REAL;
+        clparm0[k] = "Wald";
+      }
+      
+      for (int person = 0; person < n1; person++) {
+        linear_predictors[N+person] = offset1[person];
+      }
+      
+      N += n1;
+      
+      continue;
+    }
+    
     // intercept only model
     double num = 0, den = 0;
     for (i=0; i<n1; i++) {
@@ -1155,8 +1187,7 @@ List logisregcpp(const DataFrame data,
     }
   }
 
-  NumericVector expbeta0 = exp(beta0);
-  NumericVector z0(nreps*p);
+  expbeta0 = exp(beta0);
   if (!robust) z0 = beta0/sebeta0;
   else z0 = beta0/rsebeta0;
 

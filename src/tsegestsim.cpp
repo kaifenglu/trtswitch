@@ -124,8 +124,6 @@ using namespace Rcpp;
 //'     
 //'     - \code{cattdc}: The time-dependent covariate for cat event.
 //'     
-//'     - \code{catlag}: The lagged value of \code{cattdc}.
-//'     
 //'     - \code{xo}: Whether the patient switched treatment. 
 //'     
 //'     - \code{xotime}: When the patient switched treatment.
@@ -133,8 +131,6 @@ using namespace Rcpp;
 //'     - \code{xotdc}: The time-dependent covariate for treatment 
 //'       switching.
 //'       
-//'     - \code{xotime_upper}: The upper bound of treatment switching time.
-//'     
 //'     - \code{censor_time}: The administrative censoring time.
 //'     
 //' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
@@ -207,7 +203,7 @@ List tsegestsim(const int n = 500,
 
   IntegerVector id(n), trtrand(n), bprog(n), dead(n), progressed(n);
   NumericVector timeOS(n), timeOS5(n);
-  NumericVector timePFS(n), timePFSobs(n);
+  NumericVector timePFS(n), timePFSobs(n, NA_REAL);
   NumericVector probcat(n);
   IntegerVector cat2(n, NA_INTEGER), cat3(n, NA_INTEGER);
   IntegerVector cat4(n, NA_INTEGER), cat5(n, NA_INTEGER);
@@ -242,10 +238,10 @@ List tsegestsim(const int n = 500,
     u = R::runif(0,1);
     v = pow(u, exp(-eta));
     timeOS[i] = squantilecpp(S, v);
+    dead[i] = (timeOS[i] <= admin);
+    timeOS[i] = std::min(timeOS[i], admin);
     timeOS[i] = std::round(timeOS[i]);
     if (timeOS[i] == 0) timeOS[i] = 1;
-
-    dead[i] = 1;
 
     // generate observed time to disease progression
     u = R::rbeta(5,10);
@@ -254,13 +250,13 @@ List tsegestsim(const int n = 500,
     // scheduled visits are every 21 days
     k = static_cast<int>(std::floor(timeOS[i] / 21));
     for (j=1; j<=k; j++) {
-      if (timePFS[i] <= j*21) {
+      if (timePFS[i] < j*21 && timeOS[i] > j*21) {
         timePFSobs[i] = j*21;
         break;
       }
     }
 
-    if (j<=k) {
+    if (!std::isnan(timePFSobs[i])) {
       progressed[i] = 1;
     } else {
       timePFSobs[i] = timeOS[i];
@@ -934,27 +930,6 @@ List tsegestsim(const int n = 500,
     }
   }
   
-  int nids = static_cast<int>(idx.size());
-  idx.push_back(n2);
-  
-  IntegerVector catlag(n2);
-  for (i=0; i<nids; i++) {
-    catlag[idx[i]] = 0;
-    for (j=idx[i]+1; j<idx[i+1]; j++) {
-      catlag[j] = cattdc[j-1];
-    }
-  }
-  
-  NumericVector xotime_upper(n);
-  for (i=0; i<n; i++) {
-    xotime_upper[i] = progressed[i] == 1 ? timePFSobs[i] + 105 : 1e8;
-  }
-  
-  NumericVector xotime_upper2(n2);
-  for (i=0; i<n2; i++) {
-    xotime_upper2[i] = progressed2[i] == 1 ? timePFSobs2[i] + 105 : 1e8;
-  }
-  
   List result;
   
   DataFrame sumstat = DataFrame::create(
@@ -987,11 +962,9 @@ List tsegestsim(const int n = 500,
       Named("catevent") = catevent2,
       Named("cattime") = cattime2,
       Named("cattdc") = cattdc,
-      Named("catlag") = catlag,
       Named("xo") = xoo2,
       Named("xotime") = xotime2,
       Named("xotdc") = xotdc,
-      Named("xotime_upper") = xotime_upper2,
       Named("censor_time") = admin);
     
     result = List::create(Named("sumstat") = sumstat,
