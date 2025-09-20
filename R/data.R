@@ -161,3 +161,40 @@
 #'   \item{\code{vis}}{use of spermicide}
 #' }
 "sexagg"
+
+#' Baseline subject-level data
+#' 
+#' This data set contains baseline subject-level data. Of note, 
+#' `PDDT` can be derived from the `ADT` variable of the `ADTTE` data set 
+#' by selecting `PARAMCD == "INPFS" & CNSR == 0 & 
+#' EVNTDESC == "PROGRESSIVE DISEASE"`. Additionally, 
+#' `OSDT` and `DIED` can be derived from the `ADT` and `CNSR` variables of 
+#' the `ADTTE` data set by selecting `PARAMCD == "OS"`.
+#' 
+#' \describe{
+#'   \item{\code{SUBJID}}{subject ID}
+#'   \item{\code{SEX}}{sex: "M" or "F"}
+#'   \item{\code{STRAT1V}}{stratification factor 1: ECOG PS}
+#'   \item{\code{STRAT2V}}{stratification factor 2: inv. chosen chemotherapy}
+#'   \item{\code{RANDDT}}{randomization date}
+#'   \item{\code{TRT01P}}{planned treatment: Active or Placebo}
+#'   \item{\code{PDDT}}{date of disease progression}
+#'   \item{\code{XODT}}{date of treatment crossover}
+#'   \item{\code{OSDT}}{date of death or censoring}
+#'   \item{\code{DIED}}{whether the patient died}
+#'   \item{\code{DCUTDT}}{date of data cut}
+#' }
+"adsl"
+   
+#' Longitudinal time-dependent covariate data
+#' 
+#' This data set contains longitudinal time-dependent covariate data
+#' on ECOG101 and LDH. 
+#' 
+#' \describe{
+#'   \item{\code{SUBJID}}{subject ID}
+#'   \item{\code{PARAMCD}}{parameter code}
+#'   \item{\code{ADT}}{analysis date}
+#'   \item{\code{AVAL}}{covariate value}
+#' }
+"adtdc"
