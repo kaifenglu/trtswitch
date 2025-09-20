@@ -530,7 +530,7 @@ List msmcpp(
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb,
                 NumericMatrix& zb, 
                 NumericMatrix& zb_lgs_den)->List {
-                  int h, i, j, n = static_cast<int>(idb.size());
+                  int n = static_cast<int>(idb.size());
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
@@ -551,7 +551,7 @@ List msmcpp(
                   
                   // set up crossover indicators
                   IntegerVector cross1(n1);
-                  for (i=0; i<n1; i++) {
+                  for (int i=0; i<n1; i++) {
                     if (i == n1-1 || id1[i] != id1[i+1]) {
                       if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
                         cross1[i] = 1;
@@ -562,7 +562,7 @@ List msmcpp(
                   // initialize data_switch and fit_switch
                   List data_switch(2), fit_switch(2);
                   if (k == -1) {
-                    for (h=0; h<2; h++) {
+                    for (int h=0; h<2; h++) {
                       List data_x = List::create(
                         Named("data") = R_NilValue,
                         Named(treat) = R_NilValue
@@ -613,7 +613,7 @@ List msmcpp(
                   NumericVector wb(n, 1.0), swb(n, 1.0);
                   
                   // fit the switching models by treatment group
-                  for (h=0; h<K; h++) {
+                  for (int h=0; h<K; h++) {
                     IntegerVector l = which(treat1 == h);
                     IntegerVector id2 = id1[l];
                     IntegerVector stratum2 = stratum1[l];
@@ -645,12 +645,12 @@ List msmcpp(
                       Named("tstop") = tstop2,
                       Named("cross") = cross2);
                     
-                    for (j=0; j<q+p2; j++) {
+                    for (int j=0; j<q+p2; j++) {
                       String zj = covariates_lgs_den[j];
                       NumericVector u = z2_lgs_den(_,j);
                       data1.push_back(u,zj);
                     }
-                    for (j=0; j<ns_df; j++) {
+                    for (int j=0; j<ns_df; j++) {
                       String zj = covariates_lgs_den[q+p2+j];
                       NumericVector u = s(_,j);
                       data1.push_back(u,zj);
@@ -682,14 +682,14 @@ List msmcpp(
                     
                     // convert to probability of observed response 
                     NumericVector o_den(n2), o_num(n2);
-                    for (i=0; i<n2; i++) {
+                    for (int i=0; i<n2; i++) {
                       o_den[i] = cross2[i] == 1 ? h_den[i] : 1 - h_den[i];
                       o_num[i] = cross2[i] == 1 ? h_num[i] : 1 - h_num[i];
                     }
                     
                     // obtain cumulative products within a subject
                     IntegerVector idx2(1,0);
-                    for (i=1; i<n2; i++) {
+                    for (int i=1; i<n2; i++) {
                       if (id2[i] != id2[i-1]) {
                         idx2.push_back(i);
                       }
@@ -703,7 +703,7 @@ List msmcpp(
                     int n3 = static_cast<int>(l.size());
                     
                     IntegerVector idx3(1,0);
-                    for (i=1; i<n3; i++) {
+                    for (int i=1; i<n3; i++) {
                       if (id3[i] != id3[i-1]) {
                         idx3.push_back(i);
                       }
@@ -718,24 +718,24 @@ List msmcpp(
                     
                     int m = 0; // cum obs prior to current id2
                     int v = 0; // index for current unique id2
-                    for (i=0; i<nids3; i++) {
+                    for (int i=0; i<nids3; i++) {
                       int mi = swtrt3u[i] == 1 ? idx2[v+1] - idx2[v] : 
                       idx3[i+1] - idx3[i] - 1;
                       int r = m - idx3[i] - 1;
                       if (swtrt3u[i] == 1) {
                         // cum prod before switch
                         int jj = std::min(idx3[i]+mi, idx3[i+1]-1);
-                        for (j=idx3[i]+1; j<=jj; j++) {
+                        for (int j=idx3[i]+1; j<=jj; j++) {
                           p_den[j] = p_den[j-1]*o_den[r+j];
                           p_num[j] = p_num[j-1]*o_num[r+j];
                         }
                         // LOCF after switch
-                        for (j=jj+1; j<idx3[i+1]; j++) {
+                        for (int j=jj+1; j<idx3[i+1]; j++) {
                           p_den[j] = p_den[j-1];
                           p_num[j] = p_num[j-1];
                         }
                       } else {
-                        for (j=idx3[i]+1; j<idx3[i+1]; j++) {
+                        for (int j=idx3[i]+1; j<idx3[i+1]; j++) {
                           p_den[j] = p_den[j-1]*o_den[r+j];
                           p_num[j] = p_num[j-1]*o_num[r+j];
                         }
@@ -754,13 +754,13 @@ List msmcpp(
                       // truncated unstabilized weights
                       if (trunc_upper_only) {
                         double upper = quantilecpp(w, 1-trunc);
-                        for (i=0; i<n3; i++) {
+                        for (int i=0; i<n3; i++) {
                           if (w[i] > upper) w[i] = upper;
                         }
                       } else {
                         double lower = quantilecpp(w, trunc);
                         double upper = quantilecpp(w, 1-trunc);
-                        for (i=0; i<n3; i++) {
+                        for (int i=0; i<n3; i++) {
                           if (w[i] < lower) {
                             w[i] = lower;
                           } else if (w[i] > upper) {
@@ -772,13 +772,13 @@ List msmcpp(
                       // truncated stabilized weights
                       if (trunc_upper_only) {
                         double upper = quantilecpp(sw, 1-trunc);
-                        for (i=0; i<n3; i++) {
+                        for (int i=0; i<n3; i++) {
                           if (sw[i] > upper) sw[i] = upper;
                         }
                       } else {
                         double lower = quantilecpp(sw, trunc);
                         double upper = quantilecpp(sw, 1-trunc);
-                        for (i=0; i<n3; i++) {
+                        for (int i=0; i<n3; i++) {
                           if (sw[i] < lower) {
                             sw[i] = lower;
                           } else if (sw[i] > upper) {
@@ -801,7 +801,7 @@ List msmcpp(
                       
                       if (has_stratum) {
                         IntegerVector ustratum = data1["ustratum"];
-                        for (i=0; i<p_stratum; i++) {
+                        for (int i=0; i<p_stratum; i++) {
                           String s = stratum[i];
                           if (TYPEOF(data[s]) == INTSXP) {
                             IntegerVector stratumwi = u_stratum[s];
@@ -832,7 +832,7 @@ List msmcpp(
                   
                   // set up time-dependent treatment switching indicators
                   IntegerVector crossb(n);
-                  for (i=0; i<n; i++) {
+                  for (int i=0; i<n; i++) {
                     if (swtrtb[i] == 1 && tstartb[i] >= swtrt_timeb[i]) {
                       crossb[i] = 1;
                     } else {
@@ -858,7 +858,7 @@ List msmcpp(
                   
                   data_outcome.push_back(stratumb, "ustratum");
                   
-                  for (j=0; j<p; j++) {
+                  for (int j=0; j<p; j++) {
                     NumericVector u = zb(_,j);
                     String zj = base_cov[j];
                     data_outcome.push_back(u,zj);
