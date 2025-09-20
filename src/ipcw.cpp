@@ -544,7 +544,6 @@ List ipcwcpp(
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb,
                 NumericMatrix& zb, NumericMatrix& zb_cox_den,
                 NumericMatrix& zb_lgs_den)->List {
-                  int h, i, j;
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
@@ -570,7 +569,7 @@ List ipcwcpp(
                   
                   // set up crossover indicators
                   IntegerVector cross1(n1);
-                  for (i=0; i<n1; i++) {
+                  for (int i=0; i<n1; i++) {
                     if (i == n1-1 || id1[i] != id1[i+1]) {
                       if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
                         cross1[i] = 1;
@@ -581,7 +580,7 @@ List ipcwcpp(
                   // initialize data_switch and fit_switch
                   List data_switch(2), fit_switch(2);
                   if (k == -1) {
-                    for (h=0; h<2; h++) {
+                    for (int h=0; h<2; h++) {
                       List data_x = List::create(
                         Named("data") = R_NilValue,
                         Named(treat) = R_NilValue
@@ -653,7 +652,7 @@ List ipcwcpp(
                       z2 = subset_matrix_by_row(z1, l);
                       z2_cox_den = subset_matrix_by_row(z1_cox_den, l);
                       n2 = static_cast<int>(l.size());
-                      for (i=0; i<n2; i++) {
+                      for (int i=0; i<n2; i++) {
                         if (censor[i] == 1) {
                           event2[i] = 0;
                           cross2[i] = 0;
@@ -688,7 +687,7 @@ List ipcwcpp(
                       NumericMatrix z20_cox_den = 
                         subset_matrix_by_row(z10_cox_den, l);
                       int n20 = static_cast<int>(l.size());
-                      for (i=0; i<n20; i++) {
+                      for (int i=0; i<n20; i++) {
                         if (censor[i] == 1) {
                           event20[i] = 0;
                           cross20[i] = 0;
@@ -726,7 +725,7 @@ List ipcwcpp(
                     NumericVector w2(n2, NA_REAL), sw2(n2, NA_REAL);
                     
                     // fit the switching models by treatment group
-                    for (h=0; h<K; h++) {
+                    for (int h=0; h<K; h++) {
                       IntegerVector l = which(treat2 == h);
                       IntegerVector id3 = id2[l];
                       IntegerVector stratum3 = stratum2[l];
@@ -744,7 +743,7 @@ List ipcwcpp(
                         Named("tstop") = tstop3,
                         Named("cross") = cross3);
                       
-                      for (j=0; j<p2; j++) {
+                      for (int j=0; j<p2; j++) {
                         String zj = denominator[j];
                         NumericVector u = z3_cox_den(_,j);
                         data1.push_back(u,zj);
@@ -820,13 +819,13 @@ List ipcwcpp(
                         // truncated unstabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<m; i++) {
+                          for (int i=0; i<m; i++) {
                             if (w[i] > upper) w[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(w, trunc);
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<m; i++) {
+                          for (int i=0; i<m; i++) {
                             if (w[i] < lower) {
                               w[i] = lower;
                             } else if (w[i] > upper) {
@@ -838,13 +837,13 @@ List ipcwcpp(
                         // truncated stabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<m; i++) {
+                          for (int i=0; i<m; i++) {
                             if (sw[i] > upper) sw[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(sw, trunc);
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<m; i++) {
+                          for (int i=0; i<m; i++) {
                             if (sw[i] < lower) {
                               sw[i] = lower;
                             } else if (sw[i] > upper) {
@@ -867,7 +866,7 @@ List ipcwcpp(
                         
                         if (has_stratum) {
                           IntegerVector ustratum = data1["ustratum"];
-                          for (i=0; i<p_stratum; i++) {
+                          for (int i=0; i<p_stratum; i++) {
                             String s = stratum[i];
                             if (TYPEOF(data[s]) == INTSXP) {
                               IntegerVector stratumwi = u_stratum[s];
@@ -904,7 +903,7 @@ List ipcwcpp(
                     
                     // fill in missing weights with LOCF starting at 1
                     IntegerVector idx(1,0);
-                    for (i=1; i<n2; i++) {
+                    for (int i=1; i<n2; i++) {
                       if (id2[i] != id2[i-1]) {
                         idx.push_back(i);
                       }
@@ -913,12 +912,12 @@ List ipcwcpp(
                     int nids2 = static_cast<int>(idx.size());
                     idx.push_back(n2);
                     
-                    for (i=0; i<nids2; i++) {
+                    for (int i=0; i<nids2; i++) {
                       if (std::isnan(w2[idx[i]])) {
                         w2[idx[i]] = 1.0;
                         sw2[idx[i]] = 1.0;
                       }
-                      for (j=idx[i]+1; j<idx[i+1]; j++) {
+                      for (int j=idx[i]+1; j<idx[i+1]; j++) {
                         if (std::isnan(w2[j])) {
                           w2[j] = w2[j-1];
                           sw2[j] = sw2[j-1];
@@ -938,7 +937,7 @@ List ipcwcpp(
                     
                     data_outcome.push_back(stratum2, "ustratum");
                     
-                    for (j=0; j<p; j++) {
+                    for (int j=0; j<p; j++) {
                       NumericVector u = z2(_,j);
                       String zj = base_cov[j];
                       data_outcome.push_back(u,zj);
@@ -947,7 +946,7 @@ List ipcwcpp(
                     NumericVector w1(n1, 1.0), sw1(n1, 1.0);
                     
                     // fit the switching models by treatment group
-                    for (h=0; h<K; h++) {
+                    for (int h=0; h<K; h++) {
                       LogicalVector c2 = ifelse(
                         swtrt1 == 1, tstart1 < swtrt_time1, tstop1 < os_time1);
                       IntegerVector l = which(c2 & (treat1 == h));
@@ -981,12 +980,12 @@ List ipcwcpp(
                         Named("tstop") = tstop2,
                         Named("cross") = cross2);
                       
-                      for (j=0; j<q+p2; j++) {
+                      for (int j=0; j<q+p2; j++) {
                         String zj = covariates_lgs_den[j];
                         NumericVector u = z2_lgs_den(_,j);
                         data1.push_back(u,zj);
                       }
-                      for (j=0; j<ns_df; j++) {
+                      for (int j=0; j<ns_df; j++) {
                         String zj = covariates_lgs_den[q+p2+j];
                         NumericVector u = s(_,j);
                         data1.push_back(u,zj);
@@ -1018,7 +1017,7 @@ List ipcwcpp(
                       
                       // convert to probability of observed response 
                       NumericVector o_den(n2), o_num(n2);
-                      for (i=0; i<n2; i++) {
+                      for (int i=0; i<n2; i++) {
                         o_den[i] = cross2[i] == 1 ? h_den[i] : 1 - h_den[i];
                         o_num[i] = cross2[i] == 1 ? h_num[i] : 1 - h_num[i];
                       }
@@ -1030,7 +1029,7 @@ List ipcwcpp(
                       int n3 = static_cast<int>(l.size());
                       
                       IntegerVector idx3(1,0);
-                      for (i=1; i<n3; i++) {
+                      for (int i=1; i<n3; i++) {
                         if (id3[i] != id3[i-1]) {
                           idx3.push_back(i);
                         }
@@ -1044,9 +1043,9 @@ List ipcwcpp(
                       NumericVector p_den(n3, 1.0), p_num(n3, 1.0);
                       
                       int m = 0;
-                      for (i=0; i<nids3; i++) {
+                      for (int i=0; i<nids3; i++) {
                         int r = m - idx3[i] - 1;
-                        for (j=idx3[i]+1; j<idx3[i+1]; j++) {
+                        for (int j=idx3[i]+1; j<idx3[i+1]; j++) {
                           p_den[j] = p_den[j-1]*o_den[r+j];
                           p_num[j] = p_num[j-1]*o_num[r+j];
                         }
@@ -1065,13 +1064,13 @@ List ipcwcpp(
                         // truncated unstabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (int i=0; i<n3; i++) {
                             if (w[i] > upper) w[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(w, trunc);
                           double upper = quantilecpp(w, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (int i=0; i<n3; i++) {
                             if (w[i] < lower) {
                               w[i] = lower;
                             } else if (w[i] > upper) {
@@ -1083,13 +1082,13 @@ List ipcwcpp(
                         // truncated stabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (int i=0; i<n3; i++) {
                             if (sw[i] > upper) sw[i] = upper;
                           }
                         } else {
                           double lower = quantilecpp(sw, trunc);
                           double upper = quantilecpp(sw, 1-trunc);
-                          for (i=0; i<n3; i++) {
+                          for (int i=0; i<n3; i++) {
                             if (sw[i] < lower) {
                               sw[i] = lower;
                             } else if (sw[i] > upper) {
@@ -1112,7 +1111,7 @@ List ipcwcpp(
                         
                         if (has_stratum) {
                           IntegerVector ustratum = data1["ustratum"];
-                          for (i=0; i<p_stratum; i++) {
+                          for (int i=0; i<p_stratum; i++) {
                             String s = stratum[i];
                             if (TYPEOF(data[s]) == INTSXP) {
                               IntegerVector stratumwi = u_stratum[s];
@@ -1153,7 +1152,7 @@ List ipcwcpp(
                     
                     data_outcome.push_back(stratum1, "ustratum");
                     
-                    for (j=0; j<p; j++) {
+                    for (int j=0; j<p; j++) {
                       NumericVector u = z1(_,j);
                       String zj = base_cov[j];
                       data_outcome.push_back(u,zj);
