@@ -30,7 +30,7 @@ List ipcwcpp(
     const bool swtrt_control_only = 1,
     const double alpha = 0.05,
     const std::string ties = "efron",
-    const bool boot = 1,
+    const bool boot = 0,
     const int n_boot = 1000,
     const int seed = NA_INTEGER) {
   
