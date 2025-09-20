@@ -419,7 +419,6 @@ List ipecpp(const DataFrame data,
                 IntegerVector& eventb, IntegerVector& treatb,
                 NumericVector& rxb, NumericVector& censor_timeb,
                 NumericMatrix& zb, NumericMatrix& zb_aft)->List {
-                  int j;
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
@@ -464,7 +463,7 @@ List ipecpp(const DataFrame data,
                       
                       Sstar.push_back(stratumb, "ustratum");
                       
-                      for (j=0; j<p; j++) {
+                      for (int j=0; j<p; j++) {
                         String zj = covariates[j+1];
                         NumericVector u = zb(_,j);
                         Sstar.push_back(u, zj);
@@ -491,7 +490,7 @@ List ipecpp(const DataFrame data,
                     
                     data_outcome.push_back(stratumb, "ustratum");
                     
-                    for (j=0; j<p; j++) {
+                    for (int j=0; j<p; j++) {
                       String zj = covariates[j+1];
                       NumericVector u = zb(_,j);
                       data_outcome.push_back(u, zj);
