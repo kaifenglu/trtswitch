@@ -80,11 +80,6 @@ double qtpwexpcpp1(const double p,
                    const bool lowertail,
                    const bool logp);
 
-NumericVector getAccrualDurationFromN(
-    const NumericVector& nsubjects,
-    const NumericVector& accrualTime,
-    const NumericVector& accrualIntensity);
-
 double getpsiest(const double target, const NumericVector& psi, 
                  const NumericVector& Z);
 
