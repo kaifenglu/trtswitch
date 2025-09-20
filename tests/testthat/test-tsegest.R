@@ -1,5 +1,6 @@
 library(dplyr, warn.conflicts = FALSE)
 library(survival)
+library(splines)
 
 testthat::test_that("tsegest: logistic g-estimation", {
   sim1 <- tsegestsim(
@@ -23,12 +24,11 @@ testthat::test_that("tsegest: logistic g-estimation", {
     swtrt = "xo", swtrt_time = "xotime", 
     base_cov = "bprog", 
     conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
-    strata_main_effect_only = TRUE,
+    ns_df = 3, strata_main_effect_only = TRUE,
     recensor = TRUE, admin_recensor_only = TRUE, 
     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
     tol = 1.0e-6, offset = 0, boot = FALSE)
   
-
   # last observation within each subject
   data2 <- data1 %>%
     group_by(id) %>%
@@ -45,6 +45,13 @@ testthat::test_that("tsegest: logistic g-estimation", {
     filter(trtrand == 0 & progressed == 1 & tstop >= timePFSobs & 
              ifelse(xo == 1, tstart < xotime, tstop < ostime)) %>%
     mutate(y = ifelse(xo == 1 & tstop >= xotime, 1, 0))
+  
+  s1 <- ns(data3$tstop[data3$y == 1], df = 3)
+  s2 <- ns(data3$tstop, knots = attr(s1, "knots"), 
+           Boundary.knots = attr(s1, "Boundary.knots"))
+  data3$ns1 <- s2[,1]
+  data3$ns2 <- s2[,2]
+  data3$ns3 <- s2[,3]
   
   # re-baseline
   data4 <- data3 %>% 
@@ -73,7 +80,8 @@ testthat::test_that("tsegest: logistic g-estimation", {
     
     fit_lgs <- logisregr(data6, event = "y", 
                          covariates = c("resid", "bprog*cattdc", 
-                                        "timePFSobs", "visit7on"),
+                                        "timePFSobs", "visit7on", 
+                                        "ns1", "ns2", "ns3"),
                          id = "id", robust = 1)
     
     z_lgs <- fit_lgs$parest$z
