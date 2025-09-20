@@ -26,7 +26,8 @@ TSEgest is an extension of the simple two-stage estimation (TSE) method by incor
 # Estimation of $\psi$
 To derive the g-estimate of $\psi$, we utilize a logistic regression model for switching
 \[
-  \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk}
+  \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk} + 
+  \sum_{j'} \gamma_{j'} s_{ij'k}
 \]
 alongside a structural model for counterfactual post progression survival times
 \[
@@ -43,6 +44,8 @@ Here $T_{C_i}$ refers to the time spent after disease progression on control tre
     - If a patient does not switch treatment and either dies or is censored four visits after disease progression, they contribute five records, with $E_{ik} = 0$ for $k=1,\ldots,5$. 
 
 - **Confounders $x_{ijk}$**: These are the confounding variables measured for subject $i$ at observation $k$.
+
+- **Visit-Specific Intercepts $s_{ij'k}$**: These can be modeled using a natural cubic spline with specified degrees of freedom, denoted as $\nu$ (corresponding to the `ns_df` parameter of the `tsegest` function). The boundary and internal knots can be based on the range and percentiles of observed treatment switching times, respectively. Here, $\nu$ equals the number of internal knots plus one; a value of $\nu=0$ indicates a common intercept, while $\nu=1$ leads to a linear effect of visit. By default, $\nu=3$, which implies two internal knots for the cubic spline.
 
 - **Counteractual Survival Time $U_{i,\psi}$**: This represents the counterfactual post progression survival time for subject $i$ based on a specific value of $\psi$. In case of recensoring, we define $D_{i,\psi}^* = \min(C_i, e^{\psi}C_i)$, where $C_i$ is the censoring time for the subject. Additionally, we denote $\Delta_i$ as the observed event indicators. We then define $U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*)$ and $\Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*)$ to represent the recensored counterfactual survival times and event indicators, respectively. Next, we fit a null Cox model to the dataset $(U_{i,\psi}^*, \Delta_{i,\psi}^*)$ to patients with disease progression. The martingale residuals from this model are then used to replace $U_{i,\psi}$ in the pooled logistic regression switching model. 
 
@@ -76,7 +79,7 @@ fit1 <- tsegest(
   swtrt = "xo", swtrt_time = "xotime", 
   base_cov = "bprog", 
   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
-  strata_main_effect_only = TRUE,
+  ns_df = 3, strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
   tol = 1.0e-6, offset = 0, boot = FALSE)
@@ -148,7 +151,7 @@ fit2 <- tsegest(
   base_cov = "bprog", 
   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"),
   low_psi = -2, hi_psi = 2, n_eval_z = 101, 
-  strata_main_effect_only = TRUE,
+  ns_df = 3, strata_main_effect_only = TRUE,
   recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
   tol = 1.0e-6, offset = 0, boot = TRUE, 
