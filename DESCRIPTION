@@ -1,14 +1,16 @@
 Package: trtswitch
 Type: Package
 Title: Treatment Switching
-Version: 0.1.9
-Date: 2025-09-03
+Version: 0.2.0
+Date: 2025-09-20
 Authors@R: 
     person("Kaifeng", "Lu", , "kaifenglu@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6160-7119"))
-Description: Implements rank-preserving structural failure time model (RPSFTM), iterative parameter estimation (IPE), inverse probability of censoring weights (IPCW), and two-stage estimation (TSE) methods for treatment switching in randomized clinical trials.
+Description: Implements rank-preserving structural failure time model (RPSFTM), iterative parameter estimation (IPE), inverse probability of censoring weights (IPCW), marginal structural model (MSM), simple two-stage estimation (TSEsimp), and improved two-stage with g-estimation (TSEgest) methods for treatment switching in randomized clinical trials.
 License: GPL (>= 2)
-Imports: Rcpp (>= 1.0.9)
+Imports: 
+    Rcpp (>= 1.0.9), 
+    data.table (>= 1.14.10)
 LinkingTo: Rcpp
 Suggests: 
     testthat (>= 3.0.0),
