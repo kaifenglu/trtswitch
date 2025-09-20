@@ -17,3 +17,9 @@ usethis::use_data(shilong, overwrite = TRUE)
 usethis::use_data(six, overwrite = TRUE)
 usethis::use_data(tobin, overwrite = TRUE)
 usethis::use_data(sexagg, overwrite = TRUE)
+
+adsl <- readxl::read_excel("notes/adsl_sampled.xlsx")
+adtdc <-readxl::read_excel("notes/adtdc_sampled.xlsx")
+
+usethis::use_data(adsl, overwrite = TRUE)
+usethis::use_data(adtdc, overwrite = TRUE)
