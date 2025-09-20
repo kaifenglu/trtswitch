@@ -12,7 +12,7 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
     alpha0 = 0.5, alpha1 = 0.5, alpha2 = 0.4, 
     theta1_1 = -0.4, theta1_0 = -0.4, theta2 = 0.2,
     rate_C = 0.0000855,  accrualIntensity = 20/30, 
-    followupTime = 600, fixedFollowup = 0, days = 30,
+    fixedFollowup = FALSE, plannedTime = 1350, days = 30,
     n = 500, NSim = 100, seed = 314159)
   
   data1 <- sim1[[1]] %>% 
