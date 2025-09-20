@@ -1,6 +1,7 @@
 #include "utilities.h"
 #include "survival_analysis.h"
 #include "logistic_regression.h"
+#include "splines.h"
 
 using namespace Rcpp;
 
@@ -13,7 +14,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
                      IntegerVector idn2, IntegerVector y, 
                      NumericVector tstartn2, NumericVector tstopn2,
                      StringVector covariates_lgs, NumericMatrix zn_lgs2, 
-                     bool firth, bool flic, bool recensor, double alpha, 
+                     bool firth, bool flic, int ns_df, NumericMatrix ns, 
+                     bool recensor, double alpha, 
                      std::string ties, double offset, double psi) {
   
   int i, j; 
@@ -73,10 +75,15 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
     Named("cross") = y,
     Named("counterfactual") = resid);
   
-  for (int j=0; j<q+p2; j++) {
+  for (j=0; j<q+p2; j++) {
     String zj = covariates_lgs[j+1];
     NumericVector u = zn_lgs2(_,j);
-    data2.push_back(u, zj);
+    data2.push_back(u,zj);
+  }
+  for (j=0; j<ns_df; j++) {
+    String zj = covariates_lgs[q+p2+1+j];
+    NumericVector u = ns(_,j);
+    data2.push_back(u,zj);
   }
   
   List fit2 = logisregcpp(
@@ -125,6 +132,7 @@ List tsegestcpp(
     const bool strata_main_effect_only = 1,
     const bool firth = 0,
     const bool flic = 0,
+    const int ns_df = 3,
     const bool recensor = 1,
     const bool admin_recensor_only = 1,
     const bool swtrt_control_only = 1,
@@ -461,7 +469,11 @@ List tsegestcpp(
     q = nstrata - 1;
   }
   
-  StringVector covariates_lgs(q+p2+1);
+  if (ns_df < 0) {
+    stop("ns_df must be a nonnegative integer");
+  }
+  
+  StringVector covariates_lgs(q+p2+ns_df+1);
   NumericMatrix zn_lgs(n,q+p2);
   covariates_lgs[0] = "counterfactual";
   if (strata_main_effect_only) {
@@ -529,6 +541,10 @@ List tsegestcpp(
     covariates_lgs[q+j+1] = zj;
     NumericVector u = data[zj];
     zn_lgs(_,q+j) = u;
+  }
+  
+  for (j=0; j<ns_df; j++) {
+    covariates_lgs[q+p2+j+1] = "ns" + std::to_string(j+1);
   }
   
   if (low_psi >= hi_psi) {
@@ -714,7 +730,7 @@ List tsegestcpp(
   auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
             q, p, p2, covariates, covariates_lgs, low_psi, hi_psi, 
-            n_eval_z, psi, firth, flic, recensor, swtrt_control_only, 
+            n_eval_z, psi, firth, flic, ns_df, recensor, swtrt_control_only, 
             gridsearch, alpha, zcrit, ties, tol, offset] (
                 IntegerVector& idb, IntegerVector& stratumb, 
                 NumericVector& tstartb, NumericVector& tstopb, 
@@ -724,12 +740,12 @@ List tsegestcpp(
                 IntegerVector& pdb, NumericVector& pd_timeb, 
                 IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
                 NumericMatrix& zb, NumericMatrix& zb_lgs)->List {
-                  int h, i, j, n = static_cast<int>(idb.size());
+                  int n = static_cast<int>(idb.size());
                   bool fail = 0; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
                   IntegerVector idx(1,0); // first observation within an id
-                  for (i=1; i<n; i++) {
+                  for (int i=1; i<n; i++) {
                     if (idb[i] != idb[i-1]) {
                       idx.push_back(i);
                     }
@@ -739,7 +755,7 @@ List tsegestcpp(
                   idx.push_back(n);
                   
                   IntegerVector idx1(nids); // last observation within an id
-                  for (i=0; i<nids; i++) {
+                  for (int i=0; i<nids; i++) {
                     idx1[i] = idx[i+1]-1;
                   }
                   
@@ -768,7 +784,7 @@ List tsegestcpp(
                   List data_nullcox(2), fit_nullcox(2);
                   List data_logis(2), fit_logis(2);
                   if (k == -1) {
-                    for (h=0; h<2; h++) {
+                    for (int h=0; h<2; h++) {
                       List data_x = List::create(
                         Named("data") = R_NilValue,
                         Named(treat) = R_NilValue
@@ -823,10 +839,10 @@ List tsegestcpp(
                   }
                   
                   int K = static_cast<int>(treats.size());
-                  for (h=0; h<K; h++) {
+                  for (int h=0; h<K; h++) {
                     // post progression data up to switching for the treat
                     LogicalVector c1 = (treatb == h);
-                    LogicalVector c2 = ifelse(pdb == 1, tstopb >= pd_timeb, 0);
+                    LogicalVector c2 = ifelse(pdb == 1, tstopb>=pd_timeb, 0);
                     LogicalVector c3 = ifelse(
                       swtrtb == 1, tstartb < swtrt_timeb, tstopb < os_timeb);
                     IntegerVector l = which(c1 & c2 & c3);
@@ -847,13 +863,26 @@ List tsegestcpp(
                     
                     // treatment switching indicators
                     IntegerVector y(n2);
-                    for (i=0; i<n2; i++) {
+                    for (int i=0; i<n2; i++) {
                       y[i] = swtrtn2[i] && (tstopn2[i] >= swtrt_timen2[i]);
+                    }
+                    
+                    // obtain natural cubic spline knots
+                    NumericMatrix ns(n2, ns_df);
+                    if (ns_df > 0) {
+                      NumericVector x = tstopn2[y == 1];
+                      NumericVector knots(1, NA_REAL);
+                      NumericVector boundary_knots(1, NA_REAL);
+                      ns = nscpp(x, ns_df, knots, 0, boundary_knots);
+                      knots = ns.attr("knots");
+                      boundary_knots = ns.attr("boundary_knots");
+                      ns = nscpp(tstopn2, NA_INTEGER, knots, 0, 
+                                boundary_knots);
                     }
                     
                     // re-baseline based on disease progression date
                     IntegerVector idx2(1,0);
-                    for (i=1; i<n2; i++) {
+                    for (int i=1; i<n2; i++) {
                       if (idn2[i] != idn2[i-1]) {
                         idx2.push_back(i);
                       }
@@ -868,9 +897,9 @@ List tsegestcpp(
                     NumericVector os_timen3(nids2);
                     NumericVector censor_timen3(nids2);
                     IntegerVector swtrtn3(nids2);
-                    NumericVector swtrt_timen3(nids2);
-                    for (i=0; i<nids2; i++) {
-                      j = idx2[i];
+                    NumericVector swtrt_timen3(nids2, NA_REAL);
+                    for (int i=0; i<nids2; i++) {
+                      int j = idx2[i];
                       double b2 = pd_timen2[j] - offset;
                       idn3[i] = idn2[j];
                       stratumn3[i] = stratumn2[j];
@@ -889,13 +918,14 @@ List tsegestcpp(
                     
                     NumericVector Z(n_eval_z);
                     if (gridsearch) {
-                      for (i=0; i<n_eval_z; i++) {
+                      for (int i=0; i<n_eval_z; i++) {
                         List out = est_psi_tsegest(
                           n2, q, p2, nids2, idx2, stratumn3, 
                           osn3, os_timen3, censor_timen3, 
                           swtrtn3, swtrt_timen3, idn2, y, 
                           tstartn2, tstopn2, 
-                          covariates_lgs, zn_lgs2, firth, flic, 
+                          covariates_lgs, zn_lgs2, 
+                          firth, flic, ns_df, ns,
                           recensor, alpha, ties, offset, psi[i]);
                         
                         Z[i] = out["z_counterfactual"];
@@ -910,12 +940,13 @@ List tsegestcpp(
                       }
                     } else {
                       // z-stat for the slope of counterfactual survival time
-                      // martingale residuals in the logistic regression model
+                      // martingale residuals in logistic regression model
                       double target = 0;
                       auto g = [&target, n2, q, p2, nids2, idx2, stratumn3, 
                                 osn3, os_timen3, censor_timen3, swtrtn3, 
                                 swtrt_timen3, idn2, y, tstartn2, tstopn2, 
-                                covariates_lgs, zn_lgs2, firth, flic, 
+                                covariates_lgs, zn_lgs2, 
+                                firth, flic, ns_df, ns, 
                                 recensor, alpha, ties, 
                                 offset](double x)->double{
                                   List out = est_psi_tsegest(
@@ -923,7 +954,8 @@ List tsegestcpp(
                                     osn3, os_timen3, censor_timen3, 
                                     swtrtn3, swtrt_timen3, idn2, y, 
                                     tstartn2, tstopn2, 
-                                    covariates_lgs, zn_lgs2, firth, flic, 
+                                    covariates_lgs, zn_lgs2, 
+                                    firth, flic, ns_df, ns, 
                                     recensor, alpha, ties, offset, x);
                                   
                                   double z = out["z_counterfactual"];
@@ -983,7 +1015,7 @@ List tsegestcpp(
                       // counter-factual survival times and event indicators
                       double a = exp(psihat);
                       double c0 = std::min(1.0, a);
-                      for (i=0; i<nids; i++) {
+                      for (int i=0; i<nids; i++) {
                         if (treatn1[i] == h) {
                           double b2, u_star, c_star;
                           if (swtrtn1[i] == 1) {
@@ -1005,14 +1037,11 @@ List tsegestcpp(
                       }
                       
                       if (k == -1) {
-                        // obtain data and Kaplan-Meier plot for time to switch
+                        // obtain data and KM plot for time to switch
                         NumericVector swtrt_timen4(nids2);
-                        for (i=0; i<nids2; i++) {
-                          if (swtrtn3[i] == 1) {
-                            swtrt_timen4[i] = swtrt_timen3[i];
-                          } else {
-                            swtrt_timen4[i] = os_timen3[i];
-                          }
+                        for (int i=0; i<nids2; i++) {
+                          swtrt_timen4[i] = swtrtn3[i] == 1 ? 
+                          swtrt_timen3[i] : os_timen3[i];
                         }
                         
                         DataFrame data1 = DataFrame::create(
@@ -1028,7 +1057,7 @@ List tsegestcpp(
                         }
                         
                         if (has_stratum) {
-                          for (i=0; i<p_stratum; i++) {
+                          for (int i=0; i<p_stratum; i++) {
                             String s = stratum[i];
                             if (TYPEOF(data[s]) == INTSXP) {
                               IntegerVector stratumwi = u_stratum[s];
@@ -1044,19 +1073,20 @@ List tsegestcpp(
                         }
                         
                         DataFrame km1 = kmest(data1, "", "", "swtrt_time", 
-                                              "swtrt", "log-log", 1-alpha, 1);
+                                              "swtrt", "log-log", 1-alpha,1);
                         
                         // obtain the Wald statistics for the coefficient of 
                         // the counterfactual in the logistic regression 
                         // switching model at a sequence of psi values
                         if (!gridsearch) {
-                          for (i=0; i<n_eval_z; i++) {
+                          for (int i=0; i<n_eval_z; i++) {
                             List out = est_psi_tsegest(
                               n2, q, p2, nids2, idx2, stratumn3, 
                               osn3, os_timen3, censor_timen3, 
                               swtrtn3, swtrt_timen3, idn2, y, 
                               tstartn2, tstopn2, 
-                              covariates_lgs, zn_lgs2, firth, flic, 
+                              covariates_lgs, zn_lgs2, 
+                              firth, flic, ns_df, ns, 
                               recensor, alpha, ties, offset, psi[i]);
                             
                             Z[i] = out["z_counterfactual"];
@@ -1067,13 +1097,14 @@ List tsegestcpp(
                           Named("psi") = psi,
                           Named("Z") = Z);
                         
-                        // obtain data and fit for null Cox and logistic models
+                        // obtain data and fit for null Cox & logistic models
                         List out = est_psi_tsegest(
                           n2, q, p2, nids2, idx2, stratumn3, 
                           osn3, os_timen3, censor_timen3, 
                           swtrtn3, swtrt_timen3, idn2, y, 
                           tstartn2, tstopn2,
-                          covariates_lgs, zn_lgs2, firth, flic, 
+                          covariates_lgs, zn_lgs2, 
+                          firth, flic, ns_df, ns, 
                           recensor, alpha, ties, offset, psihat);
                         
                         bool fail_lgs = out["fail"];
@@ -1096,7 +1127,7 @@ List tsegestcpp(
                         }
                         
                         if (has_stratum) {
-                          for (i=0; i<p_stratum; i++) {
+                          for (int i=0; i<p_stratum; i++) {
                             String s = stratum[i];
                             if (TYPEOF(data[s]) == INTSXP) {
                               IntegerVector stratumwi = u_stratum[s];
@@ -1158,7 +1189,7 @@ List tsegestcpp(
                     
                     data_outcome.push_back(stratumn1, "ustratum");
                     
-                    for (j=0; j<p; j++) {
+                    for (int j=0; j<p; j++) {
                       String zj = covariates[j+1];
                       NumericVector u = zn1(_,j);
                       data_outcome.push_back(u, zj);
@@ -1169,7 +1200,7 @@ List tsegestcpp(
                       covariates, "", "", "", ties, init, 
                       0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
                     
-                    DataFrame sumstat_cox = DataFrame(fit_outcome["sumstat"]);
+                    DataFrame sumstat_cox= DataFrame(fit_outcome["sumstat"]);
                     bool fail_cox = sumstat_cox["fail"];
                     if (fail_cox == 1) fail = 1;
                     
@@ -1532,6 +1563,7 @@ List tsegestcpp(
     Named("strata_main_effect_only") = strata_main_effect_only,
     Named("firth") = firth,
     Named("flic") = flic,
+    Named("ns_df") = ns_df,
     Named("recensor") = recensor,
     Named("admin_recensor_only") = admin_recensor_only,
     Named("swtrt_control_only") = swtrt_control_only,
