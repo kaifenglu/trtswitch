@@ -80,7 +80,7 @@
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param boot Whether to use bootstrap to obtain the confidence
-#'   interval for hazard ratio. Defaults to \code{TRUE}.
+#'   interval for hazard ratio. Defaults to \code{FALSE}.
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results. The default is 
 #'   missing, in which case, the seed from the environment will be used.
@@ -219,7 +219,7 @@
 #'   alpha0 = 0.5, alpha1 = 0.5, alpha2 = 0.4, 
 #'   theta1_1 = -0.4, theta1_0 = -0.4, theta2 = 0.2,
 #'   rate_C = 0.0000855, accrualIntensity = 20/30,
-#'   followupTime = 600, fixedFollowup = 0, days = 30,
+#'   fixedFollowup = FALSE, plannedTime = 1350, days = 30,
 #'   n = 500, NSim = 100, seed = 314159)
 #'   
 #' fit1 <- ipcw(
@@ -260,7 +260,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
                  stabilized_weights = TRUE, 
                  trunc = 0, trunc_upper_only = TRUE,
                  swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
-                 boot = TRUE, n_boot = 1000, seed = NA) {
+                 boot = FALSE, n_boot = 1000, seed = NA) {
   
   rownames(data) = NULL
   
