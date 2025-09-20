@@ -1,3 +1,12 @@
+# trtswitch 0.2.0
+
+- added msm to package description
+- added the plannedTime argument to tssim function so that followupTime only refers to the follow-up time in a fixed follow-up design
+- removed the getAccrualDurationFromN function from utilities
+- changed the default value of the boot parameter to FALSE for ipcw and msm
+- added the ns_df parameter to the tsegest function
+- added the preptdc function to prepare survival data with time-dependent covariates
+
 # trtswitch 0.1.9
 
 - added fail_boots_data to include the failed bootstrap sample data
