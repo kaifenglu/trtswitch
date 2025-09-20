@@ -67,6 +67,10 @@
 #'   should be used.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities.
+#' @param ns_df Degrees of freedom for the natural cubic spline for 
+#'   visit-specific intercepts of the pooled logistic regression model. 
+#'   Defaults to 3 for two internal knots at the 33 and 67 percentiles
+#'   of the treatment switching times.
 #' @param recensor Whether to apply recensoring to counterfactual
 #'   survival times. Defaults to \code{TRUE}.
 #' @param admin_recensor_only Whether to apply recensoring to administrative
@@ -222,6 +226,8 @@
 #'
 #'     - \code{flic}: Whether to apply intercept correction.
 #'
+#'     - \code{ns_df}: Degrees of freedom for the natural cubic spline.
+#'
 #'     - \code{recensor}: Whether to apply recensoring to counterfactual
 #'       survival times.
 #'
@@ -307,7 +313,7 @@
 #'   swtrt = "xo", swtrt_time = "xotime", 
 #'   base_cov = "bprog", 
 #'   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
-#'   recensor = TRUE, admin_recensor_only = TRUE, 
+#'   ns_df = 3, recensor = TRUE, admin_recensor_only = TRUE, 
 #'   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
 #'   tol = 1.0e-6, offset = 0, boot = FALSE)
 #'   
@@ -322,7 +328,7 @@ tsegest <- function(data, id = "id", stratum = "",
                     base_cov = "", conf_cov = "",
                     low_psi = -2, hi_psi = 2, n_eval_z = 101,
                     strata_main_effect_only = TRUE,
-                    firth = FALSE, flic = FALSE,
+                    firth = FALSE, flic = FALSE, ns_df = 3,
                     recensor = TRUE, admin_recensor_only = TRUE,
                     swtrt_control_only = TRUE, gridsearch = FALSE, 
                     alpha = 0.05, ties = "efron", tol = 1.0e-6, offset = 1, 
@@ -395,7 +401,7 @@ tsegest <- function(data, id = "id", stratum = "",
     base_cov = varnames, conf_cov = varnames2,
     low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
     strata_main_effect_only = strata_main_effect_only,
-    firth = firth, flic = flic,
+    firth = firth, flic = flic, ns_df = ns_df,
     recensor = recensor, admin_recensor_only = admin_recensor_only,
     swtrt_control_only = swtrt_control_only, gridsearch = gridsearch, 
     alpha = alpha, ties = ties, tol = tol, offset = offset, 
