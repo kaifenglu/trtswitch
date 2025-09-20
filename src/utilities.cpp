@@ -70,28 +70,6 @@ IntegerVector findInterval3(NumericVector x, NumericVector v) {
 #define ITMAX 100
 #define EPS 3.0e-8
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
-
-//' @title Brent's Method for Root-Finding
-//' @description Using Brent's method, find the root of a function known to
-//' lie between x1 and x2. Program based on the book - Numerical Recipes in C
-//' The Art of Scientific Computing - Second Edition, by William H. Press,
-//' Saul A. Teukolsky, William T. Vetterling, and Brian P. Flannery.
-//' It mimics the uniroot() function in R.
-//'
-//' @param f Name of the univariate objective function.
-//' @param x1 One end of the interval bracket.
-//' @param x2 The other end of the interval bracket.
-//' @param tol The tolerance limit for stopping the iteration.
-//'
-//' @return The root x between x1 and x2 such that f(x) = 0.
-//'
-//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
-//'
-//' @examples
-//' brent(sin, -1, 1, 0.0001)
-//' @export
-//'
-// [[Rcpp::plugins(cpp11)]]
 double brent(const std::function<double(double)>& f,
              double x1, double x2, double tol) {
   int iter;
@@ -191,7 +169,7 @@ double quantilecpp(const NumericVector& x, const double p) {
 }
 
 
-// [[Rcpp::plugins(cpp11)]]
+
 double squantilecpp(const std::function<double(double)>& S, double p) {
   double lower = 0;
   double upper = 1;
@@ -945,30 +923,6 @@ double qtpwexpcpp1(const double p,
   return q;
 }
 
-// [[Rcpp::export]]
-NumericVector getAccrualDurationFromN(
-    const NumericVector& nsubjects = NA_REAL,
-    const NumericVector& accrualTime = 0,
-    const NumericVector& accrualIntensity = NA_REAL) {
-  int i, j, I = static_cast<int>(nsubjects.size());
-  int J = static_cast<int>(accrualTime.size());
-  NumericVector t(I), p(J);
-  
-  p[0] = 0;
-  for (j=0; j<J-1; j++) {
-    p[j+1] = p[j] + accrualIntensity[j]*(accrualTime[j+1] - accrualTime[j]);
-  }
-  
-  IntegerVector m = findInterval3(nsubjects, p);
-  
-  for (i=0; i<I; i++) {
-    j = m[i] - 1;
-    t[i] = accrualTime[j] + (nsubjects[i] - p[j])/accrualIntensity[j];
-  }
-  
-  return t;
-}
-
 
 // [[Rcpp::export]]
 double getpsiest(const double target, const NumericVector& psi, 
@@ -1002,7 +956,7 @@ double getpsiest(const double target, const NumericVector& psi,
 }
 
 
-// [[Rcpp::plugins(cpp11)]]
+
 double getpsiend(const std::function<double(double)>& f,
                  const bool lowerend, const double initialend) {
   double psiend = initialend;
