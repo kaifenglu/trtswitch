@@ -262,8 +262,11 @@ List msmcpp(
   NumericVector swtrt_timenz = data[swtrt_time];
   NumericVector swtrt_timen = clone(swtrt_timenz);
   for (i=0; i<n; i++) {
+    if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
+      stop("swtrt_time must not be missing when swtrt=1");
+    }
     if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
-      stop("swtrt_time must be nonnegative");
+      stop("swtrt_time must be nonnegative when swtrt=1");
     }
   }
   
@@ -394,6 +397,35 @@ List msmcpp(
   }
   
   
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((idn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) || 
+        (std::isnan(tstartn[i])) || (std::isnan(tstopn[i])) || 
+        (eventn[i] == NA_INTEGER) || (treatn[i] == NA_INTEGER) || 
+        (swtrtn[i] == NA_INTEGER)) {
+      sub[i] = 0;
+    }
+    for (j=0; j<q+p2; j++) {
+      if (std::isnan(zn_lgs_den(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  idn = idn[order];
+  stratumn = stratumn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  eventn = eventn[order];
+  treatn = treatn[order];
+  swtrtn = swtrtn[order];
+  swtrt_timen = swtrt_timen[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  zn_lgs_den = subset_matrix_by_row(zn_lgs_den, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+  
+  
   // split at treatment switching into two observations if treatment 
   // switching occurs strictly between tstart and tstop for a subject
   LogicalVector tosplit(n);
@@ -439,25 +471,14 @@ List msmcpp(
   }
   
   
-  // sort data by treatment group, stratum, id, and time
-  IntegerVector order = seq(0, n-1);
-  if (has_stratum) {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
-    });
-  } else {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
-              (tstopn[i] < tstopn[j])));
-    });
-  }
+  // sort data by treatment group, id, and time
+  order = seq(0, n-1);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    return ((treatn[i] < treatn[j]) ||
+            ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
+            ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
+            (tstopn[i] < tstopn[j])));
+  });
   
   idn = idn[order];
   stratumn = stratumn[order];
@@ -986,6 +1007,30 @@ List msmcpp(
     NumericVector tstartc(B), tstopc(B), os_timec(B), swtrt_timec(B);
     NumericMatrix zc_lgs_den(B, q+p2);
     int index1 = 0;
+    
+    if (has_stratum) {
+      // sort data by treatment group, stratum, id, and time
+      IntegerVector order = seq(0, n-1);
+      std::sort(order.begin(), order.end(), [&](int i, int j) {
+        return ((treatn[i] < treatn[j]) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                (idn[i] < idn[j])) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
+      });
+      
+      idn = idn[order];
+      stratumn = stratumn[order];
+      tstartn = tstartn[order];
+      tstopn = tstopn[order];
+      eventn = eventn[order];
+      treatn = treatn[order];
+      swtrtn = swtrtn[order];
+      swtrt_timen = swtrt_timen[order];
+      zn = subset_matrix_by_row(zn, order);
+      zn_lgs_den = subset_matrix_by_row(zn_lgs_den, order);
+    }
     
     IntegerVector tsx(1,0); // first id within each treat/stratum
     for (i=1; i<nids; i++) {
