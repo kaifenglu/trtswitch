@@ -22,6 +22,7 @@ List est_psi_ipe(
     const bool recensor,
     const bool autoswitch,
     const double alpha) {
+  
   NumericVector init(1, NA_REAL);
   DataFrame df = unswitched(psi*treat_modifier, n, id, time, event, treat,
                             rx, censor_time, recensor, autoswitch);
@@ -404,6 +405,34 @@ List ipecpp(const DataFrame data,
   if (n_boot < 100) {
     stop("n_boot must be greater than or equal to 100");
   }
+  
+  
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((idn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) || 
+        (std::isnan(timen[i])) || (eventn[i] == NA_INTEGER) || 
+        (treatn[i] == NA_INTEGER) || (std::isnan(rxn[i])) ||
+        (std::isnan(censor_timen[i]))) {
+      sub[i] = 0;
+    }
+    for (j=0; j<p; j++) {
+      if (std::isnan(zn_aft(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  idn = idn[order];
+  stratumn = stratumn[order];
+  timen = timen[order];
+  eventn = eventn[order];
+  treatn = treatn[order];
+  rxn = rxn[order];
+  censor_timen = censor_timen[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  zn_aft = subset_matrix_by_row(zn_aft, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
   
   
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
