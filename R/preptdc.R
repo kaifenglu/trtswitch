@@ -8,25 +8,28 @@
 #' where covariates change (optional), and constructs `tstart`, `tstop`,
 #' and `event` variables suitable for use in survival models.
 #'
-#' @param adsl A data set containing baseline subject-level data, 
-#'   including subject ID (`id`), randomization date (`randdt`),
+#' @param adsl A data set containing baseline subject-level information. 
+#'   It should include, at a minimum, subject ID (`id`), 
+#'   randomization date (`randdt`), treatment start date (`trtsdt`),
 #'   survival outcome (`osdt`, `died`), progression date (`pddt`), 
 #'   treatment switch date (`xodt`), and data cut-off date (`dcutdt`).
 #' @param adtdc A data set containing longitudinal
 #'   time-dependent covariate data, with subject ID (`id`),
-#'   analysis date (`adt`), parameter code (`paramcd`), and covariate
-#'   value (`aval`).   
+#'   parameter code (`paramcd`), analysis date (`adt`), and covariate
+#'   value (`aval`).
 #' @param id Character string specifying the column name for subject ID.
 #' @param randdt Character string specifying the column name for 
 #'   randomization date.
-#' @param osdt Character string specifying the column name for overall
-#'   survival date (death date or last known alive date).
-#' @param died Character string specifying the column name for death
-#'   indicator (0 = alive/censored, 1 = died).
+#' @param trtsdt Character string specifying the column name for 
+#'   treatment start date.
 #' @param pddt Character string specifying the column name for progression
 #'   date.
 #' @param xodt Character string specifying the column name for treatment
 #'   crossover/switch date.
+#' @param osdt Character string specifying the column name for overall
+#'   survival date (death date or last known alive date).
+#' @param died Character string specifying the column name for death
+#'   indicator (0 = alive/censored, 1 = died).
 #' @param dcutdt Character string specifying the column name for data
 #'   cut-off date.
 #' @param adt Character string specifying the column name for analysis
@@ -44,8 +47,14 @@
 #' @details
 #' The function performs the following steps:
 #' \enumerate{
-#'   \item Merge `adsl` and `adtdc` to obtain randomization date.
-#'   \item Define `adt2` as the maximum of `adt` and `randdt`.
+#'   \item Merge `adsl` and `adtdc` to obtain randomization date and 
+#'         treatment start date.
+#'   \item Define `adt2` as `adt` if `adt > trtsdt`, 
+#'         and `randdt` if `adt <= trtsdt` (i.e., baseline time point).
+#'         This ensures that the baseline covariate value is the last 
+#'         non-missing value at or before the treatment start date.
+#'         Post-baseline covariate values are anchored at their actual
+#'         analysis dates.
 #'   \item Keep the last record per subject, `adt2`, and `paramcd`.
 #'   \item Construct a complete skeleton so all covariates are present
 #'         for each subject and time point.
@@ -75,8 +84,9 @@
 #' 
 #' @export
 preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT", 
-                    osdt = "OSDT", died = "DIED", pddt = "PDDT", 
-                    xodt = "XODT", dcutdt = "DCUTDT", adt = "ADT", 
+                    trtsdt = "TRTSDT", pddt = "PDDT", xodt = "XODT", 
+                    osdt = "OSDT", died = "DIED", 
+                    dcutdt = "DCUTDT", adt = "ADT", 
                     paramcd = "PARAMCD", aval = "AVAL",
                     nodup = TRUE, offset = TRUE) {
   
@@ -99,12 +109,13 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
                paste(req_cols[!(req_cols %in% cols)], collapse = ", ")))
   }
   
-  # obtain randdt
-  cols <- c(id, randdt)
+  # obtain randdt and trtsdt
+  cols <- c(id, randdt, trtsdt)
   data1 <- merge(adtdc, adsl[, mget(cols)], by = id)
   
   # define adt2 to differentiate baseline and post-baseline time points
-  data1[, `:=`(adt2 = pmax(get(adt), get(randdt)))]
+  data1[, `:=`(adt2 = data.table::fifelse(get(adt) <= get(trtsdt), 
+                                          get(randdt), get(adt)))]
   
   # keep last record with each subject, adt2, and paramcd
   data.table::setorderv(data1, c(id, "adt2", paramcd, adt))
@@ -179,5 +190,5 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
                censor_time = as.integer(difftime(
                  get(dcutdt), get(randdt), units = "days")) + offset)]
   
-  data5
+  as.data.frame(data5)
 }
