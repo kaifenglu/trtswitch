@@ -215,7 +215,7 @@ NumericMatrix splineDesigncpp(
     derivs2[i] = derivs[i % nd];
   }
   
-  IntegerVector idx = findInterval3(x, u[Range(degree,K+ord)]);
+  IntegerVector idx = findInterval3(x, u[Range(degree,K+ord)], 0, 0, 0);
   // include the maximum value in the last sub-interval
   idx = pmin(idx, K+1) + degree;
   
