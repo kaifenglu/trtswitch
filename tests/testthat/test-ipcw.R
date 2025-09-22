@@ -114,8 +114,8 @@ testthat::test_that("ipcw: time-dependent covariates Cox switching model", {
   data2 <- data1[a1$row+1,]
   data2$tstart = a1$start
   data2$tstop = a1$end
-  data2$event[a1$censor] = 0;
-  data2$cross[a1$censor] = 0;
+  data2$event[a1$censor] = 0
+  data2$cross[a1$censor] = 0
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data2 %>% 
