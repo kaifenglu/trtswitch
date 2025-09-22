@@ -37,7 +37,7 @@ List tsesimpcpp(const DataFrame data,
   
   int p2 = static_cast<int>(base2_cov.size());
   if (p2 == 1 && (base2_cov[0] == "" || base2_cov[0] == "none")) p2 = 0;
-  
+
   int p_stratum = static_cast<int>(stratum.size());
   
   bool has_stratum;
@@ -254,10 +254,12 @@ List tsesimpcpp(const DataFrame data,
   NumericVector pd_timenz = data[pd_time];
   NumericVector pd_timen = clone(pd_timenz);
   for (i=0; i<n; i++) {
-    if (pdn[i] == 1 && pd_timen[i] < 0.0) {
-      stop("pd_time must be nonnegative");
+    if (pdn[i] == 1 && std::isnan(pd_timen[i])) {
+      stop("pd_time must not be missing when pd=1");
     }
-    
+    if (pdn[i] == 1 && pd_timen[i] < 0.0) {
+      stop("pd_time must be nonnegative when pd=1");
+    }
     if (pdn[i] == 1 && pd_timen[i] > timen[i]) {
       stop("pd_time must be less than or equal to time");
     }
@@ -309,10 +311,12 @@ List tsesimpcpp(const DataFrame data,
   NumericVector swtrt_timenz = data[swtrt_time];
   NumericVector swtrt_timen = clone(swtrt_timenz);
   for (i=0; i<n; i++) {
-    if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
-      stop("swtrt_time must be nonnegative");
+    if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
+      stop("swtrt_time must not be missing when swtrt=1");
     }
-    
+    if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
+      stop("swtrt_time must be nonnegative when swtrt=1");
+    }
     if (swtrtn[i] == 1 && swtrt_timen[i] > timen[i]) {
       stop("swtrt_time must be less than or equal to time");
     }
@@ -469,6 +473,41 @@ List tsesimpcpp(const DataFrame data,
   if (n_boot < 100) {
     stop("n_boot must be greater than or equal to 100");
   }
+  
+  
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((idn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) || 
+        (std::isnan(timen[i])) || (eventn[i] == NA_INTEGER) || 
+        (treatn[i] == NA_INTEGER) || (std::isnan(censor_timen[i])) || 
+        (pdn[i] == NA_INTEGER) || (swtrtn[i] == NA_INTEGER)) {
+      sub[i] = 0;
+    }
+    for (j=0; j<p; j++) {
+      if (std::isnan(zn(i,j))) sub[i] = 0;
+    }
+    for (j=0; j<p2; j++) {
+      if (std::isnan(zn_aft(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  idn = idn[order];
+  stratumn = stratumn[order];
+  timen = timen[order];
+  eventn = eventn[order];
+  treatn = treatn[order];
+  censor_timen = censor_timen[order];
+  pdn = pdn[order];
+  pd_timen = pd_timen[order];
+  swtrtn = swtrtn[order];
+  swtrt_timen = swtrt_timen[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  zn_aft = subset_matrix_by_row(zn_aft, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+  
   
   DataFrame lr = lrtest(data, "", stratum, treat, time, event, 0, 0);
   double logRankPValue = lr["logRankPValue"];
