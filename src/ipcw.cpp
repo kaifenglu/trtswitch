@@ -262,8 +262,11 @@ List ipcwcpp(
   NumericVector swtrt_timenz = data[swtrt_time];
   NumericVector swtrt_timen = clone(swtrt_timenz);
   for (i=0; i<n; i++) {
+    if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
+      stop("swtrt_time must not be missing when swtrt=1");
+    }
     if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
-      stop("swtrt_time must be nonnegative");
+      stop("swtrt_time must be nonnegative when swtrt=1");
     }
   }
   
@@ -403,6 +406,36 @@ List ipcwcpp(
   }
   
   
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((idn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) || 
+        (std::isnan(tstartn[i])) || (std::isnan(tstopn[i])) || 
+        (eventn[i] == NA_INTEGER) || (treatn[i] == NA_INTEGER) || 
+        (swtrtn[i] == NA_INTEGER)) {
+      sub[i] = 0;
+    }
+    for (j=0; j<q+p2; j++) {
+      if (std::isnan(zn_lgs_den(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  idn = idn[order];
+  stratumn = stratumn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  eventn = eventn[order];
+  treatn = treatn[order];
+  swtrtn = swtrtn[order];
+  swtrt_timen = swtrt_timen[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  zn_cox_den = subset_matrix_by_row(zn_cox_den, order);
+  zn_lgs_den = subset_matrix_by_row(zn_lgs_den, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+  
+  
   // split at treatment switching into two observations if treatment 
   // switching occurs strictly between tstart and tstop for a subject
   LogicalVector tosplit(n);
@@ -452,25 +485,14 @@ List ipcwcpp(
   }
   
   
-  // sort data by treatment group, stratum, id, and time
-  IntegerVector order = seq(0, n-1);
-  if (has_stratum) {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
-    });
-  } else {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
-              (tstopn[i] < tstopn[j])));
-    });
-  }
+  // sort data by treatment group, id, and time
+  order = seq(0, n-1);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    return ((treatn[i] < treatn[j]) ||
+            ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
+            ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
+            (tstopn[i] < tstopn[j])));
+  });
   
   idn = idn[order];
   stratumn = stratumn[order];
@@ -771,51 +793,40 @@ List ipcwcpp(
                         "tstop", 0, "log-log", 1-alpha);
                       
                       NumericVector surv_den = km_den["surv"];
-                      int m = km_den.nrows();
                       
                       List fit_num = phregcpp(
                         data1, "", "ustratum", "tstart", "tstop", "cross", 
                         numerator, "", "", "uid", ties, init, 
                         0, 1, 0, 0, 0, alpha, 50, 1.0e-9);
                       
-                      NumericVector surv_num(m);
+                      int p10 = p1 > 0 ? p1 : 1;
+                      NumericVector beta_num(p10);
+                      NumericMatrix vbeta_num(p10,p10);
                       if (p1 > 0) {
                         DataFrame sumstat_num = DataFrame(fit_num["sumstat"]);
                         bool fail_num = sumstat_num["fail"];
                         if (fail_num == 1) fail = 1;
                         
                         DataFrame parest_num = DataFrame(fit_num["parest"]);
-                        NumericVector beta_num = parest_num["beta"];
-                        NumericMatrix vbeta_num(p1, p1);
-                        DataFrame basehaz_num = 
-                          DataFrame(fit_num["basehaz"]);
-                        
-                        DataFrame km_num = survfit_phregcpp(
-                          p1, beta_num, vbeta_num, basehaz_num, data1,
-                          numerator, "ustratum", "", "uid", "tstart", 
-                          "tstop", 0, "log-log", 1-alpha);
-                        
-                        surv_num = km_num["surv"];
-                      } else {
-                        NumericVector beta_num(1);
-                        NumericMatrix vbeta_num(1,1);
-                        DataFrame basehaz_num = 
-                          DataFrame(fit_num["basehaz"]);
-                        
-                        DataFrame km_num = survfit_phregcpp(
-                          p1, beta_num, vbeta_num, basehaz_num, data1,
-                          numerator, "ustratum", "", "uid", "tstart", 
-                          "tstop", 0, "log-log", 1-alpha);
-                        
-                        surv_num = km_num["surv"];
+                        beta_num = parest_num["beta"];
                       }
+                      DataFrame basehaz_num = DataFrame(fit_num["basehaz"]);
+                      
+                      DataFrame km_num = survfit_phregcpp(
+                        p1, beta_num, vbeta_num, basehaz_num, data1,
+                        numerator, "ustratum", "", "uid", "tstart", 
+                        "tstop", 0, "log-log", 1-alpha);
+                      
+                      NumericVector surv_num = km_num["surv"];
                       
                       // unstabilized and stabilized weights
                       NumericVector w = 1.0/surv_den;
                       NumericVector sw = surv_num/surv_den;
-                      
+
                       // truncate the weights if requested
                       if (trunc > 0.0) {
+                        int m = w.size();
+                        
                         // truncated unstabilized weights
                         if (trunc_upper_only) {
                           double upper = quantilecpp(w, 1-trunc);
@@ -852,7 +863,7 @@ List ipcwcpp(
                           }
                         }
                       }
-                      
+
                       // update data_switch and fit_switch
                       if (k == -1) {
                         IntegerVector uid = data1["uid"];
@@ -900,7 +911,7 @@ List ipcwcpp(
                       w2[l] = w3;
                       sw2[l] = sw3;
                     }
-                    
+
                     // fill in missing weights with LOCF starting at 1
                     IntegerVector idx(1,0);
                     for (int i=1; i<n2; i++) {
@@ -1185,7 +1196,7 @@ List ipcwcpp(
                   double hrlower = exp(beta[0] - zcrit*sebeta[0]);
                   double hrupper = exp(beta[0] + zcrit*sebeta[0]);
                   double pvalue = pval[0];
-                  
+
                   List out;
                   if (k == -1) {
                     out = List::create(
@@ -1281,6 +1292,31 @@ List ipcwcpp(
     NumericVector tstartc(B), tstopc(B), os_timec(B), swtrt_timec(B);
     NumericMatrix zc_lgs_den(B, q+p2);
     int index1 = 0;
+    
+    if (has_stratum) {
+      // sort data by treatment group, stratum, id, and time
+      IntegerVector order = seq(0, n-1);
+      std::sort(order.begin(), order.end(), [&](int i, int j) {
+        return ((treatn[i] < treatn[j]) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                (idn[i] < idn[j])) ||
+                ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
+      });
+      
+      idn = idn[order];
+      stratumn = stratumn[order];
+      tstartn = tstartn[order];
+      tstopn = tstopn[order];
+      eventn = eventn[order];
+      treatn = treatn[order];
+      swtrtn = swtrtn[order];
+      swtrt_timen = swtrt_timen[order];
+      zn = subset_matrix_by_row(zn, order);
+      zn_cox_den = subset_matrix_by_row(zn_cox_den, order);
+      zn_lgs_den = subset_matrix_by_row(zn_lgs_den, order);
+    }
     
     IntegerVector tsx(1,0); // first id within each treat/stratum
     for (i=1; i<nids; i++) {
