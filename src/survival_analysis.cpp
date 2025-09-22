@@ -2093,7 +2093,7 @@ DataFrame rmest(const DataFrame data,
         
         // locate the latest event time before milestone
         NumericVector milestone1(1, milestone);
-        N = findInterval3(milestone1, time0)[0];
+        N = findInterval3(milestone1, time0, 0, 0, 0)[0];
         
         // prepend time zero information
         time0.push_front(0.0);
@@ -4479,6 +4479,7 @@ List liferegcpp(const DataFrame data,
   idn = idn[order];
   zn = subset_matrix_by_row(zn, order);
   n = sum(sub);
+  if (n == 0) stop("no observation is left after removing missing values");
   
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
@@ -5149,6 +5150,7 @@ NumericMatrix residuals_liferegcpp(const NumericVector& beta,
   idn = idn[q1];
   zn = subset_matrix_by_row(zn, q1);
   int n1 = sum(sub);
+  if (n1 == 0) stop("no observation is left after removing missing values");
   
   // unify right censored data with interval censored data
   NumericVector tstart(n1), tstop(n1);
@@ -6955,7 +6957,7 @@ List phregcpp(const DataFrame data,
   if (is_true(any((eventn != 1) & (eventn != 0)))) {
     stop("event must be 1 or 0 for each observation");
   }
-
+  
   NumericMatrix zn(n,p);
   if (p > 0) {
     for (j=0; j<p; j++) {
@@ -7029,6 +7031,16 @@ List phregcpp(const DataFrame data,
   int method = meth == "efron" ? 1 : 0;
   
   
+  // unify right censored data with counting process data
+  NumericVector tstartn(n), tstopn(n);
+  if (!has_time2) {
+    tstopn = timen;
+  } else {
+    tstartn = timen;
+    tstopn = time2n;
+  }
+  
+  
   // sort the data by rep
   IntegerVector order = seq(0, n-1);
   std::stable_sort(order.begin(), order.end(), [&](int i, int j) {
@@ -7037,8 +7049,8 @@ List phregcpp(const DataFrame data,
   
   repn = repn[order];
   stratumn = stratumn[order];
-  timen = timen[order];
-  time2n = time2n[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
   eventn = eventn[order];
   weightn = weightn[order];
   offsetn = offsetn[order];
@@ -7049,9 +7061,9 @@ List phregcpp(const DataFrame data,
   LogicalVector sub(n,1);
   for (i=0; i<n; i++) {
     if ((repn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) ||
-        (std::isnan(timen[i])) || (eventn[i] == NA_INTEGER) ||
-        (std::isnan(weightn[i])) || (std::isnan(offsetn[i])) ||
-        (idn[i] == NA_INTEGER)) {
+        (std::isnan(tstartn[i])) || (std::isnan(tstopn[i])) || 
+        (eventn[i] == NA_INTEGER) || (std::isnan(weightn[i])) || 
+        (std::isnan(offsetn[i])) || (idn[i] == NA_INTEGER)) {
       sub[i] = 0;
     }
     for (j=0; j<p; j++) {
@@ -7062,14 +7074,15 @@ List phregcpp(const DataFrame data,
   order = which(sub);
   repn = repn[order];
   stratumn = stratumn[order];
-  timen = timen[order];
-  time2n = time2n[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
   eventn = eventn[order];
   weightn = weightn[order];
   offsetn = offsetn[order];
   idn = idn[order];
   if (p > 0) zn = subset_matrix_by_row(zn, order);
   n = sum(sub);
+  if (n == 0) stop("no observations without missing values");
   
   // identify the locations of the unique values of rep
   IntegerVector idx(1,0);
@@ -7116,8 +7129,8 @@ List phregcpp(const DataFrame data,
     int n1 = static_cast<int>(q1.size());
     
     IntegerVector stratum1 = stratumn[q1];
-    NumericVector time1 = timen[q1];
-    NumericVector time21 = time2n[q1];
+    NumericVector tstart1 = tstartn[q1];
+    NumericVector tstop1 = tstopn[q1];
     IntegerVector event1 = eventn[q1];
     NumericVector weight1 = weightn[q1];
     NumericVector offset1 = offsetn[q1];
@@ -7180,15 +7193,6 @@ List phregcpp(const DataFrame data,
       continue;
     }
     
-    // unify right censored data with counting process data
-    NumericVector tstart(n1), tstop(n1);
-    if (!has_time2) {
-      tstop = time1;
-    } else {
-      tstart = time1;
-      tstop = time21;
-    }
-    
     // sort by stratum
     IntegerVector order0 = seq(0, n1-1);
     std::sort(order0.begin(), order0.end(), [&](int i, int j) {
@@ -7196,8 +7200,8 @@ List phregcpp(const DataFrame data,
     });
     
     IntegerVector stratum1z = stratum1[order0];
-    NumericVector tstartz = tstart[order0];
-    NumericVector tstopz = tstop[order0];
+    NumericVector tstartz = tstart1[order0];
+    NumericVector tstopz = tstop1[order0];
     IntegerVector event1z = event1[order0];
     
     // locate the first observation within each stratum
@@ -7221,8 +7225,8 @@ List phregcpp(const DataFrame data,
       NumericVector etime = tstop0[event0==1];
       etime = unique(etime);
       etime.sort();
-      IntegerVector index1 = findInterval3(tstart0, etime);
-      IntegerVector index2 = findInterval3(tstop0, etime);
+      IntegerVector index1 = findInterval3(tstart0, etime, 0, 0, 0);
+      IntegerVector index2 = findInterval3(tstop0, etime, 0, 0, 0);
       for (j=istratum[i]; j<istratum[i+1]; j++) {
         int j0 = j-istratum[i];
         if (index1[j0] == index2[j0]) {
@@ -7246,14 +7250,14 @@ List phregcpp(const DataFrame data,
       return (ignore1[i] < ignore1[j]) ||
         ((ignore1[i] == ignore1[j]) && (stratum1[i] < stratum1[j])) ||
         ((ignore1[i] == ignore1[j]) && (stratum1[i] == stratum1[j]) &&
-        (tstop[i] > tstop[j])) ||
+        (tstop1[i] > tstop1[j])) ||
         ((ignore1[i] == ignore1[j]) && (stratum1[i] == stratum1[j]) &&
-        (tstop[i] == tstop[j]) && (event1[i] < event1[j]));
+        (tstop1[i] == tstop1[j]) && (event1[i] < event1[j]));
     });
     
     IntegerVector stratum1a = stratum1[order2];
-    NumericVector tstarta = tstart[order2];
-    NumericVector tstopa = tstop[order2];
+    NumericVector tstarta = tstart1[order2];
+    NumericVector tstopa = tstop1[order2];
     IntegerVector event1a = event1[order2];
     NumericVector weight1a = weight1[order2];
     NumericVector offset1a = offset1[order2];
@@ -7284,12 +7288,12 @@ List phregcpp(const DataFrame data,
     IntegerVector order2x = seq(0, n1-1);
     std::sort(order2x.begin(), order2x.end(), [&](int i, int j) {
       return (stratum1[i] > stratum1[j]) ||
-        ((stratum1[i] == stratum1[j]) && (tstop[i] > tstop[j]));
+        ((stratum1[i] == stratum1[j]) && (tstop1[i] > tstop1[j]));
     });
     
     IntegerVector stratum1x = stratum1[order2x];
-    NumericVector tstartx = tstart[order2x];
-    NumericVector tstopx = tstop[order2x];
+    NumericVector tstartx = tstart1[order2x];
+    NumericVector tstopx = tstop1[order2x];
     IntegerVector event1x = event1[order2x];
     NumericVector weight1x = weight1[order2x];
     NumericVector offset1x = offset1[order2x];
@@ -7933,14 +7937,7 @@ DataFrame survfit_phregcpp(const int p,
       stop("incorrect type for the id variable in newdata");
     }
   }
-  
-  NumericVector risk(n);
-  NumericVector zbeta = clone(offsetn);
-  for (j=0; j<p; j++) {
-    zbeta = zbeta + beta[j]*zn(_,j);
-  }
-  risk = exp(zbeta);
-  
+
   // unify right-censoring data with counting process data
   NumericVector tstartn(n), tstopn(n);
   if (!has_id) { // right-censored data
@@ -7977,9 +7974,40 @@ DataFrame survfit_phregcpp(const int p,
   
   idn = idn[order];
   stratumn = stratumn[order];
+  tstartn = tstartn[order];
   tstopn = tstopn[order];
-  risk = risk[order];
-  zn = subset_matrix_by_row(zn, order);
+  offsetn = offsetn[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((stratumn[i] == NA_INTEGER) || (std::isnan(offsetn[i])) || 
+        (idn[i] == NA_INTEGER) || (std::isnan(tstartn[i])) || 
+        (std::isnan(tstopn[i]))) {
+      sub[i] = 0;
+    }
+    for (j=0; j<p; j++) {
+      if (std::isnan(zn(i,j))) sub[i] = 0;
+    }
+  }
+  
+  order = which(sub);
+  stratumn = stratumn[order];
+  offsetn = offsetn[order];
+  idn = idn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+  
+  // risk score
+  NumericVector zbeta = clone(offsetn);
+  for (j=0; j<p; j++) {
+    zbeta = zbeta + beta[j]*zn(_,j);
+  }
+  NumericVector risk = exp(zbeta);
   
   // count number of observations for each id
   IntegerVector idx(1,0);
@@ -7992,34 +8020,13 @@ DataFrame survfit_phregcpp(const int p,
   int nids = static_cast<int>(idx.size());
   idx.push_back(n);
   
-  int m = 0;
-  for (h=0; h<nids; h++) {
-    IntegerVector q1 = Range(idx[h], idx[h+1]-1);
-    int n1 = static_cast<int>(q1.size());
-    IntegerVector stratum1 = stratumn[q1];
-    NumericVector tstop1 = tstopn[q1];
-    
-    // match the stratum in basehaz
-    IntegerVector idx1 = which(stratumn0 == stratum1[0]);
-    NumericVector time1 = time0[idx1];
-    
-    // left-open and right-closed intervals containing the event time
-    // this is to obtain the value of time-dependent covariates
-    IntegerVector idx2 = rev(n1 - findInterval3(rev(-time1), rev(-tstop1)));
-    int m1 = max(which(idx2 < n1));
-    
-    if (m1 != NA_INTEGER) {
-      m1 = m1 + 1;
-      m += m1;
-    }
-  }
-  
-  NumericVector time(m);
-  NumericVector nrisk(m), nevent(m), ncensor(m);
-  NumericVector cumhaz(m), vcumhaz(m), secumhaz(m);
-  IntegerVector strata(m);
-  NumericMatrix z(m,p);
-  IntegerVector ids(m);
+  int N = nids*n0; // upper bound on the number of rows in the output
+  NumericVector time(N);
+  NumericVector nrisk(N), nevent(N), ncensor(N);
+  NumericVector cumhaz(N), vcumhaz(N), secumhaz(N);
+  IntegerVector strata(N);
+  NumericMatrix z(N,p);
+  IntegerVector ids(N);
   
   // process by id
   int l = 0;
@@ -8029,25 +8036,31 @@ DataFrame survfit_phregcpp(const int p,
     
     IntegerVector id1 = idn[q1];
     IntegerVector stratum1 = stratumn[q1];
+    NumericVector tstart1 = tstartn[q1];
     NumericVector tstop1 = tstopn[q1];
     NumericVector risk1 = risk[q1];
     NumericMatrix z1 = subset_matrix_by_row(zn, q1);
+    tstop1.push_front(tstart1[0]);
     
     // match the stratum in basehaz
     IntegerVector idx1 = which(stratumn0 == stratum1[0]);
-    NumericVector time1 = time0[idx1];
-    NumericVector nrisk1 = nrisk0[idx1];
-    NumericVector nevent1 = nevent0[idx1];
-    NumericVector ncensor1 = ncensor0[idx1];
-    
+    NumericVector time01 = time0[idx1];
+
     // left-open and right-closed intervals containing the event time
-    IntegerVector idx2 = rev(n1 - findInterval3(rev(-time1), rev(-tstop1)));
-    int m1 = max(which(idx2 < n1));
+    IntegerVector idx2 = findInterval3(time01, tstop1, 0, 0, 1);
+    IntegerVector sub = which((idx2 >= 1) & (idx2 <= n1));
+    int m1 = sub.size();
     
-    if (m1 != NA_INTEGER) {
-      m1 = m1 + 1;
-      IntegerVector idx3 = idx1[Range(0, m1-1)];
+    if (m1 != 0) {
+      IntegerVector idx3 = idx1[sub];
+      NumericVector time1 = time0[idx3];
+      NumericVector nrisk1 = nrisk0[idx3];
+      NumericVector nevent1 = nevent0[idx3];
+      NumericVector ncensor1 = ncensor0[idx3];
       NumericVector haz1 = haz0[idx3];
+      
+      IntegerVector idx4 = idx2[sub];
+      idx4 = idx4 - 1; // change to 0-1 indexing
       
       // cumulative hazards
       for (i=0; i<m1; i++) {
@@ -8056,7 +8069,7 @@ DataFrame survfit_phregcpp(const int p,
         nevent[l+i] = nevent1[i];
         ncensor[l+i] = ncensor1[i];
         
-        k = idx2[i];
+        k = idx4[i];
         ids[l+i] = id1[k];
         strata[l+i] = stratum1[k];
         for (j=0; j<p; j++) {
@@ -8082,7 +8095,7 @@ DataFrame survfit_phregcpp(const int p,
         NumericMatrix a(m1,p);
         for (j=0; j<p; j++) {
           for (i=0; i<m1; i++) {
-            k = idx2[i];
+            k = idx4[i];
             if (i==0) {
               a(i,j) = (haz1[i]*z1(k,j) - ghaz1(i,j))*risk1[k];
             } else {
@@ -8093,7 +8106,7 @@ DataFrame survfit_phregcpp(const int p,
         
         // calculate the first component of variance
         for (i=0; i<m1; i++) {
-          k = idx2[i];
+          k = idx4[i];
           if (i==0) {
             vcumhaz[l+i] = vhaz1[i]*risk1[k]*risk1[k];
           } else {
@@ -8116,6 +8129,17 @@ DataFrame survfit_phregcpp(const int p,
     }
   }
   
+  IntegerVector sub2 = Range(0,l-1);
+  time = time[sub2];
+  nrisk = nrisk[sub2];
+  nevent = nevent[sub2];
+  ncensor = ncensor[sub2];
+  cumhaz = cumhaz[sub2];
+  secumhaz = secumhaz[sub2];
+  strata = strata[sub2];
+  z = subset_matrix_by_row(z, sub2);
+  ids = ids[sub2];
+  
   NumericVector surv = exp(-cumhaz);
   
   DataFrame result = DataFrame::create(
@@ -8129,8 +8153,8 @@ DataFrame survfit_phregcpp(const int p,
   if (sefit) {
     NumericVector sesurv = surv*secumhaz;
     
-    NumericVector lower(m), upper(m);
-    for (i=0; i<m; i++) {
+    NumericVector lower(l), upper(l);
+    for (i=0; i<l; i++) {
       NumericVector ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
       lower[i] = ci[0];
       upper[i] = ci[1];
@@ -8310,13 +8334,39 @@ List residuals_phregcpp(const int p,
   int method = meth == "efron" ? 1 : 0;
   
   // unify right censored data with counting process data
-  NumericVector tstart(n), tstop(n);
+  NumericVector tstartn(n), tstopn(n);
   if (!has_time2) {
-    tstop = timen;
+    tstopn = timen;
   } else {
-    tstart = timen;
-    tstop = time2n;
+    tstartn = timen;
+    tstopn = time2n;
   }
+  
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((stratumn[i] == NA_INTEGER) || (std::isnan(tstartn[i])) || 
+        (std::isnan(tstopn[i])) || (eventn[i] == NA_INTEGER) || 
+        (std::isnan(weightn[i])) || (std::isnan(offsetn[i])) || 
+        (idn[i] == NA_INTEGER)) {
+      sub[i] = 0;
+    }
+    for (j=0; j<p; j++) {
+      if (std::isnan(zn(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  stratumn = stratumn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  eventn = eventn[order];
+  weightn = weightn[order];
+  offsetn = offsetn[order];
+  idn = idn[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
   
   // sort by stratum
   IntegerVector order0 = seq(0, n-1);
@@ -8325,8 +8375,8 @@ List residuals_phregcpp(const int p,
   });
   
   IntegerVector stratum1z = stratumn[order0];
-  NumericVector tstartz = tstart[order0];
-  NumericVector tstopz = tstop[order0];
+  NumericVector tstartz = tstartn[order0];
+  NumericVector tstopz = tstopn[order0];
   IntegerVector event1z = eventn[order0];
   
   // locate the first observation within each stratum
@@ -8350,8 +8400,8 @@ List residuals_phregcpp(const int p,
     NumericVector etime = tstop0[event0==1];
     etime = unique(etime);
     etime.sort();
-    IntegerVector index1 = findInterval3(tstart0, etime);
-    IntegerVector index2 = findInterval3(tstop0, etime);
+    IntegerVector index1 = findInterval3(tstart0, etime, 0, 0, 0);
+    IntegerVector index2 = findInterval3(tstop0, etime, 0, 0, 0);
     for (j=istratum[i]; j<istratum[i+1]; j++) {
       int j0 = j-istratum[i];
       if (index1[j0] == index2[j0]) {
@@ -8369,7 +8419,7 @@ List residuals_phregcpp(const int p,
   
   int nused = n - sum(ignore);
   
-  IntegerVector order = seq(0, n-1);
+  order = seq(0, n-1);
   IntegerVector idx(1,0);
   int nids = n;
   if (has_id) { // collapse over id
@@ -8452,14 +8502,14 @@ List residuals_phregcpp(const int p,
         return (ignore[i] < ignore[j]) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] < stratumn[j])) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
-          (tstop[i] > tstop[j])) ||
+          (tstopn[i] > tstopn[j])) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
-          (tstop[i] == tstop[j]) && (eventn[i] < eventn[j]));
+          (tstopn[i] == tstopn[j]) && (eventn[i] < eventn[j]));
       });
       
       IntegerVector stratum1 = stratumn[order2];
-      NumericVector tstart1 = tstart[order2];
-      NumericVector tstop1 = tstop[order2];
+      NumericVector tstart1 = tstartn[order2];
+      NumericVector tstop1 = tstopn[order2];
       IntegerVector event1 = eventn[order2];
       NumericVector weight1 = weightn[order2];
       NumericVector offset1 = offsetn[order2];
@@ -8530,17 +8580,17 @@ List residuals_phregcpp(const int p,
         return (ignore[i] < ignore[j]) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] > stratumn[j])) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
-          (tstop[i] > tstop[j])) ||
+          (tstopn[i] > tstopn[j])) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
-          (tstop[i] == tstop[j]) && (eventn[i] < eventn[j])) ||
+          (tstopn[i] == tstopn[j]) && (eventn[i] < eventn[j])) ||
           ((ignore[i] == ignore[j]) && (stratumn[i] == stratumn[j]) &&
-          (tstop[i] == tstop[j]) && (eventn[i] == eventn[j]) &&
+          (tstopn[i] == tstopn[j]) && (eventn[i] == eventn[j]) &&
           (idn[i] > idn[j]));
       });
       
       IntegerVector stratum1 = stratumn[order2];
-      NumericVector tstart1 = tstart[order2];
-      NumericVector tstop1 = tstop[order2];
+      NumericVector tstart1 = tstartn[order2];
+      NumericVector tstop1 = tstopn[order2];
       IntegerVector event1 = eventn[order2];
       NumericVector weight1 = weightn[order2];
       NumericVector offset1 = offsetn[order2];
