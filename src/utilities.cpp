@@ -34,6 +34,15 @@ IntegerVector which(const LogicalVector& vector) {
 //'
 //' @param x The numeric vector of interest.
 //' @param v The vector of break points.
+//' @param rightmost_closed Logical; if true, the rightmost interval, 
+//'   `vec[N-1] .. vec[N]` is treated as closed if `left_open` is false, 
+//'   and the leftmost interval, `vec[1] .. vec[2]` is treated as 
+//'   closed if left_open is true.
+//' @param all_inside Logical; if true, the returned indices are coerced
+//'   into `1, ..., N-1`, i.e., `0` is mapped to `1` and 
+//'   `N` is mapped to `N-1`.
+//' @param left_open Logical; if true, all intervals are open at left and 
+//'   closedat right. This may be useful, .e.g., in survival analysis.   
 //' @return A vector of \code{length(x)} with values in \code{0:N} where
 //'   \code{N = length(v)}.
 //'
@@ -48,20 +57,54 @@ IntegerVector which(const LogicalVector& vector) {
 //'
 //' @export
 // [[Rcpp::export]]
-IntegerVector findInterval3(NumericVector x, NumericVector v) {
+IntegerVector findInterval3(NumericVector x, NumericVector v, 
+                            bool rightmost_closed = 0, bool all_inside = 0, 
+                            bool left_open = 0) {
   IntegerVector out(x.size());
-
+  
   NumericVector::iterator it, pos;
   IntegerVector::iterator out_it;
-
+  
   NumericVector::iterator x_begin=x.begin(), x_end=x.end();
   NumericVector::iterator v_begin=v.begin(), v_end=v.end();
-
+  
+  int nv = v.size();
+  
   for(it = x_begin, out_it = out.begin(); it != x_end; ++it, ++out_it) {
-    pos = std::upper_bound(v_begin, v_end, *it);
-    *out_it = static_cast<int>(std::distance(v_begin, pos));
+    // Handle NA in x
+    if (NumericVector::is_na(*it)) {
+      *out_it = NA_INTEGER;
+      continue;
+    }
+    
+    // Choose bound depending on left_open
+    if (left_open) {
+      pos = std::lower_bound(v_begin, v_end, *it);
+    } else {
+      pos = std::upper_bound(v_begin, v_end, *it);
+    }
+    
+    int idx = static_cast<int>(std::distance(v_begin, pos));
+    
+    if (rightmost_closed) {
+      if (left_open) {
+        if (*it == v[0]) idx = 1;
+      } else {
+        if (*it == v[nv-1]) idx = nv-1;
+      }
+    }
+    
+    if (all_inside) {
+      if (idx == 0) {
+        idx = 1;
+      } else if (idx == nv) {
+        idx = nv-1;
+      }
+    }
+    
+    *out_it = idx;
   }
-
+  
   return out;
 }
 
