@@ -178,6 +178,7 @@
 #'   \item{\code{STRAT2V}}{stratification factor 2: inv. chosen chemotherapy}
 #'   \item{\code{RANDDT}}{randomization date}
 #'   \item{\code{TRT01P}}{planned treatment: Active or Placebo}
+#'   \item{\code{TRTSDT}}{treatment start date}
 #'   \item{\code{PDDT}}{date of disease progression}
 #'   \item{\code{XODT}}{date of treatment crossover}
 #'   \item{\code{OSDT}}{date of death or censoring}
