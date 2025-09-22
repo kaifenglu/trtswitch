@@ -151,7 +151,6 @@ List tsegestcpp(
   
   int p2 = static_cast<int>(conf_cov.size());
   if (p2 == 1 && (conf_cov[0] == "" || conf_cov[0] == "none")) p2 = 0;
-  
 
   bool has_id = hasVariable(data, id);
   bool has_tstart = hasVariable(data, tstart);
