@@ -10,7 +10,9 @@ void set_seed(int seed);
 
 IntegerVector which(const LogicalVector& vector);
 
-IntegerVector findInterval3(NumericVector x, NumericVector v);
+IntegerVector findInterval3(NumericVector x, NumericVector v, 
+                            bool rightmost_closed, bool all_inside, 
+                            bool left_open);
 
 double brent(const std::function<double(double)>& f,
              double x1, double x2, double tol);
