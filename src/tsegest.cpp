@@ -18,7 +18,6 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
                      bool recensor, double alpha, 
                      std::string ties, double offset, double psi) {
   
-  int i, j; 
   NumericVector init(1, NA_REAL);
   
   double a = exp(psi);
@@ -27,7 +26,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   // counterfactual survival times and event indicators
   NumericVector t_star(nids2);
   IntegerVector d_star(nids2);
-  for (i=0; i<nids2; i++) {
+  for (int i=0; i<nids2; i++) {
     double b2, u_star, c_star;
     if (swtrtn3[i] == 1) {
       b2 = swtrt_timen3[i] - offset;
@@ -61,8 +60,8 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   // replicate counterfactual residuals within subjects
   NumericVector resid3 = fit1["residuals"];
   NumericVector resid(n2);
-  for (i=0; i<nids2; i++) {
-    for (j=idx2[i]; j<idx2[i+1]; j++) {
+  for (int i=0; i<nids2; i++) {
+    for (int j=idx2[i]; j<idx2[i+1]; j++) {
       resid[j] = resid3[i];
     }
   }
@@ -75,12 +74,12 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
     Named("cross") = y,
     Named("counterfactual") = resid);
   
-  for (j=0; j<q+p2; j++) {
+  for (int j=0; j<q+p2; j++) {
     String zj = covariates_lgs[j+1];
     NumericVector u = zn_lgs2(_,j);
     data2.push_back(u,zj);
   }
-  for (j=0; j<ns_df; j++) {
+  for (int j=0; j<ns_df; j++) {
     String zj = covariates_lgs[q+p2+1+j];
     NumericVector u = ns(_,j);
     data2.push_back(u,zj);
@@ -153,6 +152,7 @@ List tsegestcpp(
   int p2 = static_cast<int>(conf_cov.size());
   if (p2 == 1 && (conf_cov[0] == "" || conf_cov[0] == "none")) p2 = 0;
   
+
   bool has_id = hasVariable(data, id);
   bool has_tstart = hasVariable(data, tstart);
   bool has_tstop = hasVariable(data, tstop);
@@ -373,8 +373,11 @@ List tsegestcpp(
   NumericVector pd_timenz = data[pd_time];
   NumericVector pd_timen = clone(pd_timenz);
   for (i=0; i<n; i++) {
+    if (pdn[i] == 1 && std::isnan(pd_timen[i])) {
+      stop("pd_time must not be missing when pd=1");
+    }
     if (pdn[i] == 1 && pd_timen[i] < 0.0) {
-      stop("pd_time must be nonnegative");  
+      stop("pd_time must be nonnegative when pd=1");
     }
   }
   
@@ -424,8 +427,11 @@ List tsegestcpp(
   NumericVector swtrt_timenz = data[swtrt_time];
   NumericVector swtrt_timen = clone(swtrt_timenz);
   for (i=0; i<n; i++) {
+    if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
+      stop("swtrt_time must not be missing when swtrt=1");
+    }
     if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
-      stop("swtrt_time must be nonnegative");
+      stop("swtrt_time must be nonnegative when swtrt=1");
     }
   }
   
@@ -576,6 +582,42 @@ List tsegestcpp(
   }
   
   
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (i=0; i<n; i++) {
+    if ((idn[i] == NA_INTEGER) || (stratumn[i] == NA_INTEGER) || 
+        (std::isnan(tstartn[i])) || (std::isnan(tstopn[i])) || 
+        (eventn[i] == NA_INTEGER) || (treatn[i] == NA_INTEGER) || 
+        (std::isnan(censor_timen[i])) || (pdn[i] == NA_INTEGER) ||
+        (swtrtn[i] == NA_INTEGER)) {
+      sub[i] = 0;
+    }
+    for (j=0; j<p; j++) {
+      if (std::isnan(zn(i,j))) sub[i] = 0;
+    }
+    for (j=0; j<q+p2; j++) {
+      if (std::isnan(zn_lgs(i,j))) sub[i] = 0;
+    }
+  }
+  
+  IntegerVector order = which(sub);
+  idn = idn[order];
+  stratumn = stratumn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  eventn = eventn[order];
+  treatn = treatn[order];
+  censor_timen = censor_timen[order];
+  pdn = pdn[order];
+  pd_timen = pd_timen[order];
+  swtrtn = swtrtn[order];
+  swtrt_timen = swtrt_timen[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  zn_lgs = subset_matrix_by_row(zn_lgs, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+  
+  
   // split at treatment switching into two observations if treatment 
   // switching occurs strictly between tstart and tstop for a subject
   LogicalVector tosplit(n);
@@ -624,26 +666,15 @@ List tsegestcpp(
   }
   
   
-  // sort data by treatment group, stratum, id, and time
-  IntegerVector order = seq(0, n-1);
-  if (has_stratum) {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
-              (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
-    });
-  } else {
-    std::sort(order.begin(), order.end(), [&](int i, int j) {
-      return ((treatn[i] < treatn[j]) ||
-              ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
-              ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
-              (tstopn[i] < tstopn[j])));
-    });
-  }
-
+  // sort data by treatment group, id, and time
+  order = seq(0, n-1);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    return ((treatn[i] < treatn[j]) ||
+            ((treatn[i] == treatn[j]) && (idn[i] < idn[j])) ||
+            ((treatn[i] == treatn[j]) && (idn[i] == idn[j]) && 
+            (tstopn[i] < tstopn[j])));
+  });
+  
   idn = idn[order];
   stratumn = stratumn[order];
   tstartn = tstartn[order];
@@ -1341,6 +1372,33 @@ List tsegestcpp(
       NumericVector pd_timec(B), swtrt_timec(B);
       NumericMatrix zc_lgs(B, q+p2);
       int index1 = 0;
+      
+      if (has_stratum) {
+        // sort data by treatment group, stratum, id, and time
+        IntegerVector order = seq(0, n-1);
+        std::sort(order.begin(), order.end(), [&](int i, int j) {
+          return ((treatn[i] < treatn[j]) ||
+                  ((treatn[i] == treatn[j]) && (stratumn[i] < stratumn[j])) ||
+                  ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                  (idn[i] < idn[j])) ||
+                  ((treatn[i] == treatn[j]) && (stratumn[i] == stratumn[j]) &&
+                  (idn[i] == idn[j]) && (tstopn[i] < tstopn[j])));
+        });
+        
+        idn = idn[order];
+        stratumn = stratumn[order];
+        tstartn = tstartn[order];
+        tstopn = tstopn[order];
+        eventn = eventn[order];
+        treatn = treatn[order];
+        censor_timen = censor_timen[order];
+        pdn = pdn[order];
+        pd_timen = pd_timen[order];
+        swtrtn = swtrtn[order];
+        swtrt_timen = swtrt_timen[order];
+        zn = subset_matrix_by_row(zn, order);
+        zn_lgs = subset_matrix_by_row(zn_lgs, order);
+      }
       
       IntegerVector tsx(1,0); // first id within each treat/stratum
       for (i=1; i<nids; i++) {
