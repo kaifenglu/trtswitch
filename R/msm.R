@@ -249,7 +249,7 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
                 stabilized_weights = TRUE, 
                 trunc = 0, trunc_upper_only = TRUE,
                 swtrt_control_only = TRUE, 
-                treat_alt_interaction = FALSE,
+                treat_alt_interaction = TRUE,
                 alpha = 0.05, ties = "efron", 
                 boot = FALSE, n_boot = 1000, seed = NA) {
   
