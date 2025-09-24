@@ -1,16 +1,17 @@
 # trtswitch 0.2.0
 
-- added msm to package description
-- added the plannedTime argument to tssim function so that followupTime only refers to the follow-up time in a fixed follow-up design
-- removed the getAccrualDurationFromN function from utilities
+- added MSM to package description
+- added the plannedTime argument to the tssim function so that followupTime only refers to the follow-up time in a fixed follow-up design
+- removed the getAccrualDurationFromN utility function
 - changed the default value of the boot parameter to FALSE for ipcw and msm
 - added the ns_df parameter to the tsegest function
 - added the preptdc function to prepare survival data with time-dependent covariates
 - expanded the findInterval3 function definition to mimic R's findInterval() behavior with rightmost_closed, all_inside, and left_open options
-- updated survfit_phregr function to only include time points between first tstart and last tstop for each subject with counting process style of input
-- added the exclusion of observations with missing values for survfit_phregr and residuals_phregr functions
-- added the exclusion of observations with missing values for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm functions
+- updated the survfit_phregr function to only include time points between the first tstart and the last tstop for each subject with counting process style of input
+- added the exclusion of observations with missing values for survfit_phregr and residuals_phregr
+- added the exclusion of observations with missing values for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 - changed to sort the input data by treatment, ID, and time variables for IPCW, MSM, and TSEgest, and by treatment, stratum, ID, and time variables for bootstrap samples
+- changed the default value of treat_alt_interaction from FALSE to TRUE for MSM
 
 # trtswitch 0.1.9
 
