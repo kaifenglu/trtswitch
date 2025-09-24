@@ -27,7 +27,7 @@ List msmcpp(
     const double trunc = 0,
     const bool trunc_upper_only = 1,
     const bool swtrt_control_only = 1,
-    const bool treat_alt_interaction = 0,
+    const bool treat_alt_interaction = 1,
     const double alpha = 0.05,
     const std::string ties = "efron",
     const bool boot = 0,
