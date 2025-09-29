@@ -975,7 +975,7 @@ double getpsiest(const double target, const NumericVector& psi,
   
   int ilo = 0;
   for (i=0; i<n; ++i) {
-    if (!std::isnan(Z[i]) && Z[i] >= target) {
+    if (!std::isinf(Z[i]) && Z[i] >= target) {
       psilo = psi[i];
       ilo = i;
     }
@@ -983,7 +983,7 @@ double getpsiest(const double target, const NumericVector& psi,
   
   int ihi = n-1;
   for (i=n-1; i>=0; --i) {
-    if (!std::isnan(Z[i]) && Z[i] <= target) {
+    if (!std::isinf(Z[i]) && Z[i] <= target) {
       psihi = psi[i];
       ihi = i;
     }
@@ -1005,8 +1005,8 @@ double getpsiend(const std::function<double(double)>& f,
   double psiend = initialend;
   double zend = f(psiend);
   if (lowerend) {
-    if (std::isnan(zend)) {
-      while (std::isnan(zend) && psiend <= 10) {
+    if (std::isinf(zend) && zend > 0) {
+      while (std::isinf(zend) && zend > 0 && psiend <= 10) {
         psiend = psiend + 1;
         zend = f(psiend);
       }
@@ -1016,17 +1016,17 @@ double getpsiend(const std::function<double(double)>& f,
     }
     
     if (zend < 0) {
-      while (!std::isnan(zend) && zend < 0 && psiend >= -10) {
+      while (!std::isinf(zend) && zend < 0 && psiend >= -10) {
         psiend = psiend - 1;
         zend = f(psiend);
       }
-      if (std::isnan(zend) || psiend < -10) {
+      if (std::isinf(zend) || psiend < -10) {
         psiend = NA_REAL;
       }
     }
   } else { // upper end
-    if (std::isnan(zend)) {
-      while (std::isnan(zend) && psiend >= -10) {
+    if (std::isinf(zend) && zend < 0) {
+      while (std::isinf(zend) && zend < 0 && psiend >= -10) {
         psiend = psiend - 1;
         zend = f(psiend);
       }
@@ -1036,11 +1036,11 @@ double getpsiend(const std::function<double(double)>& f,
     }
     
     if (zend > 0) {
-      while (!std::isnan(zend) && zend > 0 && psiend <= 10) {
+      while (!std::isinf(zend) && zend > 0 && psiend <= 10) {
         psiend = psiend + 1;
         zend = f(psiend);
       }
-      if (std::isnan(zend) || psiend > 10) {
+      if (std::isinf(zend) || psiend > 10) {
         psiend = NA_REAL;
       }
     }
