@@ -16,11 +16,11 @@ testthat::test_that("ipcw: pooled logistic regression switching model", {
     n = 500, NSim = 100, seed = 314159)
   
   data1 <- sim1[[1]] %>% 
-    mutate(ostime = timeOS, event = Y)
+    mutate(ostime = timeOS)
   
   fit1 <- ipcw(
     data1, id = "id", tstart = "tstart", 
-    tstop = "tstop", event = "Y", treat = "trtrand", 
+    tstop = "tstop", event = "event", treat = "trtrand", 
     swtrt = "xo", swtrt_time = "xotime", 
     base_cov = "bprog", numerator = "bprog", 
     denominator = c("bprog", "L"),

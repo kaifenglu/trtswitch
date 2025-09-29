@@ -17,11 +17,11 @@ testthat::test_that("msm: pooled logistic regression switching model", {
     n = 500, NSim = 100, seed = 314159)
   
   data1 <- sim1[[1]] %>% 
-    mutate(os = died, ostime = timeOS, event = Y)
+    mutate(os = died, ostime = timeOS)
   
   fit1 <- msm(
     data1, id = "id", tstart = "tstart", 
-    tstop = "tstop", event = "Y", treat = "trtrand", 
+    tstop = "tstop", event = "event", treat = "trtrand", 
     swtrt = "xo", swtrt_time = "xotime", 
     base_cov = "bprog", numerator = "bprog", 
     denominator = c("bprog", "L"), 

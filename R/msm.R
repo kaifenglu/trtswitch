@@ -231,7 +231,7 @@
 #' 
 #' fit1 <- msm(
 #'   sim1[[1]], id = "id", tstart = "tstart", 
-#'   tstop = "tstop", event = "Y", treat = "trtrand", 
+#'   tstop = "tstop", event = "event", treat = "trtrand", 
 #'   swtrt = "xo", swtrt_time = "xotime", 
 #'   base_cov = "bprog", numerator = "bprog", 
 #'   denominator = c("bprog", "L"), 
