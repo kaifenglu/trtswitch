@@ -803,7 +803,7 @@ List ipcwcpp(
                       NumericVector beta_num(p10);
                       NumericMatrix vbeta_num(p10,p10);
                       if (p1 > 0) {
-                        DataFrame sumstat_num = DataFrame(fit_num["sumstat"]);
+                        DataFrame sumstat_num= DataFrame(fit_num["sumstat"]);
                         bool fail_num = sumstat_num["fail"];
                         if (fail_num == 1) fail = 1;
                         
@@ -959,7 +959,7 @@ List ipcwcpp(
                     // fit the switching models by treatment group
                     for (int h=0; h<K; h++) {
                       LogicalVector c2 = ifelse(
-                        swtrt1 == 1, tstart1 < swtrt_time1, tstop1 < os_time1);
+                        swtrt1 == 1, tstart1 < swtrt_time1, tstop1<os_time1);
                       IntegerVector l = which(c2 & (treat1 == h));
                       IntegerVector id2 = id1[l];
                       IntegerVector stratum2 = stratum1[l];
