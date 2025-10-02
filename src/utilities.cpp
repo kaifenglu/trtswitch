@@ -188,6 +188,45 @@ double brent(const std::function<double(double)>& f,
 }
 
 
+double bisect(const std::function<double(double)>& f,
+              double x1, double x2, double tol) {
+  double f1 = f(x1);
+  double f2 = f(x2);
+  
+  if (f1 * f2 >= 0.0) {
+    Rcpp::stop("Root must be bracketed in bisect");
+  }
+  
+  // rtb will hold the endpoint where f is negative
+  // dx is the signed interval width
+  double rtb, dx;
+  if (f1 < 0.0) {
+    dx  = x2 - x1;
+    rtb = x1;
+  } else {
+    dx  = x1 - x2;
+    rtb = x2;
+  }
+  
+  for (int j = 1; j <= ITMAX; j++) {
+    dx *= 0.5;
+    double xmid = rtb + dx;
+    double fmid = f(xmid);
+    
+    if (fmid <= 0.0) {
+      rtb = xmid;
+    }
+    
+    if (std::fabs(dx) < tol || fmid == 0.0) {
+      return rtb;
+    }
+  }
+  
+  Rcpp::stop("Maximum number of iterations exceeded in bisect");
+  return 0.0; // never reached
+}
+
+
 // [[Rcpp::export]]
 bool hasVariable(DataFrame df, std::string varName) {
   StringVector names = df.names();

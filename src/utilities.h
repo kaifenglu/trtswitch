@@ -17,6 +17,9 @@ IntegerVector findInterval3(NumericVector x, NumericVector v,
 double brent(const std::function<double(double)>& f,
              double x1, double x2, double tol);
 
+double bisect(const std::function<double(double)>& f,
+              double x1, double x2, double tol);
+
 bool hasVariable(DataFrame df, std::string varName);
 
 double quantilecpp(const NumericVector& x, const double p);
