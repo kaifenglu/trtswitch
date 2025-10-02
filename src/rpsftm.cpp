@@ -51,9 +51,13 @@ double est_psi_rpsftm(
       covariates, "", "", "", ties, init, 
       0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
     
-    DataFrame parest = DataFrame(fit["parest"]);
-    NumericVector zs = parest["z"];
-    z = zs[0];
+    DataFrame sumstat = DataFrame(fit["sumstat"]);
+    bool fail = sumstat["fail"];
+    if (!fail) {
+      DataFrame parest = DataFrame(fit["parest"]);
+      NumericVector zs = parest["z"];
+      z = zs[0];
+    }
   } else if (test == "lifereg") {
     for (int j=0; j<q+p; j++) {
       String zj = covariates_aft[j+1];
@@ -65,9 +69,13 @@ double est_psi_rpsftm(
                           covariates_aft, "", "", "", dist, init, 
                           0, 0, alpha, 50, 1.0e-9);
     
-    DataFrame parest = DataFrame(fit["parest"]);
-    NumericVector zs = parest["z"];
-    z = -zs[1];
+    DataFrame sumstat = DataFrame(fit["sumstat"]);
+    bool fail = sumstat["fail"];
+    if (!fail) {
+      DataFrame parest = DataFrame(fit["parest"]);
+      NumericVector zs = parest["z"];
+      z = -zs[1];
+    }
   }
   
   return z;

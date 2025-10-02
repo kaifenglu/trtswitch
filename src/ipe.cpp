@@ -462,8 +462,13 @@ List ipecpp(const DataFrame data,
                                 dist, treat_modifier, recensor, autoswitch, 
                                 alpha);
                               
-                              double psinew = out_aft["psinew"];
-                              return psinew - psi;
+                              bool fail = out_aft["fail"];
+                              if (!fail) {
+                                double psinew = out_aft["psinew"];
+                                return psinew - psi;
+                              } else {
+                                return NA_REAL;
+                              }
                             };
                   
                   double psihat = NA_REAL;
