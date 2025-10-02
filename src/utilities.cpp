@@ -967,7 +967,6 @@ double qtpwexpcpp1(const double p,
 }
 
 
-// [[Rcpp::export]]
 double getpsiest(const double target, const NumericVector& psi, 
                  const NumericVector& Z) {
   int i, n = static_cast<int>(psi.size());
@@ -976,16 +975,14 @@ double getpsiest(const double target, const NumericVector& psi,
   int ilo = 0;
   for (i=0; i<n; ++i) {
     if (!std::isinf(Z[i]) && Z[i] >= target) {
-      psilo = psi[i];
-      ilo = i;
+      ilo = i; psilo = psi[i];
     }
   }
   
   int ihi = n-1;
   for (i=n-1; i>=0; --i) {
     if (!std::isinf(Z[i]) && Z[i] <= target) {
-      psihi = psi[i];
-      ihi = i;
+      ihi = i; psihi = psi[i];
     }
   }
   
@@ -999,48 +996,44 @@ double getpsiest(const double target, const NumericVector& psi,
 }
 
 
-
 double getpsiend(const std::function<double(double)>& f,
                  const bool lowerend, const double initialend) {
-  double psiend = initialend;
-  double zend = f(psiend);
+  double psiend = initialend, zend = f(initialend);
   if (lowerend) {
-    if (std::isinf(zend) && zend > 0) {
-      while (std::isinf(zend) && zend > 0 && psiend <= 10) {
-        psiend = psiend + 1;
-        zend = f(psiend);
+    if ((std::isinf(zend) && zend > 0) || std::isnan(zend)) {
+      while (((std::isinf(zend) && zend > 0) || std::isnan(zend)) && 
+             psiend <= 10) {
+        psiend = psiend + 1; zend = f(psiend);
       }
       if (psiend > 10) {
-        psiend = NA_REAL;
+        psiend = NA_REAL; zend = NA_REAL;
       }
     }
     
     if (zend < 0) {
       while (!std::isinf(zend) && zend < 0 && psiend >= -10) {
-        psiend = psiend - 1;
-        zend = f(psiend);
+        psiend = psiend - 1; zend = f(psiend);
       }
-      if (std::isinf(zend) || psiend < -10) {
+      if (std::isinf(zend) || std::isnan(zend) || psiend < -10) {
         psiend = NA_REAL;
       }
     }
   } else { // upper end
-    if (std::isinf(zend) && zend < 0) {
-      while (std::isinf(zend) && zend < 0 && psiend >= -10) {
-        psiend = psiend - 1;
-        zend = f(psiend);
+    if ((std::isinf(zend) && zend < 0) || std::isnan(zend)) {
+      while (((std::isinf(zend) && zend < 0) || std::isnan(zend)) && 
+             psiend >= -10) {
+        psiend = psiend - 1; zend = f(psiend);
       }
       if (psiend < -10) {
-        psiend = NA_REAL;
+        psiend = NA_REAL; zend = NA_REAL;
       }
     }
     
     if (zend > 0) {
       while (!std::isinf(zend) && zend > 0 && psiend <= 10) {
-        psiend = psiend + 1;
-        zend = f(psiend);
+        psiend = psiend + 1; zend = f(psiend);
       }
-      if (std::isinf(zend) || psiend > 10) {
+      if (std::isinf(zend) || std::isnan(zend) || psiend > 10) {
         psiend = NA_REAL;
       }
     }
