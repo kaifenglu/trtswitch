@@ -2,6 +2,7 @@
 
 - added MSM to package description
 - added the plannedTime argument to the tssim function so that followupTime only refers to the follow-up time in a fixed follow-up design
+- added an extra record for a subject to the tssim output dataset if the observed survival time exceeds the number of regular treatment cycles times days per cycle
 - removed the getAccrualDurationFromN utility function
 - changed the default value of the boot parameter to FALSE for ipcw and msm
 - added the ns_df parameter to the tsegest function
@@ -12,6 +13,9 @@
 - added the exclusion of observations with missing values for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 - changed to sort the input data by treatment, ID, and time variables for IPCW, MSM, and TSEgest, and by treatment, stratum, ID, and time variables for bootstrap samples
 - changed the default value of treat_alt_interaction from FALSE to TRUE for MSM
+- renamed Y to event for tssim output
+- added the bisect utility function for root finding
+- added the root_finding parameter to rpsftm, ipe, tsegest to allow the user to choose between brent and bisect for root finding
 
 # trtswitch 0.1.9
 
