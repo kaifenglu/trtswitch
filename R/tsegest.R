@@ -81,6 +81,9 @@
 #' @param gridsearch Whether to use grid search to estimate the causal
 #'   parameter \code{psi}. Defaults to \code{FALSE}, in which case, a root
 #'   finding algorithm will be used.
+#' @param root_finding Character string specifying the univariate 
+#'   root-finding algorithm to use. Options are \code{"brent"} (default)
+#'   for Brent's method, or \code{"bisect"} for the bisection method.
 #' @param alpha The significance level to calculate confidence intervals. 
 #'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
@@ -240,6 +243,8 @@
 #'     - \code{gridsearch}: Whether to use grid search to estimate the 
 #'       causal parameter \code{psi}.
 #'       
+#'     - \code{root_finding}: The univariate root-finding algorithm to use.
+#'
 #'     - \code{alpha}: The significance level to calculate confidence
 #'       intervals.
 #'
@@ -330,7 +335,8 @@ tsegest <- function(data, id = "id", stratum = "",
                     strata_main_effect_only = TRUE,
                     firth = FALSE, flic = FALSE, ns_df = 3,
                     recensor = TRUE, admin_recensor_only = TRUE,
-                    swtrt_control_only = TRUE, gridsearch = FALSE, 
+                    swtrt_control_only = TRUE, gridsearch = FALSE,
+                    root_finding = "brent",
                     alpha = 0.05, ties = "efron", tol = 1.0e-6, offset = 1, 
                     boot = TRUE, n_boot = 1000, seed = NA) {
 
@@ -404,6 +410,7 @@ tsegest <- function(data, id = "id", stratum = "",
     firth = firth, flic = flic, ns_df = ns_df,
     recensor = recensor, admin_recensor_only = admin_recensor_only,
     swtrt_control_only = swtrt_control_only, gridsearch = gridsearch, 
+    root_finding = root_finding, 
     alpha = alpha, ties = ties, tol = tol, offset = offset, 
     boot = boot, n_boot = n_boot, seed = seed)
   

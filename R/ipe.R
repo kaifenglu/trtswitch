@@ -50,6 +50,9 @@
 #'   recensoring will be applied to the actual censoring times for dropouts.
 #' @param autoswitch Whether to exclude recensoring for treatment arms
 #'   with no switching. Defaults to \code{TRUE}.
+#' @param root_finding Character string specifying the univariate 
+#'   root-finding algorithm to use. Options are \code{"brent"} (default)
+#'   for Brent's method, or \code{"bisect"} for the bisection method.
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
@@ -156,6 +159,8 @@
 #'     - \code{autoswitch}: Whether to exclude recensoring for treatment 
 #'       arms with no switching.
 #'
+#'     - \code{root_finding}: The univariate root-finding algorithm to use.
+#'     
 #'     - \code{alpha}: The significance level to calculate confidence
 #'       intervals.
 #'
@@ -242,7 +247,8 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
                 low_psi = -2, hi_psi = 2,
                 strata_main_effect_only = 1, treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
-                autoswitch = TRUE, alpha = 0.05, ties = "efron",
+                autoswitch = TRUE, root_finding = "brent",
+                alpha = 0.05, ties = "efron",
                 tol = 1.0e-6, boot = FALSE, n_boot = 1000, seed = NA) {
 
   rownames(data) = NULL
@@ -287,7 +293,8 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     strata_main_effect_only = strata_main_effect_only,
     treat_modifier = treat_modifier, recensor = recensor,
     admin_recensor_only = admin_recensor_only, 
-    autoswitch = autoswitch, alpha = alpha, ties = ties, 
+    autoswitch = autoswitch, root_finding = root_finding,
+    alpha = alpha, ties = ties, 
     tol = tol, boot = boot, n_boot = n_boot, seed = seed)
   
   if (!out$psimissing) {

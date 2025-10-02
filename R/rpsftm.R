@@ -62,6 +62,9 @@
 #' @param gridsearch Whether to use grid search to estimate the causal
 #'   parameter \code{psi}. Defaults to \code{FALSE}, in which case, a root
 #'   finding algorithm will be used.
+#' @param root_finding Character string specifying the univariate 
+#'   root-finding algorithm to use. Options are \code{"brent"} (default)
+#'   for Brent's method, or \code{"bisect"} for the bisection method.
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
@@ -174,6 +177,8 @@
 #'
 #'     - \code{gridsearch}: Whether to use grid search to estimate the 
 #'       causal parameter \code{psi}.
+#'       
+#'     - \code{root_finding}: The univariate root-finding algorithm to use.
 #'
 #'     - \code{alpha}: The significance level to calculate confidence
 #'       intervals.
@@ -262,6 +267,7 @@ rpsftm <- function(data, id = "id", stratum = "",
                    n_eval_z = 101, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = FALSE,
+                   root_finding = "brent",
                    alpha = 0.05, ties = "efron", tol = 1.0e-6,
                    boot = FALSE, n_boot = 1000, seed = NA) {
 
@@ -309,6 +315,7 @@ rpsftm <- function(data, id = "id", stratum = "",
     n_eval_z = n_eval_z, treat_modifier = treat_modifier,
     recensor = recensor, admin_recensor_only = admin_recensor_only,
     autoswitch = autoswitch, gridsearch = gridsearch, 
+    root_finding = root_finding,
     alpha = alpha, ties = ties, tol = tol, 
     boot = boot, n_boot = n_boot, seed = seed)
   
