@@ -103,6 +103,7 @@ List rpsftmcpp(const DataFrame data,
                const bool admin_recensor_only = 1,
                const bool autoswitch = 1,
                const bool gridsearch = 0,
+               const std::string root_finding = "brent",
                const double alpha = 0.05,
                const std::string ties = "efron",
                const double tol = 1.0e-6,
@@ -441,6 +442,21 @@ List rpsftmcpp(const DataFrame data,
     stop("treat_modifier must be positive");
   }
   
+  std::string rooting = root_finding;
+  std::for_each(rooting.begin(), rooting.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+  
+  if (rooting == "uniroot" || rooting.rfind("br", 0) == 0) {
+    rooting = "brent";
+  } else if (rooting.rfind("bi", 0) == 0) {
+    rooting = "bisect";
+  }
+  
+  if (!((rooting == "brent") || (rooting == "bisect"))) {
+    stop("root_finding must be brent or bisect");
+  }
+  
   if (alpha <= 0.0 || alpha >= 0.5) {
     stop("alpha must lie between 0 and 0.5");
   }
@@ -509,7 +525,7 @@ List rpsftmcpp(const DataFrame data,
   k = -1;
   auto f = [&k, n, q, p, test, covariates, covariates_aft, dist, low_psi, 
             hi_psi, n_eval_z, psi, treat_modifier, recensor, autoswitch, 
-            gridsearch, alpha, zcrit, ties, tol](
+            gridsearch, rooting, alpha, zcrit, ties, tol](
                 IntegerVector& idb, 
                 IntegerVector& stratumb, NumericVector& timeb,
                 IntegerVector& eventb, IntegerVector& treatb,
@@ -559,7 +575,11 @@ List rpsftmcpp(const DataFrame data,
                     double psilo = getpsiend(g, 1, low_psi);
                     double psihi = getpsiend(g, 0, hi_psi);
                     if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                      psihat = brent(g, psilo, psihi, tol);
+                      if (rooting == "brent") {
+                        psihat = brent(g, psilo, psihi, tol);
+                      } else {
+                        psihat = bisect(g, psilo, psihi, tol);
+                      }
                     }
                     psi_CI_type = "root finding";
                     
@@ -569,9 +589,17 @@ List rpsftmcpp(const DataFrame data,
                       psihi = getpsiend(g, 0, hi_psi);
                       if (!std::isnan(psilo) && !std::isnan(psihi)) {
                         if (!std::isnan(psihat)) {
-                          psilower = brent(g, psilo, psihat, tol);
+                          if (rooting == "brent") {
+                            psilower = brent(g, psilo, psihat, tol);
+                          } else {
+                            psilower = bisect(g, psilo, psihat, tol);
+                          }
                         } else {
-                          psilower = brent(g, psilo, psihi, tol);
+                          if (rooting == "brent") {
+                            psilower = brent(g, psilo, psihi, tol);
+                          } else {
+                            psilower = bisect(g, psilo, psihi, tol);
+                          }
                         }
                       }
                       
@@ -580,9 +608,17 @@ List rpsftmcpp(const DataFrame data,
                       psihi = getpsiend(g, 0, hi_psi);
                       if (!std::isnan(psilo) && !std::isnan(psihi)) {
                         if (!std::isnan(psihat)) {
-                          psiupper = brent(g, psihat, psihi, tol);  
+                          if (rooting == "brent") {
+                            psiupper = brent(g, psihat, psihi, tol);  
+                          } else {
+                            psiupper = bisect(g, psihat, psihi, tol);  
+                          }
                         } else {
-                          psiupper = brent(g, psilo, psihi, tol);  
+                          if (rooting == "brent") {
+                            psiupper = brent(g, psilo, psihi, tol);  
+                          } else {
+                            psiupper = bisect(g, psilo, psihi, tol);
+                          }
                         }
                       }
                     }
@@ -965,6 +1001,7 @@ List rpsftmcpp(const DataFrame data,
     Named("admin_recensor_only") = admin_recensor_only,
     Named("autoswitch") = autoswitch,
     Named("gridsearch") = gridsearch,
+    Named("root_finding") = root_finding,
     Named("alpha") = alpha,
     Named("ties") = ties,
     Named("tol") = tol,

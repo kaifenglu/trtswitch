@@ -73,6 +73,7 @@ List ipecpp(const DataFrame data,
             const bool recensor = 1,
             const bool admin_recensor_only = 1,
             const bool autoswitch = 1,
+            const std::string root_finding = "brent",
             const double alpha = 0.05,
             const std::string ties = "efron",
             const double tol = 1.0e-6,
@@ -390,6 +391,21 @@ List ipecpp(const DataFrame data,
     stop("treat_modifier must be positive");
   }
   
+  std::string rooting = root_finding;
+  std::for_each(rooting.begin(), rooting.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+  
+  if (rooting == "uniroot" || rooting.rfind("br", 0) == 0) {
+    rooting = "brent";
+  } else if (rooting.rfind("bi", 0) == 0) {
+    rooting = "bisect";
+  }
+  
+  if (!((rooting == "brent") || (rooting == "bisect"))) {
+    stop("root_finding must be brent or bisect");
+  }
+  
   if (alpha <= 0.0 || alpha >= 0.5) {
     stop("alpha must lie between 0 and 0.5");
   }
@@ -442,7 +458,7 @@ List ipecpp(const DataFrame data,
   
   k = -1;
   auto f = [&k, n, q, p, covariates, covariates_aft, dist, low_psi, hi_psi,
-            treat_modifier, recensor, autoswitch, alpha, ties, tol](
+            treat_modifier, recensor, autoswitch, rooting, alpha, ties, tol](
                 IntegerVector& idb, 
                 IntegerVector& stratumb, NumericVector& timeb,
                 IntegerVector& eventb, IntegerVector& treatb,
@@ -475,7 +491,11 @@ List ipecpp(const DataFrame data,
                   double psilo = getpsiend(g, 1, low_psi);
                   double psihi = getpsiend(g, 0, hi_psi);
                   if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                    psihat = brent(g, psilo, psihi, tol);
+                    if (rooting == "brent") {
+                      psihat = brent(g, psilo, psihi, tol);  
+                    } else {
+                      psihat = bisect(g, psilo, psihi, tol);
+                    }
                   }
                   
                   // obtain the Kaplan-Meier estimates
@@ -902,6 +922,7 @@ List ipecpp(const DataFrame data,
     Named("recensor") = recensor,
     Named("admin_recensor_only") = admin_recensor_only,
     Named("autoswitch") = autoswitch,
+    Named("root_finding") = root_finding,
     Named("alpha") = alpha,
     Named("ties") = ties,
     Named("tol") = tol,
