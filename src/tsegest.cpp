@@ -57,6 +57,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
     "", "", "", "", ties, init, 
     0, 0, 1, 0, 0, alpha, 50, 1.0e-9);
   
+  
   // replicate counterfactual residuals within subjects
   NumericVector resid3 = fit1["residuals"];
   NumericVector resid(n2);
@@ -65,7 +66,6 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
       resid[j] = resid3[i];
     }
   }
-  
   // logistic regression switching model
   DataFrame data2 = DataFrame::create(
     Named("uid") = idn2,
@@ -88,7 +88,7 @@ List est_psi_tsegest(int n2, int q, int p2, int nids2,
   List fit2 = logisregcpp(
     data2, "", "cross", covariates_lgs, "", "", 
     "", "uid", "logit", init, 
-    1, firth, flic, 0, alpha, 150, 1.0e-9);
+    1, firth, flic, 0, alpha, 50, 1.0e-9);
   
   DataFrame sumstat = DataFrame(fit2["sumstat"]);
   bool fail = sumstat["fail"];
@@ -145,7 +145,6 @@ List tsegestcpp(
     const int seed = NA_INTEGER) {
   
   int i, j, k, n = data.nrow();
-  
   int p = static_cast<int>(base_cov.size());
   if (p == 1 && (base_cov[0] == "" || base_cov[0] == "none")) p = 0;
   
@@ -580,7 +579,6 @@ List tsegestcpp(
     stop("n_boot must be greater than or equal to 100");
   }
   
-  
   // exclude observations with missing values
   LogicalVector sub(n,1);
   for (i=0; i<n; i++) {
@@ -594,11 +592,8 @@ List tsegestcpp(
     for (j=0; j<p; j++) {
       if (std::isnan(zn(i,j))) sub[i] = 0;
     }
-    for (j=0; j<q+p2; j++) {
-      if (std::isnan(zn_lgs(i,j))) sub[i] = 0;
-    }
   }
-  
+
   IntegerVector order = which(sub);
   idn = idn[order];
   stratumn = stratumn[order];
@@ -616,7 +611,6 @@ List tsegestcpp(
   n = sum(sub);
   if (n == 0) stop("no observations left after removing missing values");
   
-  
   // split at treatment switching into two observations if treatment 
   // switching occurs strictly between tstart and tstop for a subject
   LogicalVector tosplit(n);
@@ -628,8 +622,8 @@ List tsegestcpp(
   k = sum(tosplit);
   if (k > 0) {
     // copy old matrices to new matrices
-    NumericMatrix zn1(n+k, zn.ncol());
-    NumericMatrix zn_lgs1(n+k, zn_lgs.ncol());
+    NumericMatrix zn1(n+k, p);
+    NumericMatrix zn_lgs1(n+k, q+p2);
     for (i=0; i<n; i++) {
       zn1(i,_) = zn(i,_);
       zn_lgs1(i,_) = zn_lgs(i,_);
@@ -663,7 +657,6 @@ List tsegestcpp(
     zn = zn1;
     zn_lgs = zn_lgs1;
   }
-  
   
   // sort data by treatment group, id, and time
   order = seq(0, n-1);
@@ -707,10 +700,6 @@ List tsegestcpp(
   NumericVector os_timen(n);
   for (i=0; i<nids; i++) {
     k = idx1[i];
-    // ensure pd time < os time
-    if (pdn[k] == 1 && pd_timen[k] == tstopn[k]) {
-      tstopn[k] = tstopn[k] + 1.0e-8;
-    }
     for (j=idx[i]; j<idx[i+1]; j++) {
       osn[j] = eventn[k];
       os_timen[j] = tstopn[k];
@@ -804,8 +793,10 @@ List tsegestcpp(
                   NumericVector t_star = clone(timen1);
                   IntegerVector d_star = clone(eventn1);
                   
-                  double psi0hat = 0, psi0lower = 0, psi0upper = 0;
-                  double psi1hat = 0, psi1lower = 0, psi1upper = 0;
+                  double psi0hat = NA_REAL;
+                  double psi0lower = NA_REAL, psi0upper = NA_REAL;
+                  double psi1hat = NA_REAL;
+                  double psi1lower = NA_REAL, psi1upper = NA_REAL;
                   String psi_CI_type;
                   
                   // initialize data_switch, km_switch, eval_z, 
@@ -941,12 +932,12 @@ List tsegestcpp(
                         swtrt_timen3[i] = swtrt_timen2[j] - b2;
                       }
                     }
-                    
+
                     // obtain the estimate and confidence interval of psi
                     double psihat = NA_REAL;
                     double psilower = NA_REAL, psiupper = NA_REAL;
                     
-                    NumericVector Z(n_eval_z);
+                    NumericVector Z(n_eval_z, NA_REAL);
                     if (gridsearch) {
                       for (int i=0; i<n_eval_z; i++) {
                         List out = est_psi_tsegest(
@@ -958,7 +949,8 @@ List tsegestcpp(
                           firth, flic, ns_df, ns,
                           recensor, alpha, ties, offset, psi[i]);
                         
-                        Z[i] = out["z_counterfactual"];
+                        bool fail = out["fail"];
+                        if (!fail) Z[i] = out["z_counterfactual"];
                       }
                       
                       psihat = getpsiest(0, psi, Z);
@@ -988,8 +980,13 @@ List tsegestcpp(
                                     firth, flic, ns_df, ns, 
                                     recensor, alpha, ties, offset, x);
                                   
-                                  double z = out["z_counterfactual"];
-                                  return z - target;
+                                  bool fail = out["fail"];
+                                  if (!fail) {
+                                    double z = out["z_counterfactual"];
+                                    return z - target;
+                                  } else {
+                                    return NA_REAL;
+                                  }
                                 };
                       
                       // causal parameter estimates
@@ -998,7 +995,6 @@ List tsegestcpp(
                       if (!std::isnan(psilo) && !std::isnan(psihi)) {
                         psihat = brent(g, psilo, psihi, tol);
                       }
-
                       psi_CI_type = "root finding";
                       
                       if (k == -1) {
@@ -1119,7 +1115,8 @@ List tsegestcpp(
                               firth, flic, ns_df, ns, 
                               recensor, alpha, ties, offset, psi[i]);
                             
-                            Z[i] = out["z_counterfactual"];
+                            bool fail = out["fail"];
+                            if (!fail) Z[i] = out["z_counterfactual"];
                           }
                         }
                         
