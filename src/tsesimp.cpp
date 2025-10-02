@@ -487,9 +487,6 @@ List tsesimpcpp(const DataFrame data,
     for (j=0; j<p; j++) {
       if (std::isnan(zn(i,j))) sub[i] = 0;
     }
-    for (j=0; j<p2; j++) {
-      if (std::isnan(zn_aft(i,j))) sub[i] = 0;
-    }
   }
   
   IntegerVector order = which(sub);
@@ -534,7 +531,7 @@ List tsesimpcpp(const DataFrame data,
                   double psi0hat = NA_REAL;
                   double psi0lower = NA_REAL, psi0upper = NA_REAL;
                   double psi1hat = NA_REAL;
-                  double psi1lower = NA_REAL, psi1upper=NA_REAL;
+                  double psi1lower = NA_REAL, psi1upper = NA_REAL;
                   
                   // initialize data_aft and fit_aft
                   List data_aft(2), fit_aft(2);
