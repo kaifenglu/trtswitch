@@ -193,8 +193,8 @@ double bisect(const std::function<double(double)>& f,
   double f1 = f(x1);
   double f2 = f(x2);
   
-  if (f1 * f2 >= 0.0) {
-    Rcpp::stop("Root must be bracketed in bisect");
+  if ((f1 > 0.0 && f2 > 0.0) || (f1 < 0.0 && f2 < 0.0)) {
+    stop("Root must be bracketed in bisect");
   }
   
   // rtb will hold the endpoint where f is negative
@@ -222,7 +222,7 @@ double bisect(const std::function<double(double)>& f,
     }
   }
   
-  Rcpp::stop("Maximum number of iterations exceeded in bisect");
+  stop("Maximum number of iterations exceeded in bisect");
   return 0.0; // never reached
 }
 
