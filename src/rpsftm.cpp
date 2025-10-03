@@ -454,7 +454,7 @@ List rpsftmcpp(const DataFrame data,
   }
   
   if (!((rooting == "brent") || (rooting == "bisect"))) {
-    stop("root_finding must be brent or bisect");
+    stop("root_finding must be brent or bisection");
   }
   
   if (alpha <= 0.0 || alpha >= 0.5) {
@@ -588,7 +588,7 @@ List rpsftmcpp(const DataFrame data,
                       psilo = getpsiend(g, 1, low_psi);
                       psihi = getpsiend(g, 0, hi_psi);
                       if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat)) {
+                        if (!std::isnan(psihat) && g(psihat) < 0) {
                           if (rooting == "brent") {
                             psilower = brent(g, psilo, psihat, tol);
                           } else {
@@ -607,7 +607,7 @@ List rpsftmcpp(const DataFrame data,
                       psilo = getpsiend(g, 1, low_psi);
                       psihi = getpsiend(g, 0, hi_psi);
                       if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat)) {
+                        if (!std::isnan(psihat) && g(psihat) > 0) {
                           if (rooting == "brent") {
                             psiupper = brent(g, psihat, psihi, tol);  
                           } else {
