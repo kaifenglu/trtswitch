@@ -52,7 +52,7 @@
 #'   with no switching. Defaults to \code{TRUE}.
 #' @param root_finding Character string specifying the univariate 
 #'   root-finding algorithm to use. Options are \code{"brent"} (default)
-#'   for Brent's method, or \code{"bisect"} for the bisection method.
+#'   for Brent's method, or \code{"bisection"} for the bisection method.
 #' @param alpha The significance level to calculate confidence intervals.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).

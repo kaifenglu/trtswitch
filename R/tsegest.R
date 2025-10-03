@@ -83,7 +83,7 @@
 #'   finding algorithm will be used.
 #' @param root_finding Character string specifying the univariate 
 #'   root-finding algorithm to use. Options are \code{"brent"} (default)
-#'   for Brent's method, or \code{"bisect"} for the bisection method.
+#'   for Brent's method, or \code{"bisection"} for the bisection method.
 #' @param alpha The significance level to calculate confidence intervals. 
 #'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
