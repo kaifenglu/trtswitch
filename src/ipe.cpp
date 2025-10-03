@@ -403,7 +403,7 @@ List ipecpp(const DataFrame data,
   }
   
   if (!((rooting == "brent") || (rooting == "bisect"))) {
-    stop("root_finding must be brent or bisect");
+    stop("root_finding must be brent or bisection");
   }
   
   if (alpha <= 0.0 || alpha >= 0.5) {
