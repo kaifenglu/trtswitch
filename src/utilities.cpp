@@ -15,7 +15,7 @@ void set_seed(int seed) {
 // Function to find the indices of all TRUE elements in a logical vector
 IntegerVector which(const LogicalVector& vector) {
   IntegerVector true_indices;
-  for (int i = 0; i < vector.size(); i++) {
+  for (int i = 0; i < vector.size(); ++i) {
     if (vector[i]) {
       true_indices.push_back(i);
     }
@@ -58,8 +58,9 @@ IntegerVector which(const LogicalVector& vector) {
 //' @export
 // [[Rcpp::export]]
 IntegerVector findInterval3(NumericVector x, NumericVector v, 
-                            bool rightmost_closed = 0, bool all_inside = 0, 
-                            bool left_open = 0) {
+                            bool rightmost_closed = false, 
+                            bool all_inside = false, 
+                            bool left_open = false) {
   IntegerVector out(x.size());
   
   NumericVector::iterator it, pos;
@@ -115,7 +116,7 @@ IntegerVector findInterval3(NumericVector x, NumericVector v,
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 double brent(const std::function<double(double)>& f,
              double x1, double x2, double tol) {
-  int iter;
+
   double a=x1, b=x2, c=x2, d, d1 = 0.0, min1, min2;
   double fa=f(a), fb=f(b), fc, p, q, r, s, tol1, xm;
 
@@ -124,7 +125,7 @@ double brent(const std::function<double(double)>& f,
   }
 
   fc = fb;
-  for (iter=1; iter<=ITMAX; iter++) {
+  for (int iter=1; iter<=ITMAX; ++iter) {
     if ((fb > 0.0 && fc > 0.0) || (fb < 0.0 && fc < 0.0)) {
       c = a;     // Rename a, b, c and adjust bounding interval d
       fc = fa;
@@ -208,7 +209,7 @@ double bisect(const std::function<double(double)>& f,
     rtb = x2;
   }
   
-  for (int j = 1; j <= ITMAX; j++) {
+  for (int j = 1; j <= ITMAX; ++j) {
     dx *= 0.5;
     double xmid = rtb + dx;
     double fmid = f(xmid);
@@ -230,7 +231,7 @@ double bisect(const std::function<double(double)>& f,
 // [[Rcpp::export]]
 bool hasVariable(DataFrame df, std::string varName) {
   StringVector names = df.names();
-  for (int i = 0; i < names.size(); i++) {
+  for (int i = 0; i < names.size(); ++i) {
     if (names[i] == varName) {
       return true;
     }
@@ -285,10 +286,10 @@ NumericVector c_vectors(NumericVector vec1, NumericVector vec2) {
 
 
 NumericMatrix subset_matrix_by_row(NumericMatrix a, IntegerVector q) {
-  int i, j, n = static_cast<int>(q.size()), p = a.ncol();
+  int n = static_cast<int>(q.size()), p = a.ncol();
   NumericMatrix b(n,p);
-  for (j=0; j<p; j++) {
-    for (i=0; i<n; i++) {
+  for (int j=0; j<p; ++j) {
+    for (int i=0; i<n; ++i) {
       b(i,j) = a(q[i],j);
     }
   }
@@ -297,17 +298,17 @@ NumericMatrix subset_matrix_by_row(NumericMatrix a, IntegerVector q) {
 
 
 NumericMatrix c_matrices(NumericMatrix a1, NumericMatrix a2) {
-  int h, i, j, n1 = a1.nrow(), n2 = a2.nrow(), p = a1.ncol();
+  int n1 = a1.nrow(), n2 = a2.nrow(), p = a1.ncol();
   NumericMatrix b(n1+n2, p);
-  for (i=0; i<n1; i++) {
-    for (j=0; j<p; j++) {
+  for (int i=0; i<n1; ++i) {
+    for (int j=0; j<p; ++j) {
       b(i,j) = a1(i,j);
     }
   }
 
-  for (i=0; i<n2; i++) {
-    h = i+n1;
-    for (j=0; j<p; j++) {
+  for (int i=0; i<n2; ++i) {
+    int h = i+n1;
+    for (int j=0; j<p; ++j) {
       b(h,j) = a2(i,j);
     }
   }
@@ -317,110 +318,112 @@ NumericMatrix c_matrices(NumericMatrix a1, NumericMatrix a2) {
 
 
 List bygroup(DataFrame data, const StringVector& variables) {
-  int i;
   int n = data.nrows();
   int p = static_cast<int>(variables.size());
-
+  
   IntegerVector d(p);   // the number of unique values
   List u(p);            // the vector of unique values
   IntegerMatrix x(n,p); // indices of original values in unique values
-  for (i=0; i<p; i++) {
-    String s = variables[i];
+  for (int i=0; i<p; ++i) {
+    std::string s = as<std::string>(variables[i]);
     if (!hasVariable(data, s)) {
       stop("data must contain the variables");
     }
-
-    if (TYPEOF(data[s]) == LGLSXP || TYPEOF(data[s]) == INTSXP) {
-      IntegerVector v = data[s];
+    SEXP col = data[s];
+    SEXPTYPE col_type = TYPEOF(col);
+    if (col_type == LGLSXP || col_type == INTSXP) {
+      IntegerVector v = col;
       IntegerVector w = unique(v);
       w.sort();
       d[i] = static_cast<int>(w.size());
       u[i] = w;
       x(_,i) = match(v,w) - 1;
-    } if (TYPEOF(data[s]) == REALSXP) {
-      NumericVector v = data[s];
+    } else if (col_type == REALSXP) {
+      NumericVector v = col;
       NumericVector w = unique(v);
       w.sort();
       d[i] = static_cast<int>(w.size());
       u[i] = w;
       x(_,i) = match(v,w) - 1;
-    } if (TYPEOF(data[s]) == STRSXP) {
-      StringVector v = data[s];
+    } else if (col_type == STRSXP) {
+      StringVector v = col;
       StringVector w = unique(v);
       w.sort();
       d[i] = static_cast<int>(w.size());
       u[i] = w;
       x(_,i) = match(v,w) - 1;
+    } else {
+      stop("Unsupported variable type in bygroup" + s);
     }
   }
-
+  
   int frac = 1;
   int orep = 1;
-  for (i=0; i<p; i++) {
-    orep = orep*d[i];
+  for (int i=0; i<p; ++i) {
+    orep *= d[i];
   }
-
+  
   IntegerVector index(n);
-  DataFrame lookup;
-  for (i=0; i<p; i++) {
-    orep = orep/d[i];
-    index = index + x(_,i)*orep;
-
+  List lookup;
+  for (int i=0; i<p; ++i) {
+    orep /= d[i];
+    index += x(_,i)*orep;
+    
     IntegerVector j = rep(rep_each(seq(0, d[i]-1), orep), frac);
-    String s = variables[i];
-    if (TYPEOF(data[s]) == LGLSXP || TYPEOF(data[s]) == INTSXP) {
-      IntegerVector w = u[i];
-      lookup.push_back(w[j],s);
-    } else if (TYPEOF(data[s]) == REALSXP) {
-      NumericVector w = u[i];
-      lookup.push_back(w[j],s);
-    } else if (TYPEOF(data[s]) == STRSXP) {
-      StringVector w = u[i];
-      lookup.push_back(w[j],s);
+    std::string s = as<std::string>(variables[i]);
+    SEXP data_col;
+    SEXP col = u[i];
+    SEXPTYPE col_type = TYPEOF(col);
+    if (col_type == LGLSXP || col_type == INTSXP) {
+      IntegerVector w = col;
+      data_col = w[j];
+    } else if (col_type == REALSXP) {
+      NumericVector w = col;
+      data_col = w[j];
+    } else if (col_type == STRSXP) {
+      StringVector w = col;
+      data_col = w[j];
+    } else {
+      stop("Unsupported variable type in bygroup" + s);
     }
-
+    lookup.push_back(data_col, s);
+    
     frac = frac*d[i];
   }
-
+  
   return List::create(
     Named("nlevels") = d,
-    Named("indices") = x+1,
+    Named("indices") = x,
     Named("lookups") = u,
-    Named("index") = index+1,
-    Named("lookup") = lookup);
+    Named("index") = index,
+    Named("lookup") = as<DataFrame>(lookup));
 }
 
 
 // The following three utilities functions are from the survival package
 int cholesky2(NumericMatrix matrix, int n, double toler) {
-  double temp;
-  int i, j, k;
-  double eps, pivot;
-  int rank;
-  int nonneg;
-
-  nonneg = 1;
-  eps = 0;
-  for (i=0; i<n; i++) {
+  double eps = 0;
+  for (int i=0; i<n; ++i) {
     if (matrix(i,i) > eps) eps = matrix(i,i);
   }
   if (eps==0) eps = toler; // no positive diagonals!
   else eps *= toler;
 
-  rank = 0;
-  for (i=0; i<n; i++) {
-    pivot = matrix(i,i);
+  int nonneg = 1;
+  int rank = 0;
+  for (int i=0; i<n; ++i) {
+    double pivot = matrix(i,i);
     if (std::isinf(pivot) == 1 || pivot < eps) {
       matrix(i,i) = 0;
       if (pivot < -8*eps) nonneg = -1;
     }
     else  {
-      rank++;
-      for (j=i+1; j<n; j++) {
-        temp = matrix(i,j)/pivot;
+      ++rank;
+      for (int j=i+1; j<n; ++j) {
+        double temp = matrix(i,j)/pivot;
         matrix(i,j) = temp;
         matrix(j,j) -= temp*temp*pivot;
-        for (k=j+1; k<n; k++) matrix(j,k) -= temp*matrix(i,k);
+        for (int k=j+1; k<n; ++k) matrix(j,k) -= temp*matrix(i,k);
       }
     }
   }
@@ -430,21 +433,18 @@ int cholesky2(NumericMatrix matrix, int n, double toler) {
 
 
 void chsolve2(NumericMatrix matrix, int n, NumericVector y) {
-  int i, j;
-  double temp;
-
-  for (i=0; i<n; i++) {
-    temp = y[i];
-    for (j=0; j<i; j++)
+  for (int i=0; i<n; ++i) {
+    double temp = y[i];
+    for (int j=0; j<i; ++j)
       temp -= y[j]*matrix(j,i);
     y[i] = temp;
   }
 
-  for (i=n-1; i>=0; i--) {
+  for (int i=n-1; i>=0; i--) {
     if (matrix(i,i) == 0) y[i] = 0;
     else {
-      temp = y[i]/matrix(i,i);
-      for (j=i+1; j<n; j++)
+      double temp = y[i]/matrix(i,i);
+      for (int j=i+1; j<n; ++j)
         temp -= y[j]*matrix(i,j);
       y[i] = temp;
     }
@@ -453,30 +453,27 @@ void chsolve2(NumericMatrix matrix, int n, NumericVector y) {
 
 
 void chinv2(NumericMatrix matrix, int n) {
-  double temp;
-  int i, j, k;
-
-  for (i=0; i<n; i++){
+  for (int i=0; i<n; ++i){
     if (matrix(i,i) > 0) {
       matrix(i,i) = 1/matrix(i,i);   // this line inverts D
-      for (j=i+1; j<n; j++) {
+      for (int j=i+1; j<n; ++j) {
         matrix(i,j) = -matrix(i,j);
-        for (k=0; k<i; k++)     // sweep operator
+        for (int k=0; k<i; ++k)     // sweep operator
           matrix(k,j) += matrix(i,j)*matrix(k,i);
       }
     }
   }
 
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; ++i) {
     if (matrix(i,i) == 0) {  // singular row
-      for (j=0; j<i; j++) matrix(i,j) = 0;
-      for (j=i; j<n; j++) matrix(j,i) = 0;
+      for (int j=0; j<i; ++j) matrix(i,j) = 0;
+      for (int j=i; j<n; ++j) matrix(j,i) = 0;
     }
     else {
-      for (j=i+1; j<n; j++) {
-        temp = matrix(i,j)*matrix(j,j);
+      for (int j=i+1; j<n; ++j) {
+        double temp = matrix(i,j)*matrix(j,j);
         matrix(j,i) = temp;
-        for (k=i; k<j; k++)
+        for (int k=i; k<j; ++k)
           matrix(k,i) += temp*matrix(k,j);
       }
     }
@@ -485,12 +482,11 @@ void chinv2(NumericMatrix matrix, int n) {
 
 
 NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
-  int i, j;
   NumericMatrix v = clone(matrix);
-  i = cholesky2(v, n, toler);
+  cholesky2(v, n, toler);
   chinv2(v, n);
-  for (i=1; i<n; i++) {
-    for (j=0; j<i; j++) {
+  for (int i=1; i<n; ++i) {
+    for (int j=0; j<i; ++j) {
       v(j,i) = v(i,j);
     }
   }
@@ -541,17 +537,17 @@ NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
 DataFrame survsplit(NumericVector tstart,
                     NumericVector tstop,
                     NumericVector cut) {
-  int i, j, k, extra;
+  int extra;
   int n = static_cast<int>(tstart.size());
   int ncut = static_cast<int>(cut.size());
 
   // Each cut point strictly within an interval generates an extra line.
   // NA inputs are left alone.
   extra = 0;
-  for (i=0; i<n; i++) {
-    for (j=0; j<ncut; j++) {
+  for (int i=0; i<n; ++i) {
+    for (int j=0; j<ncut; ++j) {
       if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
-          cut[j] > tstart[i] && cut[j] < tstop[i]) extra++;
+          cut[j] > tstart[i] && cut[j] < tstop[i]) ++extra;
     }
   }
 
@@ -560,25 +556,26 @@ DataFrame survsplit(NumericVector tstart,
   NumericVector start(n2), end(n2);
   LogicalVector censor(n2);
 
-  k = 0;
-  for (i=0; i<n; i++) {
+  int k = 0;
+  for (int i=0; i<n; ++i) {
     if (std::isnan(tstart[i]) || std::isnan(tstop[i])) {
       start[k] = tstart[i];
       end[k] = tstop[i];
       row[k] = i;           // row in the original data
       interval[k] = 1;
-      k++;
+      ++k;
     } else {
       // find the first cut point after tstart
-      for (j=0; j < ncut && cut[j] <= tstart[i]; j++);
+      int j = 0;
+      for (; j < ncut && cut[j] <= tstart[i]; ++j);
       start[k] = tstart[i];
       row[k] = i;
       interval[k] = j;
-      for (; j < ncut && cut[j] < tstop[i]; j++) {
+      for (; j < ncut && cut[j] < tstop[i]; ++j) {
         if (cut[j] > tstart[i]) {
           end[k] = cut[j];
           censor[k] = 1;
-          k++; // create the next sub-interval
+          ++k; // create the next sub-interval
           start[k] = cut[j];
           row[k] = i;
           interval[k] = j+1;
@@ -586,7 +583,7 @@ DataFrame survsplit(NumericVector tstart,
       }
       end[k] = tstop[i]; // finish the last sub-interval
       censor[k] = 0;
-      k++;
+      ++k;
     }
   }
 
@@ -624,7 +621,7 @@ NumericVector house(const NumericVector& x) {
   NumericVector v = clone(x);
   if (mu > 0.0) {
     double beta = x[0] + std::copysign(1.0, x[0])*mu;
-    for (int i=1; i<n; i++) {
+    for (int i=1; i<n; ++i) {
       v[i] /= beta;
     }
   }
@@ -646,18 +643,18 @@ void row_house(NumericMatrix& A, const int i1, const int i2,
     stop("Invalid column indices j1 and j2");
   }
   
-  int i, j, m = i2-i1+1, n = j2-j1+1;
+  int m = i2-i1+1, n = j2-j1+1;
   double beta = -2.0/sum(v*v);
   NumericVector w(n);
-  for (j=0; j<n; j++) {
-    for (i=0; i<m; i++) {
+  for (int j=0; j<n; ++j) {
+    for (int i=0; i<m; ++i) {
       w[j] += A(i+i1,j+j1)*v[i];
     }
     w[j] *= beta;
   }
   
-  for (i=0; i<m; i++) {
-    for (j=0; j<n; j++) {
+  for (int i=0; i<m; ++i) {
+    for (int j=0; j<n; ++j) {
       A(i+i1,j+j1) += v[i]*w[j];
     }
   }
@@ -720,15 +717,16 @@ void row_house(NumericMatrix& A, const int i1, const int i2,
 //' @export
 // [[Rcpp::export]]
 List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
-  int i, j, k, l, m = X.nrow(), n = X.ncol();
+  int m = X.nrow(), n = X.ncol();
   NumericMatrix A = clone(X);
   NumericVector c(n);
-  for (j=0; j<n; j++) {
+  for (int j=0; j<n; ++j) {
     c[j] = sum(A(_,j)*A(_,j));
   }
   
   double tau = max(c);
-  for (k=0; k<n; k++) {
+  int k = 0;
+  for (; k<n; ++k) {
     if (c[k] > tol) break;
   }
   
@@ -736,14 +734,14 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
   IntegerVector piv = seq(0,n-1);
   double u;
   while (tau > tol) {
-    r++;
+    ++r;
     
     // exchange column r with column k
-    l = piv[r];
+    int l = piv[r];
     piv[r] = piv[k];
     piv[k] = l;
     
-    for (i=0; i<m; i++) {
+    for (int i=0; i<m; ++i) {
       u = A(i,r);
       A(i,r) = A(i,k);
       A(i,k) = u;
@@ -755,7 +753,7 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
     
     // find the Householder vector
     NumericVector v(m-r);
-    for (i=0; i<m-r; i++) {
+    for (int i=0; i<m-r; ++i) {
       v[i] = A(i+r,r);
     }
     v = house(v);
@@ -764,19 +762,19 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
     row_house(A, r, m-1, r, n-1, v);
     
     // update the sub-diagonal elements of column r
-    for (i=1; i<m-r; i++) {
+    for (int i=1; i<m-r; ++i) {
       A(i+r,r) = v[i];
     }
     
     // go to the next column and update the squared norm
-    for (i=r+1; i<n; i++) {
+    for (int i=r+1; i<n; ++i) {
       c[i] -= A(r,i)*A(r,i);
     }
     
     // identify the pivot column
     if (r < n-1) {
       tau = max(c[Range(r+1,n-1)]);
-      for (k=r+1; k<n; k++) {
+      for (k=r+1; k<n; ++k) {
         if (c[k] > tol) break;
       }
     } else {
@@ -786,10 +784,10 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
   
   // recover the Q matrix
   NumericMatrix Q = NumericMatrix::diag(m, 1.0);
-  for (k=r; k>=0; k--) {
+  for (int k=r; k>=0; k--) {
     NumericVector v(m-k);
     v[0] = 1.0;
-    for (i=1; i<m-k; i++) {
+    for (int i=1; i<m-k; ++i) {
       v[i] = A(i+k,k);
     }
     
@@ -798,8 +796,8 @@ List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
   
   // recover the R matrix
   NumericMatrix R(m,n);
-  for (j=0; j<n; j++) {
-    for (i=0; i<=j; i++) {
+  for (int j=0; j<n; ++j) {
+    for (int i=0; i<=j; ++i) {
       R(i,j) = A(i,j);
     }
   }
@@ -826,19 +824,19 @@ IntegerVector match3(
   while (i < id1.size() && j < id2.size()) {
     if (id1[i] < id2[j] || (id1[i] == id2[j] && v1[i] < v2[j])) {
       result.push_back(-1);
-      i++;
+      ++i;
     } else if (id1[i] > id2[j] || (id1[i] == id2[j] && v1[i] > v2[j])) {
-      j++;
+      ++j;
     } else {
       result.push_back(j);
-      i++;
-      j++;
+      ++i;
+      ++j;
     }
   }
   
   while (i < id1.size()) {
     result.push_back(-1);
-    i++;
+    ++i;
   }
   
   return result;
@@ -899,12 +897,10 @@ DataFrame unswitched(
     const bool recensor,
     const bool autoswitch) {
   
-  int i;
   double a = exp(psi), a1 = exp(-psi);
-  double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
   NumericVector u_star(n), t_star(n);
   IntegerVector d_star(n);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; ++i) {
     if (treat[i] == 0) {
       u_star[i] = time[i]*((1 - rx[i]) + rx[i]*a);
     } else {
@@ -915,8 +911,9 @@ DataFrame unswitched(
   }
   
   if (recensor) {
+    double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
     NumericVector c_star(n);
-    for (i=0; i<n; i++) {
+    for (int i=0; i<n; ++i) {
       if (treat[i] == 0) {
         c_star[i] = censor_time[i]*c0;
       } else {
@@ -963,27 +960,28 @@ double qtpwexpcpp1(const double p,
                    const double lowerBound,
                    const bool lowertail,
                    const bool logp) {
-  int j, j1, m = static_cast<int>(piecewiseSurvivalTime.size());
-  double q, u = p, v, v1;
+  int m = static_cast<int>(piecewiseSurvivalTime.size());
   
   // cumulative hazard from lowerBound until the quantile
+  double u = p;
   if (logp) u = exp(p);
   if (!lowertail) u = 1.0 - u;
   
-  v1 = -log(1.0 - u);
-  
   // identify the time interval containing the lowerBound
-  for (j=0; j<m; j++) {
+  int j = 0;
+  for (; j<m; ++j) {
     if (piecewiseSurvivalTime[j] > lowerBound) break;
   }
-  j1 = (j==0 ? 0 : j-1); // to handle floating point precision
-  
+  int j1 = (j==0 ? 0 : j-1); // to handle floating point precision
+
+  double q;
+  double v1 = -log(1.0 - u);
   if (j1 == m-1) { // in the last interval
     q = (lambda[j1]==0.0 ? 1.0e+8 : v1/lambda[j1] + lowerBound);
   } else {
     // accumulate the pieces on the cumulative hazard scale
-    v = 0;
-    for (j=j1; j<m-1; j++) {
+    double v = 0;
+    for (j=j1; j<m-1; ++j) {
       if (j==j1) {
         v += lambda[j]*(piecewiseSurvivalTime[j+1] - lowerBound);
       } else {
@@ -1008,30 +1006,22 @@ double qtpwexpcpp1(const double p,
 
 double getpsiest(const double target, const NumericVector& psi, 
                  const NumericVector& Z) {
-  int i, n = static_cast<int>(psi.size());
-  double psilo = NA_REAL, psihi = NA_REAL, psiest = NA_REAL;
-  
-  int ilo = 0;
-  for (i=0; i<n; ++i) {
-    if (!std::isinf(Z[i]) && Z[i] >= target) {
-      ilo = i; psilo = psi[i];
+  const int n = psi.size();
+  for (int j=1; j<n; ++j) {
+    const double z2 = Z[j];
+    if (std::isfinite(z2) && z2 <= target) { // first time z <= target
+      for (int i=j-1; i>=0; --i) {
+        const double z1 = Z[i];
+        if (std::isfinite(z1) && z1 >= target) { // found a bracket
+          return std::fabs(z1 - z2) < 1e-12 ? (psi[i] + psi[j])/2 : 
+          psi[i] + (psi[j] - psi[i])*(target - z1)/(z2 - z1);
+        }
+      }
     }
   }
   
-  int ihi = n-1;
-  for (i=n-1; i>=0; --i) {
-    if (!std::isinf(Z[i]) && Z[i] <= target) {
-      ihi = i; psihi = psi[i];
-    }
-  }
-  
-  if (!std::isnan(psilo) && !std::isnan(psihi)) {
-    double zlo = std::fabs(Z[ilo] - target);
-    double zhi = std::fabs(Z[ihi] - target);
-    psiest = (psilo*zhi + psihi*zlo)/(zhi + zlo);
-  }
-  
-  return psiest;
+  // if no bracket found
+  return NA_REAL;
 }
 
 
