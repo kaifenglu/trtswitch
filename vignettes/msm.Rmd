@@ -33,7 +33,7 @@ The switching model can be implemented using pooled logistic regression.
 - **Handling Nonconvergence**: If the pooled logistic regression model encounters issues such as complete or quasi-complete separation, Firth's bias-reducing penalized likelihood method (`firth = TRUE`) can be applied alongside intercept correction (`flic = TRUE`) to yield more accurate predicted probabilities. 
 
 - **Inverse Probability of Treatment Weighting**: Let $A_{i,j}$ denote the indicator of alternative therapy for subject $i$ in treatment cycle $j$. We assume that once a patient switched to an alternative therapy, he/she will stay on the alternative therapy. Let $X_i$ denote the baseline covariates for subject $i$ and $L_{i,j}$ denote the time-dependent covariates for subject $i$ at the start of cycle $j$. For the pooled logistic regression model for treatment switching, the full data will be used for patients who didn't switch treatment, while the partial data up to and including the treatment cycle when the patient switched treatment will be used for patients who switched treatment. The logistic regression model is used to estimate
-$$P(A_j = a_{i,j} | A_{j-1} = 0, \bar{L}_{j} = \bar{l}_{i,j}, X = x_i)$$
+$$P(A_j = a_{i,j} | \bar{A}_{j-1} = \bar{0}, \bar{L}_{j} = \bar{l}_{i,j}, X = x_i)$$
 where $x_i$, $l_{i,j}$, and $a_{i,j}$ denote the observed value of baseline covariates, time-dependent covariates at the start of cycle $j$, and alternative therapy status for cycle $j$ of subject $i$, respectively. A subject is on alternative therapy in cycle $j$ if and only if treatment switching has occurred at the start of that cycle, which is equivalent to switching having occurred by the end of cycle $j−1$. Consequently, lagged values of time-dependent covariates are often used in the logistic regression model. Natural cubic splines can be used to model visit-specific intercepts for the pooled logistic regression model. The unstabilized weights for subject $i$ for cycle $t$ are given by 
 $$w_i(t) = \prod_{j=1}^{t} \frac{1}{P(A_j = a_{i,j} | \bar{A}_{j-1} = \bar{a}_{i,j-1}, \bar{L}_{j} = \bar{l}_{i,j}, X = x_i)}$$
 where, by assumption, $P(A_j = 1 | A_{j-1} = 1) = 1$, i.e., the weights do not vary after treatment switching. Accordingly, the IPTW weight equals the inverse probability of not having switched treatment at the start of the cycle when $a_{i,j}=0$, and the inverse probability of having switched treatment at the start of the cycle when $a_{i,j}=1$.
@@ -45,7 +45,7 @@ To address the high variability in "unstabilized" weights, researchers often opt
 You can specify weight truncation using the `trunc` and `trunc_upper_only` parameters of the `msm` function. The `trunc` parameter is a number between 0 and 0.5 that represents the fraction of the weight distribution to truncate. The `trunc_upper_only` parameter is a flag that indicates whether to truncate weights only from the upper end of the weight distribution.
 
 # Estimation of Hazard Ratio
-Once weights have been obtained for each event time in the data set, we fit a (potentially stratified) Cox proportional hazards model to this weighted data set to obtain an estimate of the hazard ratio. The Cox model includes baseline covariates, randomized treatment, and time-dependent alternative therapy. An interaction between randomized and alternative treatment can be included when patients from both treatment arms can switch to alternative therapy. The confidence interval for the hazard ratio can be derived by bootstrapping the weight estimation and the subsequent model-fitting process.
+Once weights have been obtained for each event time in the data set, we fit a (potentially stratified) Cox proportional hazards model to this weighted data set to obtain an estimate of the hazard ratio. The Cox model includes baseline covariates, randomized treatment, and time-dependent alternative therapy. An interaction between randomized and alternative treatment can be included when patients from both treatment arms can switch to alternative therapy. The confidence interval for the hazard ratio can be obtained from the weighted Cox model using robust sandwich variance estimates or derived by bootstrapping the weight estimation and the subsequent model-fitting process.
 
 # Example for Pooled Logistic Regression Switching Model
 First we prepare the data.
@@ -88,13 +88,13 @@ Since treatment switching is not allowed in the experimental arm, the weights ar
 # unstabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
        aes(x = unstabilized_weight)) + 
-  geom_density(fill="#77bd89", color="#1f6e34", alpha=0.8) +
+  geom_histogram(fill="#77bd89", color="#1f6e34", alpha=0.8) +
   scale_x_continuous("unstabilized weights")
 
 # stabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
        aes(x = stabilized_weight)) + 
-  geom_density(fill="#77bd89", color="#1f6e34", alpha=0.8) +
+  geom_histogram(fill="#77bd89", color="#1f6e34", alpha=0.8) +
   scale_x_continuous("stabilized weights")
 ```
 
