@@ -5,7 +5,7 @@ testthat::test_that("ipe: control to active switch", {
   data1 <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
   
   fit1 <- ipe(
-    data1, time = "progyrs", event = "prog", treat = "imm", 
+    data1, id = "id", time = "progyrs", event = "prog", treat = "imm", 
     rx = "rx", censor_time = "censyrs", aft_dist = "weibull",
     boot = FALSE)
   
