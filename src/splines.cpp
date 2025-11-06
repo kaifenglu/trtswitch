@@ -207,11 +207,11 @@ NumericMatrix splineDesigncpp(
     return s;
   };
   
-  int i, j, k;
+
   int K = nk - 2*ord;
   
   IntegerVector derivs2(nx);
-  for (i=0; i<nx; i++) {
+  for (int i=0; i<nx; ++i) {
     derivs2[i] = derivs[i % nd];
   }
   
@@ -220,10 +220,10 @@ NumericMatrix splineDesigncpp(
   idx = pmin(idx, K+1) + degree;
   
   NumericMatrix design(nx,K+ord);
-  for (i=0; i<nx; i++) {
-    k = idx[i];
+  for (int i=0; i<nx; ++i) {
+    int k = idx[i];
     NumericVector s = f(x[i], k, ord, derivs2[i]);
-    for (j=0; j<ord; j++) {
+    for (int j=0; j<ord; ++j) {
       design(i, k-ord+j) = s[j];
     }
   }
@@ -307,7 +307,7 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     boundary_knots = boundary;
   }
   
-  int i, j, k, K, l;
+  int K;
   bool mk_knots = (df != NA_INTEGER) && is_true(any(is_na(knots)));
   if (mk_knots) {
     K = df - ord + (1 - intercept);
@@ -319,7 +319,7 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     NumericVector knots1(K);
     NumericVector z1 = z[!outside];
     if (K > 0) {
-      for (k=0; k<K; k++) {
+      for (int k=0; k<K; ++k) {
         knots1[k] = quantilecpp(z1, (k+1.0)/(K+1.0));
       }
     }
@@ -346,7 +346,7 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
         } else {
           NumericVector knots2 = knots[knots > piv];
           double shift = (min(knots2) - piv)/8;
-          for (i=0; i<K; i++) {
+          for (int i=0; i<K; ++i) {
             if (sub[i]) {
               knots[i] = knots[i] + shift;
             }
@@ -363,7 +363,7 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
         } else {
           NumericVector knots2 = knots[knots < piv];
           double shift = (piv - max(knots2))/8;
-          for (i=0; i<K; i++) {
+          for (int i=0; i<K; ++i) {
             if (sub[i]) {
               knots[i] = knots[i] - shift;
             }
@@ -378,15 +378,15 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
   }
   
   NumericVector u(K+2*ord);
-  for (k=0; k<ord; k++) {
+  for (int k=0; k<ord; ++k) {
     u[k] = boundary_knots[0];
   }
   
-  for (k=ord; k<K+ord; k++) {
+  for (int k=ord; k<K+ord; ++k) {
     u[k] = knots[k-ord];
   }
   
-  for (k=K+ord; k<K+2*ord; k++) {
+  for (int k=K+ord; k<K+2*ord; ++k) {
     u[k] = boundary_knots[1];
   }
   
@@ -404,7 +404,7 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     IntegerVector derivs = Range(0,degree);
     NumericVector scalef(ord); 
     scalef[0] = 1;
-    for (i=1; i<ord; i++) {
+    for (int i=1; i<ord; ++i) {
       scalef[i] = scalef[i-1]*i;
     }
     
@@ -416,9 +416,9 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       int r = static_cast<int>(zol.size());
       
       NumericMatrix zl(r,ord);
-      for (i=0; i<r; i++) {
+      for (int i=0; i<r; ++i) {
         zl(i,0) = 1.0;
-        for (j=1; j<=degree; j++) {
+        for (int j=1; j<=degree; ++j) {
           zl(i,j) = pow(zol[i] - k_pivot, j);
         }
       }
@@ -426,15 +426,15 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       NumericVector kp(ord,k_pivot);
       IntegerVector derivs = Range(0,ord-1);
       NumericMatrix tt = splineDesigncpp(u, kp, ord, derivs);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (outleft[i]) {
-          for (j=0; j<K+ord; j++) {
-            for (l=0; l<ord; l++) {
+          for (int j=0; j<K+ord; ++j) {
+            for (int l=0; l<ord; ++l) {
               design(i,j) += zl(k,l)*tt(l,j)/scalef[l];
             }
           }
-          k++;
+          ++k;
         }
       }
     }
@@ -446,9 +446,9 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       int r = static_cast<int>(zor.size());
       
       NumericMatrix zr(r,ord);
-      for (i=0; i<r; i++) {
+      for (int i=0; i<r; ++i) {
         zr(i,0) = 1.0;
-        for (j=1; j<=degree; j++) {
+        for (int j=1; j<=degree; ++j) {
           zr(i,j) = pow(zor[i] - k_pivot, j);
         }
       }
@@ -456,15 +456,15 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       NumericVector kp(ord, k_pivot);
       IntegerVector derivs = Range(0,ord-1);
       NumericMatrix tt = splineDesigncpp(u, kp, ord, derivs);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (outright[i]) {
-          for (j=0; j<K+ord; j++) {
-            for (l=0; l<ord; l++) {
+          for (int j=0; j<K+ord; ++j) {
+            for (int l=0; l<ord; ++l) {
               design(i,j) += zr(k,l)*tt(l,j)/scalef[l];
             }
           }
-          k++;
+          ++k;
         }
       }
     }
@@ -472,11 +472,11 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     LogicalVector inside = !outside;
     if (is_true(any(inside))) {
       NumericMatrix v = splineDesigncpp(u, z[inside], ord, deriv0);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (inside[i]) {
           design(i,_) = v(k,_);
-          k++;
+          ++k;
         }
       }
     }
@@ -494,10 +494,10 @@ NumericMatrix bscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
   if (nas) {
     basis.fill(NA_REAL);
     int j=0;
-    for (i=0; i<m; i++) {
+    for (int i=0; i<m; ++i) {
       if (!nax[i]) {
         basis(i,_) = design(j,_);
-        j++;
+        ++j;
       }
     }
   } else {
@@ -578,7 +578,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     boundary_knots = boundary;
   }
   
-  int i, j, k, K, l;
+  int K;
   bool mk_knots = (df != NA_INTEGER) && is_true(any(is_na(knots)));
   if (mk_knots) {
     K = df - 1 - intercept;
@@ -590,7 +590,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     NumericVector knots1(K);
     NumericVector z1 = z[!outside];
     if (K > 0) {
-      for (k=0; k<K; k++) {
+      for (int k=0; k<K; ++k) {
         knots1[k] = quantilecpp(z1, (k+1.0)/(K+1.0));
       }
     }
@@ -616,7 +616,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
         
         NumericVector knots2 = knots[knots > piv];
         double shift = (min(knots2) - piv)/8;
-        for (i=0; i<K; i++) {
+        for (int i=0; i<K; ++i) {
           if (sub[i]) {
             knots[i] = knots[i] + shift;
           }
@@ -632,7 +632,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
         
         NumericVector knots2 = knots[knots < piv];
         double shift = (piv - max(knots2))/8;
-        for (i=0; i<K; i++) {
+        for (int i=0; i<K; ++i) {
           if (sub[i]) {
             knots[i] = knots[i] - shift;
           }
@@ -644,15 +644,15 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
   }
   
   NumericVector u(K+8);
-  for (k=0; k<4; k++) {
+  for (int k=0; k<4; ++k) {
     u[k] = boundary_knots[0];
   }
   
-  for (k=4; k<K+4; k++) {
+  for (int k=4; k<K+4; ++k) {
     u[k] = knots[k-4];
   }
   
-  for (k=K+4; k<K+8; k++) {
+  for (int k=K+4; k<K+8; ++k) {
     u[k] = boundary_knots[1];
   }
   
@@ -669,7 +669,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       int r = static_cast<int>(zol.size());
       
       NumericMatrix zl(r,2);
-      for (i=0; i<r; i++) {
+      for (int i=0; i<r; ++i) {
         zl(i,0) = 1.0;
         zl(i,1) = zol[i] - k_pivot;
       }
@@ -677,15 +677,15 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       NumericVector kp(2,k_pivot);
       IntegerVector derivs = Range(0,1);
       NumericMatrix tt = splineDesigncpp(u, kp, 4, derivs);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (outleft[i]) {
-          for (j=0; j<K+4; j++) {
-            for (l=0; l<2; l++) {
+          for (int j=0; j<K+4; ++j) {
+            for (int l=0; l<2; ++l) {
               design(i,j) += zl(k,l)*tt(l,j);
             }
           }
-          k++;
+          ++k;
         }
       }
     }
@@ -697,7 +697,7 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       int r = static_cast<int>(zor.size());
       
       NumericMatrix zr(r,4);
-      for (i=0; i<r; i++) {
+      for (int i=0; i<r; ++i) {
         zr(i,0) = 1.0;
         zr(i,1) = zor[i] - k_pivot;
       }
@@ -705,15 +705,15 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
       NumericVector kp(2, k_pivot);
       IntegerVector derivs = Range(0,1);
       NumericMatrix tt = splineDesigncpp(u, kp, 4, derivs);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (outright[i]) {
-          for (j=0; j<K+4; j++) {
-            for (l=0; l<2; l++) {
+          for (int j=0; j<K+4; ++j) {
+            for (int l=0; l<2; ++l) {
               design(i,j) += zr(k,l)*tt(l,j);
             }
           }
-          k++;
+          ++k;
         }
       }
     }
@@ -721,11 +721,11 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
     LogicalVector inside = !outside;
     if (is_true(any(inside))) {
       NumericMatrix v = splineDesigncpp(u, z[inside], 4, deriv0);
-      k = 0;
-      for (i=0; i<n; i++) {
+      int k = 0;
+      for (int i=0; i<n; ++i) {
         if (inside[i]) {
           design(i,_) = v(k,_);
-          k++;
+          ++k;
         }
       }
     }
@@ -749,9 +749,9 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
 
   int L = static_cast<int>(design.ncol());
   NumericMatrix basis2(n,L-2);
-  for (i=0; i<n; i++) {
-    for (j=0; j<L-2; j++) {
-      for (k=0; k<L; k++) {
+  for (int i=0; i<n; ++i) {
+    for (int j=0; j<L-2; ++j) {
+      for (int k=0; k<L; ++k) {
         basis2(i,j) += design(i,k)*Q(k,j+2);
       }
     }
@@ -761,10 +761,10 @@ NumericMatrix nscpp(NumericVector x = NA_REAL, int df = NA_INTEGER,
   if (nas) {
     basis.fill(NA_REAL);
     int j=0;
-    for (i=0; i<m; i++) {
+    for (int i=0; i<m; ++i) {
       if (!nax[i]) {
         basis(i,_) = basis2(j,_);
-        j++;
+        ++j;
       }
     }
   } else {
