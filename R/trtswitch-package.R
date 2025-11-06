@@ -2,17 +2,18 @@
 #' @aliases trtswitch-package
 #' @title Treatment Switching
 #'
-#' @description Implements rank-preserving structural failure time model 
+#' @description Implements rank preserving structural failure time model 
 #' (RPSFTM), iterative parameter estimation (IPE), inverse probability of 
 #' censoring weights (IPCW), marginal structural model (MSM), simple 
-#' two-stage estimation (TSEsimp), and improved two-stage with 
-#' g-estimation (TSEgest) methods for 
-#' treatment switching in randomized clinical trials.
+#' two-stage estimation (TSEsimp), and improved two-stage estimation with 
+#' g-estimation (TSEgest) methods for treatment switching in randomized 
+#' clinical trials.
 #'
 #' @details To enable bootstrapping of the parameter estimates, we implements
 #' many standard survival analysis methods in C++. These include but are not 
 #' limited to Kaplan-Meier estimates of the survival curves, log-rank tests, 
-#' accelerate failure time models, and Cox proportional hazards models. 
+#' accelerated failure time (AFT) models, and Cox proportional hazards 
+#' models. 
 #' 
 #' All treatment switching adjustment methods allow treatment switching
 #' in both treatment arms, stratification and covariates adjustment. 
@@ -78,7 +79,7 @@
 #' @importFrom Rcpp evalCpp
 #' @importFrom stats formula makepredictcall model.frame model.matrix 
 #' na.omit na.pass pchisq plogis rbinom rexp terms
-#' @importFrom data.table data.table dcast fifelse nafill
+#' @importFrom data.table data.table dcast  fifelse nafill
 #'   setDT setnames setorderv shift .N .SD :=
 #'
 NULL
