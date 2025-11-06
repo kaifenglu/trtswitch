@@ -26,8 +26,7 @@ TSEgest is an extension of the simple two-stage estimation (TSE) method by incor
 # Estimation of $\psi$
 To derive the g-estimate of $\psi$, we utilize a logistic regression model for switching
 \[
-  \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk} + 
-  \sum_{j'} \gamma_{j'} s_{ij'k}
+  \textrm{logit}(p(E_{ik})) = \alpha U_{i,\psi} + \sum_{j} \beta_j x_{ijk}
 \]
 alongside a structural model for counterfactual post progression survival times
 \[
@@ -43,9 +42,7 @@ Here $T_{C_i}$ refers to the time spent after disease progression on control tre
     
     - If a patient does not switch treatment and either dies or is censored four visits after disease progression, they contribute five records, with $E_{ik} = 0$ for $k=1,\ldots,5$. 
 
-- **Confounders $x_{ijk}$**: These are the confounding variables measured for subject $i$ at observation $k$.
-
-- **Visit-Specific Intercepts $s_{ij'k}$**: These can be modeled using a natural cubic spline with specified degrees of freedom, denoted as $\nu$ (corresponding to the `ns_df` parameter of the `tsegest` function). The boundary and internal knots can be based on the range and percentiles of observed treatment switching times, respectively. Here, $\nu$ equals the number of internal knots plus one; a value of $\nu=0$ indicates a common intercept, while $\nu=1$ leads to a linear effect of visit. By default, $\nu=3$, which implies two internal knots for the cubic spline.
+- **Confounders $x_{ijk}$**: These are the confounding variables measured for subject $i$ at observation $k$. Visit-specific intercepts can be modeled using a natural cubic spline with specified degrees of freedom, denoted as $\nu$ (corresponding to the `ns_df` parameter of the `tsegest` function). The boundary and internal knots can be based on the range and percentiles of observed treatment switching times, respectively. Here, $\nu$ equals the number of internal knots plus one; a value of $\nu=0$ indicates a common intercept, while $\nu=1$ leads to a linear effect of visit. By default, $\nu=3$, which implies two internal knots for the cubic spline.
 
 - **Counteractual Survival Time $U_{i,\psi}$**: This represents the counterfactual post progression survival time for subject $i$ based on a specific value of $\psi$. In case of recensoring, we define $D_{i,\psi}^* = \min(C_i, e^{\psi}C_i)$, where $C_i$ is the censoring time for the subject. Additionally, we denote $\Delta_i$ as the observed event indicators. We then define $U_{i,\psi}^* = \min(U_{i,\psi}, D_{i,\psi}^*)$ and $\Delta_{i,\psi}^* = \Delta_i I(U_{i,\psi} \leq D_{i,\psi}^*)$ to represent the recensored counterfactual survival times and event indicators, respectively. Next, we fit a null Cox model to the dataset $(U_{i,\psi}^*, \Delta_{i,\psi}^*)$ to patients with disease progression. The martingale residuals from this model are then used to replace $U_{i,\psi}$ in the pooled logistic regression switching model. 
 
@@ -79,35 +76,31 @@ fit1 <- tsegest(
   swtrt = "xo", swtrt_time = "xotime", 
   base_cov = "bprog", 
   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
-  ns_df = 3, strata_main_effect_only = TRUE,
-  recensor = TRUE, admin_recensor_only = TRUE, 
+  ns_df = 3, recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
   tol = 1.0e-6, offset = 0, boot = FALSE)
 ```
 
 The Kaplan-Meier plot for the control arm demonstrates that treatment switching can occur at the secondary baseline and at each of the ensuing five scheduled visits, spaced 21 days apart.
 ```{r switch time points}
-switched <- fit1$analysis_switch$data_switch[[1]]$data %>% 
-  filter(swtrt == 1)
+switched <- fit1$data_switch[[1]]$data %>% filter(swtrt == 1)
 table(switched$swtrt_time)
 ```
 
 ```{r km}
-ggplot(fit1$analysis_switch$km_switch[[1]]$data %>% 
-         filter(nevent > 0), 
-       aes(x=time, y=survival)) + 
+ggplot(fit1$km_switch[[1]]$data %>% filter(nevent > 0), 
+       aes(x=time, y=surv)) + 
   geom_step() + 
   scale_y_continuous(limits = c(0,1)) + 
   scale_x_continuous(breaks = seq(0,105,21)) + 
   xlab("time from progression to switch") + 
-  ggtitle(paste("trtrand: ", 
-                fit1$analysis_switch$km_switch[[1]]$trtrand)) + 
+  ggtitle(paste("trtrand: ", fit1$km_switch[[1]]$trtrand)) + 
   theme(panel.grid.minor.x = element_blank())
 ```
 
 We can examine the logistic regression switching model to confirm that the coefficient associated with the counterfactual survival time (the martingale residuals for the null Cox model) is effectively zero. To account for the potential correlation of multiple observations within a subject, a robust sandwich variance estimator is employed, clustering on the subject level for the logistic regression model.
 ```{r logis}
-parest <- fit1$analysis_switch$fit_logis[[1]]$fit$parest
+parest <- fit1$fit_logis[[1]]$fit$parest
 parest[, c("param", "beta", "sebeta", "z")]
 ```
 
@@ -120,7 +113,7 @@ c(fit1$psi, fit1$psi_CI)
 ```{r Z(psi)}
 psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
 
-ggplot(fit1$analysis_switch$eval_z[[1]]$data %>% 
+ggplot(fit1$eval_z[[1]]$data %>% 
          filter(psi > fit1$psi_CI[1] - psi_CI_width*0.25 & 
                   psi < fit1$psi_CI[2] + psi_CI_width*0.25), 
        aes(x=psi, y=Z)) + 
@@ -144,15 +137,14 @@ Finally, to ensure the uncertainty is accurately represented, the entire adjustm
 ```{r boot}
 fit2 <- tsegest(
   data = data1, id = "id", 
-  tstart = "tstart", tstop = "tstop", event = "died", 
+  tstart = "tstart", tstop = "tstop", event = "event", 
   treat = "trtrand", censor_time = "censor_time", 
   pd = "progressed", pd_time = "timePFSobs", 
   swtrt = "xo", swtrt_time = "xotime", 
   base_cov = "bprog", 
   conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"),
   low_psi = -2, hi_psi = 2, n_eval_z = 101, 
-  ns_df = 3, strata_main_effect_only = TRUE,
-  recensor = TRUE, admin_recensor_only = TRUE, 
+  ns_df = 3, recensor = TRUE, admin_recensor_only = TRUE, 
   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
   tol = 1.0e-6, offset = 0, boot = TRUE, 
   n_boot = 1000, seed = 12345)
