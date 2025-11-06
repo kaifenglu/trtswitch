@@ -24,8 +24,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
     swtrt = "xo", swtrt_time = "xotime", 
     base_cov = "bprog", 
     conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
-    ns_df = 3, strata_main_effect_only = TRUE,
-    recensor = TRUE, admin_recensor_only = TRUE, 
+    ns_df = 3, recensor = TRUE, admin_recensor_only = TRUE, 
     swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
     tol = 1.0e-6, offset = 0, boot = FALSE)
   
@@ -62,7 +61,7 @@ testthat::test_that("tsegest: logistic g-estimation", {
            xotime = xotime - timePFSobs) %>%
     ungroup()
   
-  f <- function(psi, target) {
+  f <- function(psi) {
     data5 <- data4 %>%
       mutate(u_star = ifelse(xo == 1, xotime + (ostime - xotime)*exp(psi), 
                              ostime), 
@@ -86,12 +85,10 @@ testthat::test_that("tsegest: logistic g-estimation", {
     
     z_lgs <- fit_lgs$parest$z
     
-    as.numeric(z_lgs[2]) - target
+    as.numeric(z_lgs[2])
   }
   
-  psi <- uniroot(f, c(-2,2), 0, tol = 1.0e-6)$root
-  psi_lower <- uniroot(f, c(-2,2), 1.96, tol = 1.0e-6)$root
-  psi_upper <- uniroot(f, c(-2,2), -1.96, tol = 1.0e-6)$root
+  psi <- uniroot(f, c(-2,2), tol = 1.0e-6)$root
   
   data7 <- data2 %>%
     filter(trtrand == 0) %>%
@@ -112,3 +109,5 @@ testthat::test_that("tsegest: logistic g-estimation", {
   hr1 <- as.numeric(exp(cbind(fit$coefficients, confint(fit)))["trtrand",])
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })
+
+
