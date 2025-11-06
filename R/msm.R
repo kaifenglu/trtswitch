@@ -1,8 +1,10 @@
-#' @title Marginal Structural Model (MSM) Method for Treatment Switching
-#' @description Uses the marginal structural model (MSM) 
-#' method to obtain the hazard ratio estimate of the Cox model to 
-#' adjust for treatment switching.
-#'
+#' @title Marginal Structural Model (MSM) for Treatment Switching
+#' @description Excludes data after treatment switching when fitting 
+#' the switching model to estimate the probabilities of not switching and 
+#' then switching. The inverse of these probabilities (inverse probability 
+#' of treatment weights) are then used as weights in a Cox model 
+#' including data after switching to estimate the adjusted hazard ratio.
+#' 
 #' @param data The input data frame that contains the following variables:
 #'
 #'   * \code{id}: The id to identify observations belonging to the same
@@ -54,14 +56,14 @@
 #'   effects in the logistic regression switching model. Defaults to 
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
 #'   considered in the switching model.
+#' @param ns_df Degrees of freedom for the natural cubic spline for 
+#'   visit-specific intercepts of the pooled logistic regression model. 
+#'   Defaults to 3 for two internal knots at the 33 and 67 percentiles
+#'   of the treatment switching times.
 #' @param firth Whether the Firth's bias reducing penalized likelihood
 #'   should be used.
 #' @param flic Whether to apply intercept correction to obtain more
 #'   accurate predicted probabilities.
-#' @param ns_df Degrees of freedom for the natural cubic spline for 
-#'   visit-specific intercepts of the pooled logistic regression model. 
-#'   Defaults to 3 for two internal knots at the 33 and 67 percentiles
-#'   of the artificial censoring times due to treatment switching.
 #' @param stabilized_weights Whether to use the stabilized weights. 
 #'   The default is \code{TRUE}.
 #' @param trunc The truncation fraction of the weight distribution. 
@@ -73,45 +75,49 @@
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group. The default is \code{TRUE}.
 #' @param treat_alt_interaction Whether to include an interaction between 
-#'   randomized and alternative treatment in the outcome model
+#'   randomized and alternative treatments in the outcome model
 #'   when both randomized arms can switch to alternative treatment.
 #' @param alpha The significance level to calculate confidence intervals. 
-#'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{FALSE}.
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   missing, in which case, the seed from the environment will be used.
+#'   `NA`, in which case, the seed from the environment will be used.
 #'
-#' @details We use the following steps to obtain the hazard ratio estimate
-#' and confidence interval had there been no treatment switching:
+#' @details The hazard ratio and confidence interval under a no-switching 
+#' scenario are obtained as follows:
 #'
-#' * Exclude observations after treatment switch for the switch model.
-#' 
-#' * Set up the crossover indicators for the last time interval 
-#'   for each subject.
+#' * Exclude observations after treatment switch when fitting the 
+#'   switching model.
 #'
-#' * Fit the denominator switching model (and the numerator switching model
-#'   for stabilized weights) to obtain the inverse probability
-#'   of censoring weights using a pooled logistic regression model. 
-#'   The probability of remaining uncensored (i.e., not switching) will 
-#'   be calculated by subtracting the predicted probability of switching 
-#'   from 1. The probabilities of remaining unswitched will be multiplied 
-#'   over time before treatment switching, at which time point, 
-#'   it will be multiplied by the probability of treatment switching. 
-#'   The inverse probability of treatment weighting will not change 
-#'   after treatment switching. 
+#' * Define crossover indicators for the last time interval 
+#'   of each subject.
 #'
-#' * Fit the weighted Cox model to the censored outcome survival times
-#'   to obtain the hazard ratio estimate.
+#' * Fit the denominator switching model (and numerator model for 
+#'   stabilized weights) using a pooled logistic regression model to 
+#'   estimate the inverse probability of treatment weights (IPTWs).
+#'   
+#'     - The probability of remaining unswitched is calculated as 
+#'       \eqn{1 - \hat{p}_{\text{switch}}} and multiplied 
+#'       over time before treatment switch.  
+#'       
+#'     - At the time of switching, this product is multiplied by the 
+#'       predicted probability of switching.
+#'       
+#'     - After treatment switch, the IPTW remains constant. 
+#'     
+#'     - The inverse of the probability at the start of each interval 
+#'       is used as the interval weight.
 #'
-#' * Use either robust sandwich variance or bootstrapping to construct the 
-#'   p-value and confidence interval for the hazard ratio. 
-#'   If bootstrapping is used, the confidence interval 
-#'   and corresponding p-value are calculated based on a t-distribution with 
-#'   \code{n_boot - 1} degrees of freedom. 
+#' * Fit a weighted Cox model to the outcome survival times, including 
+#'   data after treatment switch, to estimate the hazard ratio.
+#'
+#' * Construct the p-value and confidence interval for the hazard ratio 
+#'   using either robust sandwich variance or bootstrapping. When 
+#'   bootstrapping is used, the confidence interval and p-value are 
+#'   based on a t-distribution with \code{n_boot - 1} degrees of freedom.
 #'
 #' @return A list with the following components:
 #'
@@ -119,7 +125,7 @@
 #'   for the ITT analysis.
 #'
 #' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model applied to counterfactual unswitched survival times.
+#'   the weighted Cox model including data after treatment switch.
 #'   If \code{boot} is \code{TRUE}, this value represents the 
 #'   bootstrap p-value.
 #'
@@ -133,7 +139,10 @@
 #' * \code{data_switch}: A list of input data for the switching models by 
 #'   treatment group. The variables include \code{id}, \code{stratum}, 
 #'   \code{"tstart"}, \code{"tstop"}, \code{"cross"}, \code{denominator}, 
-#'   \code{swtrt}, and \code{swtrt_time}.
+#'   \code{swtrt}, and \code{swtrt_time}. In addition, 
+#'   \code{stratum} variables are converted to dummy variables, and 
+#'   natural cubic spline basis variables are created for the visit-specific 
+#'   intercepts.
 #'
 #' * \code{fit_switch}: A list of fitted switching models for the
 #'   denominator and numerator by treatment group.
@@ -141,9 +150,19 @@
 #' * \code{data_outcome}: The input data for the outcome Cox model 
 #'   including the inverse probability of censoring weights.
 #'   The variables include \code{id}, \code{stratum}, \code{"tstart"}, 
-#'   \code{"tstop"}, \code{"event"}, \code{"treated"}, 
+#'   \code{"tstop"}, \code{"event"}, \code{"treated"}, \code{"crossed"},
 #'   \code{"unstablized_weight"}, \code{"stabilized_weight"}, 
-#'   \code{base_cov}, and \code{treat}.
+#'   \code{base_cov}, and \code{treat}. 
+#'   If \code{treat_alt_interaction} is \code{TRUE}, 
+#'   the data set also includes the \code{"treated_crossed"} variable. 
+#'
+#' * \code{km_outcome}: The Kaplan-Meier estimates of the survival
+#'   functions for the treatment and control groups based on the
+#'   weighted outcome data truncated at time of treatment switching.
+#'   
+#' * \code{lr_outcome}: The log-rank test results for the treatment
+#'   effect based on the weighted outcome data truncated at time of 
+#'   treatment switching.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -151,17 +170,15 @@
 #'
 #' * \code{settings}: A list with the following components:
 #'
-#'     - \code{strata_main_effect_only}: Whether to only include the 
-#'       strata main effects in the logistic regression switching model. 
-#'       
-#'     - \code{firth}: Whether the Firth's bias reducing penalized likelihood
-#'       should be used.
-#'       
-#'     - \code{flic}: Whether to apply intercept correction to obtain more
-#'       accurate predicted probabilities.
+#'     - \code{strata_main_effect_only}: Whether to only include the strata 
+#'       main effects in the logistic regression switching model. 
 #'       
 #'     - \code{ns_df}: Degrees of freedom for the natural cubic spline.
 #'   
+#'     - \code{firth}: Whether the Firth's penalized likelihood is used.
+#'       
+#'     - \code{flic}: Whether to apply intercept correction.
+#'       
 #'     - \code{stabilized_weights}: Whether to use the stabilized weights.
 #'
 #'     - \code{trunc}: The truncation fraction of the weight distribution.
@@ -173,9 +190,9 @@
 #'       in the control group.
 #'
 #'     - \code{treat_alt_interaction} Whether to include an interaction 
-#'       between randomized and alternative treatment in the outcome model.
+#'       between randomized and alternative treatments in the outcome model.
 #'
-#'     - \code{alpa}: The significance level to calculate confidence
+#'     - \code{alpha}: The significance level to calculate confidence
 #'       intervals.
 #'
 #'     - \code{ties}: The method for handling ties in the Cox model.
@@ -193,8 +210,8 @@
 #' * \code{fail_boots_data}: The data for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
-#'   \code{TRUE}.
+#' * \code{hr_boots}: The bootstrap hazard ratio estimates 
+#'   if \code{boot} is \code{TRUE}.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
@@ -244,8 +261,8 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
                 tstop = "tstop", event = "event", treat = "treat",
                 swtrt = "swtrt", swtrt_time = "swtrt_time",
                 base_cov = "", numerator = "", denominator = "",
-                strata_main_effect_only = TRUE, firth = FALSE, 
-                flic = FALSE, ns_df = 3, 
+                strata_main_effect_only = TRUE, 
+                ns_df = 3, firth = FALSE, flic = FALSE, 
                 stabilized_weights = TRUE, 
                 trunc = 0, trunc_upper_only = TRUE,
                 swtrt_control_only = TRUE, 
@@ -338,10 +355,10 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
   out <- msmcpp(
     data = df, id = id, stratum = stratum, tstart = tstart,
     tstop = tstop, event = event, treat = treat, 
-    swtrt = swtrt, swtrt_time = swtrt_time, base_cov = varnames,
-    numerator = varnames2, denominator = varnames3,
+    swtrt = swtrt, swtrt_time = swtrt_time, 
+    base_cov = varnames, numerator = varnames2, denominator = varnames3,
     strata_main_effect_only = strata_main_effect_only,
-    firth = firth, flic = flic, ns_df = ns_df,
+    ns_df = ns_df, firth = firth, flic = flic,
     stabilized_weights = stabilized_weights, 
     trunc = trunc, trunc_upper_only = trunc_upper_only,
     swtrt_control_only = swtrt_control_only, 
@@ -349,34 +366,24 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     alpha = alpha, ties = ties, 
     boot = boot, n_boot = n_boot, seed = seed)
   
-  K = ifelse(swtrt_control_only, 1, 2)
-  for (h in 1:K) {
-    out$data_switch[[h]]$data$uid <- NULL
-    out$data_switch[[h]]$data$ustratum <- NULL
-  }
-  
-  out$data_outcome$uid <- NULL
-  out$data_outcome$ustratum <- NULL
-  
-  
+  # --- Update df ---
   df[, "tstart"] = df[, tstart]
   df[, "tstop"] = df[, tstop]
   
-  # sort df by id, tstart, tstop
-  df_sorted <- df[order(df[[id]], df[[tstart]], df[[tstop]]), ]
+  df <- df[order(df[[id]]), ]          # Sort by id
+  dfu <- df[!duplicated(df[[id]]), ]   # Keep the first row for each id
   
-  # Find the last observation for each id
-  last_observations_indices <- !duplicated(df_sorted[[id]], fromLast = TRUE)
-  
-  # Subset the sorted data frame to keep only the last observations
-  df_sorted_last <- df_sorted[last_observations_indices, ]
+  # --- Update data_outcome ---
+  out$data_outcome$uid <- NULL
+  out$data_outcome$ustratum <- NULL
   
   if (p >= 1) {
     add_vars <- setdiff(vnames, varnames)
     if (length(add_vars) > 0) {
-      out$data_outcome <- merge(out$data_outcome, 
-                                df_sorted_last[, c(id, add_vars)], 
-                                by = id, all.x = TRUE, sort = FALSE)
+      out$data_outcome <- 
+        merge(out$data_outcome, 
+              dfu[, c(id, add_vars)], 
+              by = id, all.x = TRUE, sort = FALSE)
     }
     
     del_vars <- setdiff(varnames, vnames)
@@ -385,12 +392,19 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     }
   }
   
+  # --- Update data_switch ---
+  K = ifelse(swtrt_control_only, 1, 2)
+  for (h in 1:K) {
+    out$data_switch[[h]]$data$uid <- NULL
+    out$data_switch[[h]]$data$ustratum <- NULL
+  }
+  
   if (p3 >= 1) {
     # exclude observations after treatment switch
     data1 <- df[!df[[swtrt]] | df[[tstart]] < df[[swtrt_time]], ]
     
-    # sort by id, tstart, and tstop
-    data1 <- data1[order(data1[[id]], data1[[tstart]], data1[[tstop]]), ]
+    # sort by id and time
+    data1 <- data1[order(data1[[id]], data1[[tstart]]), ]
     
     # identify the last obs within each id who switched 
     condition <- !duplicated(data1[[id]], fromLast = TRUE) & 
@@ -402,11 +416,12 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     
     tem_vars <- c(swtrt, swtrt_time)
     add_vars <- c(setdiff(vnames3, varnames3), tem_vars)
-    if (length(add_vars) > 0) {
+    avars <- setdiff(add_vars, names(out$data_switch[[1]]$data))
+    if (length(avars) > 0) {
       for (h in 1:K) {
         out$data_switch[[h]]$data <- 
           merge(out$data_switch[[h]]$data, 
-                data1[, c(id, "tstart", "tstop", add_vars)], 
+                data1[, c(id, "tstart", "tstop", avars)], 
                 by = c(id, "tstart", "tstop"), all.x = TRUE, sort = FALSE)
       }
     }
@@ -416,11 +431,6 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
       for (h in 1:K) {
         out$data_switch[[h]]$data[, del_vars] <- NULL
       }
-    }
-    
-    for (h in 1:K) {
-      out$data_switch[[h]]$data <- out$data_switch[[h]]$data[
-        , !startsWith(names(out$data_switch[[h]]$data), "stratum_")]
     }
   }
   
