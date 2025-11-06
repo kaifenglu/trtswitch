@@ -1,9 +1,11 @@
 #' @title Rank Preserving Structural Failure Time Model (RPSFTM) for
 #' Treatment Switching
-#' @description Obtains the causal parameter estimate from the 
-#' log-rank test, the Cox proportional hazards model, or a parametric 
-#' survival regression model, and obtains the hazard ratio estimate 
-#' from the Cox model to adjust for treatment switching.
+#' @description Estimates the causal treatment effect parameter using 
+#' g-estimation based on the log-rank test, Cox model, or parametric 
+#' survival/accelerated failure time (AFT) model. The method uses 
+#' counterfactual \emph{untreated} survival times to estimate the 
+#' causal parameter and derives the adjusted hazard ratio from the 
+#' Cox model using counterfactual \emph{unswitched} survival times.
 #'
 #' @param data The input data frame that contains the following variables:
 #' 
@@ -35,13 +37,13 @@
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the outcome Cox model. 
 #'   These covariates will also be used in the Cox model for estimating 
-#'   \code{psi} when \code{psi_test = "phreg"} and in the AFT model 
-#'   for estimating \code{psi} when \code{psi_test = "lifereg"}.   
+#'   \code{psi} when \code{psi_test = "phreg"} and in the parametric
+#'   survival regression/AFT model for 
+#'   estimating \code{psi} when \code{psi_test = "lifereg"}.
 #' @param psi_test The survival function to calculate the Z-statistic, e.g., 
 #'   "logrank" (default), "phreg", or "lifereg".
-#' @param aft_dist The assumed distribution for time to event for the 
-#'   accelerated failure time (AFT) model when 
-#'   \code{psi_test = "lifereg"}. Options include "exponential", 
+#' @param aft_dist The assumed distribution for time to event for the AFT 
+#'   model when \code{psi_test = "lifereg"}. Options include "exponential", 
 #'   "weibull" (default), "loglogistic", and "lognormal".
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the AFT model. Defaults to \code{TRUE}, otherwise all
@@ -76,25 +78,29 @@
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   missing, in which case, the seed from the environment will be used.
+#'   `NA`, in which case, the seed from the environment will be used.
 #'
-#' @details We use the following steps to obtain the hazard ratio estimate
-#' and confidence interval had there been no treatment switching:
+#' @details Assuming one-way switching from control to treatment, the 
+#' hazard ratio and confidence interval under a no-switching scenario 
+#' are obtained as follows:
 #'
-#' * Use RPSFTM to estimate the causal parameter \eqn{\psi} based on the 
-#'   log-rank test (default), the Cox proportional hazards model, 
-#'   or a parametric survival regression model for counterfactual 
-#'   \emph{untreated} survival times: 
-#'   \deqn{U_{i,\psi} = T_{C_i} +  e^{\psi}T_{E_i}}
+#' * Estimate the causal parameter \eqn{\psi} using g-estimation based on 
+#'   the log-rank test (default), Cox model, or parametric survival/AFT 
+#'   model, using counterfactual \emph{untreated} survival times for 
+#'   both arms: 
+#'   \deqn{U_{i,\psi} = T_{C_i} + e^{\psi}T_{E_i}}
 #'
-#' * Fit the Cox proportional hazards model to the counterfactual 
-#'   \emph{unswitched} survival times to obtain the hazard ratio estimate.
+#' * Compute counterfactual survival times for control patients using 
+#'   the estimated \eqn{\psi}.
 #'
-#' * Use either the log-rank test p-value for the intention-to-treat (ITT) 
-#'   analysis or bootstrap to construct the confidence interval for 
-#'   hazard ratio. If bootstrapping is used, the confidence interval 
-#'   and corresponding p-value are calculated based on a t-distribution with 
-#'   \code{n_boot - 1} degrees of freedom. 
+#' * Fit a Cox model to the observed survival times for the treatment group 
+#'   and the counterfactual survival times for the control group to 
+#'   estimate the hazard ratio.
+#'
+#' * Obtain the confidence interval for the hazard ratio using either 
+#'   the ITT log-rank test p-value or bootstrap. When bootstrapping, 
+#'   the interval and p-value are derived from a t-distribution 
+#'   with \code{n_boot - 1} degrees of freedom.
 #'
 #' @return A list with the following components:
 #'
@@ -136,15 +142,14 @@
 #'
 #' * \code{data_outcome}: The input data for the outcome Cox model of 
 #'   counterfactual unswitched survival times. 
-#'   The variables include \code{id}, \code{stratum}, 
-#'   \code{"t_star"}, \code{"d_star"}, \code{"treated"}, \code{base_cov},
-#'   and \code{treat}.
+#'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
+#'   \code{"d_star"}, \code{"treated"}, \code{base_cov}, and \code{treat}.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{fail}: Whether a model fails to converge.
 #'
-#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
+#' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #'
 #' * \code{settings}: A list with the following components:
 #' 
@@ -163,8 +168,8 @@
 #'     - \code{n_eval_z}: The number of points between \code{low_psi} and 
 #'       \code{hi_psi} (inclusive) at which to evaluate the Z-statistics.
 #'
-#'     - \code{treat_modifier}: The sensitivity parameter for the
-#'       constant treatment effect assumption.
+#'     - \code{treat_modifier}: The sensitivity parameter for the constant 
+#'       treatment effect assumption.
 #'
 #'     - \code{recensor}: Whether to apply recensoring to counterfactual
 #'       survival times.
@@ -201,11 +206,11 @@
 #' * \code{fail_boots_data}: The data for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
-#'   \code{TRUE}.
+#' * \code{hr_boots}: The bootstrap hazard ratio estimates 
+#'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{psi_boots}: The bootstrap \code{psi} estimates if \code{boot} is 
-#'   \code{TRUE}.
+#' * \code{psi_boots}: The bootstrap \code{psi} estimates 
+#'   if \code{boot} is \code{TRUE}.
 #'   
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
@@ -258,9 +263,9 @@
 #' c(fit2$hr, fit2$hr_CI)
 #'
 #' @export
-rpsftm <- function(data, id = "id", stratum = "", 
-                   time = "time", event = "event",
-                   treat = "treat", rx = "rx", censor_time = "censor_time",
+rpsftm <- function(data, id = "id", stratum = "", time = "time", 
+                   event = "event", treat = "treat", rx = "rx", 
+                   censor_time = "censor_time",
                    base_cov = "", psi_test = "logrank", 
                    aft_dist = "weibull", strata_main_effect_only = TRUE, 
                    low_psi = -2, hi_psi = 2,
@@ -306,8 +311,7 @@ rpsftm <- function(data, id = "id", stratum = "",
   }
 
   out <- rpsftmcpp(
-    data = df, id = id, stratum = stratum, 
-    time = time, event = event,
+    data = df, id = id, stratum = stratum, time = time, event = event,
     treat = treat, rx = rx, censor_time = censor_time,
     base_cov = varnames, psi_test = psi_test, aft_dist = aft_dist,
     strata_main_effect_only = strata_main_effect_only, 
