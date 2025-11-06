@@ -88,11 +88,11 @@ using namespace Rcpp;
 //'   assigned to active treatment and \code{allocation2} to control
 //'   within each randomized block. A baseline covariate is 
 //'   also generated for each subject:
-//'   \deqn{X_i \sim \mbox{Bernoulli}(p_{X_1} R_i + p_{X_0} (1-R_i))}
+//'   \deqn{X_i \sim \mbox{Bernoulli}(p_1 R_i + p_0 (1-R_i))}
 //'         
 //'   \item The initial survival time is drawn
 //'   from an exponential distribution with hazard:
-//'   \deqn{rate_T \exp(\beta_1 R_i + \beta_2 X_i)}
+//'   \deqn{\lambda_T \exp(\beta_1 R_i + \beta_2 X_i)}
 //'   We define the event indicator at cycle \eqn{j} as
 //'   \deqn{Y_{i,j} = I(T_i \leq j\times days)}
 //'         
@@ -138,7 +138,7 @@ using namespace Rcpp;
 //' }
 //' 
 //' Additional random censoring times are generated from an exponential 
-//' distribution with hazard rate \eqn{rate_C}.
+//' distribution with hazard rate \eqn{\lambda_C}.
 //' 
 //' An extra record is generated when the minimum of the latent survival 
 //' time, the random censoring time, and the administrative censoring time 
@@ -163,7 +163,7 @@ using namespace Rcpp;
 //'
 //'  * \code{id}: Subject identifier.
 //'  
-//'  * \code{arrivalTime}: The enrollment time for the subject.
+//'  * \code{arrival_time}: The enrollment time for the subject.
 //'  
 //'  * \code{trtrand}: Randomized treatment assignment (0 = control, 
 //'    1 = experimental)
