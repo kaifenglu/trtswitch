@@ -94,11 +94,10 @@ DataFrame f_unswitched(
   IntegerVector nonswitchers = which(((treat == 1) & (rx == 1.0)) | 
     ((treat == 0) & (rx == 0.0)));
   
-  int i;
   double a = exp(psi), a1 = exp(-psi);
   NumericVector u_star(n), t_star(n);
   IntegerVector d_star(n);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     if (treat[i] == 0) {
       u_star[i] = time[i]*((1 - rx[i]) + rx[i]*a);
     } else {
@@ -111,7 +110,7 @@ DataFrame f_unswitched(
   if (recensor_type == 1) { // recensor all patients
     NumericVector c_star(n);
     double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
-    for (i=0; i<n; i++) {
+    for (int i=0; i<n; i++) {
       if (treat[i] == 0) {
         c_star[i] = censor_time[i]*c0;
       } else {
@@ -131,7 +130,7 @@ DataFrame f_unswitched(
   } else if (recensor_type == 2) { // recensor only switchers
     NumericVector c_star(n);
     double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
-    for (i=0; i<n; i++) {
+    for (int i=0; i<n; i++) {
       if (treat[i] == 0) {
         c_star[i] = censor_time[i]*c0;
       } else {
@@ -196,8 +195,8 @@ double f_est_psi_rpsftm(
                                 rx, censor_time, recensor_type, autoswitch);
   
   Sstar.push_back(stratum, "ustratum");
-  DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", 
-                        "d_star", 0, 0);
+  DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", "", 
+                        "d_star", "", 0, 0);
   
   double z = df["logRankZ"];
   return z - target;
@@ -318,12 +317,12 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
                               const double hi_psi = 1,
                               const double treat_modifier = 1,
                               const int recensor_type = 1,
-                              const bool admin_recensor_only = 1,
-                              const bool autoswitch = 1,
+                              const bool admin_recensor_only = true,
+                              const bool autoswitch = true,
                               const double alpha = 0.05,
                               const std::string ties = "efron",
                               const double tol = 1.0e-6,
-                              const bool boot = 1,
+                              const bool boot = true,
                               const int n_boot = 1000,
                               const int seed = NA_INTEGER) {
   
@@ -332,9 +331,6 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     std::to_string(admin_recensor_only) + "\n";
   
   if (seed != NA_INTEGER) set_seed(seed);
-  
-  int i, j, iter;
-  double u, loghr = shape*psi;
   
   IntegerVector id = seq_len(n), stratum(n, 1);
   IntegerVector treat(n), event(n), dropout(n), admin_censor(n);
@@ -360,9 +356,9 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
   
   // treatment indicator  
   treat[id <= n/2] = 1;
-  for (iter=0; iter<nsim; iter++) {
+  for (int iter=0; iter<nsim; iter++) {
     // data generation
-    for (i=0; i<n; i++) {
+    for (int i=0; i<n; i++) {
       // latent survival time
       survivalTime_latent[i] = R::rweibull(shape, scale*exp(-psi*treat[i]));
 
@@ -373,7 +369,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
       followupTime[i] = R::runif(tfmin, tfmax);
       
       // latent disease progression time
-      u = R::rbeta(a, b);
+      double u = R::rbeta(a, b);
       pd_time_latent[i] = u*survivalTime_latent[i];
       
       if (treat[i] == 0) {
@@ -477,15 +473,15 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     p_pd0[iter] = sum(pd*(1-treat))/(n/2.0);
     p_swtrt0[iter] = sum(swtrt*(1-treat))/(n/2.0);
     
-    DataFrame data = DataFrame::create(
+    DataFrame dt = DataFrame::create(
       Named("stratum") = stratum,
       Named("treat") = treat,
       Named("time") = time,
       Named("event") = event
     );
     
-    DataFrame lr = lrtest(data,"","stratum","treat","time","event",0,0);
-    double logRankPValue = lr["logRankPValue"];
+    DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0);
+    double logRankZ = lr["logRankZ"];
     
     auto f = [n, low_psi, hi_psi, treat_modifier, recensor_type, 
               autoswitch, alpha, ties, tol](
@@ -548,8 +544,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     hrlowercox[iter] = exp(loghrhat[iter] - zcrit*seloghrcox[iter]);
     hruppercox[iter] = exp(loghrhat[iter] + zcrit*seloghrcox[iter]);
     
-    double z = R::qnorm(logRankPValue, 0, 1, 1, 0);
-    seloghrlr[iter] = loghrhat[iter]/z;
+    seloghrlr[iter] = loghrhat[iter]/logRankZ;
     if (seloghrlr[iter] <= 0) {
       std::string str2 = "invalid standard error estimate for iter ";
       str2 += std::to_string(iter) + "\n";
@@ -570,10 +565,10 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     int n0 = static_cast<int>(idx0.size());
     int n1 = static_cast<int>(idx1.size());
     IntegerVector order(n);
-    for (i=0; i<n0; i++) {
+    for (int i=0; i<n0; i++) {
       order[i] = idx0[i];
     }
-    for (i=0; i<n1; i++){
+    for (int i=0; i<n1; i++){
       order[n0+i] = idx1[i];
     }
     
@@ -588,13 +583,10 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     NumericVector loghrhats(n_boot);
     for (int k=0; k<n_boot; k++) {
       // sample the data with replacement by treatment group
-      for (i=0; i<n; i++) {
-        u = R::runif(0,1);
-        if (treat[i] == 0) {
-          j = static_cast<int>(std::floor(u*n0));
-        } else {
-          j = n0 + static_cast<int>(std::floor(u*n1));
-        }
+      for (int i=0; i<n; i++) {
+        double u = R::runif(0,1);
+        int j = treat[i] == 0 ? static_cast<int>(std::floor(u*n0)) 
+          : n0 + static_cast<int>(std::floor(u*n1));
         
         idb[i] = id[j];
         stratumb[i] = stratum[j];
@@ -633,7 +625,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
     
     IntegerVector d_star = Sstar["d_star"];
     IntegerVector recensored(n);
-    for (i=0; i<n; i++) {
+    for (int i=0; i<n; i++) {
       recensored[i] = event[i] * (1 - d_star[i]);
     }
     p_recensored0[iter] = sum(recensored*(1-treat))/(n/2.0);
@@ -654,6 +646,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
   NumericVector psi_diff = psihat - psi;
   double psi_mse = mean(psi_diff*psi_diff);
   
+  double loghr = shape*psi;
   double loghr_est = mean(loghrhat);
   double loghr_bias = loghr_est - loghr;
   double loghr_se = sd(loghrhat);
