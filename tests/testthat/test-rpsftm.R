@@ -5,7 +5,7 @@ testthat::test_that("rpsftm: control to active switch", {
   data1 <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
   
   fit1 <- rpsftm(
-    data1, time = "progyrs", event = "prog", treat = "imm", 
+    data1, id = "id", time = "progyrs", event = "prog", treat = "imm", 
     rx = "rx", censor_time = "censyrs", boot = FALSE)
   
   # log-rank for ITT
@@ -14,15 +14,11 @@ testthat::test_that("rpsftm: control to active switch", {
   if (fit_lr$obs[2] < fit_lr$exp[2]) z_lr <- -z_lr
   
   f <- function(psi) {
-    data1 %>%
+    data2 <- data1 %>%
       mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),
              c_star = ifelse(imm==0, pmin(censyrs, censyrs*exp(psi)), 1e10),
              t_star = pmin(u_star, c_star),
              d_star = ifelse(c_star < u_star, 0, prog))
-  }
-  
-  g <- function(psi) {
-    data2 <- f(psi)
     fit_lr <- survdiff(Surv(t_star, d_star) ~ imm, data = data2)
     z_lr <- sqrt(fit_lr$chisq)
     if (fit_lr$obs[2] < fit_lr$exp[2]) z_lr <- -z_lr
@@ -30,7 +26,7 @@ testthat::test_that("rpsftm: control to active switch", {
   }
   
   # psi based on log-rank test
-  psi <- uniroot(g, c(-2,2), tol = 1e-6)$root
+  psi <- uniroot(f, c(-2,2), tol = 1e-6)$root
   
   data2 <- data1 %>%
     filter(imm == 0) %>%
