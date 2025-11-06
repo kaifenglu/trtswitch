@@ -171,7 +171,7 @@ ggplot(fit1$eval_z %>%
 
 The Kaplan-Meier plot of counterfactual survival times supports the estimated $\hat{\psi}$.
 ```{r km}
-ggplot(fit1$kmstar, aes(x=time, y=survival, group=treated,
+ggplot(fit1$kmstar, aes(x=time, y=surv, group=treated,
                         linetype=as.factor(treated))) + 
   geom_step() + 
   scale_linetype_discrete(name = "treated") + 
