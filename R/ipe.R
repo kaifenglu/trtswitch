@@ -1,7 +1,9 @@
 #' @title Iterative Parameter Estimation (IPE) for Treatment Switching
-#' @description Obtains the causal parameter estimate from the
-#' accelerated failure-time (AFT) model and the hazard ratio estimate
-#' from the Cox model to adjust for treatment switching.
+#' @description Estimates the causal parameter by iteratively fitting an 
+#' accelerated failure time (AFT) model to counterfactual 
+#' \emph{unswitched} survival times, and derives the adjusted hazard 
+#' ratio from the Cox model using counterfactual \emph{unswitched} 
+#' survival times based on the estimated causal parameter.
 #'
 #' @param data The input data frame that contains the following variables:
 #' 
@@ -64,25 +66,28 @@
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   missing, in which case, the seed from the environment will be used.
+#'   `NA`, in which case, the seed from the environment will be used.
 #'
-#' @details We use the following steps to obtain the hazard ratio estimate
-#' and confidence interval had there been no treatment switching:
+#' @details Assuming one-way switching from control to treatment, the 
+#' hazard ratio and confidence interval under a no-switching scenario 
+#' are obtained as follows:
 #'
-#' * Use IPE to estimate the causal parameter \eqn{\psi} based on the AFT 
-#'   model for the observed survival times for the experimental arm and 
-#'   the counterfactual survival times for the control arm, 
+#' * Estimate the causal parameter \eqn{\psi} by iteratively fitting an 
+#'   AFT model to the observed survival times for the treatment arm and 
+#'   the counterfactual survival times for the control arm: 
 #'   \deqn{U_{i,\psi} = T_{C_i} + e^{\psi}T_{E_i}}
 #'
-#' * Fit the Cox proportional hazards model to the observed survival times
-#'   for the experimental group and the counterfactual survival times 
-#'   for the control group to obtain the hazard ratio estimate.
+#' * Compute counterfactual survival times for control patients using 
+#'   the estimated \eqn{\psi}.
 #'
-#' * Use either the log-rank test p-value for the intention-to-treat (ITT)
-#'   analysis or bootstrap to construct the confidence interval for 
-#'   hazard ratio. If bootstrapping is used, the confidence interval 
-#'   and corresponding p-value are calculated based on a t-distribution with 
-#'   \code{n_boot - 1} degrees of freedom. 
+#' * Fit a Cox model to the observed survival times for the treatment group 
+#'   and the counterfactual survival times for the control group to 
+#'   estimate the hazard ratio.
+#'
+#' * Obtain the confidence interval for the hazard ratio using either 
+#'   the ITT log-rank test p-value or bootstrap. When bootstrapping, 
+#'   the interval and p-value are derived from a t-distribution 
+#'   with \code{n_boot - 1} degrees of freedom.
 #'
 #' @return A list with the following components:
 #'
@@ -133,7 +138,7 @@
 #'
 #' * \code{fail}: Whether a model fails to converge.
 #'
-#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
+#' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #'
 #' * \code{settings}: A list with the following components:
 #'
@@ -182,11 +187,11 @@
 #' * \code{fail_boots_data}: The data for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is 
-#'   \code{TRUE}.
+#' * \code{hr_boots}: The bootstrap hazard ratio estimates 
+#'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{psi_boots}: The bootstrap \code{psi} estimates if \code{boot} is 
-#'   \code{TRUE}.
+#' * \code{psi_boots}: The bootstrap \code{psi} estimates 
+#'   if \code{boot} is \code{TRUE}.
 #' 
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
@@ -244,12 +249,13 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
                 event = "event", treat = "treat", rx = "rx", 
                 censor_time = "censor_time",
                 base_cov = "", aft_dist = "weibull",
+                strata_main_effect_only = TRUE, 
                 low_psi = -2, hi_psi = 2,
-                strata_main_effect_only = 1, treat_modifier = 1,
+                treat_modifier = 1,
                 recensor = TRUE, admin_recensor_only = TRUE,
                 autoswitch = TRUE, root_finding = "brent",
-                alpha = 0.05, ties = "efron",
-                tol = 1.0e-6, boot = FALSE, n_boot = 1000, seed = NA) {
+                alpha = 0.05, ties = "efron", tol = 1.0e-6, 
+                boot = FALSE, n_boot = 1000, seed = NA) {
 
   rownames(data) = NULL
 
@@ -289,13 +295,13 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
     data = df, id = id, stratum = stratum, time = time, event = event,
     treat = treat, rx = rx, censor_time = censor_time,
     base_cov = varnames, aft_dist = aft_dist,
-    low_psi = low_psi, hi_psi = hi_psi,
     strata_main_effect_only = strata_main_effect_only,
+    low_psi = low_psi, hi_psi = hi_psi,
     treat_modifier = treat_modifier, recensor = recensor,
     admin_recensor_only = admin_recensor_only, 
     autoswitch = autoswitch, root_finding = root_finding,
-    alpha = alpha, ties = ties, 
-    tol = tol, boot = boot, n_boot = n_boot, seed = seed)
+    alpha = alpha, ties = ties, tol = tol, 
+    boot = boot, n_boot = n_boot, seed = seed)
   
   if (!out$psimissing) {
     out$Sstar$uid <- NULL
@@ -322,9 +328,6 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
         out$data_aft[, del_vars] <- NULL
         out$data_outcome[, del_vars] <- NULL
       }
-      
-      out$data_aft <- out$data_aft[
-        , !startsWith(names(out$data_aft), "stratum_")]
     }
   }
   
