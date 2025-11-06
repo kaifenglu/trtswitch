@@ -4,7 +4,7 @@
 using namespace Rcpp;
 
 
-//' @title Simulate Survival Data for Two-Stage Estimation Method Using 
+//' @title Simulate Survival Data for Two-Stage Estimation with  
 //' g-estimation
 //' @description Obtains the simulated data for baseline prognosis, 
 //' disease progression, treatment switching, death, and 
@@ -179,11 +179,9 @@ List tsegestsim(const int n = 500,
                 const double pgoodmet = 0.2,
                 const double xomult = 1.4188308,
                 const double milestone = 546,
-                const bool outputRawDataset = 1,
+                const bool outputRawDataset = true,
                 const int seed = NA_INTEGER) {
   
-  int i, j, k;
-
   if (seed != NA_INTEGER) {
     set_seed(seed);
   }
@@ -195,7 +193,6 @@ List tsegestsim(const int n = 500,
     return a1+a2;
   };
 
-  double eta, u, v;
   double simtrueconstmean, simtrueconstlb, simtrueconstub, simtrueconstse;
   double simtrueexpstmean, simtrueexpstlb, simtrueexpstub, simtrueexpstse;
   double simtrue_coxwbprog_hr, simtrue_cox_hr;
@@ -211,11 +208,11 @@ List tsegestsim(const int n = 500,
   NumericVector catOSloss(n, NA_REAL), cattime(n, NA_REAL);
 
   int b1 = allocation1, b2 = allocation2;
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     id[i] = i+1;
 
     // generate treatment indicators using stratified block randomization
-    u = R::runif(0,1);
+    double u = R::runif(0,1);
     if (u <= b1/(b1+b2+0.0)) {
       trtrand[i] = 1;
       b1--;
@@ -234,9 +231,9 @@ List tsegestsim(const int n = 500,
     bprog[i] = static_cast<int>(R::rbinom(1, pbprog));
 
     // generate survival times from Weibull mixture
-    eta = trtlghr*trtrand[i] + bprogsl*bprog[i];
+    double eta = trtlghr*trtrand[i] + bprogsl*bprog[i];
     u = R::runif(0,1);
-    v = pow(u, exp(-eta));
+    double v = pow(u, exp(-eta));
     timeOS[i] = squantilecpp(S, v);
     dead[i] = (timeOS[i] <= admin);
     timeOS[i] = std::min(timeOS[i], admin);
@@ -248,8 +245,8 @@ List tsegestsim(const int n = 500,
     timePFS[i] = std::round(timeOS[i]*u);
 
     // scheduled visits are every 21 days
-    k = static_cast<int>(std::floor(timeOS[i] / 21));
-    for (j=1; j<=k; j++) {
+    int k = static_cast<int>(std::floor(timeOS[i] / 21));
+    for (int j=1; j<=k; j++) {
       if (timePFS[i] < j*21 && timeOS[i] > j*21) {
         timePFSobs[i] = j*21;
         break;
@@ -322,7 +319,7 @@ List tsegestsim(const int n = 500,
   // calculate HR and RMST with no switching
   IntegerVector event(n);
   NumericVector time(n);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     if (timeOS[i] > admin) {
       event[i] = 0;
       time[i] = admin;
@@ -401,7 +398,7 @@ List tsegestsim(const int n = 500,
   NumericVector xoOSgainobs(n, NA_REAL), timeOS2(n);
   IntegerVector extra2v2(n), extra3v2(n), extra4v2(n), extra5v2(n);
   IntegerVector extraobsv2(n);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     double p1, p2, p3, p4, p5, p6;
 
     // prob of switching depends on bprog for the first 2 visits after PD
@@ -858,7 +855,7 @@ List tsegestsim(const int n = 500,
   
   // apply censoring
   IntegerVector died(n);
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     if (timeOS2[i] <= admin && dead[i] == 1) {
       died[i] = 1;
     } else {
@@ -882,11 +879,11 @@ List tsegestsim(const int n = 500,
   NumericVector zero(n);
   int kmax = static_cast<int>(std::ceil(max(timeOS2)/21));
   NumericVector cut(kmax);
-  for (k=0; k<kmax; k++) {
+  for (int k=0; k<kmax; k++) {
     cut[k] = k*21;
   }
   
-  for (i=0; i<n; i++) {
+  for (int i=0; i<n; i++) {
     if (progressed[i] == NA_INTEGER) progressed[i] = 0;
     if (catevent[i] == NA_INTEGER) catevent[i] = 0;
     if (xo[i] == NA_INTEGER) xo[i] = 0;
@@ -916,7 +913,7 @@ List tsegestsim(const int n = 500,
 
   // make time-dependent covariates for progression, cat event, and switch
   IntegerVector progtdc(n2), cattdc(n2), xotdc(n2);
-  for (i=0; i<n2; i++) {
+  for (int i=0; i<n2; i++) {
     if (progressed2[i] == 1 && tstart[i] >= timePFSobs2[i]) progtdc[i] = 1;
     if (catevent2[i] == 1 && tstart[i] >= cattime2[i]) cattdc[i] = 1;
     if (xoo2[i] == 1 && tstart[i] >= xotime2[i]) xotdc[i] = 1;
@@ -924,7 +921,7 @@ List tsegestsim(const int n = 500,
   
   // create the lagged value of cattdc
   IntegerVector idx(1,0); // first observation within an id
-  for (i=1; i<n2; i++) {
+  for (int i=1; i<n2; i++) {
     if (id2[i] != id2[i-1]) {
       idx.push_back(i);
     }
