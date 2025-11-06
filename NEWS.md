@@ -1,3 +1,29 @@
+# trtswitch 0.2.1
+
+- fixed the bootstrap procedures for IPCW, MSM, and TSEgest by reconstructing idx, idx1, treatn1, and stratumn1
+- clarified the distinction between IPCW using pooled logistic regression and IPCW using a Cox model with time-dependent covariates
+- excluded existing variables in out$data_switch[[h]]$data from add_vars for IPCW and MSM
+- excluded existing variables in out$analysis_switch$data_logis[[h]]$data from add_vars for TSEgest
+- excluded existing variables in out$data_aft[[h]]$data from add_vars for TSEsimp
+- replaced chained sorting using logical OR with multiple if–return statements to ensure stable sorting in survival_analysis
+- replaced chained sorting using logical OR with std::tie in IPCW, IPE, MSM, RPSFTM, TSEsimp, and TSEgest
+- added id = "id" in test-ipe.R and test-rpsftm.R
+- combined functions f and g into a single function in test-rpsftm.R
+- added bootstrap testing for test-tsesimp.R
+- removed the target argument from the definition of function f in test-tsegest.R
+- added an option to use a Cox model with robust variance for constructing confidence intervals for the hazard ratio in IPCW and MSM
+- removed robust variance from the switching model in IPCW and MSM to improve computational speed
+- replaced geom_density with geom_histogram in the IPCW and MSM vignettes
+- removed natural spline basis functions for time from the pooled logistic regression model equation in TSEgest and incorporated these effects into time-dependent confounders in the TSEgest vignette
+- replaced event = "died" with event = "event" in bootstrap testing in the TSEgest vignette
+- removed the analysis_switch level from the output of TSEgest and moved its components to the top level of the output list
+- updated getpsiest to return only the first root
+- updated IPCW to apply weight truncation within each treatment group after computing weights for data_outcome
+- updated TSEsimp and TSEgest to use the switch time as the progression time when switching occurs before or in the absence of recorded progression
+- updated kmest to add the weight parameter for adjusted Kaplan-Meier estimate by Xie & Liu (2005)
+- updated lrtest to add the weight parameter for adjusted log-rank test by Xie & Liu (2005, 2011)
+- updated ipcw and msm to add Kaplan-Meier estimates of the survival functions and the log-rank test for the treatment effect based on the weighted outcome data truncated at time of treatment switching
+
 # trtswitch 0.2.0
 
 - added MSM to package description
