@@ -1,9 +1,9 @@
-#' @title The Simple Two-Stage Estimation (TSE) Method for Treatment 
-#' Switching
-#' @description Obtains the causal parameter estimate of the accelerated 
-#' failure-time (AFT) model 
-#' for switching after disease progression and the hazard ratio estimate 
-#' of the outcome Cox model to adjust for treatment switching.
+#' @title Simple Two-Stage Estimation (TSEsimp) for Treatment Switching
+#' @description Estimates the causal parameter by fitting an accelerated 
+#' failure time (AFT) model comparing post-progression survival between 
+#' switchers and non-switchers, and derives the adjusted hazard ratio 
+#' from the Cox model using counterfactual \emph{unswitched} survival 
+#' times based on the estimated causal parameter.
 #'
 #' @param data The input data frame that contains the following variables:
 #'
@@ -23,7 +23,7 @@
 #'
 #'   * \code{pd}: The disease progression indicator, 1=PD, 0=no PD.
 #'
-#'   * \code{pd_time}: The time from randomization to PD.
+#'   * \code{pd_time}: The time from randomization to disease progression.
 #'
 #'   * \code{swtrt}: The treatment switch indicator, 1=switch, 0=no switch.
 #'
@@ -32,7 +32,7 @@
 #'   * \code{base_cov}: The baseline covariates (excluding treat).
 #'
 #'   * \code{base2_cov}: The baseline and secondary baseline
-#'     covariates (excluding swtrt).
+#'     covariates (excluding treat).
 #'
 #' @param id The name of the id variable in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
@@ -47,7 +47,7 @@
 #' @param base_cov The names of baseline covariates (excluding
 #'   treat) in the input data for the outcome Cox model.
 #' @param base2_cov The names of baseline and secondary baseline covariates
-#'   (excluding swtrt) in the input data for the AFT model for 
+#'   (excluding treat) in the input data for the AFT model for 
 #'   post-progression survival.
 #' @param aft_dist The assumed distribution for time to event for the AFT
 #'   model. Options include "exponential", "weibull" (default), 
@@ -63,35 +63,40 @@
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group. The default is \code{TRUE}.
 #' @param alpha The significance level to calculate confidence intervals. 
-#'   The default value is 0.05.
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
-#' @param offset The offset to calculate the time to event, PD, and 
-#'   treatment switch. We can set \code{offset} equal to 1 (default), 
-#'   1/30.4375, or 1/365.25 if the time unit is day, month, or year.
+#' @param offset The offset to calculate the time disease progression to 
+#'   death or censoring. We can set \code{offset} equal to 0 (no offset), 
+#'   and 1 (default), 1/30.4375, or 1/365.25 if the time unit is day, month, 
+#'   or year, respectively.
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   missing, in which case, the seed from the environment will be used.
+#'   `NA`, in which case, the seed from the environment will be used.
 #'
-#' @details We use the following steps to obtain the hazard ratio estimate
-#' and confidence interval had there been no treatment switching:
+#' @details Assuming one-way switching from control to treatment, the 
+#' hazard ratio and confidence interval under a no-switching scenario 
+#' are obtained as follows:
 #'
-#' * Fit an AFT model to post-progression survival data to estimate 
-#'   the causal parameter \eqn{\psi} based on the patients 
-#'   in the control group who had disease progression.
+#' * Estimate the causal parameter \eqn{\psi} by fitting an AFT model 
+#'   comparing post-progression survival between switchers and non-switchers 
+#'   in the control group who experienced disease progression.
 #'
-#' * Derive the counterfactual survival times for control patients
-#'   had there been no treatment switching.
+#' * Compute counterfactual survival times for control patients using 
+#'   the estimated \eqn{\psi}.
 #'
-#' * Fit the Cox proportional hazards model to the observed survival times
-#'   for the experimental group and the counterfactual survival times 
-#'   for the control group to obtain the hazard ratio estimate.
+#' * Fit a Cox model to the observed survival times for the treatment group 
+#'   and the counterfactual survival times for the control group to 
+#'   estimate the hazard ratio.
+#'
+#' * When bootstrapping is used, derive the confidence interval and 
+#'   p-value for the hazard ratio from a t-distribution with 
+#'   \code{n_boot - 1} degrees of freedom.
 #'   
-#' * If bootstrapping is used, the confidence interval and corresponding 
-#'   p-value for hazard ratio are calculated based on a t-distribution with 
-#'   \code{n_boot - 1} degrees of freedom. 
+#' If treatment switching occurs before or in the absence of recorded disease 
+#' progression, the patient is considered to have progressed at the time of 
+#' treatment switching. 
 #'
 #' @return A list with the following components:
 #'
@@ -133,7 +138,7 @@
 #' 
 #' * \code{fail}: Whether a model fails to converge.
 #'
-#' * \code{psimissing}: Whether the psi parameter cannot be estimated.
+#' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #' 
 #' * \code{settings}: A list with the following components:
 #'
@@ -157,8 +162,8 @@
 #'
 #'     - \code{ties}: The method for handling ties in the Cox model.
 #'
-#'     - \code{offset}: The offset to calculate the time to event, PD, and
-#'       treatment switch.
+#'     - \code{offset}: The offset to calculate the time disease 
+#'       progression to death or censoring.
 #'
 #'     - \code{boot}: Whether to use bootstrap to obtain the confidence
 #'       interval for hazard ratio.
@@ -170,8 +175,8 @@
 #' * \code{psi_trt}: The estimated causal parameter for the experimental 
 #'   group if \code{swtrt_control_only} is \code{FALSE}.
 #'
-#' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} if
-#'   \code{swtrt_control_only} is \code{FALSE}.
+#' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} 
+#'   if \code{swtrt_control_only} is \code{FALSE}.
 #'
 #' * \code{fail_boots}: The indicators for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
@@ -179,14 +184,14 @@
 #' * \code{fail_boots_data}: The data for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{hr_boots}: The bootstrap hazard ratio estimates if \code{boot} is
-#'   \code{TRUE}.
+#' * \code{hr_boots}: The bootstrap hazard ratio estimates 
+#'   if \code{boot} is \code{TRUE}.
 #'
-#' * \code{psi_boots}: The bootstrap \code{psi} estimates if \code{boot} is 
-#'   \code{TRUE}.
+#' * \code{psi_boots}: The bootstrap \code{psi} estimates 
+#'   if \code{boot} is \code{TRUE}.
 #' 
-#' * \code{psi_trt_boots}: The bootstrap \code{psi_trt} estimates if 
-#'   \code{boot} is \code{TRUE} and \code{swtrt_control_only} is 
+#' * \code{psi_trt_boots}: The bootstrap \code{psi_trt} estimates 
+#'   if \code{boot} is \code{TRUE} and \code{swtrt_control_only} is 
 #'   \code{FALSE}.
 #' 
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
@@ -202,6 +207,12 @@
 #'
 #' library(dplyr)
 #'
+#' # modify pd and dpd based on co and dco
+#' shilong <- shilong %>%
+#'   mutate(dpd = ifelse(co & !pd, dco, dpd),
+#'          pd = ifelse(co & !pd, 1, pd)) %>%
+#'   mutate(dpd = ifelse(pd & co & dco < dpd, dco, dpd))
+#'   
 #' # the eventual survival time
 #' shilong1 <- shilong %>%
 #'   arrange(bras.f, id, tstop) %>%
@@ -340,10 +351,11 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
       K = ifelse(swtrt_control_only, 1, 2)
       tem_vars <- c(pd_time, swtrt_time, time)
       add_vars <- c(setdiff(vnames2, varnames2), tem_vars)
-      if (length(add_vars) > 0) {
+      avars <- setdiff(add_vars, names(out$data_aft[[1]]$data))
+      if (length(avars) > 0) {
         for (h in 1:K) {
           out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
-                                          df[, c(id, add_vars)], 
+                                          df[, c(id, avars)], 
                                           by = id, all.x = TRUE, sort = FALSE)
         }
       }
@@ -353,11 +365,6 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
         for (h in 1:K) {
           out$data_aft[[h]]$data[, del_vars] <- NULL
         }
-      }
-      
-      for (h in 1:K) {
-        out$data_aft[[h]]$data <- out$data_aft[[h]]$data[
-          , !startsWith(names(out$data_aft[[h]]$data), "stratum_")]
       }
     }
   }
