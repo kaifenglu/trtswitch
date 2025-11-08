@@ -62,7 +62,7 @@
 #' @param autoswitch Whether to exclude recensoring for treatment arms
 #'   with no switching. Defaults to \code{TRUE}.
 #' @param gridsearch Whether to use grid search to estimate the causal
-#'   parameter \code{psi}. Defaults to \code{FALSE}, in which case, a root
+#'   parameter \code{psi}. Defaults to \code{TRUE}, otherwise, a root 
 #'   finding algorithm will be used.
 #' @param root_finding Character string specifying the univariate 
 #'   root-finding algorithm to use. Options are \code{"brent"} (default)

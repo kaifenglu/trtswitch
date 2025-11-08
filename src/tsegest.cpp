@@ -134,7 +134,7 @@ List tsegestcpp(
     const bool recensor = true,
     const bool admin_recensor_only = true,
     const bool swtrt_control_only = true,
-    const bool gridsearch = false,
+    const bool gridsearch = true,
     const std::string root_finding = "brent",
     const double alpha = 0.05,
     const std::string ties = "efron",
