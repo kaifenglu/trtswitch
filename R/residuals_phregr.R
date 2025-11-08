@@ -72,6 +72,9 @@ residuals_phregr <- function(
                    "dfbeta", "dfbetas", "scaledsch"),
     collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
   
+  if (!inherits(object, "phregr"))
+    stop("object must be of class 'phregr'");
+  
   p = object$p
   beta = object$beta
   residuals = object$residuals
