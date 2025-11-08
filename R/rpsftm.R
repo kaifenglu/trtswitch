@@ -105,6 +105,9 @@
 #' @return A list with the following components:
 #'
 #' * \code{psi}: The estimated causal parameter.
+#' 
+#' * \code{psi_roots}: Vector of \code{psi} values at which the Z-statistic 
+#'   is zero, identified using grid search and linear interpolation.
 #'
 #' * \code{psi_CI}: The confidence interval for \code{psi}.
 #' 
