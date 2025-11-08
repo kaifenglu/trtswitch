@@ -130,7 +130,7 @@ List tsegestcpp(
     const bool flic = false,
     const double low_psi = -2,
     const double hi_psi = 2,
-    const int n_eval_z = 101,
+    const int n_eval_z = 401,
     const bool recensor = true,
     const bool admin_recensor_only = true,
     const bool swtrt_control_only = true,
