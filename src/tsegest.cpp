@@ -793,7 +793,7 @@ List tsegestcpp(
     Named("time") = tstopn1,
     Named("event") = event1);
   
-  DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0);
+  DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0,0);
   double logRankPValue = lr["logRankPValue"];
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
@@ -856,6 +856,7 @@ List tsegestcpp(
                   double psi0lower = NA_REAL, psi0upper = NA_REAL;
                   double psi1hat = NA_REAL;
                   double psi1lower = NA_REAL, psi1upper = NA_REAL;
+                  NumericVector psi0hat_vec, psi1hat_vec;
                   String psi_CI_type;
                   
                   // initialize data_switch, km_switch, eval_z, 
@@ -993,6 +994,7 @@ List tsegestcpp(
                     // obtain the estimate and confidence interval of psi
                     double psihat = NA_REAL;
                     double psilower = NA_REAL, psiupper = NA_REAL;
+                    NumericVector psihat_vec;
                     NumericVector Z(n_eval_z, NA_REAL);
                     if (gridsearch) {
                       for (int i=0; i<n_eval_z; ++i) {
@@ -1008,12 +1010,16 @@ List tsegestcpp(
                         if (!fail) Z[i] = out["z_counterfactual"];
                       }
                       
-                      psihat = getpsiest(0, psi, Z);
+                      List psihat_list = getpsiest(0, psi, Z, 0);
+                      psihat = psihat_list["root"];
+                      psihat_vec = psihat_list["roots"];
                       psi_CI_type = "grid search";
                       
                       if (k == -1) {
-                        psilower = getpsiest(zcrit, psi, Z);
-                        psiupper = getpsiest(-zcrit, psi, Z);
+                        List psilower_list = getpsiest(zcrit, psi, Z, -1);
+                        psilower = psilower_list["root"];
+                        List psiupper_list = getpsiest(-zcrit, psi, Z, 1);
+                        psiupper = psiupper_list["root"];
                       }
                     } else {
                       // z-stat for the slope of counterfactual survival time
@@ -1095,21 +1101,7 @@ List tsegestcpp(
                       }
                     }
                     
-                    // update treatment-specific causal parameter estimates
-                    if (h == 0) {
-                      psi0hat = psihat;
-                      if (k == -1) {
-                        psi0lower = psilower;
-                        psi0upper = psiupper;
-                      }
-                    } else {
-                      psi1hat = psihat;
-                      if (k == -1) {
-                        psi1lower = psilower;
-                        psi1upper = psiupper;
-                      }
-                    }
-                    
+ 
                     if (!std::isnan(psihat)) {
                       // calculate counter-factual survival times
                       double a = exp(psihat);
@@ -1192,6 +1184,9 @@ List tsegestcpp(
                             bool fail = out["fail"];
                             if (!fail) Z[i] = out["z_counterfactual"];
                           }
+                          
+                          List psihat_list = getpsiest(0, psi, Z, 0);
+                          psihat_vec = psihat_list["roots"];
                         }
                         
                         List data2 = List::create(
@@ -1279,6 +1274,24 @@ List tsegestcpp(
                     } else {
                       psimissing = 1;
                     }
+                    
+                    
+                    // update treatment-specific causal parameter estimates
+                    if (h == 0) {
+                      psi0hat = psihat;
+                      psi0hat_vec = psihat_vec;
+                      if (k == -1) {
+                        psi0lower = psilower;
+                        psi0upper = psiupper;
+                      }
+                    } else {
+                      psi1hat = psihat;
+                      psi1hat_vec = psihat_vec;
+                      if (k == -1) {
+                        psi1lower = psilower;
+                        psi1upper = psiupper;
+                      }
+                    }
                   }
                   
                   if (!psimissing) {
@@ -1329,9 +1342,11 @@ List tsegestcpp(
                       Named("data_outcome") = data_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psi0hat,
+                      Named("psihat_vec") = psi0hat_vec,
                       Named("psilower") = psi0lower,
                       Named("psiupper") = psi0upper,
                       Named("psi1hat") = psi1hat,
+                      Named("psi1hat_vec") = psi1hat_vec,
                       Named("psi1lower") = psi1lower,
                       Named("psi1upper") = psi1upper,
                       Named("psi_CI_type") = psi_CI_type,
@@ -1371,9 +1386,11 @@ List tsegestcpp(
   List fit_outcome = out["fit_outcome"];
   
   double psihat = out["psihat"];
+  NumericVector psihat_vec = out["psihat_vec"];
   double psilower = out["psilower"];
   double psiupper = out["psiupper"];
   double psi1hat = out["psi1hat"];
+  NumericVector psi1hat_vec = out["psi1hat_vec"];
   double psi1lower = out["psi1lower"];
   double psi1upper = out["psi1upper"];
   String psi_CI_type = out["psi_CI_type"];
@@ -1669,7 +1686,8 @@ List tsegestcpp(
       double loghr = log(hrhat);
       LogicalVector ok = (!fails) & !is_na(hrhats);
       int n_ok = sum(ok);
-      NumericVector loghrs = log(hrhats[ok]);
+      NumericVector subset_hrhats = hrhats[ok];
+      NumericVector loghrs = log(subset_hrhats);
       double sdloghr = sd(loghrs);
       double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
       hrlower = exp(loghr - tcrit*sdloghr);
@@ -1714,6 +1732,7 @@ List tsegestcpp(
   
   List result = List::create(
     Named("psi") = psihat,
+    Named("psi_roots") = psihat_vec,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
     Named("psi_CI_type") = psi_CI_type,
     Named("logrank_pvalue") = logRankPValue,
@@ -1736,6 +1755,7 @@ List tsegestcpp(
   
   if (!swtrt_control_only) {
     result.push_back(psi1hat, "psi_trt");
+     result.push_back(psi1hat_vec, "psi_trt_roots");
     NumericVector psi1_CI = NumericVector::create(psi1lower, psi1upper);
     result.push_back(psi1_CI, "psi_trt_CI");
   }
