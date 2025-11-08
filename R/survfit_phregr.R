@@ -97,6 +97,9 @@
 survfit_phregr <- function(object, newdata, sefit = TRUE,
                            conftype = "log-log", conflev = 0.95) {
 
+  if (!inherits(object, "phregr"))
+    stop("object must be of class 'phregr'");
+  
   p = object$p
   if (p == 0) {
     beta = 0
