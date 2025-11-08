@@ -196,7 +196,7 @@ double f_est_psi_rpsftm(
   
   Sstar.push_back(stratum, "ustratum");
   DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", "", 
-                        "d_star", "", 0, 0);
+                        "d_star", "", 0, 0, 0);
   
   double z = df["logRankZ"];
   return z - target;
@@ -480,7 +480,7 @@ DataFrame recensor_sim_rpsftm(const int nsim = NA_INTEGER,
       Named("event") = event
     );
     
-    DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0);
+    DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0,0);
     double logRankZ = lr["logRankZ"];
     
     auto f = [n, low_psi, hi_psi, treat_modifier, recensor_type, 
