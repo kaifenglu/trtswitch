@@ -36,7 +36,7 @@ double est_psi_rpsftm(
   if (test == "logrank") {
     Sstar.push_back(stratum, "ustratum");
     DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", "",
-                          "d_star", "", 0, 0);
+                          "d_star", "", 0, 0, 0);
     z = df["logRankZ"];
   } else if (test == "phreg") {
     Sstar.push_back(stratum, "ustratum");
@@ -528,7 +528,7 @@ List rpsftmcpp(const DataFrame data,
   n = sum(sub);
   if (n == 0) stop("no observations left after removing missing values");
   
-  DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0, 0);
+  DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0,0,0);
   double logRankZ = lr["logRankZ"];
   double logRankPValue = lr["logRankPValue"];
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
@@ -554,6 +554,7 @@ List rpsftmcpp(const DataFrame data,
                   // obtain the estimate and confidence interval of psi
                   double psihat = NA_REAL;
                   double psilower = NA_REAL, psiupper = NA_REAL;
+                  NumericVector psihat_vec;
                   String psi_CI_type;
                   
                   NumericVector Z(n_eval_z);
@@ -566,12 +567,18 @@ List rpsftmcpp(const DataFrame data,
                         recensor, autoswitch, alpha, ties);
                     }
                     
-                    psihat = getpsiest(0, psi, Z);
+                    List psihat_list = getpsiest(0, psi, Z, 0);
+                    psihat = psihat_list["root"];
+                    psihat_vec = psihat_list["roots"];
+                    
                     psi_CI_type = "grid search";
                     
                     if (k == -1) {
-                      psilower = getpsiest(zcrit, psi, Z);
-                      psiupper = getpsiest(-zcrit, psi, Z);
+                      List psilower_list = getpsiest(zcrit, psi, Z, -1);
+                      psilower = psilower_list["root"];
+
+                      List psiupper_list = getpsiest(-zcrit, psi, Z, 1);
+                      psiupper = psiupper_list["root"];
                     }
                   } else {
                     double target = 0;
@@ -673,6 +680,9 @@ List rpsftmcpp(const DataFrame data,
                             covariates_aft, z_aftb, dist, treat_modifier, 
                             recensor, autoswitch, alpha, ties);
                         }
+                        
+                        List psihat_list = getpsiest(0, psi, Z, 0);
+                        psihat_vec = psihat_list["roots"];
                       }
                       
                       eval_z = List::create(
@@ -718,6 +728,7 @@ List rpsftmcpp(const DataFrame data,
                       Named("data_outcome") = data_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psihat,
+                      Named("psihat_vec") = psihat_vec,
                       Named("psilower") = psilower,
                       Named("psiupper") = psiupper,
                       Named("psi_CI_type") = psi_CI_type,
@@ -747,6 +758,7 @@ List rpsftmcpp(const DataFrame data,
   List fit_outcome = out["fit_outcome"];
   
   double psihat = out["psihat"];
+  NumericVector psihat_vec = out["psihat_vec"];
   double psilower = out["psilower"];
   double psiupper = out["psiupper"];
   String psi_CI_type = out["psi_CI_type"];
@@ -1004,7 +1016,8 @@ List rpsftmcpp(const DataFrame data,
       double loghr = log(hrhat);
       LogicalVector ok = (!fails) & !is_na(hrhats);
       int n_ok = sum(ok);
-      NumericVector loghrs = log(hrhats[ok]);
+      NumericVector subset_hrhats = hrhats[ok];
+      NumericVector loghrs = log(subset_hrhats);
       double sdloghr = sd(loghrs);
       double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
       hrlower = exp(loghr - tcrit*sdloghr);
@@ -1043,6 +1056,7 @@ List rpsftmcpp(const DataFrame data,
   
   List result = List::create(
     Named("psi") = psihat,
+    Named("psi_roots") = psihat_vec,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
     Named("psi_CI_type") = psi_CI_type,
     Named("logrank_pvalue") = logRankPValue,
