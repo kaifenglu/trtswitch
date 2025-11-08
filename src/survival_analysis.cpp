@@ -654,7 +654,7 @@ DataFrame kmest(const DataFrame data,
       if (stratum0[i] != istratum) { // hit a new stratum
         // reset temporary variables
         istratum = stratum0[i];
-        surv = 1; vcumhaz = 0;
+        surv = 1; vcumhaz = 0; sesurv = 0;
       }
       
       if (nevent > 0) {
@@ -1385,7 +1385,7 @@ DataFrame kmdiff(const DataFrame data,
 //'
 //'   * \code{event}: The event indicator, 1=event, 0=no event.
 //'   
-//'   * \code{weight}: The optional subject-level weight.
+//'   * \code{weight}: The weight for each observation.
 //'
 //' @param rep The name(s) of the replication variable(s) in the input data.
 //' @param stratum The name(s) of the stratum variable(s) in the input data.
@@ -1396,6 +1396,9 @@ DataFrame kmdiff(const DataFrame data,
 //'   process data in the input data.
 //' @param event The name of the event variable in the input data.
 //' @param weight The name of the weight variable in the input data.
+//' @param weight_readj Whether the weight variable at each event time 
+//'   will be readjusted to be proportional to the number at risk by 
+//'   treatment group. Defaults to `FALSE`.
 //' @param rho1 The first parameter of the Fleming-Harrington family of
 //'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
 //' @param rho2 The second parameter of the Fleming-Harrington family of
@@ -1410,6 +1413,8 @@ DataFrame kmdiff(const DataFrame data,
 //' * \code{logRankZ}: The Z-statistic value.
 //'
 //' * \code{logRankPValue}: The two-sided p-value.
+//' 
+//' * \code{weight_readj}: Whether the weight variable will be readjusted.
 //'
 //' * \code{rho1}: The first parameter of the Fleming-Harrington weights.
 //'
@@ -1437,6 +1442,7 @@ DataFrame lrtest(const DataFrame data,
                  const std::string time2 = "",
                  const std::string event = "event",
                  const std::string weight = "",
+                 const bool weight_readj = false,
                  const double rho1 = 0,
                  const double rho2 = 0) {
   int n = data.nrows();
@@ -1629,7 +1635,8 @@ DataFrame lrtest(const DataFrame data,
     double nriskw = 0, nriskw_1 = 0, nriskw_2 = 0; // weighted # at risk
     double nriskw2_1 = 0, nriskw2_2 = 0;           // weight^2 # at risk
     double nevent = 0;                             // number of events
-    double neventw = 0, neventw_1 = 0;             // weighted # events
+    double neventw = 0, neventw_1 = 0, neventw_2;  // weighted # events
+    double neventwa, neventwa_1, neventwa_2;  // adjusted weighted # events
     
     int istratum = stratum1[0]; // current stratum
     int i1 = 0;                 // index for removing out-of-risk subjects
@@ -1690,10 +1697,23 @@ DataFrame lrtest(const DataFrame data,
         // Add contributions for deaths at this time
         if (nevent > 0) {
           if (nrisk_1 > 0 && nrisk_2 > 0) {
-            u += neventw_1 - neventw*(nriskw_1/nriskw);
-            double v1 = pow(nriskw_1/nriskw, 2)*nriskw2_2;
-            double v2 = pow(nriskw_2/nriskw, 2)*nriskw2_1;
-            v += nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+            if (!weight_readj) {
+              u += neventw_1 - neventw*(nriskw_1/nriskw);
+              double v1 = pow(nriskw_1/nriskw, 2)*nriskw2_2;
+              double v2 = pow(nriskw_2/nriskw, 2)*nriskw2_1;
+              v += nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+            } else {
+              neventw_2 = neventw - neventw_1;
+              neventwa_1 = neventw_1*nrisk_1/nriskw_1;
+              neventwa_2 = neventw_2*nrisk_2/nriskw_2;
+              neventwa = neventwa_1 + neventwa_2;
+              u += neventwa_1 - neventwa*(nrisk_1/nrisk);
+              double v1 = pow(nrisk_1/nrisk, 2)*nriskw2_2*
+                pow(nrisk_2/nriskw_2, 2);
+              double v2 = pow(nrisk_2/nrisk, 2)*nriskw2_1*
+                pow(nrisk_1/nriskw_1, 2);
+              v += nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+            }
           }
           
           // Reset after processing deaths
@@ -1808,15 +1828,36 @@ DataFrame lrtest(const DataFrame data,
         
         // add to the main terms with S(t-)^rho1*(1 - S(t-))^rho2 weights
         double w = pow(surv, rho1)*pow(1 - surv, rho2);
+        
+        if (weight_readj) {
+          neventw_2 = neventw - neventw_1;
+          neventwa_1 = neventw_1*nrisk_1/nriskw_1;
+          neventwa_2 = neventw_2*nrisk_2/nriskw_2;
+          neventwa = neventwa_1 + neventwa_2;
+        }
+        
         if (nrisk_1 > 0 && nrisk_2 > 0) {
-          u += w*(neventw_1 - neventw*(nriskw_1/nriskw));
-          double v1 = pow(nriskw_1/nriskw, 2)*nriskw2_2;
-          double v2 = pow(nriskw_2/nriskw, 2)*nriskw2_1;
-          v += w*w*nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+          if (!weight_readj) {
+            u += w*(neventw_1 - neventw*(nriskw_1/nriskw));
+            double v1 = pow(nriskw_1/nriskw, 2)*nriskw2_2;
+            double v2 = pow(nriskw_2/nriskw, 2)*nriskw2_1;
+            v += w*w*nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+          } else {
+            u += w*(neventwa_1 - neventwa*(nrisk_1/nrisk));
+            double v1 = pow(nrisk_1/nrisk, 2)*nriskw2_2*
+              pow(nrisk_2/nriskw_2, 2);
+            double v2 = pow(nrisk_2/nrisk, 2)*nriskw2_1*
+              pow(nrisk_1/nriskw_1, 2);
+            v += w*w*nevent*(nrisk - nevent)/(nrisk*(nrisk - 1))*(v1 + v2);
+          }
         }
         
         // update survival probability
-        surv *= (1.0 - neventw/nriskw);
+        if (!weight_readj) {
+          surv *= (1.0 - neventw/nriskw);
+        } else {
+          surv *= (1.0 - neventwa/nrisk);
+        }
       }
     }
 
@@ -1835,6 +1876,7 @@ DataFrame lrtest(const DataFrame data,
     Named("vscore") = vscore0,
     Named("logRankZ") = logRankZ0,
     Named("logRankPValue") = logRankPValue0,
+    Named("weight_readj") = weight_readj,
     Named("rho1") = rho1,
     Named("rho2") = rho2
   );

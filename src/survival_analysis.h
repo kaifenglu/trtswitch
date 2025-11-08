@@ -43,6 +43,7 @@ DataFrame lrtest(const DataFrame data,
                  const std::string time2,
                  const std::string event,
                  const std::string weight,
+                 const bool weight_readj,
                  const double rho1,
                  const double rho2);
 
