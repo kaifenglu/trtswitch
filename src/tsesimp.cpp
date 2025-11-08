@@ -544,7 +544,7 @@ List tsesimpcpp(const DataFrame data,
   if (n == 0) stop("no observations left after removing missing values");
   
   
-  DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0, 0);
+  DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0,0,0);
   double logRankPValue = lr["logRankPValue"];
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
   
@@ -1057,7 +1057,8 @@ List tsesimpcpp(const DataFrame data,
       double loghr = log(hrhat);
       LogicalVector ok = (!fails) & !is_na(hrhats);
       int n_ok = sum(ok);
-      NumericVector loghrs = log(hrhats[ok]);
+      NumericVector subset_hrhats = hrhats[ok];
+      NumericVector loghrs = log(subset_hrhats);
       double sdloghr = sd(loghrs);
       double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
       hrlower = exp(loghr - tcrit*sdloghr);
