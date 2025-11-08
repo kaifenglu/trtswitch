@@ -148,6 +148,10 @@
 #' @return A list with the following components:
 #'
 #' * \code{psi}: The estimated causal parameter for the control group.
+#' 
+#' * \code{psi_roots}: Vector of \code{psi} values for the control group 
+#'   at which the Z-statistic is zero, identified using grid search and 
+#'   linear interpolation.
 #'
 #' * \code{psi_CI}: The confidence interval for \code{psi}.
 #'
@@ -271,6 +275,11 @@
 #'
 #' * \code{psi_trt}: The estimated causal parameter for the experimental 
 #'   group if \code{swtrt_control_only} is \code{FALSE}.
+#'   
+#' * \code{psi_trt_roots}: Vector of \code{psi_trt} values for the 
+#'  experimental group at which the Z-statistic is zero, identified using
+#'  grid search and linear interpolation, if \code{swtrt_control_only}
+#'  is \code{FALSE}.
 #'
 #' * \code{psi_trt_CI}: The confidence interval for \code{psi_trt} if
 #'   \code{swtrt_control_only} is \code{FALSE}.
