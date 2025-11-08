@@ -565,7 +565,7 @@ List msmcpp(
     Named("time") = tstopn1,
     Named("event") = eventn1);
   
-  DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0);
+  DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0,0);
   double logRankPValue = lr["logRankPValue"];
   
   double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
@@ -948,7 +948,7 @@ List msmcpp(
                     // log-rank test weighted by the weights
                     lr_outcome = lrtest(
                       data_outcome_trunc, "", "ustratum", "treated", 
-                      "tstart", "tstop", "event", weight_variable, 0, 0);
+                      "tstart", "tstop", "event", weight_variable, 0, 0, 0);
                   }
                   
                   // fit the outcome model with weights
@@ -1282,7 +1282,8 @@ List msmcpp(
     double loghr = log(hrhat);
     LogicalVector ok = (!fails) & !is_na(hrhats);
     int n_ok = sum(ok);
-    NumericVector loghrs = log(hrhats[ok]);
+    NumericVector subset_hrhats = hrhats[ok];
+    NumericVector loghrs = log(subset_hrhats);    
     double sdloghr = sd(loghrs);
     double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
     hrlower = exp(loghr - tcrit*sdloghr);
