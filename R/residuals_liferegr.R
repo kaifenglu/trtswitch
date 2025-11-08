@@ -79,6 +79,9 @@ residuals_liferegr <- function(
                    "working", "ldcase", "ldresp", "ldshape", "matrix"),
     collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
   
+  if (!inherits(object, "liferegr"))
+    stop("object must be of class 'liferegr'");
+  
   p = object$p
   beta = object$beta
   
