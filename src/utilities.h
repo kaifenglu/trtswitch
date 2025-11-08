@@ -85,8 +85,8 @@ double qtpwexpcpp1(const double p,
                    const bool lowertail,
                    const bool logp);
 
-double getpsiest(const double target, const NumericVector& psi, 
-                 const NumericVector& Z);
+List getpsiest(const double target, const NumericVector& psi, 
+               const NumericVector& Z, const int direction);
 
 double getpsiend(const std::function<double(double)>& f,
                  const bool lowerend, const double initialend);

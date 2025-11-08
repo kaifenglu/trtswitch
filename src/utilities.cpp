@@ -1004,24 +1004,59 @@ double qtpwexpcpp1(const double p,
 }
 
 
-double getpsiest(const double target, const NumericVector& psi, 
-                 const NumericVector& Z) {
-  const int n = psi.size();
-  for (int j=1; j<n; ++j) {
-    const double z2 = Z[j];
-    if (std::isfinite(z2) && z2 <= target) { // first time z <= target
-      for (int i=j-1; i>=0; --i) {
-        const double z1 = Z[i];
-        if (std::isfinite(z1) && z1 >= target) { // found a bracket
-          return std::fabs(z1 - z2) < 1e-12 ? (psi[i] + psi[j])/2 : 
-          psi[i] + (psi[j] - psi[i])*(target - z1)/(z2 - z1);
+List getpsiest(const double target, const NumericVector& psi, 
+                 const NumericVector& Z, const int direction = 0) {
+  
+  int n = psi.size();
+  if (n != Z.size()) stop("psi and Z must have the same length");
+  if (n < 2) stop("Need at least two points to find roots");
+  NumericVector Zt = Z - target; // shifted Z values
+  
+  std::vector<double> roots;
+  for (int i = 1; i < n; ++i) {
+    double z1 = Zt[i-1];
+    double z2 = Zt[i];
+    
+    // skip missing values and identical values
+    if (std::isnan(z1) || std::isnan(z2) || z1 == z2)
+      continue;
+    
+    // exact zero
+    if (z1 == 0.0)
+      roots.push_back(psi[i - 1]);
+    else if (z1 * z2 < 0.0) {
+      // linear interpolation for zero crossing
+      double psi_root = psi[i - 1] - z1 * (psi[i] - psi[i - 1]) / (z2 - z1);
+      roots.push_back(psi_root);
+    }
+  }
+
+  NumericVector out_roots(roots.begin(), roots.end());
+  
+  double root = NA_REAL;
+  if (!roots.empty()) {
+    if (direction == -1) { // leftmost
+      root = out_roots[0]; 
+    } else if (direction == 1) { // rightmost
+      root = out_roots[out_roots.size() - 1];
+    } else { // closest to zero
+      root = NA_REAL;
+      double minabs = std::abs(roots[0]);
+      root = roots[0];
+      for (size_t j = 1; j < roots.size(); ++j) {
+        double a = std::abs(roots[j]);
+        if (a < minabs) {
+          minabs = a;
+          root = roots[j];
         }
       }
     }
   }
   
-  // if no bracket found
-  return NA_REAL;
+  return List::create(
+    _["roots"] = out_roots,
+    _["root"] = root
+  );
 }
 
 
