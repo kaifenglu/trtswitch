@@ -274,7 +274,7 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
                    low_psi = -2, hi_psi = 2,
                    n_eval_z = 401, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
-                   autoswitch = TRUE, gridsearch = FALSE,
+                   autoswitch = TRUE, gridsearch = TRUE,
                    root_finding = "brent",
                    alpha = 0.05, ties = "efron", tol = 1.0e-6,
                    boot = FALSE, n_boot = 1000, seed = NA) {

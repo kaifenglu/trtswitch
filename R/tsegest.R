@@ -351,7 +351,7 @@ tsegest <- function(data, id = "id", stratum = "",
                     low_psi = -2, hi_psi = 2, n_eval_z = 401,
                     recensor = TRUE, admin_recensor_only = TRUE,
                     swtrt_control_only = TRUE, 
-                    gridsearch = FALSE, root_finding = "brent",
+                    gridsearch = TRUE, root_finding = "brent",
                     alpha = 0.05, ties = "efron", tol = 1.0e-6, offset = 1, 
                     boot = TRUE, n_boot = 1000, seed = NA) {
 
