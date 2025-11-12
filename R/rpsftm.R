@@ -134,6 +134,9 @@
 #'
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "log-rank p-value" or "bootstrap".
+#'   
+#' * \code{event_summary}: A data frame containing the count and percentage
+#'   of deaths and switches by treatment arm.
 #'
 #' * \code{eval_z}: A data frame containing the Z-statistics for treatment
 #'   effect evaluated at a sequence of \code{psi} values. Used to plot and 
@@ -253,7 +256,7 @@
 #'   data, id = "id", time = "progyrs", event = "prog", treat = "imm",
 #'   rx = "rx", censor_time = "censyrs", boot = FALSE)
 #'
-#' c(fit1$hr, fit1$hr_CI)
+#' fit1
 #'
 #' # Example 2: two-way treatment switching (illustration only)
 #'
@@ -276,7 +279,7 @@
 #'                "pathway.f"),
 #'   low_psi = -3, hi_psi = 3, n_eval_z = 601, boot = FALSE)
 #'
-#' c(fit2$hr, fit2$hr_CI)
+#' fit2
 #'
 #' @export
 rpsftm <- function(data, id = "id", stratum = "", time = "time", 
