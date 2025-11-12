@@ -145,6 +145,12 @@
 #' progression, the patient is considered to have progressed at the time of 
 #' treatment switching. 
 #' 
+#' If grid search is used to estimate \eqn{\psi}, the estimated \eqn{\psi} 
+#' is the one with the smallest absolute value among those at which 
+#' the Z-statistic is zero based on linear interpolation. 
+#' If root finding is used, the estimated \eqn{\psi} is
+#' the solution to the equation where the Z-statistic is zero.
+#'
 #' @return A list with the following components:
 #'
 #' * \code{psi}: The estimated causal parameter for the control group.
@@ -213,6 +219,13 @@
 #'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
 #'   \code{"d_star"}, \code{"treated"}, \code{base_cov} and \code{treat}.
 #'
+#' * \code{km_outcome}: The Kaplan-Meier estimates of the survival
+#'   functions for the treatment and control groups based on the
+#'   counterfactual unswitched survival times.
+#'   
+#' * \code{lr_outcome}: The log-rank test results for the treatment
+#'   effect based on the counterfactual unswitched survival times.
+#'   
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
 #' * \code{fail}: Whether a model fails to converge.
@@ -478,5 +491,6 @@ tsegest <- function(data, id = "id", stratum = "",
     }
   }
   
+  class(out) <- "tsegest"
   out
 }
