@@ -478,6 +478,41 @@ List ipecpp(const DataFrame data,
   n = sum(sub);
   if (n == 0) stop("no observations left after removing missing values");
   
+  
+  // summarize number of deaths and switches by treatment arm
+  IntegerVector treat_out = IntegerVector::create(0, 1);
+  NumericVector n_total(2);
+  NumericVector n_event(2);
+  NumericVector n_switch(2);
+  for (int i = 0; i < n; ++i) {
+    int g = treatn[i];
+    n_total[g]++;
+    if (eventn[i] == 1) n_event[g]++;
+    if ((treatn[i] == 0 && rxn[i] > 0) || (treatn[i] == 1 && rxn[i] < 1)) {
+      n_switch[g]++;
+    }
+  }
+  
+  // Compute percentages
+  NumericVector pct_event(2);
+  NumericVector pct_switch(2);
+  for (int g = 0; g < 2; g++) {
+    pct_event[g] = 100.0 * n_event[g] / n_total[g];
+    pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
+  }
+  
+  // Combine count and percentage
+  List event_summary = List::create(
+    _["treated"] = treat_out,
+    _["n"] = n_total,
+    _["event_n"] = n_event,
+    _["event_pct"] = pct_event,
+    _["switch_n"] = n_switch,
+    _["switch_pct"] = pct_switch
+  );
+  
+  
+  // ITT analysis log-rank test
   DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0,0,0);
   double logRankZ = lr["logRankZ"];
   double logRankPValue = lr["logRankPValue"];
@@ -690,7 +725,17 @@ List ipecpp(const DataFrame data,
       data_outcome.push_front(idwc[uid], id);
     }
     
-    IntegerVector treated = Sstar["treated"];
+    
+    IntegerVector treated = event_summary["treated"];
+    if (type_treat == LGLSXP || type_treat == INTSXP) {
+      event_summary.push_back(treatwi[1-treated], treat);
+    } else if (type_treat == REALSXP) {
+      event_summary.push_back(treatwn[1-treated], treat);
+    } else if (type_treat == STRSXP) {
+      event_summary.push_back(treatwc[1-treated], treat);
+    }
+    
+    treated = Sstar["treated"];
     if (type_treat == LGLSXP || type_treat == INTSXP) {
       Sstar.push_back(treatwi[1-treated], treat);
     } else if (type_treat == REALSXP) {
@@ -734,6 +779,7 @@ List ipecpp(const DataFrame data,
     } else if (type_treat == STRSXP) {
       km_outcome.push_back(treatwc[1-treated], treat);
     }
+    
     
     if (has_stratum) {
       IntegerVector ustratum = Sstar["ustratum"];
@@ -995,6 +1041,7 @@ List ipecpp(const DataFrame data,
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("event_summary") = as<DataFrame>(event_summary),
     Named("Sstar") = as<DataFrame>(Sstar),
     Named("kmstar") = as<DataFrame>(kmstar),
     Named("data_aft") = as<DataFrame>(data_aft),
