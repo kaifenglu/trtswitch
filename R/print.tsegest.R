@@ -20,7 +20,14 @@ print.tsegest <- function(x, ...) {
     pvalue = "<.0001"
   } else {
     pvalue = formatC(x$cox_pvalue, format = "f", digits = 4)
-  } 
+  }
+  
+  df0 <- x$event_summary[,-1]
+  rownames(df0) <- c("Control arm", "Treatment arm")
+  j0 = c(3,5)
+  df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
+  print(df0, ..., na.print = "", quote = FALSE)
+  cat("\n")
   
   if (x$settings$swtrt_control_only) {
     df1 <- data.frame(

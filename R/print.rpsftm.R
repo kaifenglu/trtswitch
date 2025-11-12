@@ -22,6 +22,13 @@ print.rpsftm <- function(x, ...) {
     pvalue = formatC(pvalue1, format = "f", digits = 4)
   }
   
+  df0 <- x$event_summary[,-1]
+  rownames(df0) <- c("Control arm", "Treatment arm")
+  j0 = c(3,5)
+  df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
+  print(df0, ..., na.print = "", quote = FALSE)
+  cat("\n")
+  
   df1 <- data.frame(
     psi = c(x$psi, x$psi_CI[1], x$psi_CI[2]),
     surv_time_ratio = c(exp(-x$psi), exp(-x$psi_CI[2]), exp(-x$psi_CI[1])),
