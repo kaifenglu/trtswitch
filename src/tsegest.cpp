@@ -508,6 +508,8 @@ List tsegestcpp(
     q = nstrata - 1;
   }
   
+  // covariates for the pooled logistic regression model for control with pd
+  // including counterfactual, stratum, conf_cov, and ns_df spline terms
   StringVector covariates_lgs(q+p2+ns_df+1);
   NumericMatrix z_lgsn(n,q+p2);
   covariates_lgs[0] = "counterfactual";
@@ -520,6 +522,7 @@ List tsegestcpp(
       int di = d[i]-1;
       for (int j=0; j<di; ++j) {
         covariates_lgs[k+j+1] = as<std::string>(stratum[i]);
+        
         if (type_level == STRSXP) {
           StringVector u = col_level;
           std::string label = sanitize(as<std::string>(u[j]));
@@ -531,6 +534,7 @@ List tsegestcpp(
           IntegerVector u = col_level;
           covariates_lgs[k+j+1] += std::to_string(u[j]);
         }
+        
         z_lgsn(_,k+j) = (stratan(_,i) == j);
       }
       k += di;
@@ -907,6 +911,7 @@ List tsegestcpp(
                   List fit_outcome;
                   double hrhat = NA_REAL, hrlower = NA_REAL, 
                     hrupper = NA_REAL, pvalue = NA_REAL;
+                  List km_outcome, lr_outcome;
                   
                   bool psimissing = false;
                   
@@ -1310,6 +1315,18 @@ List tsegestcpp(
                       data_outcome.push_back(u, zj);
                     }
                     
+                    // generate KM estimate and log-rank test
+                    if (k == -1) {
+                      km_outcome = kmest(
+                        data_outcome, "", "treated", "t_star", "", 
+                        "d_star", "", "log-log", 1-alpha, 1);
+                      
+                      lr_outcome = lrtest(
+                        data_outcome, "", "ustratum", "treated", "t_star", 
+                        "", "d_star", "", 0, 0, 0);
+                    }
+                    
+                    // fit the outcome model
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "t_star", "", "d_star",
                       covariates, "", "", "", ties, init, 
@@ -1340,6 +1357,8 @@ List tsegestcpp(
                       Named("data_logis") = data_logis,
                       Named("fit_logis") = fit_logis,
                       Named("data_outcome") = data_outcome,
+                      Named("km_outcome") = km_outcome,
+                      Named("lr_outcome") = lr_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psi0hat,
                       Named("psihat_vec") = psi0hat_vec,
@@ -1383,6 +1402,8 @@ List tsegestcpp(
   List data_logis = out["data_logis"];
   List fit_logis = out["fit_logis"];
   List data_outcome = out["data_outcome"];
+  List km_outcome = out["km_outcome"];
+  List lr_outcome = out["lr_outcome"];
   List fit_outcome = out["fit_outcome"];
   
   double psihat = out["psihat"];
@@ -1423,6 +1444,15 @@ List tsegestcpp(
       data_outcome.push_back(treatwn[1-treated], treat);
     } else if (type_treat == STRSXP) {
       data_outcome.push_back(treatwc[1-treated], treat);
+    }
+    
+    treated = km_outcome["treated"];
+    if (type_treat == LGLSXP || type_treat == INTSXP) {
+      km_outcome.push_back(treatwi[1-treated], treat);
+    } else if (type_treat == REALSXP) {
+      km_outcome.push_back(treatwn[1-treated], treat);
+    } else if (type_treat == STRSXP) {
+      km_outcome.push_back(treatwc[1-treated], treat);
     }
     
     if (has_stratum) {
@@ -1748,6 +1778,8 @@ List tsegestcpp(
     Named("data_logis") = data_logis,
     Named("fit_logis") = fit_logis,
     Named("data_outcome") = as<DataFrame>(data_outcome),
+    Named("km_outcome") = as<DataFrame>(km_outcome),
+    Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
     Named("psimissing") = psimissing,
