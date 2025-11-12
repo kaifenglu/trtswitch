@@ -314,6 +314,8 @@ List msmcpp(
     q = nstrata - 1;
   }
   
+  // covariates for the logistic regression switch model for denominator
+  // including stratum, denominator, and ns_df spline terms
   StringVector covariates_lgs_den(q+p2+ns_df);
   NumericMatrix z_lgs_denn(n,q+p2);
   if (strata_main_effect_only) {
@@ -403,7 +405,8 @@ List msmcpp(
     covariates_lgs_den[q+p2+j] = "ns" + std::to_string(j+1);
   }
   
-  
+  // covariates for the logistic regression switch model for numerator
+  // including stratum, numerator, and ns_df spline terms
   StringVector covariates_lgs_num(q+p1+ns_df);
   for (int j=0; j<q; ++j) {
     covariates_lgs_num[j] = covariates_lgs_den[j];
