@@ -389,8 +389,6 @@ List tsesimpcpp(const DataFrame data,
   }
   
   
-  // covariates for the accelerated failure time model for control with pd
-  // including swtrt, stratum and base2_cov
   int q; // number of columns corresponding to the strata effects
   if (strata_main_effect_only) {
     q = sum(d - 1);
@@ -398,6 +396,8 @@ List tsesimpcpp(const DataFrame data,
     q = nstrata - 1;
   }
   
+  // covariates for the accelerated failure time model for control with pd
+  // including swtrt, stratum and base2_cov
   StringVector covariates_aft(q+p2+1);
   NumericMatrix z_aftn(n,q+p2);
   covariates_aft[0] = "swtrt";
@@ -614,6 +614,7 @@ List tsesimpcpp(const DataFrame data,
                   List fit_outcome;
                   double hrhat = NA_REAL, hrlower = NA_REAL, 
                     hrupper = NA_REAL, pvalue = NA_REAL;
+                  List km_outcome, lr_outcome;
                   
                   bool psimissing = false;
                   
@@ -746,6 +747,7 @@ List tsesimpcpp(const DataFrame data,
                     }
                   }
                   
+                  
                   if (!psimissing) {
                     // Cox model for hypothetical treatment effect estimate
                     data_outcome = List::create(
@@ -762,6 +764,18 @@ List tsesimpcpp(const DataFrame data,
                       data_outcome.push_back(u, zj);
                     }
                     
+                    // generate KM estimate and log-rank test
+                    if (k == -1) {
+                      km_outcome = kmest(
+                        data_outcome, "", "treated", "t_star", "", 
+                        "d_star", "", "log-log", 1-alpha, 1);
+                      
+                      lr_outcome = lrtest(
+                        data_outcome, "", "ustratum", "treated", "t_star", 
+                        "", "d_star", "", 0, 0, 0);
+                    }
+                    
+                    // fit the outcome model
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "t_star", "", "d_star",
                       covariates, "", "", "", ties, init, 
@@ -787,6 +801,8 @@ List tsesimpcpp(const DataFrame data,
                       Named("data_aft") = data_aft,
                       Named("fit_aft") = fit_aft,
                       Named("data_outcome") = data_outcome,
+                      Named("km_outcome") = km_outcome,
+                      Named("lr_outcome") = lr_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psi0hat,
                       Named("psilower") = psi0lower,
@@ -821,6 +837,8 @@ List tsesimpcpp(const DataFrame data,
   List data_aft = out["data_aft"];
   List fit_aft = out["fit_aft"];
   List data_outcome = out["data_outcome"];
+  List km_outcome = out["km_outcome"];
+  List lr_outcome = out["lr_outcome"];
   List fit_outcome = out["fit_outcome"];
   
   double psihat = out["psihat"];
@@ -859,6 +877,15 @@ List tsesimpcpp(const DataFrame data,
       data_outcome.push_back(treatwn[1-treated], treat);
     } else if (type_treat == STRSXP) {
       data_outcome.push_back(treatwc[1-treated], treat);
+    }
+    
+    treated = km_outcome["treated"];
+    if (type_treat == LGLSXP || type_treat == INTSXP) {
+      km_outcome.push_back(treatwi[1-treated], treat);
+    } else if (type_treat == REALSXP) {
+      km_outcome.push_back(treatwn[1-treated], treat);
+    } else if (type_treat == STRSXP) {
+      km_outcome.push_back(treatwc[1-treated], treat);
     }
     
     if (has_stratum) {
@@ -1105,6 +1132,8 @@ List tsesimpcpp(const DataFrame data,
     Named("data_aft") = data_aft,
     Named("fit_aft") = fit_aft,
     Named("data_outcome") = as<DataFrame>(data_outcome),
+    Named("km_outcome") = as<DataFrame>(km_outcome),
+    Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
     Named("psimissing") = psimissing,
