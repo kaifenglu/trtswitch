@@ -134,6 +134,13 @@
 #'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
 #'   \code{"d_star"}, \code{"treated"}, \code{base_cov}, and \code{treat}.
 #'
+#' * \code{km_outcome}: The Kaplan-Meier estimates of the survival
+#'   functions for the treatment and control groups based on the
+#'   counterfactual unswitched survival times.
+#'   
+#' * \code{lr_outcome}: The log-rank test results for the treatment
+#'   effect based on the counterfactual unswitched survival times.
+#'   
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #' 
 #' * \code{fail}: Whether a model fails to converge.
@@ -369,5 +376,6 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     }
   }
 
+  class(out) <- "tsesimp"
   out
 }
