@@ -122,13 +122,16 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
 #'
+#' * \code{event_summary}: A data frame containing the count and percentage
+#'   of deaths, disease progressions, and switches by treatment arm.
+#'   
 #' * \code{data_aft}: A list of input data for the AFT model by treatment 
 #'   group. The variables include \code{id}, \code{stratum}, \code{"pps"}, 
 #'   \code{"event"}, \code{"swtrt"}, \code{base2_cov}, \code{pd_time}, 
 #'   \code{swtrt_time}, and \code{time}.
 #' 
 #' * \code{fit_aft}: A list of fitted AFT models by treatment group.
-#' 
+#'   
 #' * \code{data_outcome}: The input data for the outcome Cox model 
 #'   of counterfactual unswitched survival times.
 #'   The variables include \code{id}, \code{stratum}, \code{"t_star"}, 
@@ -252,7 +255,7 @@
 #'   recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
 #'   boot = FALSE)
 #'
-#' c(fit1$hr, fit1$hr_CI)
+#' fit1
 #'
 #' @export
 tsesimp <- function(data, id = "id", stratum = "", time = "time", 
