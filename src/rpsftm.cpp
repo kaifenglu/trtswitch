@@ -8,13 +8,13 @@ double est_psi_rpsftm(
     const double psi,
     const int q,
     const int p,
-    const IntegerVector& id,
-    const IntegerVector& stratum,
-    const NumericVector& time,
-    const IntegerVector& event,
-    const IntegerVector& treat,
-    const NumericVector& rx,
-    const NumericVector& censor_time,
+    const IntegerVector& idb,
+    const IntegerVector& stratumb,
+    const NumericVector& timeb,
+    const IntegerVector& eventb,
+    const IntegerVector& treatb,
+    const NumericVector& rxb,
+    const NumericVector& censor_timeb,
     const std::string test,
     const StringVector& covariates,
     const NumericMatrix& zb,
@@ -29,17 +29,17 @@ double est_psi_rpsftm(
   
   NumericVector init(1, NA_REAL);
   
-  DataFrame Sstar = untreated(psi*treat_modifier, id, time, event, treat, 
-                              rx, censor_time, recensor, autoswitch);
+  DataFrame Sstar = untreated(psi*treat_modifier, idb, timeb, eventb, treatb, 
+                              rxb, censor_timeb, recensor, autoswitch);
   
   double z = NA_REAL;
   if (test == "logrank") {
-    Sstar.push_back(stratum, "ustratum");
+    Sstar.push_back(stratumb, "ustratum");
     DataFrame df = lrtest(Sstar, "", "ustratum", "treated", "t_star", "",
                           "d_star", "", 0, 0, 0);
     z = df["logRankZ"];
   } else if (test == "phreg") {
-    Sstar.push_back(stratum, "ustratum");
+    Sstar.push_back(stratumb, "ustratum");
     for (int j=0; j<p; ++j) {
       String zj = covariates[j+1];
       NumericVector u = zb(_,j);
@@ -325,8 +325,6 @@ List rpsftmcpp(const DataFrame data,
   }
   
   
-  // covariates for the accelerated failure time model
-  // including treat, stratum, and base_cov
   int q; // number of columns corresponding to the strata effects
   if (strata_main_effect_only) {
     q = sum(d - 1);
@@ -334,6 +332,8 @@ List rpsftmcpp(const DataFrame data,
     q = nstrata - 1;
   }
   
+  // covariates for the accelerated failure time model
+  // including treat, stratum, and base_cov
   StringVector covariates_aft(q+p+1);
   NumericMatrix z_aftn(n,q+p);
   covariates_aft[0] = "treated";
@@ -358,6 +358,7 @@ List rpsftmcpp(const DataFrame data,
           IntegerVector u = col_level;
           covariates_aft[k+j+1] += std::to_string(u[j]);
         }
+        
         z_aftn(_,k+j) = (stratan(_,i) == j);
       }
       k += di;
@@ -651,6 +652,7 @@ List rpsftmcpp(const DataFrame data,
                   List eval_z, Sstar, kmstar, data_outcome;
                   List fit_outcome;
                   double hrhat = NA_REAL, pvalue = NA_REAL;
+                  List km_outcome, lr_outcome;
                   
                   bool psimissing = std::isnan(psihat);
                   
@@ -703,6 +705,18 @@ List rpsftmcpp(const DataFrame data,
                       data_outcome.push_back(u, zj);
                     }
                     
+                    // generate KM estimate and log-rank test
+                    if (k == -1) {
+                      km_outcome = kmest(
+                        data_outcome, "", "treated", "t_star", "", 
+                        "d_star", "", "log-log", 1-alpha, 1);
+                      
+                      lr_outcome = lrtest(
+                        data_outcome, "", "ustratum", "treated", "t_star", 
+                        "", "d_star", "", 0, 0, 0);
+                    }
+                    
+                    // fit the outcome model
                     fit_outcome = phregcpp(
                       data_outcome, "", "ustratum", "t_star", "", "d_star", 
                       covariates, "", "", "", ties, init, 
@@ -726,6 +740,8 @@ List rpsftmcpp(const DataFrame data,
                       Named("Sstar") = Sstar,
                       Named("kmstar") = kmstar,
                       Named("data_outcome") = data_outcome,
+                      Named("km_outcome") = km_outcome,
+                      Named("lr_outcome") = lr_outcome,
                       Named("fit_outcome") = fit_outcome,
                       Named("psihat") = psihat,
                       Named("psihat_vec") = psihat_vec,
@@ -755,6 +771,8 @@ List rpsftmcpp(const DataFrame data,
   List Sstar = out["Sstar"];
   List kmstar = out["kmstar"];
   List data_outcome = out["data_outcome"];
+  List km_outcome = out["km_outcome"];
+  List lr_outcome = out["lr_outcome"];
   List fit_outcome = out["fit_outcome"];
   
   double psihat = out["psihat"];
@@ -817,6 +835,15 @@ List rpsftmcpp(const DataFrame data,
       data_outcome.push_back(treatwn[1-treated], treat);
     } else if (type_treat == STRSXP) {
       data_outcome.push_back(treatwc[1-treated], treat);
+    }
+    
+    treated = km_outcome["treated"];
+    if (type_treat == LGLSXP || type_treat == INTSXP) {
+      km_outcome.push_back(treatwi[1-treated], treat);
+    } else if (type_treat == REALSXP) {
+      km_outcome.push_back(treatwn[1-treated], treat);
+    } else if (type_treat == STRSXP) {
+      km_outcome.push_back(treatwc[1-treated], treat);
     }
     
     if (has_stratum) {
@@ -997,7 +1024,7 @@ List rpsftmcpp(const DataFrame data,
         
         if (has_stratum) {
           for (int i=0; i<p_stratum; ++i) {
-            String s = stratum[i];
+            std::string s = as<std::string>(stratum[i]);
             if (TYPEOF(data[s]) == INTSXP) {
               IntegerVector stratumwi = u_stratum[s];
               fail_boots_data.push_back(stratumwi[stratumc], s);
@@ -1068,6 +1095,8 @@ List rpsftmcpp(const DataFrame data,
     Named("Sstar") = as<DataFrame>(Sstar),
     Named("kmstar") = as<DataFrame>(kmstar),
     Named("data_outcome") = as<DataFrame>(data_outcome),
+    Named("km_outcome") = as<DataFrame>(km_outcome),
+    Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
     Named("psimissing") = psimissing,
