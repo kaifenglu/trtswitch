@@ -179,6 +179,9 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
 #'   
+#' * \code{event_summary}: A data frame containing the count and percentage
+#'   of deaths, disease progressions, and switches by treatment arm.
+#'   
 #' * \code{data_switch}: The list of input data for the time from 
 #'   disease progression to switch by treatment group. The variables 
 #'   include \code{id}, \code{stratum}, \code{"swtrt"}, 
@@ -350,7 +353,7 @@
 #'   swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
 #'   tol = 1.0e-6, offset = 0, boot = FALSE)
 #'   
-#' c(fit1$hr, fit1$hr_CI)
+#' fit1
 #' 
 #' @export
 tsegest <- function(data, id = "id", stratum = "", 
