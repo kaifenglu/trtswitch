@@ -434,5 +434,6 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     }
   }
   
+  class(out) <- "msm"
   out
 }

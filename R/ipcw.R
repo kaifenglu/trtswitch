@@ -456,5 +456,6 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     }
   }
   
+  class(out) <- "ipcw"
   out
 }
