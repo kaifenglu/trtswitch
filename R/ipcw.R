@@ -136,6 +136,9 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "Cox model" or "bootstrap".
 #'
+#' * \code{event_summary}: A data frame containing the count and percentage
+#'   of deaths and switches by treatment arm.
+#'
 #' * \code{data_switch}: A list of input data for the switching models by 
 #'   treatment group. The variables include \code{id}, \code{stratum}, 
 #'   \code{"tstart"}, \code{"tstop"}, \code{"cross"}, \code{denominator}, 
@@ -153,6 +156,9 @@
 #'   \code{"tstop"}, \code{"event"}, \code{"treated"}, 
 #'   \code{"unstablized_weight"}, \code{"stabilized_weight"}, 
 #'   \code{base_cov}, and \code{treat}.
+#'   
+#' * \code{weight_summary}: A data frame summarizing the weights by
+#'   treatment arm.
 #'   
 #' * \code{km_outcome}: The Kaplan-Meier estimates of the survival
 #'   functions for the treatment and control groups based on the
@@ -244,7 +250,7 @@
 #'   logistic_switching_model = TRUE, ns_df = 3,
 #'   swtrt_control_only = TRUE, boot = FALSE)
 #'   
-#' c(fit1$hr, fit1$hr_CI) 
+#' fit1 
 #' 
 #' # Example 2: time-dependent covariates Cox switching model
 #' 
@@ -260,7 +266,7 @@
 #'                   "pathway.f", "ps", "ttc", "tran"),
 #'   swtrt_control_only = FALSE, boot = FALSE)
 #'
-#' c(fit2$hr, fit2$hr_CI)
+#' fit2
 #'
 #' @export
 ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
