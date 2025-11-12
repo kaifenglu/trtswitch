@@ -139,7 +139,7 @@ data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 
 fit1 <- rpsftm(
   data, id = "id", time = "progyrs", event = "prog", treat = "imm",
-  rx = "rx", censor_time = "censyrs", boot = FALSE)
+  rx = "rx", censor_time = "censyrs", gridsearch = FALSE, boot = FALSE)
 ```
 
 The log-rank test for an ITT analysis, which ignores treatment changes, produces a borderline significant p-value of $0.056$.

@@ -6,7 +6,7 @@ testthat::test_that("rpsftm: control to active switch", {
   
   fit1 <- rpsftm(
     data1, id = "id", time = "progyrs", event = "prog", treat = "imm", 
-    rx = "rx", censor_time = "censyrs", boot = FALSE)
+    rx = "rx", censor_time = "censyrs", gridsearch = FALSE, boot = FALSE)
   
   # log-rank for ITT
   fit_lr <- survdiff(Surv(progyrs, prog) ~ imm, data = data1)

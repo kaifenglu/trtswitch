@@ -25,7 +25,8 @@ testthat::test_that("tsegest: logistic g-estimation", {
     base_cov = "bprog", 
     conf_cov = c("bprog*cattdc", "timePFSobs", "visit7on"), 
     ns_df = 3, recensor = TRUE, admin_recensor_only = TRUE, 
-    swtrt_control_only = TRUE, alpha = 0.05, ties = "efron", 
+    swtrt_control_only = TRUE, gridsearch = FALSE,
+    alpha = 0.05, ties = "efron", 
     tol = 1.0e-6, offset = 0, boot = FALSE)
   
   # last observation within each subject
