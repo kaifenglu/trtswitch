@@ -310,6 +310,8 @@ List ipcwcpp(
     q = nstrata - 1;
   }
   
+  // covariates for the logistic regression switch model for denominator
+  // including stratum, denominator, and ns_df spline terms
   StringVector covariates_lgs_den(q+p2+ns_df);
   NumericMatrix z_lgs_denn(n,q+p2);
   if (strata_main_effect_only) {
@@ -402,7 +404,8 @@ List ipcwcpp(
     covariates_lgs_den[q+p2+j] = "ns" + std::to_string(j+1);
   }
   
-  
+  // covariates for the logistic regression switch model for numerator
+  // including stratum, numerator, and ns_df spline terms
   StringVector covariates_lgs_num(q+p1+ns_df);
   for (int j=0; j<q; ++j) {
     covariates_lgs_num[j] = covariates_lgs_den[j];
@@ -759,7 +762,7 @@ List ipcwcpp(
                     }
                     
                     // initialize weights
-                    NumericVector w2(n2, NA_REAL), sw2(n2, NA_REAL);
+                    NumericVector w2(n2, 1.0), sw2(n2, 1.0);
                     
                     // fit the switching models by treatment group
                     for (int h=0; h<K; ++h) {
