@@ -561,6 +561,37 @@ List msmcpp(
   IntegerVector treatn1 = treatn[idx1];
   NumericVector tstopn1 = tstopn[idx1];
   IntegerVector eventn1 = eventn[idx1];
+  IntegerVector swtrtn1 = swtrtn[idx1];
+  
+  // summarize number of deaths and switches by treatment arm
+  IntegerVector treat_out = IntegerVector::create(0, 1);
+  NumericVector n_total(2);
+  NumericVector n_event(2);
+  NumericVector n_switch(2);
+  for (int i = 0; i < nids; ++i) {
+    int g = treatn1[i];
+    n_total[g]++;
+    if (eventn1[i] == 1) n_event[g]++;
+    if (swtrtn1[i] == 1) n_switch[g]++;
+  }
+  
+  // Compute percentages
+  NumericVector pct_event(2);
+  NumericVector pct_switch(2);
+  for (int g = 0; g < 2; g++) {
+    pct_event[g] = 100.0 * n_event[g] / n_total[g];
+    pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
+  }
+  
+  // Combine count and percentage
+  List event_summary = List::create(
+    _["treated"] = treat_out,
+    _["n"] = n_total,
+    _["event_n"] = n_event,
+    _["event_pct"] = pct_event,
+    _["switch_n"] = n_switch,
+    _["switch_pct"] = pct_switch
+  );
   
   DataFrame dt = DataFrame::create(
     Named("stratum") = stratumn1,
@@ -667,6 +698,9 @@ List msmcpp(
                   }
                   
                   int K = static_cast<int>(treats.size());
+                  IntegerVector w_treated(K), w_n(K);
+                  NumericVector w_min(K), w_Q1(K), w_median(K), w_mean(K), 
+                  w_Q3(K), w_max(K);
                   
                   // initialize weights
                   NumericVector wb(n, 1.0), swb(n, 1.0);
@@ -888,6 +922,27 @@ List msmcpp(
                       }
                     }
                     
+                    // summarize weights for the treatment arm
+                    if (k == -1) {
+                      w_treated[h] = h;
+                      w_n[h] = n3;
+                      if (stabilized_weights) {
+                        w_min[h] = min(sw3);
+                        w_Q1[h] = quantilecpp(sw3, 0.25);
+                        w_median[h] = quantilecpp(sw3, 0.5);
+                        w_mean[h] = mean(sw3);
+                        w_Q3[h] = quantilecpp(sw3, 0.75);
+                        w_max[h] = max(sw3);
+                      } else {
+                        w_min[h] = min(w3);
+                        w_Q1[h] = quantilecpp(w3, 0.25);
+                        w_median[h] = quantilecpp(w3, 0.5);
+                        w_mean[h] = mean(w3);
+                        w_Q3[h] = quantilecpp(w3, 0.75);
+                        w_max[h] = max(w3);
+                      }
+                    }
+                    
                     // fill in the weights
                     wb[l] = w3;
                     swb[l] = sw3;
@@ -921,8 +976,18 @@ List msmcpp(
                   std::string weight_variable = stabilized_weights ? 
                   "stabilized_weight" : "unstabilized_weight";
                   
-                  List km_outcome, lr_outcome;
+                  List weight_summary, km_outcome, lr_outcome;
                   if (k == -1) {
+                    weight_summary = List::create(
+                      Named("treated") = w_treated,
+                      Named("N") = w_n,
+                      Named("Min") = w_min,
+                      Named("Q1") = w_Q1,
+                      Named("Median") = w_median,
+                      Named("Mean") = w_mean,
+                      Named("Q3") = w_Q3,
+                      Named("Max") = w_max);
+                    
                     // censor data at switch for weighted KM & log-rank test
                     NumericVector weightb = data_outcome[weight_variable];
                     IntegerVector l = which(crossb == 0);
@@ -979,6 +1044,7 @@ List msmcpp(
                       Named("data_switch") = data_switch,
                       Named("fit_switch") = fit_switch,
                       Named("data_outcome") = data_outcome,
+                      Named("weight_summary") = weight_summary,
                       Named("km_outcome") = km_outcome,
                       Named("lr_outcome") = lr_outcome,
                       Named("fit_outcome") = fit_outcome,
@@ -1005,6 +1071,7 @@ List msmcpp(
   List data_switch = out["data_switch"];
   List fit_switch = out["fit_switch"];
   List data_outcome = out["data_outcome"];
+  List weight_summary = out["weight_summary"];
   List km_outcome = out["km_outcome"];
   List lr_outcome = out["lr_outcome"];
   List fit_outcome = out["fit_outcome"];
@@ -1029,13 +1096,31 @@ List msmcpp(
     data_outcome.push_front(idwc[uid], id);
   }
   
-  IntegerVector treated = data_outcome["treated"];
+  IntegerVector treated = event_summary["treated"];
+  if (type_treat == LGLSXP || type_treat == INTSXP) {
+    event_summary.push_back(treatwi[1-treated], treat);
+  } else if (type_treat == REALSXP) {
+    event_summary.push_back(treatwn[1-treated], treat);
+  } else if (type_treat == STRSXP) {
+    event_summary.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = data_outcome["treated"];
   if (type_treat == LGLSXP || type_treat == INTSXP) {
     data_outcome.push_back(treatwi[1-treated], treat);
   } else if (type_treat == REALSXP) {
     data_outcome.push_back(treatwn[1-treated], treat);
   } else if (type_treat == STRSXP) {
     data_outcome.push_back(treatwc[1-treated], treat);
+  }
+  
+  treated = weight_summary["treated"];
+  if (type_treat == LGLSXP || type_treat == INTSXP) {
+    weight_summary.push_back(treatwi[1-treated], treat);
+  } else if (type_treat == REALSXP) {
+    weight_summary.push_back(treatwn[1-treated], treat);
+  } else if (type_treat == STRSXP) {
+    weight_summary.push_back(treatwc[1-treated], treat);
   }
   
   treated = km_outcome["treated"];
@@ -1317,9 +1402,11 @@ List msmcpp(
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("event_summary") = as<DataFrame>(event_summary),
     Named("data_switch") = data_switch,
     Named("fit_switch") = fit_switch,
     Named("data_outcome") = as<DataFrame>(data_outcome),
+    Named("weight_summary") = as<DataFrame>(weight_summary),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
     Named("settings") = settings);
