@@ -113,6 +113,9 @@
 #' * \code{hr_CI_type}: The type of confidence interval for hazard ratio,
 #'   either "log-rank p-value" or "bootstrap".
 #'
+#' * \code{event_summary}: A data frame containing the count and percentage
+#'   of deaths and switches by treatment arm.
+#'
 #' * \code{Sstar}: A data frame containing the counterfactual untreated
 #'   survival times and event indicators for each treatment group.
 #'   The variables include \code{id}, \code{stratum}, 
@@ -226,7 +229,7 @@
 #'   rx = "rx", censor_time = "censyrs", aft_dist = "weibull",
 #'   boot = FALSE)
 #'
-#' c(fit1$hr, fit1$hr_CI)
+#' fit1
 #'
 #' # Example 2: two-way treatment switching (illustration only)
 #'
@@ -249,7 +252,7 @@
 #'                "pathway.f"),
 #'   aft_dist = "weibull", boot = FALSE)
 #'
-#' c(fit2$hr, fit2$hr_CI)
+#' fit2
 #'
 #' @export
 ipe <- function(data, id = "id", stratum = "", time = "time", 
