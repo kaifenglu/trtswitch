@@ -786,16 +786,54 @@ List tsegestcpp(
     }
   }
   
-  IntegerVector stratum1 = stratumn[idx1];
-  IntegerVector treat1 = treatn[idx1];
+  IntegerVector stratumn1 = stratumn[idx1];
+  IntegerVector treatn1 = treatn[idx1];
   NumericVector tstopn1 = tstopn[idx1];
-  IntegerVector event1 = eventn[idx1];
+  IntegerVector eventn1 = eventn[idx1];
+  IntegerVector pdn1 = pdn[idx1];
+  IntegerVector swtrtn1 = swtrtn[idx1];
+  
+  // summarize number of deaths and switches by treatment arm
+  IntegerVector treat_out = IntegerVector::create(0, 1);
+  NumericVector n_total(2);
+  NumericVector n_event(2);
+  NumericVector n_pd(2);
+  NumericVector n_switch(2);
+  for (int i = 0; i < nids; ++i) {
+    int g = treatn1[i];
+    n_total[g]++;
+    if (eventn1[i] == 1) n_event[g]++;
+    if (pdn1[i] == 1) n_pd[g]++;
+    if (swtrtn1[i] == 1) n_switch[g]++;
+  }
+  
+  // Compute percentages
+  NumericVector pct_event(2);
+  NumericVector pct_pd(2);
+  NumericVector pct_switch(2);
+  for (int g = 0; g < 2; g++) {
+    pct_event[g] = 100.0 * n_event[g] / n_total[g];
+    pct_pd[g] = 100.0 * n_pd[g] / n_total[g];
+    pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
+  }
+  
+  // Combine count and percentage
+  List event_summary = List::create(
+    _["treated"] = treat_out,
+    _["n"] = n_total,
+    _["event_n"] = n_event,
+    _["event_pct"] = pct_event,
+    _["pd_n"] = n_pd,
+    _["pd_pct"] = pct_pd,
+    _["switch_n"] = n_switch,
+    _["switch_pct"] = pct_switch
+  );
   
   DataFrame dt = DataFrame::create(
-    Named("stratum") = stratum1,
-    Named("treat") = treat1,
+    Named("stratum") = stratumn1,
+    Named("treat") = treatn1,
     Named("time") = tstopn1,
-    Named("event") = event1);
+    Named("event") = eventn1);
   
   DataFrame lr = lrtest(dt,"","stratum","treat","time","","event","",0,0,0);
   double logRankPValue = lr["logRankPValue"];
@@ -1437,7 +1475,17 @@ List tsegestcpp(
       data_outcome.push_front(idwc[uid], id);
     }
     
-    IntegerVector treated = data_outcome["treated"];
+    
+    IntegerVector treated = event_summary["treated"];
+    if (type_treat == LGLSXP || type_treat == INTSXP) {
+      event_summary.push_back(treatwi[1-treated], treat);
+    } else if (type_treat == REALSXP) {
+      event_summary.push_back(treatwn[1-treated], treat);
+    } else if (type_treat == STRSXP) {
+      event_summary.push_back(treatwc[1-treated], treat);
+    }
+    
+    treated = data_outcome["treated"];
     if (type_treat == LGLSXP || type_treat == INTSXP) {
       data_outcome.push_back(treatwi[1-treated], treat);
     } else if (type_treat == REALSXP) {
@@ -1770,6 +1818,7 @@ List tsegestcpp(
     Named("hr") = hrhat,
     Named("hr_CI") = NumericVector::create(hrlower, hrupper),
     Named("hr_CI_type") = hr_CI_type,
+    Named("event_summary") = as<DataFrame>(event_summary),
     Named("data_switch") = data_switch,
     Named("km_switch") = km_switch,
     Named("eval_z") = eval_z,
