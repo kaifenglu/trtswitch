@@ -235,59 +235,7 @@
 #' 
 #' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #'
-#' * \code{settings}: A list with the following components:
-#'
-#'     - \code{strata_main_effect_only}: Whether to only include the strata
-#'       main effects in the logistic regression switching model.
-#'
-#'     - \code{ns_df}: Degrees of freedom for the natural cubic spline.
-#'       
-#'     - \code{firth}: Whether the Firth's penalized likelihood is used.
-#'
-#'     - \code{flic}: Whether to apply intercept correction.
-#'
-#'     - \code{low_psi}: The lower limit of the causal parameter.
-#'     
-#'     - \code{hi_psi}: The upper limit of the causal parameter.
-#'     
-#'     - \code{n_eval_z}: The number of points between \code{low_psi} and 
-#'       \code{hi_psi} (inclusive) at which to evaluate the Wald statistics 
-#'       for the coefficient for the counterfactual in the logistic 
-#'       regression switching model.
-#'
-#'     - \code{recensor}: Whether to apply recensoring to counterfactual
-#'       survival times.
-#'
-#'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring times only.
-#'
-#'     - \code{swtrt_control_only}: Whether treatment switching occurred
-#'       only in the control group.
-#'
-#'     - \code{gridsearch}: Whether to use grid search to estimate the 
-#'       causal parameter \code{psi}.
-#'       
-#'     - \code{root_finding}: The univariate root-finding algorithm to use.
-#'
-#'     - \code{alpha}: The significance level to calculate confidence
-#'       intervals.
-#'
-#'     - \code{ties}: The method for handling ties in the Cox model.
-#'     
-#'     - \code{tol}: The desired accuracy (convergence tolerance) 
-#'       for \code{psi}.
-#'
-#'     - \code{offset}: The offset to calculate the time from disease 
-#'       progression to death or censoring, the time from disease 
-#'       progression to treatment switch, and the time from treatment 
-#'       switch to death or censoring.
-#'
-#'     - \code{boot}: Whether to use bootstrap to obtain the confidence
-#'       interval for hazard ratio.
-#'
-#'     - \code{n_boot}: The number of bootstrap samples.
-#'
-#'     - \code{seed}: The seed to reproduce the bootstrap results.
+#' * \code{settings}: A list containing the input parameter values.
 #'
 #' * \code{psi_trt}: The estimated causal parameter for the experimental 
 #'   group if \code{swtrt_control_only} is \code{FALSE}.
@@ -493,6 +441,52 @@ tsegest <- function(data, id = "id", stratum = "",
       }
     }
   }
+  
+  
+  # convert treatment back to a factor variable if needed
+  if (is.factor(data[[treat]])) {
+    levs = levels(data[[treat]])
+    
+    out$event_summary[[treat]] <- factor(out$event_summary[[treat]], 
+                                         levels = c(1,2), labels = levs)
+    
+    for (h in 1:2) {
+      out$data_switch[[h]][[treat]] <- factor(
+        out$data_switch[[h]][[treat]], levels = c(1,2), labels = levs)
+      
+      out$km_switch[[h]][[treat]] <- factor(
+        out$km_switch[[h]][[treat]], levels = c(1,2), labels = levs)
+      
+      out$data_logis[[h]]$data[[treat]] <- factor(
+        out$data_logis[[h]]$data[[treat]], levels = c(1,2), labels = levs)
+      
+      out$data_nullcox[[h]]$data[[treat]] <- factor(
+        out$data_nullcox[[h]]$data[[treat]], levels = c(1,2), labels = levs)
+    }
+    
+    out$data_outcome[[treat]] <- factor(out$data_outcome[[treat]], 
+                                        levels = c(1,2), labels = levs)
+    
+    out$km_outcome[[treat]] <- factor(out$km_outcome[[treat]], 
+                                      levels = c(1,2), labels = levs)
+  }
+  
+  
+  out$settings <- list(
+    data = data, id = id, stratum = stratum, tstart = tstart, 
+    tstop = tstop, event = event, treat = treat,
+    censor_time = censor_time, pd = pd, pd_time = pd_time,
+    swtrt = swtrt, swtrt_time = swtrt_time,
+    base_cov = base_cov, conf_cov = conf_cov,
+    strata_main_effect_only = strata_main_effect_only,
+    ns_df = ns_df, firth = firth, flic = flic,
+    low_psi = low_psi, hi_psi = hi_psi, n_eval = n_eval_z,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    swtrt_control_only = swtrt_control_only, 
+    gridsearch = gridsearch, root_finding = root_finding,
+    alpha = alpha, ties = ties, tol = tol, offset = offset,
+    boot = boot, n_boot = n_boot, seed = seed
+  )
   
   class(out) <- "tsegest"
   out

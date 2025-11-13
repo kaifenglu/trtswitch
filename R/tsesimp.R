@@ -150,37 +150,7 @@
 #'
 #' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #' 
-#' * \code{settings}: A list with the following components:
-#'
-#'     - \code{aft_dist}: The distribution for time to event for the AFT
-#'       model.
-#'
-#'     - \code{strata_main_effect_only}: Whether to only include the strata
-#'       main effects in the AFT model.
-#'
-#'     - \code{recensor}: Whether to apply recensoring to counterfactual
-#'       survival times.
-#'
-#'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring times only.
-#'
-#'     - \code{swtrt_control_only}: Whether treatment switching occurred
-#'       only in the control group.
-#'
-#'     - \code{alpha}: The significance level to calculate confidence
-#'       intervals.
-#'
-#'     - \code{ties}: The method for handling ties in the Cox model.
-#'
-#'     - \code{offset}: The offset to calculate the time disease 
-#'       progression to death or censoring.
-#'
-#'     - \code{boot}: Whether to use bootstrap to obtain the confidence
-#'       interval for hazard ratio.
-#'
-#'     - \code{n_boot}: The number of bootstrap samples.
-#'
-#'     - \code{seed}: The seed to reproduce the bootstrap results.
+#' * \code{settings}: A list containing the input parameter values.
 #'
 #' * \code{psi_trt}: The estimated causal parameter for the experimental 
 #'   group if \code{swtrt_control_only} is \code{FALSE}.
@@ -340,6 +310,7 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     ties = ties, offset = offset, 
     boot = boot, n_boot = n_boot, seed = seed)
   
+  
   if (!out$psimissing) {
     out$data_outcome$uid <- NULL
     out$data_outcome$ustratum <- NULL
@@ -379,6 +350,40 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     }
   }
 
+  
+  # convert treatment back to a factor variable if needed
+  if (is.factor(data[[treat]])) {
+    levs = levels(data[[treat]])
+    
+    out$event_summary[[treat]] <- factor(out$event_summary[[treat]], 
+                                         levels = c(1,2), labels = levs)
+    
+    for (h in 1:2) {
+      out$data_aft[[h]][[treat]] <- factor(
+        out$data_aft[[h]][[treat]], levels = c(1,2), labels = levs)
+    }
+
+    out$data_outcome[[treat]] <- factor(out$data_outcome[[treat]], 
+                                        levels = c(1,2), labels = levs)
+    
+    out$km_outcome[[treat]] <- factor(out$km_outcome[[treat]], 
+                                      levels = c(1,2), labels = levs)
+  }
+  
+  
+  out$settings <- list(
+    data = data, id = id, stratum = stratum, time = time, 
+    event = event, treat = treat, censor_time = censor_time, 
+    pd = pd, pd_time = pd_time, swtrt = swtrt, 
+    swtrt_time = swtrt_time, base_cov = base_cov, 
+    base2_cov = base2_cov, aft_dist = aft_dist,
+    strata_main_effect_only = strata_main_effect_only,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    swtrt_control_only = swtrt_control_only,
+    alpha = alpha, ties = ties, offset = offset,
+    boot = boot, n_boot = n_boot, seed = seed
+  )
+  
   class(out) <- "tsesimp"
   out
 }

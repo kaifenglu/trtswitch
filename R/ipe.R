@@ -150,46 +150,7 @@
 #'
 #' * \code{psimissing}: Whether the `psi` parameter cannot be estimated.
 #'
-#' * \code{settings}: A list with the following components:
-#'
-#'     - \code{aft_dist}: The distribution for time to event for the AFT
-#'       model.
-#'
-#'     - \code{strata_main_effect_only}: Whether to only include the strata
-#'       main effects in the AFT model.
-#'
-#'     - \code{low_psi}: The lower limit of the causal parameter.
-#'     
-#'     - \code{hi_psi}: The upper limit of the causal parameter.
-#'     
-#'     - \code{treat_modifier}: The sensitivity parameter for the constant
-#'       treatment effect assumption.
-#'
-#'     - \code{recensor}: Whether to apply recensoring to counterfactual
-#'       survival times.
-#'
-#'     - \code{admin_recensor_only}: Whether to apply recensoring to
-#'       administrative censoring times only.
-#'
-#'     - \code{autoswitch}: Whether to exclude recensoring for treatment 
-#'       arms with no switching.
-#'
-#'     - \code{root_finding}: The univariate root-finding algorithm to use.
-#'     
-#'     - \code{alpha}: The significance level to calculate confidence
-#'       intervals.
-#'
-#'     - \code{ties}: The method for handling ties in the Cox model.
-#'
-#'     - \code{tol}: The desired accuracy (convergence tolerance) 
-#'       for \code{psi}.
-#'
-#'     - \code{boot}: Whether to use bootstrap to obtain the confidence
-#'       interval for hazard ratio.
-#'
-#'     - \code{n_boot}: The number of bootstrap samples.
-#'
-#'     - \code{seed}: The seed to reproduce the bootstrap results.
+#' * \code{settings}: A list containing the input parameter values.
 #'
 #' * \code{fail_boots}: The indicators for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
@@ -340,6 +301,45 @@ ipe <- function(data, id = "id", stratum = "", time = "time",
       }
     }
   }
+  
+  
+  # convert treatment back to a factor variable if needed
+  if (is.factor(data[[treat]])) {
+    levs = levels(data[[treat]])
+    
+    out$event_summary[[treat]] <- factor(out$event_summary[[treat]], 
+                                         levels = c(1,2), labels = levs)
+    
+    out$Sstar[[treat]] <- factor(out$Sstar[[treat]], 
+                                 levels = c(1,2), labels = levs)
+    
+    out$kmstar[[treat]] <- factor(out$kmstar[[treat]], 
+                                  levels = c(1,2), labels = levs)
+    
+    out$data_aft[[treat]] <- factor(out$data_aft[[treat]], 
+                                    levels = c(1,2), labels = levs)
+    
+    out$data_outcome[[treat]] <- factor(out$data_outcome[[treat]], 
+                                        levels = c(1,2), labels = levs)
+    
+    out$km_outcome[[treat]] <- factor(out$km_outcome[[treat]], 
+                                      levels = c(1,2), labels = levs)
+  }
+  
+  
+  out$settings <- list(
+    data = data, id = id, stratum = stratum, time = time, 
+    event = event, treat = treat, rx = rx, 
+    censor_time = censor_time, base_cov = base_cov, 
+    aft_dist = aft_dist,
+    strata_main_effect_only = strata_main_effect_only,
+    low_psi = low_psi, hi_psi = hi_psi, 
+    treat_modifier = treat_modifier, recensor = recensor,
+    admin_recensor_only = admin_recensor_only,
+    autoswitch = autoswitch, root_finding = root_finding,
+    alpha = alpha, ties = ties, tol = tol, boot = boot,
+    n_boot = n_boot, seed = seed
+  )
   
   class(out) <- "ipe"
   out
