@@ -1,11 +1,10 @@
-#' @title Print tsegest Object
-#' @description Prints the concise information of tsegest fit.
+#' @title Print method for tsegest objects
+#' @description Prints the concise information of a tsegest fit.
 #'
-#' @param x The tsegest object to print.
+#' @param x An object of class \code{tsegest}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of two-stage estimation with g-estimation.
 #'
 #' @keywords internal
 #'

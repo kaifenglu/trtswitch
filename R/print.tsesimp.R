@@ -1,11 +1,10 @@
-#' @title Print tsesimp Object
-#' @description Prints the concise information of tsesimp fit.
+#' @title Print method for tsesimp objects
+#' @description Prints the concise information of a tsesimp fit.
 #'
-#' @param x The tsesimp object to print.
+#' @param x an object of class \code{tsesimp}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of simple two-stage estimation.
 #'
 #' @keywords internal
 #'

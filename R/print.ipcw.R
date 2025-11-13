@@ -1,11 +1,11 @@
-#' @title Print ipcw Object
-#' @description Prints the concise information of ipcw fit.
+#' @title Print method for ipcw objects
+#' @description Prints the concise information of an ipcw fit.
 #'
-#' @param x The ipcw object to print.
+#' @param x An object of class \code{ipcw}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of an inverse-probability of censoring
+#' weights model.
 #'
 #' @keywords internal
 #'

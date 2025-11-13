@@ -1,7 +1,7 @@
-#' @title Print rpsftm Object
-#' @description Prints the concise information of rpsftm fit.
+#' @title Print method for rpsftm objects
+#' @description Prints the concise information of a rpsftm fit.
 #'
-#' @param x The rpsftm object to print.
+#' @param x An object of class \code{rpsftm}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
 #' @return A printout from the fit of a rank-preserving structural failure 

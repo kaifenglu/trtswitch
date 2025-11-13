@@ -1,11 +1,10 @@
-#' @title Print ipe Object
-#' @description Prints the concise information of ipe fit.
+#' @title Print method for ipe objects
+#' @description Prints the concise information of an ipe fit.
 #'
-#' @param x The ipe object to print.
+#' @param x An object of class \code{ipe}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of an iterative parameter estimation.
 #'
 #' @keywords internal
 #'

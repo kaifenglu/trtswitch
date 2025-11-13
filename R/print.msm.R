@@ -1,11 +1,10 @@
-#' @title Print msm Object
-#' @description Prints the concise information of msm fit.
+#' @title Print method for msm objects
+#' @description Prints the concise information of an msm fit.
 #'
-#' @param x The msm object to print.
+#' @param x An object of class \code{msm}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of a marginal structural model.
 #'
 #' @keywords internal
 #'
