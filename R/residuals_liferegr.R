@@ -85,16 +85,16 @@ residuals_liferegr <- function(
   p = object$p
   beta = object$beta
   
-  data = object$data
-  stratum = object$stratum
-  time = object$time
-  time2 = object$time2
-  event = object$event
-  covariates = object$covariates
-  weight = object$weight
-  offset = object$offset
-  id = object$id
-  dist = object$dist
+  data = object$settings$data
+  stratum = object$settings$stratum
+  time = object$settings$time
+  time2 = object$settings$time2
+  event = object$settings$event
+  covariates = object$settings$covariates
+  weight = object$settings$weight
+  offset = object$settings$offset
+  id = object$settings$id
+  dist = object$settings$dist
   param = object$param
 
   rownames(data) = NULL

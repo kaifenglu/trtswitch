@@ -430,7 +430,8 @@ List rpsftmcpp(const DataFrame data,
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
   
-  if (test == "survdiff" || test == "lifetest" || test == "lrtest") {
+  if (test == "survdiff" || test == "lifetest" || 
+      test == "lrtest" || test == "log-rank") {
     test = "logrank";
   } else if (test == "coxph") {
     test = "phreg";
@@ -1106,27 +1107,7 @@ List rpsftmcpp(const DataFrame data,
       psi_CI_type = "bootstrap";
     }
   }
-  
-  List settings = List::create(
-    Named("psi_test") = psi_test,
-    Named("aft_dist") = aft_dist,
-    Named("strata_main_effect_only") = strata_main_effect_only,
-    Named("low_psi") = low_psi,
-    Named("hi_psi") = hi_psi,
-    Named("n_eval_z") = n_eval_z,
-    Named("treat_modifer") = treat_modifier,
-    Named("recensor") = recensor,
-    Named("admin_recensor_only") = admin_recensor_only,
-    Named("autoswitch") = autoswitch,
-    Named("gridsearch") = gridsearch,
-    Named("root_finding") = root_finding,
-    Named("alpha") = alpha,
-    Named("ties") = ties,
-    Named("tol") = tol,
-    Named("boot") = boot,
-    Named("n_boot") = n_boot,
-    Named("seed") = seed);
-  
+ 
   List result = List::create(
     Named("psi") = psihat,
     Named("psi_roots") = psihat_vec,
@@ -1146,8 +1127,7 @@ List rpsftmcpp(const DataFrame data,
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
-    Named("psimissing") = psimissing,
-    Named("settings") = settings);
+    Named("psimissing") = psimissing);
   
   if (boot) {
     result.push_back(fails, "fail_boots");

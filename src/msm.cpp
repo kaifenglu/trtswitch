@@ -1380,22 +1380,6 @@ List msmcpp(
     pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
   }
   
-  List settings = List::create(
-    Named("strata_main_effect_only") = strata_main_effect_only,
-    Named("ns_df") = ns_df,
-    Named("firth") = firth,
-    Named("flic") = flic,
-    Named("stabilized_weights") = stabilized_weights,
-    Named("trunc") = trunc,
-    Named("trunc_upper_only") = trunc_upper_only,
-    Named("swtrt_control_only") = swtrt_control_only,
-    Named("treat_alt_interaction") = treat_alt_interaction,
-    Named("alpha") = alpha,
-    Named("ties") = ties,
-    Named("boot") = boot,
-    Named("n_boot") = n_boot,
-    Named("seed") = seed);
-  
   List result = List::create(
     Named("logrank_pvalue") = logRankPValue,
     Named("cox_pvalue") = pvalue,
@@ -1408,8 +1392,7 @@ List msmcpp(
     Named("data_outcome") = as<DataFrame>(data_outcome),
     Named("weight_summary") = as<DataFrame>(weight_summary),
     Named("fit_outcome") = fit_outcome,
-    Named("fail") = fail,
-    Named("settings") = settings);
+    Named("fail") = fail);
   
   if (boot) {
     result.push_back(fails, "fail_boots");

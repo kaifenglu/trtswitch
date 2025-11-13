@@ -159,34 +159,7 @@
 #'
 #' * \code{xlevels}: A record of the levels of the factors used in fitting.
 #'
-#' * \code{data}: The input data.
-#'
-#' * \code{rep}: The name(s) of the replication variable(s).
-#'
-#' * \code{stratum}: The name(s) of the stratum variable(s).
-#'
-#' * \code{time}: The name of the time variable.
-#'
-#' * \code{time2}: The name of the time2 variable.
-#'
-#' * \code{event}: The name of the event variable.
-#'
-#' * \code{covariates}: The names of baseline covariates.
-#'
-#' * \code{weight}: The name of the weight variable.
-#'
-#' * \code{offset}: The name of the offset variable.
-#'
-#' * \code{id}: The name of the id variable.
-#'
-#' * \code{dist}: The assumed distribution for time to event.
-#'
-#' * \code{robust}: Whether a robust sandwich variance estimate should be
-#'   computed.
-#'
-#' * \code{plci}: Whether to obtain profile likelihood confidence interval.
-#'
-#' * \code{alpha}: The two-sided significance level.
+#' * \code{settings}: A list containing the input parameter values.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
@@ -304,21 +277,13 @@ liferegr <- function(data, rep = "", stratum = "",
   fit$terms = t1
   if (fit$p > 0) fit$xlevels = xlevels
   
-  fit$data = data
-  fit$rep = rep
-  fit$stratum = stratum
-  fit$time = time
-  fit$time2 = time2
-  fit$event = event
-  fit$covariates = covariates
-  fit$weight = weight
-  fit$offset = offset
-  fit$id = id
-  fit$dist = dist
-  fit$robust = robust
-  fit$plci = plci
-  fit$alpha = alpha
-
+  fit$settings <- list(
+    data = data, rep = rep, stratum = stratum, time = time, time2 = time2,
+    event = event, covariates = covariates, weight = weight, offset = offset,
+    id = id, dist = dist, init = init, robust = robust, plci = plci, 
+    alpha = alpha, maxiter = maxiter, eps = eps
+  )
+  
   class(fit) = "liferegr"
   fit
 }

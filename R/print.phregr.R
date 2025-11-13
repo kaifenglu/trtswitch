@@ -29,8 +29,8 @@ print.phregr <- function(x, ...) {
   if (p > 0) {
     nreps = nrow(x$parest)/p
     
-    if (!x$robust) {
-      if (x$plci) {
+    if (!x$settings$robust) {
+      if (x$settings$plci) {
         df = data.frame(param = rep(x$param, nreps),
                         coef = x$parest$beta,
                         expcoef = x$parest$expbeta,
@@ -44,13 +44,13 @@ print.phregr <- function(x, ...) {
         if (nreps > 1) {
           df = cbind(df, x$parest[, (p+10):ncol(x$parest)])
           colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", "z",
-                            paste("lower", 1-x$alpha),
-                            paste("upper", 1-x$alpha), "p", "method",
+                            paste("lower", 1-x$settings$alpha),
+                            paste("upper", 1-x$settings$alpha), "p", "method",
                             colnames(x$parest)[(p+10):ncol(x$parest)])
         } else {
           colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", "z",
-                            paste("lower", 1-x$alpha),
-                            paste("upper", 1-x$alpha), "p", "method")
+                            paste("lower", 1-x$settings$alpha),
+                            paste("upper", 1-x$settings$alpha), "p", "method")
         }
       } else {
         df = data.frame(param = rep(x$param, nreps),
@@ -70,7 +70,7 @@ print.phregr <- function(x, ...) {
         }
       }
     } else {
-      if (x$plci) {
+      if (x$settings$plci) {
         df = data.frame(param = rep(x$param, nreps),
                         coef = x$parest$beta,
                         expcoef = x$parest$expbeta,
@@ -85,13 +85,17 @@ print.phregr <- function(x, ...) {
         if (nreps > 1) {
           df = cbind(df, x$parest[, (2*p+11):ncol(x$parest)])
           colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)",
-                            "robust se", "z", paste("lower", 1-x$alpha),
-                            paste("upper", 1-x$alpha), "p", "method",
+                            "robust se", "z", 
+                            paste("lower", 1-x$settings$alpha),
+                            paste("upper", 1-x$settings$alpha), 
+                            "p", "method",
                             colnames(x$parest)[(2*p+11):ncol(x$parest)])
         } else {
           colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)",
-                            "robust se", "z", paste("lower", 1-x$alpha),
-                            paste("upper", 1-x$alpha), "p", "method")
+                            "robust se", "z", 
+                            paste("lower", 1-x$settings$alpha),
+                            paste("upper", 1-x$settings$alpha), 
+                            "p", "method")
         }
       } else {
         df = data.frame(param = rep(x$param, nreps),

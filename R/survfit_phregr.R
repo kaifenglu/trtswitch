@@ -111,14 +111,14 @@ survfit_phregr <- function(object, newdata, sefit = TRUE,
 
   basehaz = object$basehaz
 
-  covariates = object$covariates
-  stratum = object$stratum
-  offset = object$offset
-  id = object$id
+  covariates = object$settings$covariates
+  stratum = object$settings$stratum
+  offset = object$settings$offset
+  id = object$settings$id
 
   if (id != "") {
-    tstart = object$time
-    tstop = object$time2
+    tstart = object$settings$time
+    tstop = object$settings$time2
   } else {
     tstart = ""
     tstop = ""

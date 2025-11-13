@@ -1153,19 +1153,6 @@ List tsesimpcpp(const DataFrame data,
     }
   }
   
-  List settings = List::create(
-    Named("aft_dist") = aft_dist,
-    Named("strata_main_effect_only") = strata_main_effect_only,
-    Named("recensor") = recensor,
-    Named("admin_recensor_only") = admin_recensor_only,
-    Named("swtrt_control_only") = swtrt_control_only,
-    Named("alpha") = alpha,
-    Named("ties") = ties,
-    Named("offset") = offset,
-    Named("boot") = boot,
-    Named("n_boot") = n_boot,
-    Named("seed") = seed);
-  
   List result = List::create(
     Named("psi") = psihat,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
@@ -1183,8 +1170,7 @@ List tsesimpcpp(const DataFrame data,
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
-    Named("psimissing") = psimissing,
-    Named("settings") = settings);
+    Named("psimissing") = psimissing);
   
   if (!swtrt_control_only) {
     result.push_back(psi1hat, "psi_trt");

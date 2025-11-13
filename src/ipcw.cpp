@@ -1664,23 +1664,7 @@ List ipcwcpp(
     hr_CI_type = "bootstrap";
     pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
   }
-  
-  List settings = List::create(
-    Named("logistic_switching_model") = logistic_switching_model,
-    Named("strata_main_effect_only") = strata_main_effect_only,
-    Named("ns_df") = ns_df,
-    Named("firth") = firth,
-    Named("flic") = flic,
-    Named("stabilized_weights") = stabilized_weights,
-    Named("trunc") = trunc,
-    Named("trunc_upper_only") = trunc_upper_only,
-    Named("swtrt_control_only") = swtrt_control_only,
-    Named("alpha") = alpha,
-    Named("ties") = ties,
-    Named("boot") = boot,
-    Named("n_boot") = n_boot,
-    Named("seed") = seed);
-  
+
   List result = List::create(
     Named("logrank_pvalue") = logRankPValue,
     Named("cox_pvalue") = pvalue,
@@ -1695,8 +1679,7 @@ List ipcwcpp(
     Named("km_outcome") = as<DataFrame>(km_outcome),
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
-    Named("fail") = fail,
-    Named("settings") = settings);
+    Named("fail") = fail);
   
   if (boot) {
     result.push_back(fails, "fail_boots");

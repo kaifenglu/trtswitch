@@ -165,33 +165,7 @@
 #'
 #' * \code{xlevels}: A record of the levels of the factors used in fitting.
 #'
-#' * \code{data}: The input data.
-#'
-#' * \code{rep}: The name(s) of the replication variable(s).
-#'
-#' * \code{event}: The name of the event variable.
-#'
-#' * \code{covariates}: The names of baseline covariates.
-#'
-#' * \code{freq}: The name of the freq variable.
-#'
-#' * \code{weight}: The name of the weight variable.
-#'
-#' * \code{offset}: The name of the offset variable.
-#'
-#' * \code{id}: The name of the id variable.
-#'
-#' * \code{robust}: Whether a robust sandwich variance estimate should be
-#'   computed.
-#'
-#' * \code{firth}: Whether to use the firth's bias reducing penalized
-#'   likelihood.
-#'
-#' * \code{flic}: Whether to apply intercept correction.
-#'
-#' * \code{plci}: Whether to obtain profile likelihood confidence interval.
-#'
-#' * \code{alpha}: The two-sided significance level.
+#' * \code{settings}: A list containing the input parameter values.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
@@ -302,20 +276,13 @@ logisregr <- function(data, rep = "", event = "event", covariates = "",
   fit$terms = t1
   if (fit$p > 0) fit$xlevels = xlevels
   
-  fit$data = data
-  fit$rep = rep
-  fit$event = event
-  fit$covariates = covariates
-  fit$freq = freq
-  fit$weight = weight
-  fit$offset = offset
-  fit$id = id
-  fit$robust = robust
-  fit$firth = firth
-  fit$flic = flic
-  fit$plci = plci
-  fit$alpha = alpha
-  
+  fit$settings <- list(
+    data = data, rep = rep, event = event, covariates = covariates,
+    freq = freq, weight = weight, offset = offset, id = id,
+    link = link, init = init, robust = robust, firth = firth, flic = flic,
+    plci = plci, alpha = alpha, maxiter = maxiter, eps = eps
+  )
+
   class(fit) = "logisregr"
   fit
 }

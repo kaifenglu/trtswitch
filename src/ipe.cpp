@@ -1015,23 +1015,6 @@ List ipecpp(const DataFrame data,
     }
   }
 
-  List settings = List::create(
-    Named("aft_dist") = aft_dist,
-    Named("strata_main_effect_only") = strata_main_effect_only,
-    Named("low_psi") = low_psi,
-    Named("hi_psi") = hi_psi,
-    Named("treat_modifer") = treat_modifier,
-    Named("recensor") = recensor,
-    Named("admin_recensor_only") = admin_recensor_only,
-    Named("autoswitch") = autoswitch,
-    Named("root_finding") = root_finding,
-    Named("alpha") = alpha,
-    Named("ties") = ties,
-    Named("tol") = tol,
-    Named("boot") = boot,
-    Named("n_boot") = n_boot,
-    Named("seed") = seed);
-  
   List result = List::create(
     Named("psi") = psihat,
     Named("psi_CI") = NumericVector::create(psilower, psiupper),
@@ -1051,8 +1034,7 @@ List ipecpp(const DataFrame data,
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail,
-    Named("psimissing") = psimissing,
-    Named("settings") = settings);
+    Named("psimissing") = psimissing);
   
   if (boot) {
     result.push_back(fails, "fail_boots");
