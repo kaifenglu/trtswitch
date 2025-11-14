@@ -45,7 +45,7 @@ plot.ipcw <- function(x, time_unit = "day",
   
   if (x$settings$swtrt_control_only) {
     if (x$settings$stabilized_weights) {
-      p_w <- ggplot2::ggplot(subset(x$data_outcome, .data$treated == 0), 
+      p_w <- ggplot2::ggplot(x$data_outcome[x$data_outcome$treated == 0, ], 
                             ggplot2::aes(x = .data$stabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) +
@@ -53,7 +53,7 @@ plot.ipcw <- function(x, time_unit = "day",
         ggplot2::labs(title =  df_arm$arm[[1]]) + 
         ggplot2::theme_bw()
     } else {
-      p_w <- ggplot2::ggplot(subset(x$data_outcome, .data$treated == 0), 
+      p_w <- ggplot2::ggplot(x$data_outcome[x$data_outcome$treated == 0, ], 
                             ggplot2::aes(x = .data$unstabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) +
