@@ -131,6 +131,8 @@
 #'   and \code{treat}.
 #' 
 #' * \code{fit_aft}: The fitted AFT model for estimating \code{psi}.
+#' 
+#' * \code{res_aft}: The deviance residuals from the fitted AFT model.
 #'
 #' * \code{data_outcome}: The input data for the outcome Cox model of 
 #'   counterfactual unswitched survival times.
