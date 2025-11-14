@@ -1,5 +1,6 @@
 #' @title Plot method for tsesimp objects
-#' @description Generate Kaplan-Meier (KM) plot of a tsesimp object.
+#' @description Generate box plot for AFT model deviance residuals and 
+#' Kaplan-Meier (KM) plot for potential outcomes of a tsesimp object.
 #'
 #' @param x An object of class \code{tsesimp}.
 #' @param time_unit The time unit used in the input data.
@@ -10,7 +11,8 @@
 #'   below the KM plot. Default is TRUE.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #' 
-#' @return A ggplot2 object for the KM plot.
+#' @return A list of two ggplot2 objects, one for box plot and the other 
+#' for KM plot.
 #'
 #' @keywords internal
 #'
@@ -27,6 +29,41 @@ plot.tsesimp <- function(x, time_unit = "day",
   alpha <- x$settings$alpha
   conflev <- 100*(1-alpha)
   treat_var <- x$settings$treat
+  
+  # --- Deviance residuals plot for AFT models ---
+  df_arm <- data.frame(arm = c(x$res_aft[[1]][[treat_var]], 
+                               x$res_aft[[2]][[treat_var]])) 
+  
+  arm <- x$data_outcome[[treat_var]]
+  if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
+    df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
+                         labels = c("Treatment", "Control"))
+  } else {
+    df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+  }
+  
+  p_res <- list()
+  K <- if (x$settings$swtrt_control_only) 1 else 2
+  for (k in 1:K) {
+    df1 <- data.frame(swtrt = factor(x$data_aft[[k]]$data$swtrt, 
+                                     levels = c(1,0), 
+                                     labels = c("Switchers", "Nonswitchers")),
+                      res = x$res_aft[[k]]$res)
+    p_res[[k]] <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$swtrt, 
+                                                    y = .data$res)) +
+      ggplot2::geom_boxplot(fill="#77bd89", color="#1f6e34", alpha = 0.6) +
+      ggplot2::scale_x_discrete(drop = FALSE) + 
+      ggplot2::labs(x = NULL, y = "Deviance Residuals",
+                    title = df_arm$arm[[k]]) +
+      ggplot2::theme_bw()
+  }
+  
+  if (K == 1) {
+    p_res <- p_res[[1]]
+  } else {
+    p_res <- cowplot::plot_grid(plotlist = p_res, ncol = 2)
+  }
+  
   
   # --- Kaplan-Meier plot for counterfactual outcomes ---
   df <- x$km_outcome
@@ -169,5 +206,5 @@ plot.tsesimp <- function(x, time_unit = "day",
                                rel_heights = c(4, 0.6))    
   }
   
-  p_km
+  list(p_res = p_res, p_km = p_km)
 }
