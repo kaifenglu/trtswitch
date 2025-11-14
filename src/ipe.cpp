@@ -563,6 +563,7 @@ List ipecpp(const DataFrame data,
                   // obtain the Kaplan-Meier estimates
                   List Sstar, kmstar, data_aft, data_outcome;
                   List fit_aft, fit_outcome;
+                  NumericVector res_aft;
                   double hrhat = NA_REAL, pvalue = NA_REAL;
                   List km_outcome, lr_outcome;
                   
@@ -598,6 +599,14 @@ List ipecpp(const DataFrame data,
                       data_aft.push_back(stratumb, "ustratum");
                       
                       fit_aft = out_aft["fit_aft"];
+                      
+                      DataFrame parest = DataFrame(fit_aft["parest"]);
+                      NumericVector beta = parest["beta"];
+                      NumericMatrix vbeta(q+p+1, q+p+1);
+                      NumericMatrix rr = residuals_liferegcpp(
+                        beta, vbeta, data_aft, "", "t_star", "", "d_star",
+                        covariates_aft, "", "", "", dist, "deviance", 0, 0);
+                      res_aft = rr(_,0);
                     }
                     
                     // run Cox model to obtain the hazard ratio estimate
@@ -648,6 +657,7 @@ List ipecpp(const DataFrame data,
                       Named("kmstar") = kmstar,
                       Named("data_aft") = data_aft,
                       Named("fit_aft") = fit_aft,
+                      Named("res_aft") = res_aft,
                       Named("data_outcome") = data_outcome,
                       Named("km_outcome") = km_outcome,
                       Named("lr_outcome") = lr_outcome,
@@ -676,6 +686,7 @@ List ipecpp(const DataFrame data,
   List kmstar = out["kmstar"];
   List data_aft = out["data_aft"];
   List fit_aft = out["fit_aft"];
+  NumericVector res_aft = out["res_aft"];
   List data_outcome = out["data_outcome"];
   List km_outcome = out["km_outcome"];
   List lr_outcome = out["lr_outcome"];
@@ -1029,6 +1040,7 @@ List ipecpp(const DataFrame data,
     Named("kmstar") = as<DataFrame>(kmstar),
     Named("data_aft") = as<DataFrame>(data_aft),
     Named("fit_aft") = fit_aft,
+    Named("res_aft") = res_aft,
     Named("data_outcome") = as<DataFrame>(data_outcome),
     Named("km_outcome") = as<DataFrame>(km_outcome),
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
