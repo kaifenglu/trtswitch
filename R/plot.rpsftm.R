@@ -1,4 +1,4 @@
-#' @title Plot method for rpsftm Objects
+#' @title Plot method for rpsftm objects
 #' @description Generate Z-plot and Kaplan-Meier (KM) plot of a 
 #' rpsftm object.
 #'
