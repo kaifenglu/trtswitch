@@ -131,6 +131,9 @@
 #'   \code{swtrt_time}, and \code{time}.
 #' 
 #' * \code{fit_aft}: A list of fitted AFT models by treatment group.
+#' 
+#' * \code{res_aft}: A list of deviance residuals from the AFT models 
+#'   by treatment group.
 #'   
 #' * \code{data_outcome}: The input data for the outcome Cox model 
 #'   of counterfactual unswitched survival times.
