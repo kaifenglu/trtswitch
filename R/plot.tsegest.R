@@ -1,4 +1,4 @@
-#' @title Plot method for tsegest Objects
+#' @title Plot method for tsegest objects
 #' @description Generate Z-plot and Kaplan-Meier (KM) plot of a 
 #' tsegest object.
 #'
@@ -38,7 +38,7 @@ plot.tsegest <- function(x, time_unit = "day",
     df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
                          labels = c("Treatment", "Control"))
   } else {
-    df_arm$arm <- factor(df_arm$arm, levels = levels(arm))
+    df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
   }
   
   p_z <- list()
