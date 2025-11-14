@@ -608,7 +608,7 @@ List tsesimpcpp(const DataFrame data,
                   double psi1lower = NA_REAL, psi1upper = NA_REAL;
                   
                   // initialize data_aft and fit_aft
-                  List data_aft(2), fit_aft(2);
+                  List data_aft(2), fit_aft(2), res_aft(2);
                   if (k == -1) {
                     for (int h=0; h<2; ++h) {
                       List data_x = List::create(
@@ -642,6 +642,22 @@ List tsesimpcpp(const DataFrame data,
                       }
                       
                       fit_aft[h] = fit_x;
+                      
+                      List res_x = List::create(
+                        Named("res") = R_NilValue,
+                        Named(treat) = R_NilValue
+                      );
+                      
+                      if (type_treat == LGLSXP ||
+                          type_treat == INTSXP) {
+                        res_x[treat] = treatwi[1-h];
+                      } else if (type_treat == REALSXP) {
+                        res_x[treat] = treatwn[1-h];
+                      } else if (type_treat == STRSXP) {
+                        res_x[treat] = treatwc[1-h];
+                      }
+                      
+                      res_aft[h] = res_x;
                     }
                   }
                   
@@ -699,6 +715,15 @@ List tsesimpcpp(const DataFrame data,
                       psiupper = -beta1[1] + zcrit*sebeta1[1];
                     }
                     
+                    NumericVector res;
+                    if (k == -1) {
+                      NumericMatrix vbeta1(q+p2+1, q+p2+1);
+                      NumericMatrix rr = residuals_liferegcpp(
+                        beta1, vbeta1, data1, "", "pps", "", "event",
+                        covariates_aft, "", "", "", dist, "deviance", 0, 0);
+                      res = rr(_,0);
+                    }
+                    
                     // update treatment-specific causal parameter estimates
                     if (h == 0) {
                       psi0hat = psihat;
@@ -739,7 +764,7 @@ List tsesimpcpp(const DataFrame data,
                         }
                       }
                       
-                      // update data_aft and fit_aft
+                      // update data_aft, fit_aft, and res_aft
                       if (k == -1) {
                         IntegerVector stratum2 = stratumb[l];
                         
@@ -776,6 +801,10 @@ List tsesimpcpp(const DataFrame data,
                         List fit_x = fit_aft[h];
                         fit_x["fit"] = fit1;
                         fit_aft[h] = fit_x;
+                        
+                        List res_x = res_aft[h];
+                        res_x["res"] = res;
+                        res_aft[h] = res_x;
                       }
                     } else {
                       psimissing = 1;
@@ -835,6 +864,7 @@ List tsesimpcpp(const DataFrame data,
                     out = List::create(
                       Named("data_aft") = data_aft,
                       Named("fit_aft") = fit_aft,
+                      Named("res_aft") = res_aft,
                       Named("data_outcome") = data_outcome,
                       Named("km_outcome") = km_outcome,
                       Named("lr_outcome") = lr_outcome,
@@ -871,6 +901,7 @@ List tsesimpcpp(const DataFrame data,
   
   List data_aft = out["data_aft"];
   List fit_aft = out["fit_aft"];
+  List res_aft = out["res_aft"];
   List data_outcome = out["data_outcome"];
   List km_outcome = out["km_outcome"];
   List lr_outcome = out["lr_outcome"];
@@ -1165,6 +1196,7 @@ List tsesimpcpp(const DataFrame data,
     Named("event_summary") = as<DataFrame>(event_summary),
     Named("data_aft") = data_aft,
     Named("fit_aft") = fit_aft,
+    Named("res_aft") = res_aft,
     Named("data_outcome") = as<DataFrame>(data_outcome),
     Named("km_outcome") = as<DataFrame>(km_outcome),
     Named("lr_outcome") = as<DataFrame>(lr_outcome),
