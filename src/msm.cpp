@@ -1391,6 +1391,8 @@ List msmcpp(
     Named("fit_switch") = fit_switch,
     Named("data_outcome") = as<DataFrame>(data_outcome),
     Named("weight_summary") = as<DataFrame>(weight_summary),
+    Named("km_outcome") = as<DataFrame>(km_outcome),
+    Named("lr_outcome") = as<DataFrame>(lr_outcome),
     Named("fit_outcome") = fit_outcome,
     Named("fail") = fail);
   
