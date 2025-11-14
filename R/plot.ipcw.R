@@ -1,6 +1,6 @@
-#' @title Plot method for ipcw Objects
-#' @description Generate weight plot and Kaplan-Meier (KM) plot of a 
-#' ipcw object.
+#' @title Plot method for ipcw objects
+#' @description Generate histogram of weights and weighted Kaplan-Meier (KM) 
+#' plot for censored outcomes of an ipcw object.
 #'
 #' @param x An object of class \code{ipcw}.
 #' @param time_unit The time unit used in the input data.
@@ -11,7 +11,7 @@
 #'   below the KM plot. Default is TRUE.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A list of two ggplot2 objects, one for weight plot and the other 
+#' @return A list of two ggplot2 objects, one for histogram and the other 
 #' for KM plot.
 #'
 #' @keywords internal
@@ -40,7 +40,7 @@ plot.ipcw <- function(x, time_unit = "day",
     df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
                          labels = c("Treatment", "Control"))
   } else {
-    df_arm$arm <- factor(df_arm$arm, levels = levels(arm))
+    df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
   }
   
   if (x$settings$swtrt_control_only) {
