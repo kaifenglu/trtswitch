@@ -114,7 +114,7 @@ plot.rpsftm <- function(x, time_unit = "day",
     if (max(min_surv) < 0.5) {
       p_km <- p_km  + 
         ggplot2::annotate(
-          "text", x = 0.6*max(df$month), y = 0.75, hjust = 0,
+          "text", x = 0.6*max(df$month), y = 0.7, hjust = 0,
           label = sprintf("HR = %.3f (%.0f%% CI: %.3f, %.3f)", 
                           x$hr, conflev, 
                           x$hr_CI[1], x$hr_CI[2]),
@@ -174,7 +174,7 @@ plot.rpsftm <- function(x, time_unit = "day",
         axis.ticks = ggplot2::element_blank(),
         legend.position = "none",
         panel.grid = ggplot2::element_blank(),
-        plot.margin = ggplot2::margin(t = 10, r = 5, b = 0, l = 20)) + 
+        plot.margin = ggplot2::margin(t = 6, r = 5, b = 0, l = 20)) + 
       ggplot2::annotate(
         "text", x = min(xbreaks), y = 3,
         label = "No. of Subjects at Risk",
