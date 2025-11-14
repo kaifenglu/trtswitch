@@ -1,5 +1,6 @@
 #' @title Plot method for ipe objects
-#' @description Generate Kaplan-Meier (KM) plot of an ipe object.
+#' @description Generate box plot for AFT model deviance residuals and 
+#' Kaplan-Meier (KM) plot for potential outcomes of an ipe object.
 #'
 #' @param x An object of class \code{ipe}.
 #' @param time_unit The time unit used in the input data.
@@ -10,7 +11,8 @@
 #'   below the KM plot. Default is TRUE.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #' 
-#' @return A ggplot2 object for the KM plot.
+#' @return A list of two ggplot2 objects, one for box plot and the other 
+#' for KM plot.
 #'
 #' @keywords internal
 #'
@@ -27,6 +29,25 @@ plot.ipe <- function(x, time_unit = "day",
   alpha <- x$settings$alpha
   conflev <- 100*(1-alpha)
   treat_var <- x$settings$treat
+  
+  df1 <- data.frame(arm = x$data_aft[[treat_var]], 
+                    res = x$res_aft)
+  
+  arm <- x$data_outcome[[treat_var]]
+  if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
+    df1$arm <- factor(df1$arm, levels = c(1, 0),
+                      labels = c("Treatment", "Control"))
+  } else {
+    df1$arm <- factor(df1$arm, labels = levels(arm))
+  }
+  
+  p_res <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$arm, 
+                                             y = .data$res)) +
+    ggplot2::geom_boxplot(fill="#77bd89", color="#1f6e34", alpha = 0.6) +
+    ggplot2::scale_x_discrete(drop = FALSE) + 
+    ggplot2::labs(x = NULL, y = "Deviance Residuals") +
+    ggplot2::theme_bw()
+  
   
   # --- Kaplan-Meier plot for counterfactual outcomes ---
   df <- x$km_outcome
@@ -169,5 +190,5 @@ plot.ipe <- function(x, time_unit = "day",
                                rel_heights = c(4, 0.6))    
   }
   
-  p_km
+  list(p_res = p_res, p_km = p_km)
 }
