@@ -19,6 +19,7 @@
 * added the plot method for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 * use settings to store input parameter values for logisregr, liferegr, phregr, rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 * converted treatment back to a factor variable for output data sets in rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
+* add res\_aft to ipe and tsesimp
 
 
 
