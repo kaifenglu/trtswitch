@@ -130,7 +130,7 @@ List tsegestcpp(
     const bool flic = false,
     const double low_psi = -2,
     const double hi_psi = 2,
-    const int n_eval_z = 401,
+    const int n_eval_z = 101,
     const bool recensor = true,
     const bool admin_recensor_only = true,
     const bool swtrt_control_only = true,
@@ -922,10 +922,10 @@ List tsegestcpp(
                       }
                       
                       data_switch[h] = data_x;
-                      km_switch[h] = data_x;
-                      eval_z[h] = data_x;
-                      data_nullcox[h] = data_x;
-                      data_logis[h] = data_x;
+                      km_switch[h] = clone(data_x);
+                      eval_z[h] = clone(data_x);
+                      data_nullcox[h] = clone(data_x);
+                      data_logis[h] = clone(data_x);
                       
                       List fit_x = List::create(
                         Named("fit") = R_NilValue,
@@ -941,7 +941,7 @@ List tsegestcpp(
                       }
                       
                       fit_nullcox[h] = fit_x;
-                      fit_logis[h] = fit_x;
+                      fit_logis[h] = clone(fit_x);
                     }
                   }
                   
@@ -1144,7 +1144,104 @@ List tsegestcpp(
                       }
                     }
                     
- 
+                    // update treatment-specific causal parameter estimates
+                    if (h == 0) {
+                      psi0hat = psihat;
+                      psi0hat_vec = psihat_vec;
+                      if (k == -1) {
+                        psi0lower = psilower;
+                        psi0upper = psiupper;
+                      }
+                    } else {
+                      psi1hat = psihat;
+                      psi1hat_vec = psihat_vec;
+                      if (k == -1) {
+                        psi1lower = psilower;
+                        psi1upper = psiupper;
+                      }
+                    }
+                    
+                    if (k == -1) {
+                      // obtain data and KM plot for time to switch
+                      NumericVector swtrt_timen4(nids2);
+                      for (int i=0; i<nids2; ++i) {
+                        swtrt_timen4[i] = swtrt3[i] == 1 ? 
+                        swtrt_time3[i] : os_time3[i];
+                      }
+                      
+                      List data1 = List::create(
+                        Named("swtrt") = swtrt3,
+                        Named("swtrt_time") = swtrt_timen4);
+                      
+                      if (type_id == INTSXP) {
+                        data1.push_front(idwi[id3], id);
+                      } else if (type_id == REALSXP) {
+                        data1.push_front(idwn[id3], id);
+                      } else if (type_id == STRSXP) {
+                        data1.push_front(idwc[id3], id);
+                      }
+                      
+                      if (has_stratum) {
+                        for (int i=0; i<p_stratum; ++i) {
+                          std::string s = as<std::string>(stratum[i]);
+                          SEXP col_stratum = u_stratum[s];
+                          SEXPTYPE type_stratum = TYPEOF(col_stratum);
+                          if (type_stratum == INTSXP) {
+                            IntegerVector v = col_stratum;
+                            data1.push_back(v[stratum3], s);
+                          } else if (type_stratum == REALSXP) {
+                            NumericVector v = col_stratum;
+                            data1.push_back(v[stratum3], s);
+                          } else if (type_stratum == STRSXP) {
+                            StringVector v = col_stratum;
+                            data1.push_back(v[stratum3], s);
+                          }
+                        }
+                      }
+                      
+                      List km1 = kmest(data1,"","","swtrt_time","",
+                                       "swtrt","","log-log",1-alpha,1);
+                      
+                      // obtain the Wald statistics for the coefficient of 
+                      // the counterfactual in the logistic regression 
+                      // switching model at a sequence of psi values
+                      if (!gridsearch) {
+                        for (int i=0; i<n_eval_z; ++i) {
+                          List out = est_psi_tsegest(
+                            n2, q, p2, nids2, idx2, stratum3, 
+                            os3, os_time3, censor_time3, 
+                            swtrt3, swtrt_time3, id2, cross2, 
+                            tstart2, tstop2, covariates_lgs, 
+                            z_lgs2, ns_df, s, firth, flic, 
+                            recensor, alpha, ties, offset, psi[i]);
+                          
+                          bool fail = out["fail"];
+                          if (!fail) Z[i] = out["z_counterfactual"];
+                        }
+                        
+                        List psihat_list = getpsiest(0, psi, Z, 0);
+                        psihat_vec = psihat_list["roots"];
+                      }
+                      
+                      List data2 = List::create(
+                        Named("psi") = psi,
+                        Named("Z") = Z);
+                      
+                      
+                      List data_1 = data_switch[h];
+                      data_1["data"] = as<DataFrame>(data1);
+                      data_switch[h] = data_1;
+                      
+                      List km_1 = km_switch[h];
+                      km_1["data"] = as<DataFrame>(km1);
+                      km_switch[h] = km_1;
+                      
+                      List data_2 = eval_z[h];
+                      data_2["data"] = as<DataFrame>(data2);
+                      eval_z[h] = data_2;
+                    }
+                    
+                    
                     if (!std::isnan(psihat)) {
                       // calculate counter-factual survival times
                       double a = exp(psihat);
@@ -1171,71 +1268,6 @@ List tsegestcpp(
                       }
                       
                       if (k == -1) {
-                        // obtain data and KM plot for time to switch
-                        NumericVector swtrt_timen4(nids2);
-                        for (int i=0; i<nids2; ++i) {
-                          swtrt_timen4[i] = swtrt3[i] == 1 ? 
-                          swtrt_time3[i] : os_time3[i];
-                        }
-                        
-                        List data1 = List::create(
-                          Named("swtrt") = swtrt3,
-                          Named("swtrt_time") = swtrt_timen4);
-                        
-                        if (type_id == INTSXP) {
-                          data1.push_front(idwi[id3], id);
-                        } else if (type_id == REALSXP) {
-                          data1.push_front(idwn[id3], id);
-                        } else if (type_id == STRSXP) {
-                          data1.push_front(idwc[id3], id);
-                        }
-                        
-                        if (has_stratum) {
-                          for (int i=0; i<p_stratum; ++i) {
-                            std::string s = as<std::string>(stratum[i]);
-                            SEXP col_stratum = u_stratum[s];
-                            SEXPTYPE type_stratum = TYPEOF(col_stratum);
-                            if (type_stratum == INTSXP) {
-                              IntegerVector v = col_stratum;
-                              data1.push_back(v[stratum3], s);
-                            } else if (type_stratum == REALSXP) {
-                              NumericVector v = col_stratum;
-                              data1.push_back(v[stratum3], s);
-                            } else if (type_stratum == STRSXP) {
-                              StringVector v = col_stratum;
-                              data1.push_back(v[stratum3], s);
-                            }
-                          }
-                        }
-                        
-                        List km1 = kmest(data1,"","","swtrt_time","",
-                                         "swtrt","","log-log",1-alpha,1);
-                        
-                        // obtain the Wald statistics for the coefficient of 
-                        // the counterfactual in the logistic regression 
-                        // switching model at a sequence of psi values
-                        if (!gridsearch) {
-                          for (int i=0; i<n_eval_z; ++i) {
-                            List out = est_psi_tsegest(
-                              n2, q, p2, nids2, idx2, stratum3, 
-                              os3, os_time3, censor_time3, 
-                              swtrt3, swtrt_time3, id2, cross2, 
-                              tstart2, tstop2, covariates_lgs, 
-                              z_lgs2, ns_df, s, firth, flic, 
-                              recensor, alpha, ties, offset, psi[i]);
-                            
-                            bool fail = out["fail"];
-                            if (!fail) Z[i] = out["z_counterfactual"];
-                          }
-                          
-                          List psihat_list = getpsiest(0, psi, Z, 0);
-                          psihat_vec = psihat_list["roots"];
-                        }
-                        
-                        List data2 = List::create(
-                          Named("psi") = psi,
-                          Named("Z") = Z);
-                        
                         // obtain data and fit for null Cox & logistic models
                         List out = est_psi_tsegest(
                           n2, q, p2, nids2, idx2, stratum3, 
@@ -1286,54 +1318,24 @@ List tsegestcpp(
                         }
                         
                         // update the data and model fits
-                        List data_1 = data_switch[h];
-                        data_1["data"] = as<DataFrame>(data1);
-                        data_switch[h] = data_1;
-                        
-                        List data_2 = clone(data_1);
-                        data_2["data"] = as<DataFrame>(data2);
-                        eval_z[h] = data_2;
-                        
-                        List data_3 = clone(data_1);
+                        List data_3 = data_nullcox[h];
                         data_3["data"] = as<DataFrame>(data3);
                         data_nullcox[h] = data_3;
                         
-                        List data_4 = clone(data_1);
+                        List data_4 = data_logis[h];
                         data_4["data"] = as<DataFrame>(data4);
                         data_logis[h] = data_4;
-                        
-                        List data_5 = clone(data_1);
-                        data_5["data"] = as<DataFrame>(km1);
-                        km_switch[h] = data_5;
                         
                         List fit_3 = fit_nullcox[h];
                         fit_3["fit"] = fit3;
                         fit_nullcox[h] = fit_3;
                         
-                        List fit_4 = clone(fit_3);
+                        List fit_4 = fit_logis[h];
                         fit_4["fit"] = fit4;
                         fit_logis[h] = fit_4;
                       }
                     } else {
                       psimissing = 1;
-                    }
-                    
-                    
-                    // update treatment-specific causal parameter estimates
-                    if (h == 0) {
-                      psi0hat = psihat;
-                      psi0hat_vec = psihat_vec;
-                      if (k == -1) {
-                        psi0lower = psilower;
-                        psi0upper = psiupper;
-                      }
-                    } else {
-                      psi1hat = psihat;
-                      psi1hat_vec = psihat_vec;
-                      if (k == -1) {
-                        psi1lower = psilower;
-                        psi1upper = psiupper;
-                      }
                     }
                   }
                   
@@ -1466,6 +1468,23 @@ List tsegestcpp(
   String hr_CI_type;
   
   if (!psimissing) {
+    // summarize number of deaths by treatment arm in the outcome data
+    IntegerVector treated = data_outcome["treated"];
+    IntegerVector event_out = data_outcome["d_star"];
+    NumericVector n_event_out(2);
+    for (int i = 0; i < nids; ++i) {
+      int g = treated[i];
+      if (event_out[i] == 1) n_event_out[g]++;
+    }
+    
+    NumericVector pct_event_out(2);
+    for (int g = 0; g < 2; g++) {
+      pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
+    }
+    
+    event_summary.push_back(n_event_out, "event_out_n");
+    event_summary.push_back(pct_event_out, "event_out_pct");
+
     IntegerVector uid = data_outcome["uid"];
     if (type_id == INTSXP) {
       data_outcome.push_front(idwi[uid], id);
@@ -1475,8 +1494,7 @@ List tsegestcpp(
       data_outcome.push_front(idwc[uid], id);
     }
     
-    
-    IntegerVector treated = event_summary["treated"];
+    treated = event_summary["treated"];
     if (type_treat == LGLSXP || type_treat == INTSXP) {
       event_summary.push_back(treatwi[1-treated], treat);
     } else if (type_treat == REALSXP) {
