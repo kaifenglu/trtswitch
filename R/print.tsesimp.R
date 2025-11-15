@@ -29,7 +29,7 @@ print.tsesimp <- function(x, ...) {
   df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
   print(df0, ..., na.print = "", quote = FALSE)
   cat("\n")
-
+  
   
   level = paste0(100*(1 - x$settings$alpha), "%")
   

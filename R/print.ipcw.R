@@ -46,7 +46,7 @@ print.ipcw <- function(x, ...) {
   }
   print(df1, ..., na.print = "" , quote = FALSE )
   cat("\n")
-
+  
   df2 <- data.frame(
     hr = c(x$hr, x$hr_CI[1], x$hr_CI[2]),
     pvalue = c(pvalue, "", "")

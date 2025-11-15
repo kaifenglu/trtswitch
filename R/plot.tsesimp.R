@@ -50,7 +50,8 @@ plot.tsesimp <- function(x, time_unit = "day",
     for (k in 1:K) {
       df1 <- data.frame(swtrt = factor(x$data_aft[[k]]$data$swtrt, 
                                        levels = c(1,0), 
-                                       labels = c("Switchers", "Nonswitchers")),
+                                       labels = c("Switchers", 
+                                                  "Nonswitchers")),
                         res = x$res_aft[[k]]$res)
       p_res[[k]] <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$swtrt, 
                                                       y = .data$res)) +

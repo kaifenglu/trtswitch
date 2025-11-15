@@ -79,11 +79,11 @@ plot.tsegest <- function(x, time_unit = "day",
     limits = range(c(x$eval_z[[1]]$data$Z, x$eval_z[[2]]$data$Z))
     yintercept = c(0, qnorm(alpha/2), qnorm(1-alpha/2))
     yindex = yintercept >= limits[1] & yintercept <= limits[2]
-
+    
     xintercept1 = c(x$psi, x$psi_CI)
     xindex1 = !is.na(xintercept1) & xintercept1 >= x$settings$low_psi & 
       xintercept1 <= x$settings$hi_psi
-
+    
     xintercept2 = c(x$psi_trt, x$psi_trt_CI)
     xindex2 = !is.na(xintercept2) & xintercept2 >= x$settings$low_psi & 
       xintercept2 <= x$settings$hi_psi
