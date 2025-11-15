@@ -230,7 +230,7 @@
 #'   treat = "bras.f", rx = "rx", censor_time = "dcut",
 #'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
 #'                "pathway.f"),
-#'   low_psi = -3, hi_psi = 3, n_eval_z = 601, boot = FALSE)
+#'   low_psi = -3, hi_psi = 3, boot = FALSE)
 #'
 #' fit2
 #'
@@ -241,7 +241,7 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
                    base_cov = "", psi_test = "logrank", 
                    aft_dist = "weibull", strata_main_effect_only = TRUE, 
                    low_psi = -2, hi_psi = 2,
-                   n_eval_z = 401, treat_modifier = 1,
+                   n_eval_z = 101, treat_modifier = 1,
                    recensor = TRUE, admin_recensor_only = TRUE,
                    autoswitch = TRUE, gridsearch = TRUE,
                    root_finding = "brent",
