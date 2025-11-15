@@ -31,11 +31,12 @@ plot.ipcw <- function(x, time_unit = "day",
   treat_var <- x$settings$treat
   
   # --- weight plot ---
+  arm <- x$settings$data[[treat_var]]
+  
   df_arm <- data.frame(arm = c(
     x$data_outcome[[treat_var]][x$data_outcome$treated == 0][1], 
     x$data_outcome[[treat_var]][x$data_outcome$treated == 1][1]))
 
-  arm <- x$data_outcome[[treat_var]]
   if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
     df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
                          labels = c("Treatment", "Control"))
