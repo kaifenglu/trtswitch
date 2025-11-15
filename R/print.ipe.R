@@ -12,8 +12,15 @@
 #'
 #' @export
 print.ipe <- function(x, ...) {
-  pvalue1 = if (x$settings$boot) x$cox_pvalue else x$logrank_pvalue
-  if (pvalue1 > 0.9999) {
+  if (!x$settings$boot) {
+    pvalue1 = x$logrank_pvalue
+  } else {
+    pvalue1 = x$cox_pvalue
+  }
+  
+  if (is.na(pvalue1)) {
+    pvalue = NA
+  } else if (pvalue1 > 0.9999) {
     pvalue = ">.9999" 
   } else if (pvalue1 < 0.0001) {
     pvalue = "<.0001"
@@ -21,9 +28,10 @@ print.ipe <- function(x, ...) {
     pvalue = formatC(pvalue1, format = "f", digits = 4)
   }
   
+  
   df0 <- x$event_summary[,-1]
-  rownames(df0) <- c("Control arm", "Treatment arm")
-  j0 = c(3,5)
+  rownames(df0) <- c("Control", "Treatment")
+  j0 <- grep("pct$", names(df0))
   df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
   print(df0, ..., na.print = "", quote = FALSE)
   cat("\n")

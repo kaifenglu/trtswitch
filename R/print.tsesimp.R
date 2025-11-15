@@ -1,7 +1,7 @@
 #' @title Print method for tsesimp objects
 #' @description Prints the concise information of a tsesimp fit.
 #'
-#' @param x an object of class \code{tsesimp}.
+#' @param x An object of class \code{tsesimp}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
 #' @return A printout from the fit of simple two-stage estimation.
@@ -12,8 +12,9 @@
 #'
 #' @export
 print.tsesimp <- function(x, ...) {
-  level = paste0(100*(1 - x$settings$alpha), "%")
-  if (x$cox_pvalue > 0.9999) {
+  if (is.na(x$cox_pvalue)) {
+    pvalue = NA
+  } else if (x$cox_pvalue > 0.9999) {
     pvalue = ">.9999" 
   } else if (x$cox_pvalue < 0.0001) {
     pvalue = "<.0001"
@@ -21,12 +22,16 @@ print.tsesimp <- function(x, ...) {
     pvalue = formatC(x$cox_pvalue, format = "f", digits = 4)
   }
   
+  
   df0 <- x$event_summary[,-1]
-  rownames(df0) <- c("Control arm", "Treatment arm")
-  j0 = c(3,5)
+  rownames(df0) <- c("Control", "Treatment")
+  j0 <- grep("pct$", names(df0))
   df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
   print(df0, ..., na.print = "", quote = FALSE)
   cat("\n")
+
+  
+  level = paste0(100*(1 - x$settings$alpha), "%")
   
   if (x$settings$swtrt_control_only) {
     df1 <- data.frame(
