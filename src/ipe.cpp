@@ -575,10 +575,7 @@ List ipecpp(const DataFrame data,
                       Sstar = untreated(
                         psihat*treat_modifier, idb, timeb, eventb, treatb,
                         rxb, censor_timeb, recensor, autoswitch);
-                      
-                      kmstar = kmest(Sstar, "", "treated", "t_star", "",
-                                     "d_star", "", "log-log", 1-alpha, 1);
-                      
+                       
                       Sstar.push_back(stratumb, "ustratum");
                       
                       for (int j=0; j<p; ++j) {
@@ -586,6 +583,9 @@ List ipecpp(const DataFrame data,
                         NumericVector u = zb(_,j);
                         Sstar.push_back(u, zj);
                       }
+                      
+                      kmstar = kmest(Sstar, "", "treated", "t_star", "",
+                                     "d_star", "", "log-log", 1-alpha, 1);
                       
                       List out_aft = est_psi_ipe(
                         psihat, n, q, p, idb, timeb, eventb, treatb, rxb,
@@ -709,6 +709,23 @@ List ipecpp(const DataFrame data,
   String hr_CI_type;
   
   if (!psimissing) {
+    // summarize number of deaths by treatment arm in the outcome data
+    IntegerVector treated = data_outcome["treated"];
+    IntegerVector event_out = data_outcome["d_star"];
+    NumericVector n_event_out(2);
+    for (int i = 0; i < n; ++i) {
+      int g = treated[i];
+      if (event_out[i] == 1) n_event_out[g]++;
+    }
+    
+    NumericVector pct_event_out(2);
+    for (int g = 0; g < 2; g++) {
+      pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
+    }
+    
+    event_summary.push_back(n_event_out, "event_out_n");
+    event_summary.push_back(pct_event_out, "event_out_pct");
+    
     IntegerVector uid = Sstar["uid"];
     if (type_id == INTSXP) {
       Sstar.push_front(idwi[uid], id);
@@ -736,8 +753,7 @@ List ipecpp(const DataFrame data,
       data_outcome.push_front(idwc[uid], id);
     }
     
-    
-    IntegerVector treated = event_summary["treated"];
+    treated = event_summary["treated"];
     if (type_treat == LGLSXP || type_treat == INTSXP) {
       event_summary.push_back(treatwi[1-treated], treat);
     } else if (type_treat == REALSXP) {
@@ -790,7 +806,6 @@ List ipecpp(const DataFrame data,
     } else if (type_treat == STRSXP) {
       km_outcome.push_back(treatwc[1-treated], treat);
     }
-    
     
     if (has_stratum) {
       IntegerVector ustratum = Sstar["ustratum"];

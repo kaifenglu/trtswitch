@@ -1278,7 +1278,6 @@ List ipcwcpp(
                   std::string weight_variable = stabilized_weights ? 
                   "stabilized_weight" : "unstabilized_weight";
                   
-                  // generate weighted KM estimate and log-rank test
                   List weight_summary, km_outcome, lr_outcome;
                   if (k == -1) {
                     weight_summary = List::create(
@@ -1291,6 +1290,7 @@ List ipcwcpp(
                       Named("Q3") = w_Q3,
                       Named("Max") = w_max);
                     
+                    // generate weighted KM estimate and log-rank test
                     km_outcome = kmest(
                       data_outcome, "", "treated", "tstart", "tstop", 
                       "event", weight_variable, "log-log", 1-alpha, 1);
@@ -1363,11 +1363,27 @@ List ipcwcpp(
   double pvalue = out["pvalue"];
   bool fail = out["fail"];
   
-  
   NumericVector hrhats(n_boot);
   LogicalVector fails(n_boot);
   List fail_boots_data;
   String hr_CI_type;
+  
+  // summarize number of deaths by treatment arm in the outcome data
+  IntegerVector treated = data_outcome["treated"];
+  IntegerVector event_out = data_outcome["event"];
+  NumericVector n_event_out(2);
+  for (int i = 0; i < treated.size(); ++i) {
+    int g = treated[i];
+    if (event_out[i] == 1) n_event_out[g]++;
+  }
+  
+  NumericVector pct_event_out(2);
+  for (int g = 0; g < 2; g++) {
+    pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
+  }
+  
+  event_summary.push_back(n_event_out, "event_out_n");
+  event_summary.push_back(pct_event_out, "event_out_pct");
   
   IntegerVector uid = data_outcome["uid"];
   if (type_id == INTSXP) {
@@ -1378,7 +1394,7 @@ List ipcwcpp(
     data_outcome.push_front(idwc[uid], id);
   }
   
-  IntegerVector treated = event_summary["treated"];
+  treated = event_summary["treated"];
   if (type_treat == LGLSXP || type_treat == INTSXP) {
     event_summary.push_back(treatwi[1-treated], treat);
   } else if (type_treat == REALSXP) {
