@@ -739,6 +739,50 @@ List tsesimpcpp(const DataFrame data,
                       }
                     }
                     
+                    // update data_aft, fit_aft, and res_aft
+                    if (k == -1) {
+                      IntegerVector stratum2 = stratumb[l];
+                      
+                      if (has_stratum) {
+                        for (int i=0; i<p_stratum; ++i) {
+                          std::string s = as<std::string>(stratum[i]);
+                          SEXP col_stratum = u_stratum[s];
+                          SEXPTYPE type_stratum = TYPEOF(col_stratum);
+                          if (type_stratum == INTSXP) {
+                            IntegerVector v = col_stratum;
+                            data1.push_back(v[stratum2], s);
+                          } else if (type_stratum == REALSXP) {
+                            NumericVector v = col_stratum;
+                            data1.push_back(v[stratum2], s);
+                          } else if (type_stratum == STRSXP) {
+                            StringVector v = col_stratum;
+                            data1.push_back(v[stratum2], s);
+                          }
+                        }
+                      }
+                      
+                      if (type_id == INTSXP) {
+                        data1.push_front(idwi[id2], id);
+                      } else if (type_id == REALSXP) {
+                        data1.push_front(idwn[id2], id);
+                      } else if (type_id == STRSXP) {
+                        data1.push_front(idwc[id2], id);
+                      }
+                      
+                      List data_x = data_aft[h];
+                      data_x["data"] = as<DataFrame>(data1);
+                      data_aft[h] = data_x;
+                      
+                      List fit_x = fit_aft[h];
+                      fit_x["fit"] = fit1;
+                      fit_aft[h] = fit_x;
+                      
+                      List res_x = res_aft[h];
+                      res_x["res"] = res;
+                      res_aft[h] = res_x;
+                    }
+                    
+                    
                     if (!std::isnan(psihat)) {
                       // calculate counter-factual survival times
                       double a = exp(psihat);
@@ -762,49 +806,6 @@ List tsesimpcpp(const DataFrame data,
                             d_star[i] = eventb[i];
                           }
                         }
-                      }
-                      
-                      // update data_aft, fit_aft, and res_aft
-                      if (k == -1) {
-                        IntegerVector stratum2 = stratumb[l];
-                        
-                        if (has_stratum) {
-                          for (int i=0; i<p_stratum; ++i) {
-                            std::string s = as<std::string>(stratum[i]);
-                            SEXP col_stratum = u_stratum[s];
-                            SEXPTYPE type_stratum = TYPEOF(col_stratum);
-                            if (type_stratum == INTSXP) {
-                              IntegerVector v = col_stratum;
-                              data1.push_back(v[stratum2], s);
-                            } else if (type_stratum == REALSXP) {
-                              NumericVector v = col_stratum;
-                              data1.push_back(v[stratum2], s);
-                            } else if (type_stratum == STRSXP) {
-                              StringVector v = col_stratum;
-                              data1.push_back(v[stratum2], s);
-                            }
-                          }
-                        }
-                        
-                        if (type_id == INTSXP) {
-                          data1.push_front(idwi[id2], id);
-                        } else if (type_id == REALSXP) {
-                          data1.push_front(idwn[id2], id);
-                        } else if (type_id == STRSXP) {
-                          data1.push_front(idwc[id2], id);
-                        }
-                        
-                        List data_x = data_aft[h];
-                        data_x["data"] = as<DataFrame>(data1);
-                        data_aft[h] = data_x;
-                        
-                        List fit_x = fit_aft[h];
-                        fit_x["fit"] = fit1;
-                        fit_aft[h] = fit_x;
-                        
-                        List res_x = res_aft[h];
-                        res_x["res"] = res;
-                        res_aft[h] = res_x;
                       }
                     } else {
                       psimissing = 1;
@@ -927,6 +928,23 @@ List tsesimpcpp(const DataFrame data,
   String hr_CI_type;
   
   if (!psimissing) {
+    // summarize number of deaths by treatment arm in the outcome data
+    IntegerVector treated = data_outcome["treated"];
+    IntegerVector event_out = data_outcome["d_star"];
+    NumericVector n_event_out(2);
+    for (int i = 0; i < n; ++i) {
+      int g = treated[i];
+      if (event_out[i] == 1) n_event_out[g]++;
+    }
+    
+    NumericVector pct_event_out(2);
+    for (int g = 0; g < 2; g++) {
+      pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
+    }
+    
+    event_summary.push_back(n_event_out, "event_out_n");
+    event_summary.push_back(pct_event_out, "event_out_pct");
+    
     IntegerVector uid = data_outcome["uid"];
     if (type_id == INTSXP) {
       data_outcome.push_front(idwi[uid], id);
@@ -936,8 +954,7 @@ List tsesimpcpp(const DataFrame data,
       data_outcome.push_front(idwc[uid], id);
     }
     
-    
-    IntegerVector treated = event_summary["treated"];
+    treated = event_summary["treated"];
     if (type_treat == LGLSXP || type_treat == INTSXP) {
       event_summary.push_back(treatwi[1-treated], treat);
     } else if (type_treat == REALSXP) {
@@ -963,7 +980,6 @@ List tsesimpcpp(const DataFrame data,
     } else if (type_treat == STRSXP) {
       km_outcome.push_back(treatwc[1-treated], treat);
     }
-    
     
     if (has_stratum) {
       IntegerVector ustratum = data_outcome["ustratum"];
