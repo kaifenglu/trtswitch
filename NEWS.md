@@ -1,14 +1,20 @@
+# trtswitch 0.2.3
+
+* added assess_phregr to assess the proportional hazards assumption for the Cox model using the supremum test of Lin et al. (1993)
+* added an internal data pbc for testing assess_phregr
+* updated the censoring of post switch survival times in ipcw and msm to be consistent with the swtrt_control_only parameter value
+
+
 # trtswitch 0.2.2
 
 * added a check for the class of object for residuals\_lieferegr.R, residuals\_phregr.R, and survfit\_phregr.R
-* added psi\_roots for the vector of psi values at which the Z-statistic is zero, Vector of \\code{psi} values at which the Z-statistic is zero, identified using grid search and linear interpolation for rpsftm.cpp and rpsftm.
-* added psi\_roots and psi\_trt\_roots for the vector of psi values at which the Z-statistic is zero, Vector of \\code{psi} values at which the Z-statistic is zero, identified using grid search and linear interpolation for tsegest.cpp and tsegest.R
+* added psi\_roots for the vector of \code{psi} values at which the Z-statistic is zero, identified using grid search and linear interpolation for rpsftm.
+* added psi\_roots and psi\_trt\_roots for the vector of psi values at which the Z-statistic is zero, identified using grid search and linear interpolation for tsegest
 * separated NumericVector loghrs = log(hrhats\[ok]) into two statements: NumericVector subset\_hrhats = hrhats\[ok]; NumericVector loghrs = log(subset\_hrhats); to avoid ASAN errors for ipcw.cpp, ipe.cpp, msm.cpp, rpsftm.cpp, tsegest.cpp, and tsesimp.cpp
 * updated the lrtest call to add the value for the new weight\_readj parameter for ipcw.cpp, ipe.cpp, msm.cpp, rpsftm.cpp, tsegest.cpp, and tsesimp.cpp
-* added the weight\_readj parameter to lrtest to indicate whether the weight variable at each event tie wil be readjusted to be proportional to the number at risk by treatment group in survival\_analysis.cpp and survival\_analysis.h.
+* added the weight\_readj parameter to lrtest to indicate whether the weight variable at each event time will be readjusted to be proportional to the number at risk by treatment group in survival\_analysis.
 * updated the getpsiest function to output multiple roots depending on the new direction parameter value in utilities.cpp and utilities.h
 * updated rpsftm and tsegest to use gridsearch by default
-* change the default value of n\_eval\_z from 101 to 401 so that the increment in psi is 0.01 from -2 to 2 for rspftm and tsegest
 * added print method for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm
 * added class attribute for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm objects
 * added km\_outcome and lr\_outcome for rpsftm, ipe, tsesimp, tsegest, ipcw, and msm objects
