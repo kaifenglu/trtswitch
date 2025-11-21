@@ -37,12 +37,15 @@ plot.ipe <- function(x, time_unit = "day",
     df1 <- data.frame(arm = x$data_aft[[treat_var]], 
                       res = x$res_aft)
     
-    if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
+    if (is.factor(arm)) {
+      df1$arm <- factor(df1$arm, labels = levels(arm))
+    } else if (is.numeric(arm) && all(arm %in% c(0, 1))) {
       df1$arm <- factor(df1$arm, levels = c(1, 0),
                         labels = c("Treatment", "Control"))
     } else {
-      df1$arm <- factor(df1$arm, labels = levels(arm))
+      df1$arm <- factor(df1$arm)
     }
+    
     
     p_res <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$arm, 
                                                y = .data$res)) +
@@ -195,6 +198,6 @@ plot.ipe <- function(x, time_unit = "day",
     
     list(p_res = p_res, p_km = p_km)
   } else {
-    stop("No outcome data available in the ipe object.")
+    stop("No outcome data available to plot.")
   }
 }

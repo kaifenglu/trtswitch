@@ -37,11 +37,13 @@ plot.tsesimp <- function(x, time_unit = "day",
     df_arm <- data.frame(arm = c(x$res_aft[[1]][[treat_var]], 
                                  x$res_aft[[2]][[treat_var]])) 
     
-    if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
+    if (is.factor(arm)) {
+      df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+    } else if (is.numeric(arm) && all(arm %in% c(0, 1))) {
       df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
                            labels = c("Treatment", "Control"))
     } else {
-      df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+      df_arm$arm <- factor(df_arm$arm)
     }
     
     
