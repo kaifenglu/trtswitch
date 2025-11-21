@@ -628,33 +628,104 @@ List ipcwcpp(
                   NumericVector init(1, NA_REAL);
                   
                   // exclude observations after treatment switch
-                  LogicalVector c1 = ifelse(
-                    swtrtb == 1, tstartb < swtrt_timeb, 1);
-                  IntegerVector l = which(c1);
-                  IntegerVector id1 = idb[l];
-                  IntegerVector stratum1 = stratumb[l];
-                  NumericVector tstart1 = tstartb[l];
-                  NumericVector tstop1 = tstopb[l];
-                  IntegerVector event1 = eventb[l];
-                  IntegerVector treat1 = treatb[l];
-                  NumericVector os_time1 = os_timeb[l];
-                  IntegerVector swtrt1 = swtrtb[l];
-                  NumericVector swtrt_time1 = swtrt_timeb[l];
-                  NumericMatrix z1 = subset_matrix_by_row(zb, l);
-                  NumericMatrix z_cox_den1 = 
-                    subset_matrix_by_row(z_cox_denb, l);
-                  NumericMatrix z_lgs_den1 = 
-                    subset_matrix_by_row(z_lgs_denb, l);
-                  int n1 = static_cast<int>(l.size());
-                  
-                  // set up crossover indicators
-                  IntegerVector cross1(n1);
-                  for (int i=0; i<n1; ++i) {
-                    if (i == n1-1 || id1[i] != id1[i+1]) {
-                      if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
-                        cross1[i] = 1;
+                  int n1;
+                  IntegerVector id1, stratum1, event1, treat1, swtrt1, cross1;
+                  NumericVector tstart1, tstop1, os_time1, swtrt_time1;
+                  NumericMatrix z1, z_cox_den1, z_lgs_den1;
+                  if (!swtrt_control_only) {
+                    LogicalVector c1 = ifelse(
+                      swtrtb == 1, tstartb < swtrt_timeb, 1);
+                    IntegerVector l = which(c1);
+                    id1 = idb[l];
+                    stratum1 = stratumb[l];
+                    tstart1 = tstartb[l];
+                    tstop1 = tstopb[l];
+                    event1 = eventb[l];
+                    treat1 = treatb[l];
+                    os_time1 = os_timeb[l];
+                    swtrt1 = swtrtb[l];
+                    swtrt_time1 = swtrt_timeb[l];
+                    z1 = subset_matrix_by_row(zb, l);
+                    z_cox_den1 = subset_matrix_by_row(z_cox_denb, l);
+                    z_lgs_den1 = subset_matrix_by_row(z_lgs_denb, l);
+                    n1 = static_cast<int>(l.size());
+                    
+                    // set up crossover indicators
+                    cross1 = IntegerVector(n1);
+                    for (int i=0; i<n1; ++i) {
+                      if (i == n1-1 || id1[i] != id1[i+1]) {
+                        if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
+                          cross1[i] = 1;
+                        }
                       }
                     }
+                  } else {
+                    // exclude control observations after treatment switch
+                    LogicalVector c1 = ifelse(
+                      swtrtb == 1, tstartb < swtrt_timeb, 1);
+                    IntegerVector l = which(c1 & (treatb == 0)); 
+                    IntegerVector id10 = idb[l];
+                    IntegerVector stratum10 = stratumb[l];
+                    NumericVector tstart10 = tstartb[l];
+                    NumericVector tstop10 = tstopb[l];
+                    IntegerVector event10 = eventb[l];
+                    IntegerVector treat10 = treatb[l];
+                    NumericVector os_time10 = os_timeb[l];
+                    IntegerVector swtrt10 = swtrtb[l];
+                    NumericVector swtrt_time10 = swtrt_timeb[l];
+                    NumericMatrix z10 = subset_matrix_by_row(zb, l);
+                    NumericMatrix z_cox_den10 = 
+                      subset_matrix_by_row(z_cox_denb, l);
+                    NumericMatrix z_lgs_den10 = 
+                      subset_matrix_by_row(z_lgs_denb, l);
+                    int n10 = static_cast<int>(l.size());
+                      
+                    // set up crossover indicators for control observations
+                    IntegerVector cross10(n10);
+                    for (int i=0; i<n10; ++i) {
+                      if (i == n10-1 || id10[i] != id10[i+1]) {
+                        if (swtrt10[i]== 1 && tstop10[i] >= swtrt_time10[i]) {
+                          cross10[i] = 1;
+                        }
+                      }
+                    }
+                    
+                    // extract data for the active group
+                    l = which(treatb == 1);
+                    IntegerVector id11 = idb[l];
+                    IntegerVector stratum11 = stratumb[l];
+                    NumericVector tstart11 = tstartb[l];
+                    NumericVector tstop11 = tstopb[l];
+                    IntegerVector event11 = eventb[l];
+                    IntegerVector treat11 = treatb[l];
+                    NumericVector os_time11 = os_timeb[l];
+                    IntegerVector swtrt11 = swtrtb[l];
+                    NumericVector swtrt_time11 = swtrt_timeb[l];
+                    NumericMatrix z11 = subset_matrix_by_row(zb, l);
+                    NumericMatrix z_cox_den11 = 
+                      subset_matrix_by_row(z_cox_denb, l);
+                    NumericMatrix z_lgs_den11 =
+                      subset_matrix_by_row(z_lgs_denb, l);
+                    int n11 = static_cast<int>(l.size());
+                    
+                    // no crossover in active group
+                    IntegerVector cross11(n11, 0);
+                    
+                    // combine censored control with uncensored active data
+                    id1 = c_vectors_i(id10, id11);
+                    stratum1 = c_vectors_i(stratum10, stratum11);
+                    tstart1 = c_vectors(tstart10, tstart11);
+                    tstop1 = c_vectors(tstop10, tstop11);
+                    event1 = c_vectors_i(event10, event11);
+                    treat1 = c_vectors_i(treat10, treat11);
+                    os_time1 = c_vectors(os_time10, os_time11);
+                    swtrt1 = c_vectors_i(swtrt10, swtrt11);
+                    swtrt_time1 = c_vectors(swtrt_time10, swtrt_time11);
+                    cross1 = c_vectors_i(cross10, cross11);
+                    z1 = c_matrices(z10, z11);
+                    z_cox_den1 = c_matrices(z_cox_den10, z_cox_den11);
+                    z_lgs_den1 = c_matrices(z_lgs_den10, z_lgs_den11);
+                    n1 = n10 + n11;
                   }
                   
                   // initialize data_switch and fit_switch
