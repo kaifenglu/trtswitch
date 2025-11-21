@@ -627,12 +627,12 @@ List ipcwcpp(
                   bool fail = false; // whether any model fails to converge
                   NumericVector init(1, NA_REAL);
                   
-                  // exclude observations after treatment switch
                   int n1;
                   IntegerVector id1, stratum1, event1, treat1, swtrt1, cross1;
                   NumericVector tstart1, tstop1, os_time1, swtrt_time1;
                   NumericMatrix z1, z_cox_den1, z_lgs_den1;
                   if (!swtrt_control_only) {
+                    // exclude observations after switch
                     LogicalVector c1 = ifelse(
                       swtrtb == 1, tstartb < swtrt_timeb, 1);
                     IntegerVector l = which(c1);
@@ -660,7 +660,7 @@ List ipcwcpp(
                       }
                     }
                   } else {
-                    // exclude control observations after treatment switch
+                    // exclude observations after switch for control
                     LogicalVector c1 = ifelse(
                       swtrtb == 1, tstartb < swtrt_timeb, 1);
                     IntegerVector l = which(c1 & (treatb == 0)); 
@@ -680,7 +680,7 @@ List ipcwcpp(
                       subset_matrix_by_row(z_lgs_denb, l);
                     int n10 = static_cast<int>(l.size());
                       
-                    // set up crossover indicators for control observations
+                    // set up crossover indicators for control
                     IntegerVector cross10(n10);
                     for (int i=0; i<n10; ++i) {
                       if (i == n10-1 || id10[i] != id10[i+1]) {
@@ -711,7 +711,7 @@ List ipcwcpp(
                     // no crossover in active group
                     IntegerVector cross11(n11, 0);
                     
-                    // combine censored control with uncensored active data
+                    // combine control and active group data
                     id1 = c_vectors_i(id10, id11);
                     stratum1 = c_vectors_i(stratum10, stratum11);
                     tstart1 = c_vectors(tstart10, tstart11);
