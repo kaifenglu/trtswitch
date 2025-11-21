@@ -21,7 +21,7 @@
 #' @method plot ipcw
 #' @export
 plot.ipcw <- function(x, time_unit = "day",
-                      show_hr = TRUE, show_risk = TRUE, ...) {
+                         show_hr = TRUE, show_risk = TRUE, ...) {
   if (!inherits(x, "ipcw")) {
     stop("x must be of class 'ipcw'")
   }
@@ -31,33 +31,32 @@ plot.ipcw <- function(x, time_unit = "day",
   treat_var <- x$settings$treat
   
   # --- weight plot ---
-  df <- x$data_outcome
-  arm <- x$settings$data[[treat_var]]
-  
-  df_arm <- data.frame(arm = c(df[[treat_var]][df$treated == 0][1], 
-                               df[[treat_var]][df$treated == 1][1]))
-  
-  if (!is.factor(arm) && is.numeric(arm) && all(arm %in% c(0, 1))) {
+  df_arm <- data.frame(arm = c(
+    x$data_outcome[[treat_var]][x$data_outcome$treated == 0][1], 
+    x$data_outcome[[treat_var]][x$data_outcome$treated == 1][1]))
+
+  arm <- x$data_outcome[[treat_var]]
+  if (is.factor(arm)) {
+    df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+  } else if (is.numeric(arm) && all(arm %in% c(0, 1))) {
     df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
                          labels = c("Treatment", "Control"))
-    df[[treat_var]] <- factor(df[[treat_var]], levels = c(1, 0),
-                              labels = c("Treatment", "Control"))
   } else {
-    df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+    df_arm$arm <- factor(df_arm$arm)
   }
   
   if (x$settings$swtrt_control_only) {
     if (x$settings$stabilized_weights) {
-      p_w <- ggplot2::ggplot(df[df$treated == 0, ], 
-                             ggplot2::aes(x = .data$stabilized_weight)) + 
+      p_w <- ggplot2::ggplot(x$data_outcome[x$data_outcome$treated == 0, ], 
+                            ggplot2::aes(x = .data$stabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) +
         ggplot2::scale_x_continuous("Stabilized Weights") + 
         ggplot2::labs(title =  df_arm$arm[[1]]) + 
         ggplot2::theme_bw()
     } else {
-      p_w <- ggplot2::ggplot(df[df$treated == 0, ], 
-                             ggplot2::aes(x = .data$unstabilized_weight)) + 
+      p_w <- ggplot2::ggplot(x$data_outcome[x$data_outcome$treated == 0, ], 
+                            ggplot2::aes(x = .data$unstabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) +
         ggplot2::scale_x_continuous("Unstabilized Weights") + 
@@ -66,16 +65,16 @@ plot.ipcw <- function(x, time_unit = "day",
     }
   } else {
     if (x$settings$stabilized_weights) {
-      p_w <- ggplot2::ggplot(df, 
-                             ggplot2::aes(x = .data$stabilized_weight)) + 
+      p_w <- ggplot2::ggplot(x$data_outcome, 
+                            ggplot2::aes(x = .data$stabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) + 
         ggplot2::scale_x_continuous("Stabilized Weights") + 
         ggplot2::facet_wrap(~.data[[treat_var]]) + 
         ggplot2::theme_bw()
     } else {
-      p_w <- ggplot2::ggplot(df, 
-                             ggplot2::aes(x = .data$unstabilized_weight)) + 
+      p_w <- ggplot2::ggplot(x$data_outcome, 
+                            ggplot2::aes(x = .data$unstabilized_weight)) + 
         ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
                                 bins = 30, alpha=0.8) + 
         ggplot2::scale_x_continuous("Unstabilized Weights") + 
@@ -128,7 +127,7 @@ plot.ipcw <- function(x, time_unit = "day",
       legend.title = ggplot2::element_blank(),
       panel.grid.minor.x = ggplot2::element_blank(),
       plot.margin = ggplot2::margin(t = 2, r = 5, b = 0, l = 20))
-  
+
   if (max(min_surv) < 0.5) {
     p_km <- p_km +
       ggplot2::theme(legend.position = c(0.7, 0.85))
@@ -136,7 +135,7 @@ plot.ipcw <- function(x, time_unit = "day",
     p_km <- p_km +
       ggplot2::theme(legend.position = c(0.15, 0.25))
   }
-  
+    
   # add hazard ratio to plot
   if (show_hr) {
     if (max(min_surv) < 0.5) {
