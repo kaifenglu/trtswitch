@@ -218,4 +218,22 @@ List residuals_phregcpp(const int p,
                         const bool collapse,
                         const bool weighted);
 
+
+List f_der_i_2(int p, const NumericVector& par, void* ex);
+
+List assess_phregcpp(const int p,
+                     const NumericVector& beta,
+                     const NumericMatrix& vbeta,
+                     DataFrame data,
+                     const StringVector& stratum,
+                     const std::string time,
+                     const std::string time2,
+                     const std::string event,
+                     const StringVector& covariates,
+                     const std::string weight,
+                     const std::string offset,
+                     const std::string ties,
+                     const int resample,
+                     const int seed);
+
 #endif // __SURVIVAL_ANALYSIS__
