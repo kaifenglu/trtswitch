@@ -78,7 +78,8 @@
 #' @useDynLib trtswitch2, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 #' @importFrom RcppParallel setThreadOptions
-#' @importFrom parallel detectCores 
+#' @importFrom parallel clusterEvalQ clusterExport detectCores makeCluster 
+#' parLapply stopCluster
 #' @importFrom stats formula makepredictcall model.frame model.matrix 
 #' na.omit na.pass pchisq plogis qnorm rbinom rexp terms
 #' @importFrom rlang .data

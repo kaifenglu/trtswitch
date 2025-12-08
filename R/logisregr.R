@@ -203,7 +203,7 @@ logisregr <- function(data, event = "event", covariates = "",
   # the variables of interest and add model-matrix columns if needed).
   prepare_df <- function(df) {
     rownames(df) <- NULL
-    elements <- c(event, covariates, freq, weight, offset)
+    elements <- c(event, covariates, freq, weight, offset, id)
     elements <- unique(elements[elements != ""])
     fml <- formula(paste("~", paste(elements, collapse = "+")))
     mf <- model.frame(fml, data = df, na.action = na.omit)
@@ -343,7 +343,13 @@ logisregr <- function(data, event = "event", covariates = "",
     
     # Check whether all prepared varnames are identical across datasets.
     varnames_list <- lapply(metas, function(m) m$varnames)
-    same_varnames <- Reduce(function(a,b) identical(a,b), varnames_list)
+    same_varnames <- TRUE
+    if (length(varnames_list) > 0) {
+      ref <- varnames_list[[1]]
+      same_varnames <- all(vapply(varnames_list, function(x) identical(x, ref), logical(1)))
+    } else {
+      same_varnames <- TRUE
+    }
     
     if (same_varnames) {
       # We can call the parallel C++ wrapper once with the list of prepared dfs
