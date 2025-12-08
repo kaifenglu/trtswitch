@@ -200,7 +200,7 @@
 #' }
 "adtdc"
 
-#' The subset of the PBC data used in SAS PROC PHREG documentation examples.
+#' The liver data used in SAS PROC PHREG documentation examples.
 #' 
 #' This data set contains information on 418 patients with primary biliary  
 #' cirrhosis. 
@@ -220,4 +220,4 @@
 #'   diuretics, and 1 indicates edema despite diuretic therapy}
 #'   \item{\code{Protime}}{Prothrombin time in seconds}
 #' }
-"pbc"
+"liver"

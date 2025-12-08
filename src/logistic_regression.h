@@ -1,49 +1,41 @@
-#include <Rcpp.h>
-#include <R_ext/Applic.h>
-
-using namespace Rcpp;
-
 #ifndef __LOGISTIC_REGRESSION__
 #define __LOGISTIC_REGRESSION__
 
-struct logparams {
-  int n;
-  int link_code; // 0: logit, 1: probit, 2: cloglog
-  NumericVector y;
-  NumericMatrix z;
-  NumericVector freq;
-  NumericVector weight;
-  NumericVector offset;
-};
+#include "utilities.h"
 
-List f_der_0(int p, const NumericVector& par, void *ex, bool firth);
+ListCpp logisregcpp(const DataFrameCpp& data,
+                    const std::string event = "event",
+                    const std::vector<std::string>& covariates = {},
+                    const std::string freq = "",
+                    const std::string weight = "",
+                    const std::string offset = "",
+                    const std::string id = "",
+                    const std::string link = "logit",
+                    const std::vector<double>& init = {},
+                    const bool robust = false,
+                    const bool firth = false,
+                    const bool flic = false,
+                    const bool plci = false,
+                    const double alpha = 0.05,
+                    const int maxiter = 50,
+                    const double eps = 1.0e-9);
 
-NumericMatrix f_ressco_0(int p, const NumericVector& par, void *ex);
-
-List logisregloop(int p, const NumericVector& par, void *ex,
-                  int maxiter, double eps, bool firth,
-                  const IntegerVector& colfit, int ncolfit);
-
-double logisregplloop(int p, const NumericVector& par, void *ex,
-                      int maxiter, double eps, bool firth,
-                      int k, int which, double l0);
-
-List logisregcpp(const DataFrame data,
-                 const StringVector& rep,
-                 const std::string event,
-                 const StringVector& covariates,
-                 const std::string freq,
-                 const std::string weight,
-                 const std::string offset,
-                 const std::string id,
-                 const std::string link,
-                 const NumericVector& init,
-                 const bool robust,
-                 const bool firth,
-                 const bool flic,
-                 const bool plci,
-                 const double alpha,
-                 const int maxiter,
-                 const double eps);                      
+Rcpp::List logisregRcpp(
+    SEXP data,
+    std::string event,
+    std::vector<std::string>& covariates,
+    std::string freq = "",
+    std::string weight = "",
+    std::string offset = "",
+    std::string id = "",
+    std::string link = "logit",
+    std::vector<double> init = {},
+    bool robust = false,
+    bool firth = false,
+    bool flic = false,
+    bool plci = false,
+    double alpha = 0.05,
+    int maxiter = 50,
+    double eps = 1.0e-9);
 
 #endif // __LOGISTIC_REGRESSION__

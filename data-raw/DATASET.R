@@ -20,9 +20,9 @@ usethis::use_data(sexagg, overwrite = TRUE)
 
 adsl <- readxl::read_excel("notes/adsl_sampled.xlsx")
 adtdc <-readxl::read_excel("notes/adtdc_sampled.xlsx")
-pbc <- readxl::read_excel("notes/liver.xlsx")
+liver <- readxl::read_excel("notes/liver.xlsx")
 
 usethis::use_data(adsl, overwrite = TRUE)
 usethis::use_data(adtdc, overwrite = TRUE)
-usethis::use_data(pbc, overwrite = TRUE)
+usethis::use_data(liver, overwrite = TRUE)
 

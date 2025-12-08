@@ -1,97 +1,256 @@
-#include <Rcpp.h>
-#include <R_ext/Applic.h>
 #include "utilities.h"
 
-using namespace Rcpp;
 
+// Normal distribution functions using Boost.Math
+double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
+  if (sd <= 0) {
+    throw std::runtime_error("Standard deviation must be positive.");
+  }
+  
+  boost::math::normal_distribution<> dist(mean, sd);
+  double p = boost::math::cdf(dist, q);
+  
+  if (!lower_tail) {
+    p = 1.0 - p;
+  }
+  
+  return p;
+}
 
-void set_seed(int seed) {
-  Environment base_env("package:base");
-  Function set_seed_r = base_env["set.seed"];
-  set_seed_r(seed);
+double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
+  if (sd <= 0) {
+    throw std::runtime_error("Standard deviation must be positive.");
+  }
+  if (p < 0.0 || p > 1.0) {
+    throw std::runtime_error("Probability must be between 0 and 1.");
+  }
+  
+  boost::math::normal_distribution<> dist(mean, sd);
+  
+  double q;
+  if (lower_tail) {
+    q = boost::math::quantile(dist, p);
+  } else {
+    q = boost::math::quantile(dist, 1.0 - p);
+  }
+  
+  return q;
+}
+
+double boost_dnorm(double x, double mean, double sd) {
+  if (sd <= 0) {
+    throw std::runtime_error("Standard deviation must be positive.");
+  }
+  
+  boost::math::normal_distribution<> dist(mean, sd);
+  return boost::math::pdf(dist, x);
 }
 
 
-// Function to find the indices of all TRUE elements in a logical vector
-IntegerVector which(const LogicalVector& vector) {
-  IntegerVector true_indices;
-  for (int i = 0; i < vector.size(); ++i) {
-    if (vector[i]) {
-      true_indices.push_back(i);
-    }
+// Logistic distribution functions using Boost.Math
+double boost_plogis(double q, double location, double scale, bool lower_tail) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
   }
+  
+  boost::math::logistic_distribution<> dist(location, scale);
+  double p = boost::math::cdf(dist, q);
+  
+  if (!lower_tail) {
+    p = 1.0 - p;
+  }
+  
+  return p;
+}
+
+double boost_qlogis(double p, double location, double scale, bool lower_tail) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
+  }
+  if (p < 0.0 || p > 1.0) {
+    throw std::runtime_error("Probability must be between 0 and 1.");
+  }
+  
+  boost::math::logistic_distribution<> dist(location, scale);
+  
+  double q;
+  if (lower_tail) {
+    q = boost::math::quantile(dist, p);
+  } else {
+    q = boost::math::quantile(dist, 1.0 - p);
+  }
+  
+  return q;
+}
+
+double boost_dlogis(double x, double location, double scale) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
+  }
+  
+  boost::math::logistic_distribution<> dist(location, scale);
+  return boost::math::pdf(dist, x);
+}
+
+
+// Extreme value distribution functions using Boost.Math
+double boost_pextreme(double q, double location, double scale, bool lower_tail) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
+  }
+  
+  boost::math::extreme_value_distribution<> dist(location, scale);
+  double p = boost::math::cdf(complement(dist, -q));
+  
+  if (!lower_tail) {
+    p = 1.0 - p;
+  }
+  
+  return p;
+}
+
+double boost_qextreme(double p, double location, double scale, bool lower_tail) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
+  }
+  if (p < 0.0 || p > 1.0) {
+    throw std::runtime_error("Probability must be between 0 and 1.");
+  }
+  
+  boost::math::extreme_value_distribution<> dist(location, scale);
+  
+  double q;
+  if (lower_tail) {
+    q = -boost::math::quantile(complement(dist, p));
+  } else {
+    q = -boost::math::quantile(complement(dist, 1.0 - p));
+  }
+  
+  return q;
+}
+
+double boost_dextreme(double x, double location, double scale) {
+  if (scale <= 0) {
+    throw std::runtime_error("Scale must be positive.");
+  }
+  
+  boost::math::extreme_value_distribution<> dist(location, scale);
+  return boost::math::pdf(dist, -x);
+}
+
+
+// Chi-squared distribution functions using Boost.Math
+double boost_pchisq(double q, double df, bool lower_tail) {
+  if (df <= 0) {
+    throw std::runtime_error("Degrees of freedom must be positive.");
+  }
+  
+  boost::math::chi_squared_distribution<> dist(df);
+  
+  double p = boost::math::cdf(dist, q);
+  
+  if (!lower_tail) {
+    p = 1.0 - p;
+  }
+  
+  return p;
+}
+
+
+double boost_qchisq(double p, double df, bool lower_tail) {
+  if (df <= 0) {
+    throw std::runtime_error("Degrees of freedom must be positive.");
+  }
+  if (p < 0.0 || p > 1.0) {
+    throw std::runtime_error("Probability must be between 0 and 1.");
+  }
+  
+  boost::math::chi_squared_distribution<> dist(df);
+  
+  double q;
+  if (lower_tail) {
+    q = boost::math::quantile(dist, p);
+  } else {
+    q = boost::math::quantile(dist, 1.0 - p);
+  }
+  
+  return q;
+}
+
+
+// Function to generate a sequence of integers from start to end (inclusive)
+std::vector<int> seqcpp(int start, int end) {
+  if (start > end) {
+    throw std::runtime_error("Error: start must be less than or equal to end for the sequence function.");
+  }
+  
+  // Calculate the size required for the vector (inclusive range: end - start + 1)
+  size_t size = static_cast<size_t>(end - start + 1);
+  
+  // Create the vector and resize it
+  std::vector<int> result(size);
+  
+  // Use std::iota to fill the vector sequentially starting from i0
+  std::iota(result.begin(), result.end(), start);
+  
+  return result;
+}
+
+
+// Function to find the indices of all true elements in a boolean vector
+std::vector<int> which(const std::vector<bool>& vec) {
+  std::vector<int> true_indices;
+  true_indices.reserve(vec.size()); // optional, improves performance
+  
+  for (size_t i = 0; i < vec.size(); ++i) {
+    if (vec[i]) true_indices.push_back(static_cast<int>(i));
+  }
+  
+  true_indices.shrink_to_fit(); // optional, reduce memory
   return true_indices;
 }
 
 
-//' @title Find Interval Numbers of Indices
-//' @description The implementation of \code{findInterval()} in R from
-//' Advanced R by Hadley Wickham. Given a vector of non-decreasing
-//' breakpoints in v, find the interval containing each element of x; i.e.,
-//' if \code{i <- findInterval3(x,v)}, for each index \code{j} in \code{x},
-//' \code{v[i[j]] <= x[j] < v[i[j] + 1]}, where \code{v[0] := -Inf},
-//' \code{v[N+1] := +Inf}, and \code{N = length(v)}.
-//'
-//' @param x The numeric vector of interest.
-//' @param v The vector of break points.
-//' @param rightmost_closed Logical; if true, the rightmost interval, 
-//'   `vec[N-1] .. vec[N]` is treated as closed if `left_open` is false, 
-//'   and the leftmost interval, `vec[1] .. vec[2]` is treated as 
-//'   closed if left_open is true.
-//' @param all_inside Logical; if true, the returned indices are coerced
-//'   into `1, ..., N-1`, i.e., `0` is mapped to `1` and 
-//'   `N` is mapped to `N-1`.
-//' @param left_open Logical; if true, all intervals are open at left and 
-//'   closedat right. This may be useful, .e.g., in survival analysis.   
-//' @return A vector of \code{length(x)} with values in \code{0:N} where
-//'   \code{N = length(v)}.
-//'
-//' @keywords internal
-//'
-//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
-//'
-//' @examples
-//' x <- 2:18
-//' v <- c(5, 10, 15) # create two bins [5,10) and [10,15)
-//' cbind(x, findInterval3(x, v))
-//'
-//' @export
-// [[Rcpp::export]]
-IntegerVector findInterval3(NumericVector x, NumericVector v, 
-                            bool rightmost_closed = false, 
-                            bool all_inside = false, 
-                            bool left_open = false) {
-  IntegerVector out(x.size());
+
+// Return interval indices for each element in x relative to breakpoints v.
+// Both x and v must be sorted in non-decreasing order.
+std::vector<int> findInterval3(const std::vector<double>& x,
+                               const std::vector<double>& v,
+                               bool rightmost_closed,
+                               bool all_inside,
+                               bool left_open) {
+  std::vector<int> out;
+  out.resize(x.size());
   
-  NumericVector::iterator it, pos;
-  IntegerVector::iterator out_it;
+  const double* v_begin = v.data();
+  const double* v_end   = v_begin + v.size();
+  const int nv = static_cast<int>(v.size());
   
-  NumericVector::iterator x_begin=x.begin(), x_end=x.end();
-  NumericVector::iterator v_begin=v.begin(), v_end=v.end();
-  
-  int nv = v.size();
-  
-  for(it = x_begin, out_it = out.begin(); it != x_end; ++it, ++out_it) {
-    // Handle NA in x
-    if (NumericVector::is_na(*it)) {
-      *out_it = NA_INTEGER;
+  for (size_t i = 0; i < x.size(); ++i) {
+    
+    double xi = x[i];
+    
+    // Handle NaN in x (R equivalent: NA → NA_INTEGER)
+    // You may instead choose: out[i] = -1 or continue
+    if (std::isnan(xi)) {
+      out[i] = -1; // placeholder for NA handling
       continue;
     }
     
-    // Choose bound depending on left_open
+    const double* pos;
     if (left_open) {
-      pos = std::lower_bound(v_begin, v_end, *it);
+      pos = std::lower_bound(v_begin, v_end, xi);
     } else {
-      pos = std::upper_bound(v_begin, v_end, *it);
+      pos = std::upper_bound(v_begin, v_end, xi);
     }
     
-    int idx = static_cast<int>(std::distance(v_begin, pos));
+    int idx = static_cast<int>(pos - v_begin);
     
     if (rightmost_closed) {
       if (left_open) {
-        if (*it == v[0]) idx = 1;
+        if (nv > 0 && xi == v[0]) idx = 1;
       } else {
-        if (*it == v[nv-1]) idx = nv-1;
+        if (nv > 0 && xi == v[nv - 1]) idx = nv - 1;
       }
     }
     
@@ -99,529 +258,625 @@ IntegerVector findInterval3(NumericVector x, NumericVector v,
       if (idx == 0) {
         idx = 1;
       } else if (idx == nv) {
-        idx = nv-1;
+        idx = nv - 1;
       }
     }
     
-    *out_it = idx;
+    out[i] = idx;
   }
   
   return out;
 }
 
 
-#include <algorithm>
-#define ITMAX 100
-#define EPS 3.0e-8
-#define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
+
+
+static const double EPS = 3.0e-8;
+
+inline double SIGN(double a, double b) {
+  return (b >= 0.0 ? std::fabs(a) : -std::fabs(a));
+}
+
+// Brent's method to find root of f in [x1, x2] with tolerance tol
 double brent(const std::function<double(double)>& f,
-             double x1, double x2, double tol) {
-
-  double a=x1, b=x2, c=x2, d, d1 = 0.0, min1, min2;
-  double fa=f(a), fb=f(b), fc, p, q, r, s, tol1, xm;
-
+             double x1, double x2, double tol, int maxiter) {
+  double a = x1, b = x2, c = x2;
+  double fa = f(a), fb = f(b), fc = fb;
+  double d = 0.0, d1 = 0.0;
+  
   if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) {
-    stop("Root must be bracketed in brent");
+    throw std::runtime_error("Root must be bracketed in brent");
   }
-
-  fc = fb;
-  for (int iter=1; iter<=ITMAX; ++iter) {
+  
+  for (int iter = 1; iter <= maxiter; ++iter) {
+    // Adjust bounds
     if ((fb > 0.0 && fc > 0.0) || (fb < 0.0 && fc < 0.0)) {
-      c = a;     // Rename a, b, c and adjust bounding interval d
+      c = a;
       fc = fa;
       d = b - a;
       d1 = d;
     }
-    if (fabs(fc) < fabs(fb)) {
-      a = b;
-      b = c;
-      c = a;
-      fa = fb;
-      fb = fc;
-      fc = fa;
+    
+    // Ensure best guess is b
+    if (std::fabs(fc) < std::fabs(fb)) {
+      a = b; b = c; c = a;
+      fa = fb; fb = fc; fc = fa;
     }
+    
     // Convergence check
-    tol1 = 2.0*EPS*fabs(b) + 0.5*tol;
-    xm = 0.5*(c-b);
-    if (fabs(xm) <= tol1 || fb == 0.0) {
+    double tol1 = 2.0 * EPS * std::fabs(b) + 0.5 * tol;
+    double xm = 0.5 * (c - b);
+    if (std::fabs(xm) <= tol1 || fb == 0.0) {
       return b;
     }
-
-    if (fabs(d1) >= tol1 && fabs(fa) > fabs(fb)) {
-      s = fb/fa; // Attempt inverse quadratic interpolation
+    
+    double p, q, r, s;
+    if (std::fabs(d1) >= tol1 && std::fabs(fa) > std::fabs(fb)) {
+      // Inverse quadratic interpolation
+      s = fb / fa;
       if (a == c) {
-        p = 2.0*xm*s;
-        q = 1.0-s;
+        p = 2.0 * xm * s;
+        q = 1.0 - s;
       } else {
-        q = fa/fc;
-        r = fb/fc;
-        p = s*(2.0*xm*q*(q-r) - (b-a)*(r-1.0));
-        q = (q-1.0)*(r-1.0)*(s-1.0);
+        q = fa / fc;
+        r = fb / fc;
+        p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
+        q = (q - 1.0) * (r - 1.0) * (s - 1.0);
       }
-      if (p > 0.0) {
-        q = -q;  // Check whether in bounds
-      }
-      p = fabs(p);
-      min1 = 3.0*xm*q - fabs(tol1*q);
-      min2 = fabs(d1)*fabs(q);
-      if (2.0*p < (min1 < min2 ? min1 : min2)) {
-        d1 = d;  // Accept interpolation
-        d = p/q;
-      } else {  // Interpolation failed, use bisection
+      
+      if (p > 0.0) q = -q;
+      p = std::fabs(p);
+      
+      double min1 = 3.0 * xm * q - std::fabs(tol1 * q);
+      double min2 = std::fabs(d1 * q);
+      
+      if (2.0 * p < (min1 < min2 ? min1 : min2)) {
+        d1 = d;
+        d = p / q;
+      } else {
         d = xm;
         d1 = d;
       }
-    } else {  // Bounds decreasing too slowly, use bisection
+    } else {
+      // Bisection fallback
       d = xm;
       d1 = d;
     }
-    a = b;  // Move last best guess to a
+    
+    a = b;
     fa = fb;
-    if (fabs(d) > tol1) { // Evaluate new trial root
+    if (std::fabs(d) > tol1) {
       b += d;
     } else {
       b += SIGN(tol1, xm);
     }
+    
     fb = f(b);
   }
-  stop("Maximum number of iterations exceeded in brent");
-  return 0.0; // Never get here
+  
+  throw std::runtime_error("Maximum iterations exceeded in brent");
 }
 
 
+// Bisection method to find root of f in [x1, x2] with tolerance tol
 double bisect(const std::function<double(double)>& f,
-              double x1, double x2, double tol) {
-  double f1 = f(x1);
-  double f2 = f(x2);
+              double x1, double x2, double tol, int maxiter) {
+  double a = x1, b = x2;
+  double fa = f(a), fb = f(b);
   
-  if ((f1 > 0.0 && f2 > 0.0) || (f1 < 0.0 && f2 < 0.0)) {
-    stop("Root must be bracketed in bisect");
+  if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) {
+    throw std::runtime_error("Root must be bracketed in bisect");
   }
   
-  // rtb will hold the endpoint where f is negative
-  // dx is the signed interval width
-  double rtb, dx;
-  if (f1 < 0.0) {
-    dx  = x2 - x1;
-    rtb = x1;
-  } else {
-    dx  = x1 - x2;
-    rtb = x2;
-  }
+  double xmid, fmid;
   
-  for (int j = 1; j <= ITMAX; ++j) {
-    dx *= 0.5;
-    double xmid = rtb + dx;
-    double fmid = f(xmid);
+  // Check if endpoints are already the root within tolerance
+  if (std::fabs(fa) < tol) return a;
+  if (std::fabs(fb) < tol) return b;
+  
+  for (int j = 1; j <= maxiter; ++j) {
+    xmid = a + (b - a) * 0.5;
+    fmid = f(xmid);
     
-    if (fmid <= 0.0) {
-      rtb = xmid;
+    // Convergence check: root found within tolerance
+    if (std::fabs(fmid) < tol || (b - a) < tol) {
+      return xmid;
     }
     
-    if (std::fabs(dx) < tol || fmid == 0.0) {
-      return rtb;
+    if ((fa > 0.0 && fmid < 0.0) || (fa < 0.0 && fmid > 0.0)) {
+      b = xmid;
+      fb = fmid;
+    } else {
+      a = xmid;
+      fa = fmid;
     }
   }
   
-  stop("Maximum number of iterations exceeded in bisect");
-  return 0.0; // never reached
+  throw std::runtime_error("Maximum number of iterations exceeded in bisect");
 }
 
 
-// [[Rcpp::export]]
-bool hasVariable(DataFrame df, std::string varName) {
-  StringVector names = df.names();
-  for (int i = 0; i < names.size(); ++i) {
-    if (names[i] == varName) {
-      return true;
-    }
-  }
-  return false;
-}
-
-
-double quantilecpp(const NumericVector& x, const double p) {
+// Compute the p-th quantile of vector x using R type 7 method
+double quantilecpp(const std::vector<double>& x, double p) {
   int n = static_cast<int>(x.size());
-  NumericVector y = clone(x);
-  y.sort();
-  double u = n*p + 1 - p;
-  int j = static_cast<int>(std::floor(u));
-  double g = u - j;
-  double result = (1-g)*y[j-1] + g*y[j];
-  return result;
+  if (n == 0) throw std::runtime_error("Empty vector");
+  if (p < 0.0 || p > 1.0) throw std::runtime_error("p must be in [0,1]");
+  
+  // Copy input vector and sort it to find elements reliably
+  std::vector<double> y(x);
+  std::sort(y.begin(), y.end());
+  
+  // Compute fractional index (R type 7 formula: h = (n-1)*p + 1)
+  double h = (n - 1) * p + 1;
+  int j = static_cast<int>(std::floor(h)); // Integer part (1-based index)
+  double g = h - j;                      // Fractional part
+  
+  // Interpolate between the j-th and (j+1)-th element (1-based indices).
+  // In C++, these are 0-based indices j-1 and j.
+  
+  // Handle boundaries
+  if (j <= 0) return y.front(); // If h <= 1, return min element
+  if (j >= n) return y.back();  // If h >= n, return max element
+  
+  double lower_val = y[j - 1]; // Value at 0-based index j-1 (j-th element)
+  double upper_val = y[j];     // Value at 0-based index j (j+1)-th element
+  
+  // Interpolate: (1 - g) * lower_val + g * upper_val
+  return (1 - g) * lower_val + g * upper_val;
 }
 
 
-
-double squantilecpp(const std::function<double(double)>& S, double p) {
-  double lower = 0;
-  double upper = 1;
-  while (S(upper) > p) {
+// Compute the quantile corresponding to survival function S at probability p
+double squantilecpp(const std::function<double(double)>& S, double p, double tol) {
+  if (p < 0.0 || p > 1.0) throw std::runtime_error("p must be in [0,1]");
+  
+  double lower = 0.0;
+  double upper = 1.0;
+  double Su = S(upper);
+  
+  // Efficiently find an upper bound where S(upper) <= p
+  while (Su > p) {
     lower = upper;
-    upper = 2*upper;
+    upper *= 2.0;
+    Su = S(upper);
+    if (upper > 1e12)  // avoid infinite loop
+      throw std::runtime_error(
+          "Cannot find suitable upper bound for quantile search");
   }
   
-  auto f = [S, p](double t)->double{
+  // Define the function to find the root for
+  auto f = [&S, p](double t) -> double {
     return S(t) - p;
   };
   
-  return brent(f, lower, upper, 1e-6);
+  return brent(f, lower, upper, tol);
 }
 
 
-IntegerVector c_vectors_i(IntegerVector vec1, IntegerVector vec2) {
-  IntegerVector result(vec1.size() + vec2.size());
-  std::copy(vec1.begin(), vec1.end(), result.begin());
-  std::copy(vec2.begin(), vec2.end(), result.begin() + vec1.size());
-  return result;
-}
-
-
-NumericVector c_vectors(NumericVector vec1, NumericVector vec2) {
-  NumericVector result(vec1.size() + vec2.size());
-  std::copy(vec1.begin(), vec1.end(), result.begin());
-  std::copy(vec2.begin(), vec2.end(), result.begin() + vec1.size());
-  return result;
-}
-
-
-NumericMatrix subset_matrix_by_row(NumericMatrix a, IntegerVector q) {
-  int n = static_cast<int>(q.size()), p = a.ncol();
-  NumericMatrix b(n,p);
-  for (int j=0; j<p; ++j) {
-    for (int i=0; i<n; ++i) {
-      b(i,j) = a(q[i],j);
-    }
-  }
-  return b;
-}
-
-
-NumericMatrix c_matrices(NumericMatrix a1, NumericMatrix a2) {
-  int n1 = a1.nrow(), n2 = a2.nrow(), p = a1.ncol();
-  NumericMatrix b(n1+n2, p);
-  for (int i=0; i<n1; ++i) {
-    for (int j=0; j<p; ++j) {
-      b(i,j) = a1(i,j);
-    }
-  }
-
-  for (int i=0; i<n2; ++i) {
-    int h = i+n1;
-    for (int j=0; j<p; ++j) {
-      b(h,j) = a2(i,j);
-    }
-  }
-
-  return b;
-}
-
-
-List bygroup(DataFrame data, const StringVector& variables) {
-  int n = data.nrows();
+// Main function to perform by-group indexing and return ListCpp
+ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables) {
+  int n = static_cast<int>(data.nrows());
   int p = static_cast<int>(variables.size());
   
-  IntegerVector d(p);   // the number of unique values
-  List u(p);            // the vector of unique values
-  IntegerMatrix x(n,p); // indices of original values in unique values
-  for (int i=0; i<p; ++i) {
-    std::string s = as<std::string>(variables[i]);
-    if (!hasVariable(data, s)) {
-      stop("data must contain the variables");
-    }
-    SEXP col = data[s];
-    SEXPTYPE col_type = TYPEOF(col);
-    if (col_type == LGLSXP || col_type == INTSXP) {
-      IntegerVector v = col;
-      IntegerVector w = unique(v);
-      w.sort();
-      d[i] = static_cast<int>(w.size());
-      u[i] = w;
-      x(_,i) = match(v,w) - 1;
-    } else if (col_type == REALSXP) {
-      NumericVector v = col;
-      NumericVector w = unique(v);
-      w.sort();
-      d[i] = static_cast<int>(w.size());
-      u[i] = w;
-      x(_,i) = match(v,w) - 1;
-    } else if (col_type == STRSXP) {
-      StringVector v = col;
-      StringVector w = unique(v);
-      w.sort();
-      d[i] = static_cast<int>(w.size());
-      u[i] = w;
-      x(_,i) = match(v,w) - 1;
+  ListCpp result;
+  std::vector<int> nlevels(p);
+  std::vector<std::vector<int>> indices(n, std::vector<int>(p, 0));
+  ListCpp lookups_per_variable;
+  
+  std::vector<std::vector<int>> int_lookups;
+  std::vector<std::vector<double>> numeric_lookups;
+  std::vector<std::vector<bool>> bool_lookups;
+  std::vector<std::vector<std::string>> string_lookups;
+  
+  for (int i = 0; i < p; ++i) {
+    const std::string& var = variables[i];
+    if (!data.containElementNamed(var)) 
+      throw std::runtime_error("Data must contain variable: " + var);
+    
+    if (data.int_cols.count(var)) {
+      auto col = data.int_cols.at(var);
+      auto w = unique_sorted(col);
+      nlevels[i] = static_cast<int>(w.size());
+      auto idx = matchcpp(col, w);
+      for (int j = 0; j < n; ++j) indices[j][i] = idx[j];
+      
+      DataFrameCpp df_uv;
+      df_uv.push_back(w, var);
+      lookups_per_variable.push_back(df_uv, var);
+      
+      int_lookups.push_back(w);
+    } else if (data.numeric_cols.count(var)) {
+      auto col = data.numeric_cols.at(var);
+      auto w = unique_sorted(col);
+      nlevels[i] = static_cast<int>(w.size());
+      auto idx = matchcpp(col, w);
+      for (int j = 0; j < n; ++j) indices[j][i] = idx[j];
+      
+      DataFrameCpp df_uv;
+      df_uv.push_back(w, var);
+      lookups_per_variable.push_back(df_uv, var);
+      
+      numeric_lookups.push_back(w);
+    } else if (data.bool_cols.count(var)) {
+      auto col = data.bool_cols.at(var);
+      auto w = unique_sorted(col);
+      nlevels[i] = static_cast<int>(w.size());
+      auto idx = matchcpp(col, w);
+      for (int j = 0; j < n; ++j) indices[j][i] = idx[j];
+      
+      DataFrameCpp df_uv;
+      df_uv.push_back(w, var);
+      lookups_per_variable.push_back(df_uv, var);
+      
+      bool_lookups.push_back(w);
+    } else if (data.string_cols.count(var)) {
+      auto col = data.string_cols.at(var);
+      auto w = unique_sorted(col);
+      nlevels[i] = static_cast<int>(w.size());
+      auto idx = matchcpp(col, w);
+      for (int j = 0; j < n; ++j) indices[j][i] = idx[j];
+      
+      DataFrameCpp df_uv;
+      df_uv.push_back(w, var);
+      lookups_per_variable.push_back(df_uv, var);
+      
+      string_lookups.push_back(w);
     } else {
-      stop("Unsupported variable type in bygroup" + s);
+      throw std::runtime_error("Unsupported variable type in bygroup: " + var);
     }
   }
   
-  int frac = 1;
+  std::vector<int> combined_index(n, 0);
   int orep = 1;
-  for (int i=0; i<p; ++i) {
-    orep *= d[i];
-  }
+  for (int i = 0; i < p; ++i) orep *= nlevels[i];
   
-  IntegerVector index(n);
-  List lookup;
-  for (int i=0; i<p; ++i) {
-    orep /= d[i];
-    index += x(_,i)*orep;
-    
-    IntegerVector j = rep(rep_each(seq(0, d[i]-1), orep), frac);
-    std::string s = as<std::string>(variables[i]);
-    SEXP data_col;
-    SEXP col = u[i];
-    SEXPTYPE col_type = TYPEOF(col);
-    if (col_type == LGLSXP || col_type == INTSXP) {
-      IntegerVector w = col;
-      data_col = w[j];
-    } else if (col_type == REALSXP) {
-      NumericVector w = col;
-      data_col = w[j];
-    } else if (col_type == STRSXP) {
-      StringVector w = col;
-      data_col = w[j];
-    } else {
-      stop("Unsupported variable type in bygroup" + s);
+  for (int i = 0; i < p; ++i) {
+    orep /= nlevels[i];
+    for (int j = 0; j < n; ++j) {
+      combined_index[j] += indices[j][i] * orep;
     }
-    lookup.push_back(data_col, s);
-    
-    frac = frac*d[i];
   }
   
-  return List::create(
-    Named("nlevels") = d,
-    Named("indices") = x,
-    Named("lookups") = u,
-    Named("index") = index,
-    Named("lookup") = as<DataFrame>(lookup));
+  DataFrameCpp lookup_df;
+  int lookup_nrows = 1;
+  for (int i = 0; i < p; ++i) lookup_nrows *= nlevels[i];
+  
+  for (int i = 0; i < p; ++i) {
+    const std::string& var = variables[i];
+    int nlevels_i = nlevels[i];
+    int repeat_each = 1;
+    for (int j = i + 1; j < p; ++j) repeat_each *= nlevels[j];
+    int times = lookup_nrows / (nlevels_i * repeat_each);
+    
+    if (data.int_cols.count(var)) {
+      auto& w = int_lookups.front();
+      std::vector<int> col(lookup_nrows);
+      int idx = 0;
+      for (int t = 0; t < times; ++t) {
+        for (int level = 0; level < nlevels_i; ++level) {
+          for (int r = 0; r < repeat_each; ++r) {
+            col[idx++] = w[level];
+          }
+        }
+      }
+      lookup_df.push_back(col, var);
+      int_lookups.erase(int_lookups.begin());
+    } else if (data.numeric_cols.count(var)) {
+      auto& w = numeric_lookups.front();
+      std::vector<double> col(lookup_nrows);
+      int idx = 0;
+      for (int t = 0; t < times; ++t) {
+        for (int level = 0; level < nlevels_i; ++level) {
+          for (int r = 0; r < repeat_each; ++r) {
+            col[idx++] = w[level];
+          }
+        }
+      }
+      lookup_df.push_back(col, var);
+      numeric_lookups.erase(numeric_lookups.begin());
+    } else if (data.bool_cols.count(var)) {
+      auto& w = bool_lookups.front();
+      std::vector<bool> col(lookup_nrows);
+      int idx = 0;
+      for (int t = 0; t < times; ++t) {
+        for (int level = 0; level < nlevels_i; ++level) {
+          for (int r = 0; r < repeat_each; ++r) {
+            col[idx++] = w[level];
+          }
+        }
+      }
+      lookup_df.push_back(col, var);
+      bool_lookups.erase(bool_lookups.begin());
+    } else if (data.string_cols.count(var)) {
+      auto& w = string_lookups.front();
+      std::vector<std::string> col(lookup_nrows);
+      int idx = 0;
+      for (int t = 0; t < times; ++t) {
+        for (int level = 0; level < nlevels_i; ++level) {
+          for (int r = 0; r < repeat_each; ++r) {
+            col[idx++] = w[level];
+          }
+        }
+      }
+      lookup_df.push_back(col, var);
+      string_lookups.erase(string_lookups.begin());
+    }
+  }
+  
+  result.push_back(nlevels, "nlevels");
+  result.push_back(indices, "indices");
+  result.push_back(lookups_per_variable, "lookups_per_variable");
+  result.push_back(combined_index, "index");
+  result.push_back(lookup_df, "lookup");
+  
+  return result;
+}
+
+
+// Helper to perform matrix-vector multiplication.
+std::vector<double> mat_vec_mult(const std::vector<std::vector<double>>& A,
+                                 const std::vector<double>& x) {
+  size_t n = A.size();
+  if (n == 0) return {};
+  size_t p = (n > 0) ? A[0].size() : 0;
+  if (x.size() != p) throw std::invalid_argument("Vector size mismatch");
+  
+  std::vector<double> result(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) {
+      result[i] += A[i][j] * x[j];
+    }
+  }
+  return result;
+}
+
+// Helper to perform matrix-matrix multiplication.
+std::vector<std::vector<double>> mat_mat_mult(const std::vector<std::vector<double>>& A,
+                                              const std::vector<std::vector<double>>& B) {
+  size_t rows_A = A.size();
+  if (rows_A == 0) return {};
+  size_t cols_A = A[0].size();
+  size_t rows_B = B.size();
+  if (rows_B == 0) return {};
+  size_t cols_B = B[0].size();
+  if (cols_A != rows_B) 
+    throw std::invalid_argument("Matrix dimensions mismatch");
+  
+  std::vector<std::vector<double>> C(rows_A, std::vector<double>(cols_B, 0.0));
+  for (size_t i = 0; i < rows_A; ++i) {
+    for (size_t j = 0; j < cols_B; ++j) {
+      for (size_t k = 0; k < cols_A; ++k) {
+        C[i][j] += A[i][k] * B[k][j];
+      }
+    }
+  }
+  return C;
+}
+
+// Helper to transpose a matrix.
+std::vector<std::vector<double>> transpose(const std::vector<std::vector<double>>& A) {
+  size_t rows = A.size();
+  if (rows == 0) return {};
+  size_t cols = A[0].size();
+  std::vector<std::vector<double>> At(cols, std::vector<double>(rows));
+  for (size_t i = 0; i < rows; ++i) {
+    for (size_t j = 0; j < cols; ++j) {
+      At[j][i] = A[i][j];
+    }
+  }
+  return At;
 }
 
 
 // The following three utilities functions are from the survival package
-int cholesky2(NumericMatrix matrix, int n, double toler) {
-  double eps = 0;
-  for (int i=0; i<n; ++i) {
-    if (matrix(i,i) > eps) eps = matrix(i,i);
-  }
-  if (eps==0) eps = toler; // no positive diagonals!
-  else eps *= toler;
 
+// Cholesky decomposition with tolerance, returns rank*nonneg
+int cholesky2(std::vector<std::vector<double>>& matrix, int n, double toler) {
+  double eps = 0.0;
+  
+  // Find largest diagonal element
+  for (int i = 0; i < n; ++i) {
+    if (matrix[i][i] > eps) eps = matrix[i][i];
+  }
+  
+  if (eps == 0.0) eps = toler;
+  else eps *= toler;
+  
   int nonneg = 1;
   int rank = 0;
-  for (int i=0; i<n; ++i) {
-    double pivot = matrix(i,i);
-    if (std::isinf(pivot) == 1 || pivot < eps) {
-      matrix(i,i) = 0;
-      if (pivot < -8*eps) nonneg = -1;
-    }
-    else  {
+  
+  for (int i = 0; i < n; ++i) {
+    double pivot = matrix[i][i];
+    
+    if (std::isinf(pivot) || pivot < eps) {
+      matrix[i][i] = 0.0;
+      if (pivot < -8.0 * eps) nonneg = -1;
+    } else {
       ++rank;
-      for (int j=i+1; j<n; ++j) {
-        double temp = matrix(i,j)/pivot;
-        matrix(i,j) = temp;
-        matrix(j,j) -= temp*temp*pivot;
-        for (int k=j+1; k<n; ++k) matrix(j,k) -= temp*matrix(i,k);
+      for (int j = i + 1; j < n; ++j) {
+        double temp = matrix[i][j] / pivot;
+        matrix[i][j] = temp;
+        matrix[j][j] -= temp * temp * pivot;
+        for (int k = j + 1; k < n; ++k) {
+          matrix[j][k] -= temp * matrix[i][k];
+        }
       }
     }
   }
-
-  return(rank*nonneg);
+  
+  return rank * nonneg;
 }
 
 
-void chsolve2(NumericMatrix matrix, int n, NumericVector y) {
-  for (int i=0; i<n; ++i) {
+
+// Solve system after cholesky2 decomposition
+void chsolve2(std::vector<std::vector<double>>& matrix, int n, std::vector<double>& y) {
+  // Forward substitution: solve L * z = y
+  for (int i = 0; i < n; ++i) {
     double temp = y[i];
-    for (int j=0; j<i; ++j)
-      temp -= y[j]*matrix(j,i);
+    for (int j = 0; j < i; ++j) {
+      temp -= y[j] * matrix[j][i];
+    }
     y[i] = temp;
   }
-
-  for (int i=n-1; i>=0; i--) {
-    if (matrix(i,i) == 0) y[i] = 0;
-    else {
-      double temp = y[i]/matrix(i,i);
-      for (int j=i+1; j<n; ++j)
-        temp -= y[j]*matrix(i,j);
+  
+  // Backward substitution: solve L^T * x = z
+  for (int i = n - 1; i >= 0; --i) {
+    if (matrix[i][i] == 0.0) {
+      y[i] = 0.0;
+    } else {
+      double temp = y[i] / matrix[i][i];
+      for (int j = i + 1; j < n; ++j) {
+        temp -= y[j] * matrix[i][j];
+      }
       y[i] = temp;
     }
   }
 }
 
 
-void chinv2(NumericMatrix matrix, int n) {
-  for (int i=0; i<n; ++i){
-    if (matrix(i,i) > 0) {
-      matrix(i,i) = 1/matrix(i,i);   // this line inverts D
-      for (int j=i+1; j<n; ++j) {
-        matrix(i,j) = -matrix(i,j);
-        for (int k=0; k<i; ++k)     // sweep operator
-          matrix(k,j) += matrix(i,j)*matrix(k,i);
+
+// Invert a matrix after cholesky2 decomposition
+void chinv2(std::vector<std::vector<double>>& matrix, int n) {
+  // Step 1: invert diagonal and apply sweep operator
+  for (int i = 0; i < n; ++i) {
+    if (matrix[i][i] > 0.0) {
+      matrix[i][i] = 1.0 / matrix[i][i]; // invert D
+      for (int j = i + 1; j < n; ++j) {
+        matrix[i][j] = -matrix[i][j];
+        for (int k = 0; k < i; ++k) {
+          matrix[k][j] += matrix[i][j] * matrix[k][i];
+        }
       }
     }
   }
-
-  for (int i=0; i<n; ++i) {
-    if (matrix(i,i) == 0) {  // singular row
-      for (int j=0; j<i; ++j) matrix(i,j) = 0;
-      for (int j=i; j<n; ++j) matrix(j,i) = 0;
-    }
-    else {
-      for (int j=i+1; j<n; ++j) {
-        double temp = matrix(i,j)*matrix(j,j);
-        matrix(j,i) = temp;
-        for (int k=i; k<j; ++k)
-          matrix(k,i) += temp*matrix(k,j);
+  
+  // Step 2: finalize inverse
+  for (int i = 0; i < n; ++i) {
+    if (matrix[i][i] == 0.0) { // singular row
+      for (int j = 0; j < i; ++j) matrix[i][j] = 0.0;
+      for (int j = i; j < n; ++j) matrix[j][i] = 0.0;
+    } else {
+      for (int j = i + 1; j < n; ++j) {
+        double temp = matrix[i][j] * matrix[j][j];
+        matrix[j][i] = temp;
+        for (int k = i; k < j; ++k) {
+          matrix[k][i] += temp * matrix[k][j];
+        }
       }
     }
   }
 }
 
 
-NumericMatrix invsympd(NumericMatrix matrix, int n, double toler) {
-  NumericMatrix v = clone(matrix);
+// Invert a symmetric positive definite matrix
+std::vector<std::vector<double>> invsympd(const std::vector<std::vector<double>>& matrix, int n, double toler) {
+  // Clone the input matrix
+  std::vector<std::vector<double>> v = matrix;
+  
+  // Step 1: Cholesky decomposition (in-place)
   cholesky2(v, n, toler);
+  
+  // Step 2: Invert using sweep operator
   chinv2(v, n);
-  for (int i=1; i<n; ++i) {
-    for (int j=0; j<i; ++j) {
-      v(j,i) = v(i,j);
+  
+  // Step 3: Fill lower triangle from upper triangle to make symmetric
+  for (int i = 1; i < n; ++i) {
+    for (int j = 0; j < i; ++j) {
+      v[j][i] = v[i][j];
     }
   }
-
+  
   return v;
 }
 
 
-//' @title Split a survival data set at specified cut points
-//' @description For a given survival dataset and specified cut times, 
-//' each record is split into multiple subrecords at each cut time. 
-//' The resulting dataset is in counting process format, with each 
-//' subrecord containing a start time, stop time, and event status.
-//' This is adapted from the survsplit.c function from the survival package.
-//'
-//' @param tstart The starting time of the time interval for 
-//'   counting-process data.
-//' @param tstop The stopping time of the time interval for 
-//'   counting-process data.
-//' @param cut The vector of cut points.
-//'
-//' @return A data frame with the following variables:
-//'
-//' * \code{row}: The row number of the observation in the input data 
-//'   (starting from 0).
-//'
-//' * \code{start}: The starting time of the resulting subrecord.
-//'
-//' * \code{end}: The ending time of the resulting subrecord.
-//'
-//' * \code{censor}: Whether the subrecord lies strictly within a record
-//'   in the input data (1 for all but the last interval and 0 for the 
-//'   last interval).
-//'
-//' * \code{interval}: The interval number derived from cut (starting 
-//'   from 0 if the interval lies to the left of the first cutpoint).
-//'
-//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
-//'
-//' @keywords internal
-//'
-//' @examples
-//'
-//' survsplit(15, 60, c(10, 30, 40))
-//'
-//' @export
-// [[Rcpp::export]]
-DataFrame survsplit(NumericVector tstart,
-                    NumericVector tstop,
-                    NumericVector cut) {
-  int extra;
+// Split survival data into intervals based on cut points
+DataFrameCpp survsplit(const std::vector<double>& tstart,
+                       const std::vector<double>& tstop,
+                       const std::vector<double>& cut) {
   int n = static_cast<int>(tstart.size());
   int ncut = static_cast<int>(cut.size());
-
-  // Each cut point strictly within an interval generates an extra line.
-  // NA inputs are left alone.
-  extra = 0;
-  for (int i=0; i<n; ++i) {
-    for (int j=0; j<ncut; ++j) {
-      if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
-          cut[j] > tstart[i] && cut[j] < tstop[i]) ++extra;
+  
+  // Count extra rows
+  int extra = 0;
+  for (int i = 0; i < n; ++i) {
+    if (std::isnan(tstart[i]) || std::isnan(tstop[i])) continue;
+    for (int j = 0; j < ncut; ++j) {
+      if (cut[j] > tstart[i] && cut[j] < tstop[i]) ++extra;
     }
   }
-
+  
   int n2 = n + extra;
-  IntegerVector row(n2), interval(n2);
-  NumericVector start(n2), end(n2);
-  LogicalVector censor(n2);
-
+  std::vector<int> row(n2);
+  std::vector<int> interval(n2);
+  std::vector<double> start(n2);
+  std::vector<double> end(n2);
+  std::vector<int> censor(n2, 0); // use int instead of bool for consistency
+  
   int k = 0;
-  for (int i=0; i<n; ++i) {
+  for (int i = 0; i < n; ++i) {
     if (std::isnan(tstart[i]) || std::isnan(tstop[i])) {
       start[k] = tstart[i];
       end[k] = tstop[i];
-      row[k] = i;           // row in the original data
+      row[k] = i;
       interval[k] = 1;
       ++k;
     } else {
-      // find the first cut point after tstart
       int j = 0;
-      for (; j < ncut && cut[j] <= tstart[i]; ++j);
+      while (j < ncut && cut[j] <= tstart[i]) ++j;
+      
       start[k] = tstart[i];
       row[k] = i;
       interval[k] = j;
+      
       for (; j < ncut && cut[j] < tstop[i]; ++j) {
         if (cut[j] > tstart[i]) {
           end[k] = cut[j];
           censor[k] = 1;
-          ++k; // create the next sub-interval
+          ++k;
+          
           start[k] = cut[j];
           row[k] = i;
-          interval[k] = j+1;
+          interval[k] = j + 1;
         }
       }
-      end[k] = tstop[i]; // finish the last sub-interval
+      
+      end[k] = tstop[i];
       censor[k] = 0;
       ++k;
     }
   }
-
-  DataFrame result = DataFrame::create(
-    Named("row") = row,
-    Named("start") = start,
-    Named("end") = end,
-    Named("censor") = censor,
-    Named("interval") = interval);
-
-  return result;
+  
+  // Construct the DataFrameCpp output
+  DataFrameCpp df;
+  df.push_back(row, "row");
+  df.push_back(start, "start");
+  df.push_back(end, "end");
+  df.push_back(censor, "censor");
+  df.push_back(interval, "interval");
+  
+  return df;
 }
 
 
-bool is_sorted(NumericVector x) {
-  int n = x.size();
-  
-  // Loop through the vector and check if it is sorted
-  for (int i = 1; i < n; ++i) {
-    if (x[i] < x[i - 1]) {
-      return 0;  // Return false if any element is smaller than the previous
-    }
-  }
-  
-  return 1;  // If no violations, the vector is sorted
-}
 
+
+// Compute the Euclidean norm squared
+double sumsq(const std::vector<double>& x) {
+  double s = 0.0;
+  for (double xi : x) s += xi*xi;
+  return s;
+}
 
 // Householder vector
-// Given an n-vector x, this function computes an n-vector v with v(1) = 1
-// such that (I - 2*v*t(v)/t(v)*v)*x is zero in all but the first component.
-NumericVector house(const NumericVector& x) {
+std::vector<double> house(const std::vector<double>& x) {
   int n = static_cast<int>(x.size());
-  double mu = sqrt(sum(x*x));
-  NumericVector v = clone(x);
+  double mu = std::sqrt(sumsq(x));
+  std::vector<double> v = x; // copy
   if (mu > 0.0) {
-    double beta = x[0] + std::copysign(1.0, x[0])*mu;
-    for (int i=1; i<n; ++i) {
+    double beta = x[0] + std::copysign(mu, x[0]);
+    for (int i = 1; i < n; ++i) {
       v[i] /= beta;
     }
   }
@@ -629,212 +884,167 @@ NumericVector house(const NumericVector& x) {
   return v;
 }
 
-
-// Householder pre-multiplication
-// Given an m-by-n matrix A and a nonzero m-vector v with v(1) = 1,
-// the following algorithm overwrites A with P*A where
-// P = I - 2*v*t(v)/t(v)*v.
-void row_house(NumericMatrix& A, const int i1, const int i2,
-               const int j1, const int j2, const NumericVector& v) {
-  if (i1 < 0 || i1 > i2 || i2 >= A.nrow()) {
-    stop("Invalid row indices i1 and i2");
-  }
-  if (j1 < 0 || j1 > j2 || j2 >= A.ncol()) {
-    stop("Invalid column indices j1 and j2");
-  }
+// Row Householder pre-multiplication
+// A: m-by-n matrix represented as vector of vectors
+void row_house(std::vector<std::vector<double>>& A,
+               int i1, int i2,
+               int j1, int j2,
+               const std::vector<double>& v) {
+  int m_total = static_cast<int>(A.size());
+  if (m_total == 0) return;
+  int n_total = static_cast<int>(A[0].size());
   
-  int m = i2-i1+1, n = j2-j1+1;
-  double beta = -2.0/sum(v*v);
-  NumericVector w(n);
-  for (int j=0; j<n; ++j) {
-    for (int i=0; i<m; ++i) {
-      w[j] += A(i+i1,j+j1)*v[i];
+  if (i1 < 0 || i1 > i2 || i2 >= m_total) 
+    throw std::runtime_error("Invalid row indices i1 and i2");
+  if (j1 < 0 || j1 > j2 || j2 >= n_total)
+    throw std::runtime_error("Invalid column indices j1 and j2");
+  
+  int m = i2 - i1 + 1;
+  int n = j2 - j1 + 1;
+  
+  double beta = -2.0 / sumsq(v);
+  
+  std::vector<double> w(n, 0.0);
+  
+  for (int j = 0; j < n; ++j) {
+    for (int i = 0; i < m; ++i) {
+      w[j] += A[i + i1][j + j1] * v[i];
     }
     w[j] *= beta;
   }
   
-  for (int i=0; i<m; ++i) {
-    for (int j=0; j<n; ++j) {
-      A(i+i1,j+j1) += v[i]*w[j];
+  for (int i = 0; i < m; ++i) {
+    for (int j = 0; j < n; ++j) {
+      A[i + i1][j + j1] += v[i] * w[j];
     }
   }
 }
 
 
-//' @title QR Decomposition of a Matrix
-//' @description Computes the QR decomposition of a matrix.
-//'
-//' @param X A numeric matrix whose QR decomposition is to be computed.
-//' @param tol The tolerance for detecting linear dependencies in the
-//'   columns of \code{X}.
-//'
-//' @details
-//' This function performs Householder QR with column pivoting:
-//' Given an \eqn{m}-by-\eqn{n} matrix \eqn{A} with \eqn{m \geq n},
-//' the following algorithm computes \eqn{r = \textrm{rank}(A)} and
-//' the factorization \eqn{Q^T A P} equal to
-//' \tabular{ccccc}{
-//' | \tab \eqn{R_{11}} \tab \eqn{R_{12}} \tab | \tab \eqn{r} \cr
-//' | \tab 0 \tab 0 \tab | \tab \eqn{m-r} \cr
-//'   \tab \eqn{r} \tab \eqn{n-r} \tab \tab
-//' }
-//' with \eqn{Q = H_1 \cdots H_r} and \eqn{P = P_1 \cdots P_r}.
-//' The upper triangular part of \eqn{A}
-//' is overwritten by the upper triangular part of \eqn{R} and
-//' components \eqn{(j+1):m} of
-//' the \eqn{j}th Householder vector are stored in \eqn{A((j+1):m, j)}.
-//' The permutation \eqn{P} is encoded in an integer vector \code{pivot}.
-//'
-//' @return A list with the following components:
-//'
-//' * \code{qr}: A matrix with the same dimensions as \code{X}. The upper
-//'   triangle contains the \code{R} of the decomposition and the lower
-//'   triangle contains Householder vectors (stored in compact form).
-//'
-//' * \code{rank}: The rank of \code{X} as computed by the decomposition.
-//'
-//' * \code{pivot}: The column permutation for the pivoting strategy used
-//'   during the decomposition.
-//'
-//' * \code{Q}: The complete \eqn{m}-by-\eqn{m} orthogonal matrix \eqn{Q}.
-//'
-//' * \code{R}: The complete \eqn{m}-by-\eqn{n} upper triangular
-//'   matrix \eqn{R}.
-//'
-//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
-//'
-//' @references
-//' Gene N. Golub and Charles F. Van Loan.
-//' Matrix Computations, second edition. Baltimore, Maryland:
-//' The John Hopkins University Press, 1989, p.235.
-//'
-//' @examples
-//'
-//' hilbert <- function(n) { i <- 1:n; 1 / outer(i - 1, i, `+`) }
-//' h9 <- hilbert(9)
-//' qrcpp(h9)
-//'
-//' @export
-// [[Rcpp::export]]
-List qrcpp(const NumericMatrix& X, double tol = 1e-12) {
-  int m = X.nrow(), n = X.ncol();
-  NumericMatrix A = clone(X);
-  NumericVector c(n);
-  for (int j=0; j<n; ++j) {
-    c[j] = sum(A(_,j)*A(_,j));
+// Maximum element in a vector
+double max_elem(const std::vector<double>& x, int start, int end) {
+  if (start > end || start < 0 || end >= static_cast<int>(x.size())) {
+    throw std::runtime_error("Invalid start or end indices in max_elem");
+  }
+  return *std::max_element(x.begin() + start, x.begin() + end + 1);
+}
+
+
+// QR decomposition with Householder and column pivoting
+ListCpp qrcpp(const std::vector<std::vector<double>>& X, double tol) {
+  int m = static_cast<int>(X.size());
+  int n = static_cast<int>(X[0].size());
+  std::vector<std::vector<double>> A = X;
+  
+  // Compute squared column norms
+  std::vector<double> c(n);
+  for (int j = 0; j < n; ++j) {
+    double s = 0.0;
+    for (int i = 0; i < m; ++i) s += A[i][j]*A[i][j];
+    c[j] = s;
   }
   
-  double tau = max(c);
+  // Initial pivoting
   int k = 0;
-  for (; k<n; ++k) {
-    if (c[k] > tol) break;
-  }
+  for (; k < n; ++k) if (c[k] > tol) break;
   
   int r = -1;
-  IntegerVector piv = seq(0,n-1);
-  double u;
+  std::vector<int> piv(n);
+  std::iota(piv.begin(), piv.end(), 0);
+  
+  double tau = max_elem(c, 0, n-1);
+  
   while (tau > tol) {
     ++r;
     
-    // exchange column r with column k
-    int l = piv[r];
-    piv[r] = piv[k];
-    piv[k] = l;
+    // Exchange column r with column k
+    std::swap(piv[r], piv[k]);
+    for (int i = 0; i < m; ++i) std::swap(A[i][r], A[i][k]);
+    std::swap(c[r], c[k]);
     
-    for (int i=0; i<m; ++i) {
-      u = A(i,r);
-      A(i,r) = A(i,k);
-      A(i,k) = u;
-    }
-    
-    u = c[r];
-    c[r] = c[k];
-    c[k] = u;
-    
-    // find the Householder vector
-    NumericVector v(m-r);
-    for (int i=0; i<m-r; ++i) {
-      v[i] = A(i+r,r);
-    }
+    // Householder vector
+    std::vector<double> v(m-r);
+    for (int i = 0; i < m-r; ++i) v[i] = A[i+r][r];
     v = house(v);
     
-    // pre-multiply by the Householder matrix
+    // Apply Householder
     row_house(A, r, m-1, r, n-1, v);
     
-    // update the sub-diagonal elements of column r
-    for (int i=1; i<m-r; ++i) {
-      A(i+r,r) = v[i];
-    }
+    // Store Householder vector in sub-diagonal
+    for (int i = 1; i < m-r; ++i) A[i+r][r] = v[i];
     
-    // go to the next column and update the squared norm
-    for (int i=r+1; i<n; ++i) {
-      c[i] -= A(r,i)*A(r,i);
-    }
+    // Update squared norms
+    for (int i = r+1; i < n; ++i) c[i] -= A[r][i]*A[r][i];
     
-    // identify the pivot column
+    // Next pivot column
     if (r < n-1) {
-      tau = max(c[Range(r+1,n-1)]);
-      for (k=r+1; k<n; ++k) {
-        if (c[k] > tol) break;
-      }
+      tau = max_elem(c, r+1, n-1);
+      for (k = r+1; k < n; ++k) if (c[k] > tol) break;
     } else {
       tau = 0.0;
     }
   }
   
-  // recover the Q matrix
-  NumericMatrix Q = NumericMatrix::diag(m, 1.0);
-  for (int k=r; k>=0; k--) {
-    NumericVector v(m-k);
+  // Recover Q
+  std::vector<std::vector<double>> Q(m, std::vector<double>(m, 0.0));
+  for (int i = 0; i < m; ++i) Q[i][i] = 1.0;
+  for (int k = r; k >= 0; --k) {
+    std::vector<double> v(m-k);
     v[0] = 1.0;
-    for (int i=1; i<m-k; ++i) {
-      v[i] = A(i+k,k);
-    }
-    
+    for (int i = 1; i < m-k; ++i) v[i] = A[i+k][k];
     row_house(Q, k, m-1, k, m-1, v);
   }
   
-  // recover the R matrix
-  NumericMatrix R(m,n);
-  for (int j=0; j<n; ++j) {
-    for (int i=0; i<=j; ++i) {
-      R(i,j) = A(i,j);
-    }
+  // Recover R
+  std::vector<std::vector<double>> R(m, std::vector<double>(n, 0.0));
+  for (int j = 0; j < n; ++j) {
+    for (int i = 0; i <= j && i < m; ++i) R[i][j] = A[i][j];
   }
   
-  List result = List::create(
-    Named("qr") = A,
-    Named("rank") = r+1,
-    Named("pivot") = piv+1,
-    Named("Q") = Q,
-    Named("R") = R
-  );
+  // Create and populate the ListCpp object
+  ListCpp result;
+  result.push_back(A, "qr");
+  result.push_back(r + 1, "rank");
+  result.push_back(piv, "pivot");
+  result.push_back(Q, "Q");
+  result.push_back(R, "R");
   
   return result;
 }
 
 
-// [[Rcpp::export]]
-IntegerVector match3(
-  const IntegerVector id1, const NumericVector v1,
-  const IntegerVector id2, const NumericVector v2) {
+
+// Return -1 if no match is found
+std::vector<int> match3(const std::vector<int>& id1,
+                        const std::vector<double>& v1,
+                        const std::vector<int>& id2,
+                        const std::vector<double>& v2) {
+  std::vector<int> result;
+  result.reserve(id1.size());
   
-  IntegerVector result;
-  int i=0, j=0;
-  while (i < id1.size() && j < id2.size()) {
+  size_t i = 0, j = 0;
+  size_t n1 = id1.size(), n2 = id2.size();
+  
+  while (i < n1 && j < n2) {
+    // Condition 1: item1 < item2 (move i forward, mark as -1)
     if (id1[i] < id2[j] || (id1[i] == id2[j] && v1[i] < v2[j])) {
       result.push_back(-1);
       ++i;
-    } else if (id1[i] > id2[j] || (id1[i] == id2[j] && v1[i] > v2[j])) {
+    } 
+    // Condition 2: item1 > item2 (move j forward)
+    else if (id1[i] > id2[j] || (id1[i] == id2[j] && v1[i] > v2[j])) {
       ++j;
-    } else {
-      result.push_back(j);
+    } 
+    // Condition 3: item1 == item2 (match found, move both i and j forward)
+    else {
+      result.push_back(static_cast<int>(j));
       ++i;
       ++j;
     }
   }
   
-  while (i < id1.size()) {
+  // Handle remaining i elements which have no possible match in the rest of j
+  while (i < n1) {
     result.push_back(-1);
     ++i;
   }
@@ -842,207 +1052,270 @@ IntegerVector match3(
   return result;
 }
 
-// counterfactual untreated survival times and event indicators
-DataFrame untreated(
-    const double psi,
-    const IntegerVector& id,
-    const NumericVector& time,
-    const IntegerVector& event,
-    const IntegerVector& treat,
-    const NumericVector& rx,
-    const NumericVector& censor_time,
-    const bool recensor,
-    const bool autoswitch) {
+
+// Untreated counterfactual time calculation
+DataFrameCpp untreated(double psi,
+                       const std::vector<int>& id,
+                       const std::vector<double>& time,
+                       const std::vector<int>& event,
+                       const std::vector<int>& treat,
+                       const std::vector<double>& rx,
+                       const std::vector<double>& censor_time,
+                       bool recensor,
+                       bool autoswitch) {
+  size_t n = id.size();
+  double a = std::exp(psi);
   
-  double a = exp(psi);
-  NumericVector u_star = time*((1 - rx) + rx*a);
-  NumericVector t_star = clone(u_star);
-  IntegerVector d_star = clone(event);
+  std::vector<double> u_star(n), t_star(n);
+  std::vector<int> d_star = event;
+  
+  for (size_t i = 0; i < n; ++i) {
+    u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a);
+    t_star[i] = u_star[i];
+  }
   
   if (recensor) {
-    NumericVector c_star = censor_time*std::min(1.0, a);
+    std::vector<double> c_star = censor_time;
+    for (size_t i = 0; i < n; ++i) c_star[i] *= std::min(1.0, a);
     
     if (autoswitch) {
-      NumericVector rx1 = rx[treat == 1];
-      NumericVector rx0 = rx[treat == 0];
-      if (is_true(all(rx1 == 1.0))) c_star[treat == 1] = R_PosInf;
-      if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
-    }
-    
-    t_star = pmin(u_star, c_star);
-    d_star[c_star < u_star] = 0;
-  }
-  
-  DataFrame result = DataFrame::create(
-    Named("uid") = id,
-    Named("t_star") = t_star,
-    Named("d_star") = d_star,
-    Named("treated") = treat
-  );
-  
-  return result;
-}
-
-
-// counterfactual unswitched survival times and event indicators
-DataFrame unswitched(
-    const double psi,
-    const int n,
-    const IntegerVector& id,
-    const NumericVector& time,
-    const IntegerVector& event,
-    const IntegerVector& treat,
-    const NumericVector& rx,
-    const NumericVector& censor_time,
-    const bool recensor,
-    const bool autoswitch) {
-  
-  double a = exp(psi), a1 = exp(-psi);
-  NumericVector u_star(n), t_star(n);
-  IntegerVector d_star(n);
-  for (int i=0; i<n; ++i) {
-    if (treat[i] == 0) {
-      u_star[i] = time[i]*((1 - rx[i]) + rx[i]*a);
-    } else {
-      u_star[i] = time[i]*(rx[i] + (1 - rx[i])*a1);
-    }
-    t_star[i] = u_star[i];
-    d_star[i] = event[i];
-  }
-  
-  if (recensor) {
-    double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
-    NumericVector c_star(n);
-    for (int i=0; i<n; ++i) {
-      if (treat[i] == 0) {
-        c_star[i] = censor_time[i]*c0;
-      } else {
-        c_star[i] = censor_time[i]*c1;
+      bool all_rx1 = true, all_rx0 = true;
+      for (size_t i = 0; i < n; ++i) {
+        if (treat[i] == 1 && rx[i] != 1.0) all_rx1 = false;
+        if (treat[i] == 0 && rx[i] != 0.0) all_rx0 = false;
+      }
+      for (size_t i = 0; i < n; ++i) {
+        // If the whole group had the same RX value, 
+        // ignore censoring for that group
+        if (treat[i] == 1 && all_rx1) 
+          c_star[i] = std::numeric_limits<double>::infinity();
+        if (treat[i] == 0 && all_rx0) 
+          c_star[i] = std::numeric_limits<double>::infinity();
       }
     }
     
-    if (autoswitch) {
-      NumericVector rx1 = rx[treat == 1];
-      NumericVector rx0 = rx[treat == 0];
-      if (is_true(all(rx1 == 1.0))) c_star[treat == 1] = R_PosInf;
-      if (is_true(all(rx0 == 0.0))) c_star[treat == 0] = R_PosInf;
+    for (size_t i = 0; i < n; ++i) {
+      // Apply the new censoring if c* < u*
+      if (c_star[i] < u_star[i]) {
+        t_star[i] = c_star[i];
+        d_star[i] = 0; // Event indicator becomes 0 (censored)
+      }
     }
-    
-    t_star = pmin(u_star, c_star);
-    d_star[c_star < u_star] = 0;
   }
   
-  DataFrame result = DataFrame::create(
-    Named("uid") = id,
-    Named("t_star") = t_star,
-    Named("d_star") = d_star,
-    Named("treated") = treat
-  );
+  DataFrameCpp df;
+  df.push_back(id, "uid");
+  df.push_back(t_star, "t_star");
+  df.push_back(d_star, "d_star");
+  df.push_back(treat, "treated");
   
-  return result;
+  return df;
 }
 
 
+// Unswitched counterfactual time calculation
+DataFrameCpp unswitched(double psi,
+                        const std::vector<int>& id,
+                        const std::vector<double>& time,
+                        const std::vector<int>& event,
+                        const std::vector<int>& treat,
+                        const std::vector<double>& rx,
+                        const std::vector<double>& censor_time,
+                        bool recensor,
+                        bool autoswitch) {
+  size_t n = id.size();
+  double a0 = std::exp(psi);
+  double a1 = std::exp(-psi);
+  
+  std::vector<double> u_star(n), t_star(n);
+  std::vector<int> d_star = event;
+  
+  // Calculate the underlying counterfactual time u* based on 
+  // assigned treatment group
+  for (size_t i = 0; i < n; ++i) {
+    if (treat[i] == 0) // Control group counterfactual time
+      u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a0);
+    else // Treated group counterfactual time
+      u_star[i] = time[i] * (rx[i] + (1.0 - rx[i]) * a1);
+    
+    t_star[i] = u_star[i];
+  }
+  
+  if (recensor) {
+    std::vector<double> c_star(n);
+    for (size_t i = 0; i < n; ++i) {
+      // Scale censor times based on group-specific 'a' (a0 or a1)
+      c_star[i] = treat[i] == 0 ? censor_time[i] * std::min(1.0, a0)
+        : censor_time[i] * std::min(1.0, a1);
+    }
+    
+    if (autoswitch) {
+      bool all_rx1 = true, all_rx0 = true;
+      for (size_t i = 0; i < n; ++i) {
+        if (treat[i] == 1 && rx[i] != 1.0) all_rx1 = false;
+        if (treat[i] == 0 && rx[i] != 0.0) all_rx0 = false;
+      }
+      for (size_t i = 0; i < n; ++i) {
+        if (treat[i] == 1 && all_rx1) 
+          c_star[i] = std::numeric_limits<double>::infinity();
+        if (treat[i] == 0 && all_rx0) 
+          c_star[i] = std::numeric_limits<double>::infinity();
+      }
+    }
+    
+    for (size_t i = 0; i < n; ++i) {
+      // Apply the new censoring if c* < u*
+      if (c_star[i] < u_star[i]) {
+        t_star[i] = c_star[i];
+        d_star[i] = 0; // Event indicator becomes 0 (censored)
+      }
+    }
+  }
+  
+  DataFrameCpp df;
+  df.push_back(id, "uid");
+  df.push_back(t_star, "t_star");
+  df.push_back(d_star, "d_star");
+  df.push_back(treat, "treated");
+  
+  return df;
+}
+
+
+// Sanitize a string: replace non-alphanumeric and non-underscore with dot
 std::string sanitize(const std::string& s) {
   std::string out = s;
   for (char &c : out) {
-    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && 
+        static_cast<unsigned char>(c) != '_') {
       c = '.';
     }
   }
   return out;
 }
 
-// [[Rcpp::export]]
+
+// Piecewise exponential quantile function
 double qtpwexpcpp1(const double p,
-                   const NumericVector& piecewiseSurvivalTime,
-                   const NumericVector& lambda,
+                   const std::vector<double>& piecewiseSurvivalTime,
+                   const std::vector<double>& lambda,
                    const double lowerBound,
                    const bool lowertail,
                    const bool logp) {
   int m = static_cast<int>(piecewiseSurvivalTime.size());
   
-  // cumulative hazard from lowerBound until the quantile
-  double u = p;
-  if (logp) u = exp(p);
-  if (!lowertail) u = 1.0 - u;
+  if (m == 0 || static_cast<int>(lambda.size()) != m)
+    throw std::runtime_error("Invalid piecewise model inputs.");
   
-  // identify the time interval containing the lowerBound
+  // Convert p -> cumulative probability above lowerBound
+  double u;
+  if (logp)
+    u = std::exp(p);
+  else
+    u = p;
+  
+  if (!lowertail)
+    u = 1.0 - u;
+  
+  // Bound u away from 0 and 1 for numerical stability
+  if (u <= 0.0) return lowerBound;
+  if (u >= 1.0) return std::numeric_limits<double>::infinity();
+  
+  double v1 = -log1p(-u);  // better numerics than -log(1-u)
+  
+  // identify interval for lowerBound
   int j = 0;
-  for (; j<m; ++j) {
-    if (piecewiseSurvivalTime[j] > lowerBound) break;
-  }
-  int j1 = (j==0 ? 0 : j-1); // to handle floating point precision
-
-  double q;
-  double v1 = -log(1.0 - u);
-  if (j1 == m-1) { // in the last interval
-    q = (lambda[j1]==0.0 ? 1.0e+8 : v1/lambda[j1] + lowerBound);
-  } else {
-    // accumulate the pieces on the cumulative hazard scale
-    double v = 0;
-    for (j=j1; j<m-1; ++j) {
-      if (j==j1) {
-        v += lambda[j]*(piecewiseSurvivalTime[j+1] - lowerBound);
-      } else {
-        v += lambda[j]*(piecewiseSurvivalTime[j+1] -
-          piecewiseSurvivalTime[j]);
-      }
-      if (v >= v1) break;
-    }
-    
-    if (j == m-1) { // in the last interval
-      q = (lambda[j]==0.0 ? 1.0e+8 :
-             (v1 - v)/lambda[j] + piecewiseSurvivalTime[j]);
-    } else {
-      q = (lambda[j]==0.0 ? 1.0e+8 :
-             piecewiseSurvivalTime[j+1] - (v - v1)/lambda[j]);
-    }
+  while (j < m && piecewiseSurvivalTime[j] <= lowerBound) j++;
+  int j1 = std::max(0, j - 1);
+  
+  double v = 0.0;
+  
+  // If starting in the last interval
+  if (j1 == m - 1) {
+    double lj = lambda[j1];
+    if (lj <= 0.0) return std::numeric_limits<double>::infinity();
+    return lowerBound + v1 / lj;
   }
   
-  return q;
+  // accumulate hazards until reaching target v1
+  for (j = j1; j < m - 1; ++j) {
+    double dt = (j == j1)
+    ? piecewiseSurvivalTime[j + 1] - lowerBound
+    : piecewiseSurvivalTime[j + 1] - piecewiseSurvivalTime[j];
+    
+    double lj = lambda[j];
+    if (lj > 0.0)
+      v += lj * dt;
+    
+    if (v >= v1) break;
+  }
+  
+  // solve within the interval j
+  double lj = lambda[j];
+  if (lj <= 0.0)
+    return std::numeric_limits<double>::infinity();
+  
+  if (j == m - 1) {
+    // last interval
+    double dt = (v1 - v) / lj;
+    return piecewiseSurvivalTime[j] + dt;
+  }
+  
+  // inside interval j before end of grid
+  double dt = (v - v1) / lj;
+  return piecewiseSurvivalTime[j + 1] - dt;
 }
 
 
-List getpsiest(const double target, const NumericVector& psi, 
-                 const NumericVector& Z, const int direction = 0) {
-  
+// find the roots of an implicit function given a set of discrete sample points
+ListCpp getpsiest(double target,
+                  const std::vector<double>& psi,
+                  const std::vector<double>& Z,
+                  int direction) {
   int n = psi.size();
-  if (n != Z.size()) stop("psi and Z must have the same length");
-  if (n < 2) stop("Need at least two points to find roots");
-  NumericVector Zt = Z - target; // shifted Z values
+  if (n != static_cast<int>(Z.size()))
+    throw std::invalid_argument("psi and Z must have the same length");
+  if (n < 2)
+    throw std::invalid_argument("Need at least two points to find roots");
+  
+  std::vector<double> Zt(n);
+  for (int i = 0; i < n; ++i)
+    Zt[i] = Z[i] - target;
   
   std::vector<double> roots;
+  
   for (int i = 1; i < n; ++i) {
-    double z1 = Zt[i-1];
+    double z1 = Zt[i - 1];
     double z2 = Zt[i];
     
-    // skip missing values and identical values
     if (std::isnan(z1) || std::isnan(z2) || z1 == z2)
       continue;
     
-    // exact zero
     if (z1 == 0.0)
+      // If the exact point is a zero
       roots.push_back(psi[i - 1]);
     else if (z1 * z2 < 0.0) {
-      // linear interpolation for zero crossing
+      // If a sign change (zero crossing) occurs
       double psi_root = psi[i - 1] - z1 * (psi[i] - psi[i - 1]) / (z2 - z1);
       roots.push_back(psi_root);
     }
   }
-
-  NumericVector out_roots(roots.begin(), roots.end());
   
-  double root = NA_REAL;
+  double root = NAN;
+  
   if (!roots.empty()) {
-    if (direction == -1) { // leftmost
-      root = out_roots[0]; 
-    } else if (direction == 1) { // rightmost
-      root = out_roots[out_roots.size() - 1];
-    } else { // closest to zero
-      root = NA_REAL;
-      double minabs = std::abs(roots[0]);
+    if (direction == -1) {
+      // Leftmost root
+      root = roots.front();
+    }
+    else if (direction == 1) {
+      // Rightmost
+      root = roots.back();
+    }
+    else {
+      // Closest to zero
       root = roots[0];
+      double minabs = std::abs(roots[0]);
       for (size_t j = 1; j < roots.size(); ++j) {
         double a = std::abs(roots[j]);
         if (a < minabs) {
@@ -1053,53 +1326,59 @@ List getpsiest(const double target, const NumericVector& psi,
     }
   }
   
-  return List::create(
-    _["roots"] = out_roots,
-    _["root"] = root
-  );
+  ListCpp result;
+  result.push_back(roots, "all_roots");
+  result.push_back(root, "selected_root");
+  return result;
 }
 
 
+// Find an endpoint psi value where f(psiend) has the desired sign
 double getpsiend(const std::function<double(double)>& f,
-                 const bool lowerend, const double initialend) {
-  double psiend = initialend, zend = f(initialend);
+                 bool lowerend,
+                 double initialend) {
+  double psiend = initialend;
+  double zend = f(initialend);
+  const double LIMIT = 10.0;
+  
   if (lowerend) {
     if ((std::isinf(zend) && zend > 0) || std::isnan(zend)) {
-      while (((std::isinf(zend) && zend > 0) || std::isnan(zend)) && 
-             psiend <= 10) {
-        psiend = psiend + 1; zend = f(psiend);
+      while (((std::isinf(zend) && zend > 0) || std::isnan(zend)) &&
+             psiend <= LIMIT) {
+        psiend += 1;
+        zend = f(psiend);
       }
-      if (psiend > 10) {
-        psiend = NA_REAL; zend = NA_REAL;
-      }
+      if (psiend > LIMIT)
+        return NAN;
     }
     
     if (zend < 0) {
-      while (!std::isinf(zend) && zend < 0 && psiend >= -10) {
-        psiend = psiend - 1; zend = f(psiend);
+      while (!std::isinf(zend) && zend < 0 && psiend >= -LIMIT) {
+        psiend -= 1;
+        zend = f(psiend);
       }
-      if (std::isinf(zend) || std::isnan(zend) || psiend < -10) {
-        psiend = NA_REAL;
-      }
+      if (std::isinf(zend) || std::isnan(zend) || psiend < -LIMIT)
+        return NAN;
     }
-  } else { // upper end
+  }
+  else { // upper end
     if ((std::isinf(zend) && zend < 0) || std::isnan(zend)) {
-      while (((std::isinf(zend) && zend < 0) || std::isnan(zend)) && 
-             psiend >= -10) {
-        psiend = psiend - 1; zend = f(psiend);
+      while (((std::isinf(zend) && zend < 0) || std::isnan(zend)) &&
+             psiend >= -LIMIT) {
+        psiend -= 1;
+        zend = f(psiend);
       }
-      if (psiend < -10) {
-        psiend = NA_REAL; zend = NA_REAL;
-      }
+      if (psiend < -LIMIT)
+        return NAN;
     }
     
     if (zend > 0) {
-      while (!std::isinf(zend) && zend > 0 && psiend <= 10) {
-        psiend = psiend + 1; zend = f(psiend);
+      while (!std::isinf(zend) && zend > 0 && psiend <= LIMIT) {
+        psiend += 1;
+        zend = f(psiend);
       }
-      if (std::isinf(zend) || std::isnan(zend) || psiend > 10) {
-        psiend = NA_REAL;
-      }
+      if (std::isinf(zend) || std::isnan(zend) || psiend > LIMIT)
+        return NAN;
     }
   }
   
