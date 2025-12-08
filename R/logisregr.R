@@ -186,63 +186,77 @@
 #' @export
 logisregr <- function(data, event = "event", covariates = "",
                       freq = "", weight = "", offset = "", id = "",
-                      link = "logit", init = NA_real_, 
+                      link = "logit", init = NA_real_,
                       robust = FALSE, firth = FALSE,
-                      flic = FALSE, plci = FALSE, alpha = 0.05, 
+                      flic = FALSE, plci = FALSE, alpha = 0.05,
                       maxiter = 50, eps = 1.0e-9,
                       nthreads = 0) {
   
+  # Respect user-requested number of threads (best effort)
   if (nthreads > 0) {
     RcppParallel::setThreadOptions(min(nthreads, parallel::detectCores(logical = FALSE)))
   }
   
-  misscovariates = missing(covariates) || is.null(covariates) ||
-    (length(covariates) == 1 && covariates[1] == "");
+  # Determine if covariates were provided (empty string or NULL means no covariates)
+  misscovariates <- is.null(covariates) ||
+    (length(covariates) == 1 && (covariates[1] == "")) ||
+    length(covariates) == 0
+  
+  # Precompute the formulas used repeatedly by prepare_df
+  elements <- unique(c(event, covariates, freq, weight, offset))
+  elements <- elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  
+  if (!misscovariates) {
+    fml_cov <- formula(paste("~", paste(covariates, collapse = "+")))
+  } else {
+    fml_cov <- NULL
+  }
   
   # Helper: prepare a single data.frame (subset rows with complete cases for
   # the variables of interest and add model-matrix columns if needed).
   prepare_df <- function(df) {
+    # normalize rownames, then subset rows by complete cases for elements
     rownames(df) <- NULL
-    elements <- c(event, covariates, freq, weight, offset, id)
-    elements <- unique(elements[elements != ""])
-    fml <- formula(paste("~", paste(elements, collapse = "+")))
-    mf <- model.frame(fml, data = df, na.action = na.omit)
+    mf <- model.frame(fml_all, data = df, na.action = na.omit)
     rownum <- as.integer(rownames(mf))
     df2 <- df[rownum, , drop = FALSE]
     
-    # determine covariate expansion (model matrix) and produce the columns used
     if (misscovariates) {
-      p <- 0
-      t1 <- terms(formula("~1"))
-      xlevels <- NULL
-      param <- "(Intercept)"
-      varnames <- ""
+      # Intercept-only model: keep minimal metadata
+      list(df = df2,
+           p = 0L,
+           t1 = terms(formula("~1")),
+           param = "(Intercept)",
+           varnames = character(0),
+           xlevels = NULL)
     } else {
-      fml1 <- formula(paste("~", paste(covariates, collapse = "+")))
-      mf1 <- model.frame(fml1, data = df2, na.action = na.pass)
-      mm <- model.matrix(fml1, mf1)
-      xlevels <- mf1$xlev
-      param <- colnames(mm)
+      # Build model matrix for covariates on the already subset data
+      mf1 <- model.frame(fml_cov, data = df2, na.action = na.pass)
+      mm <- model.matrix(fml_cov, mf1)
+      # canonical column names used by the C++ code
       colnames(mm) <- make.names(colnames(mm))
-      varnames <- colnames(mm)[-1]   # exclude intercept name
-      # copy model-matrix columns into df2 if needed (so C++ can find them)
-      for (vn in varnames) {
-        if (!(vn %in% names(df2))) {
-          df2[[vn]] <- mm[, vn, drop = TRUE]
+      param <- colnames(mm)
+      varnames <- if (ncol(mm) > 1) param[-1] else character(0)
+      # copy model-matrix columns into df2 only if they are missing
+      if (length(varnames) > 0) {
+        missing_cols <- setdiff(varnames, names(df2))
+        if (length(missing_cols) > 0) {
+          for (vn in missing_cols) df2[[vn]] <- mm[, vn, drop = TRUE]
         }
       }
-      p <- length(varnames)
-      t1 <- terms(fml1)
+      list(df = df2,
+           p = length(varnames),
+           t1 = terms(fml_cov),
+           param = param,
+           varnames = varnames,
+           xlevels = mf1$xlev)
     }
-    
-    list(df = df2, p = p, t1 = t1, param = param, varnames = varnames, xlevels = xlevels)
   }
   
   # Helper: post-process a raw C++ result (ListCpp wrapped into an R list)
   # into the user-friendly flat fit object produced previously.
   postprocess_one <- function(raw_fit, meta) {
-    # raw_fit: list returned from C++ (sumstat, parest, fitted)
-    # meta: list containing p, t1, param, varnames, xlevels, robust
     fit <- raw_fit
     fit$p <- fit$sumstat$p[1]
     fit$link <- fit$sumstat$link[1]
@@ -253,15 +267,14 @@ logisregr <- function(data, event = "event", covariates = "",
       names(fit$beta) <- rep(fit$param, length(fit$beta) / fit$p)
       
       if (fit$p > 1) {
-        # parest contains columns vbeta.1 ... vbeta.p in the C output style
-        fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", 1:fit$p)])
+        fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
         if (meta$robust) {
-          fit$vbeta_naive <- as.matrix(fit$parest[, paste0("vbeta_naive.", 1:fit$p)])
+          fit$vbeta_naive <- as.matrix(fit$parest[, paste0("vbeta_naive.", seq_len(fit$p))])
         }
       } else {
-        fit$vbeta <- as.matrix(fit$parest[, "vbeta"])
+        fit$vbeta <- as.matrix(fit$parest[, "vbeta", drop = FALSE])
         if (meta$robust) {
-          fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive"])
+          fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive", drop = FALSE])
         }
       }
       
@@ -302,7 +315,6 @@ logisregr <- function(data, event = "event", covariates = "",
   # Decide whether data is a single data.frame or a list of data.frames
   if (inherits(data, "data.frame")) {
     meta <- prepare_df(data)
-    # Call the parallel-capable C++ function but with a single data.frame (it will run on main thread)
     raw <- logisregRcpp(
       data = meta$df,
       event = event,
@@ -321,40 +333,28 @@ logisregr <- function(data, event = "event", covariates = "",
       maxiter = maxiter,
       eps = eps
     )
-    # raw is the C output as a flat list
     fit <- postprocess_one(raw, c(meta, list(orig_data = data, robust = robust)))
     return(fit)
   }
   
-  # If it's a list, check elements are data.frames
   if (is.list(data)) {
     if (length(data) == 0) return(list())
-    # Prepare each dataset, accumulate prepared dfs and metadata
-    prepared <- vector("list", length(data))
-    metas <- vector("list", length(data))
-    for (i in seq_along(data)) {
-      if (!inherits(data[[i]], "data.frame")) {
-        stop("When 'data' is a list, every element must be a data.frame (or inherit 'data.frame').")
-      }
-      prepared_i <- prepare_df(data[[i]])
-      prepared[[i]] <- prepared_i$df
-      metas[[i]] <- c(prepared_i, list(orig_data = data[[i]], robust = robust))
-    }
     
-    # Check whether all prepared varnames are identical across datasets.
-    varnames_list <- lapply(metas, function(m) m$varnames)
-    same_varnames <- TRUE
-    if (length(varnames_list) > 0) {
+    # Prepare all data.frames (vectorized via lapply for clarity)
+    metas <- lapply(data, prepare_df)
+    
+    # Extract varnames and determine if all are identical (correctly)
+    varnames_list <- lapply(metas, `[[`, "varnames")
+    if (length(varnames_list) == 0) {
+      same_varnames <- TRUE
+    } else {
       ref <- varnames_list[[1]]
       same_varnames <- all(vapply(varnames_list, function(x) identical(x, ref), logical(1)))
-    } else {
-      same_varnames <- TRUE
     }
     
     if (same_varnames) {
-      # We can call the parallel C++ wrapper once with the list of prepared dfs
-      # and a single covariates vector (the common varnames)
-      prepared_list <- prepared
+      # Call the parallel-capable C++ wrapper once with the list of prepared dfs
+      prepared_list <- lapply(metas, `[[`, "df")
       raw_list <- logisregRcpp(
         data = prepared_list,
         event = event,
@@ -373,20 +373,20 @@ logisregr <- function(data, event = "event", covariates = "",
         maxiter = maxiter,
         eps = eps
       )
-      # raw_list is a list of raw C results
-      out <- vector("list", length(raw_list))
-      for (i in seq_along(raw_list)) {
-        out[[i]] <- postprocess_one(raw_list[[i]], metas[[i]])
+      # Post-process serially (keeps memory usage low and code simple)
+      n_raw <- length(raw_list)
+      if (n_raw == 0) return(list())
+      out <- vector("list", n_raw)
+      for (i in seq_len(n_raw)) {
+        out[[i]] <- postprocess_one(raw_list[[i]], c(metas[[i]], list(orig_data = data[[i]], robust = robust)))
       }
       return(out)
     } else {
-      # Fallback: varnames differ; process sequentially to preserve correctness.
-      # (We could implement a more advanced parallel version that accepts
-      # per-dataset covariates, but for now we keep correctness.)
+      # Fallback: varnames differ; process sequentially per dataset to preserve correctness.
       out <- vector("list", length(data))
-      for (i in seq_along(prepared)) {
+      for (i in seq_along(metas)) {
         raw <- logisregRcpp(
-          data = prepared[[i]],
+          data = metas[[i]]$df,
           event = event,
           covariates = metas[[i]]$varnames,
           freq = freq,
@@ -403,7 +403,7 @@ logisregr <- function(data, event = "event", covariates = "",
           maxiter = maxiter,
           eps = eps
         )
-        out[[i]] <- postprocess_one(raw, metas[[i]])
+        out[[i]] <- postprocess_one(raw, c(metas[[i]], list(orig_data = data[[i]], robust = robust)))
       }
       return(out)
     }
@@ -411,4 +411,3 @@ logisregr <- function(data, event = "event", covariates = "",
   
   stop("Input 'data' must be either a data.frame or a list of data.frames.")
 }
-
