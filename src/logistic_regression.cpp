@@ -515,9 +515,9 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   
   // process the event variable
   if (event.empty()) {
-    throw std::runtime_error("event variable is not specified");
+    throw std::invalid_argument("event variable is not specified");
   } else if (!data.containElementNamed(event)) {
-    throw std::runtime_error("data must contain the event variable");
+    throw std::invalid_argument("data must contain the event variable");
   }
   
   std::vector<double> eventn(n);
@@ -534,12 +534,12 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   } else if (data.numeric_cols.count(event) > 0) {
     eventn = data.get<double>(event);
   } else {
-    throw std::runtime_error("event variable must be bool, integer or numeric");
+    throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
   
   for (double val : eventn) {
     if (val != 1 && val != 0) {
-      throw std::runtime_error("event must be 1 or 0 for each observation");
+      throw std::invalid_argument("event must be 1 or 0 for each observation");
     }
   }
   
@@ -551,7 +551,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   for (int j=0; j<p-1; ++j) {
     std::string zj = covariates[j];
     if (!data.containElementNamed(zj)) {
-      throw std::runtime_error("data must contain the variables in covariates");
+      throw std::invalid_argument("data must contain the variables in covariates");
     }
     
     std::vector<double> u(n);
@@ -568,7 +568,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     } else if (data.numeric_cols.count(zj) > 0) {
       u = data.get<double>(zj);
     } else {
-      throw std::runtime_error("covarates must be bool, integer or numeric");
+      throw std::invalid_argument("covarates must be bool, integer or numeric");
     }
     
     for (int i=0; i<n; ++i) {
@@ -587,12 +587,12 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     } else if (data.numeric_cols.count(freq) > 0) {
       freqn = data.get<double>(freq);
     } else {
-      throw std::runtime_error("freq variable must be integer or numeric");
+      throw std::invalid_argument("freq variable must be integer or numeric");
     }
     
     for (double val : freqn) {
       if (val <= 0) {
-        throw std::runtime_error("freq must be positive integers");
+        throw std::invalid_argument("freq must be positive integers");
       }
     }
   }
@@ -602,7 +602,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     std::vector<double> weightn = data.get<double>(weight);
     for (double val : weightn) {
       if (val <= 0.0) {
-        throw std::runtime_error("weight must be greater than 0");
+        throw std::invalid_argument("weight must be greater than 0");
       }
     }
   }
@@ -631,7 +631,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       std::vector<std::string> w = unique_sorted(v);
       idn = matchcpp(v, w);
     } else {
-      throw std::runtime_error("incorrect type for the id variable in the input data");
+      throw std::invalid_argument("incorrect type for the id variable in the input data");
     }
   }
   
@@ -649,7 +649,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (link1 == "logit") link_code = 1;
   else if (link1 == "probit") link_code = 2;
   else if (link1 == "cloglog") link_code = 3;
-  else throw std::runtime_error("invalid link: " + link1);
+  else throw std::invalid_argument("invalid link: " + link1);
   
   // exclude observations with missing values
   std::vector<bool> sub(n,1);
@@ -672,7 +672,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   subset_in_place(idn, order);
   subset_in_place(zn, order);
   n = std::accumulate(sub.begin(), sub.end(), 0);
-  if (n == 0) throw std::runtime_error("no observations without missing values");
+  if (n == 0) throw std::invalid_argument("no observations without missing values");
   
   // sumstat data set
   double nobs, nevents;

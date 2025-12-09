@@ -4,7 +4,7 @@
 // Normal distribution functions using Boost.Math
 double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
   if (sd <= 0) {
-    throw std::runtime_error("Standard deviation must be positive.");
+    throw std::invalid_argument("Standard deviation must be positive.");
   }
   
   boost::math::normal_distribution<> dist(mean, sd);
@@ -19,10 +19,10 @@ double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
 
 double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
   if (sd <= 0) {
-    throw std::runtime_error("Standard deviation must be positive.");
+    throw std::invalid_argument("Standard deviation must be positive.");
   }
   if (p < 0.0 || p > 1.0) {
-    throw std::runtime_error("Probability must be between 0 and 1.");
+    throw std::invalid_argument("Probability must be between 0 and 1.");
   }
   
   boost::math::normal_distribution<> dist(mean, sd);
@@ -39,7 +39,7 @@ double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
 
 double boost_dnorm(double x, double mean, double sd) {
   if (sd <= 0) {
-    throw std::runtime_error("Standard deviation must be positive.");
+    throw std::invalid_argument("Standard deviation must be positive.");
   }
   
   boost::math::normal_distribution<> dist(mean, sd);
@@ -50,7 +50,7 @@ double boost_dnorm(double x, double mean, double sd) {
 // Logistic distribution functions using Boost.Math
 double boost_plogis(double q, double location, double scale, bool lower_tail) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   
   boost::math::logistic_distribution<> dist(location, scale);
@@ -65,10 +65,10 @@ double boost_plogis(double q, double location, double scale, bool lower_tail) {
 
 double boost_qlogis(double p, double location, double scale, bool lower_tail) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   if (p < 0.0 || p > 1.0) {
-    throw std::runtime_error("Probability must be between 0 and 1.");
+    throw std::invalid_argument("Probability must be between 0 and 1.");
   }
   
   boost::math::logistic_distribution<> dist(location, scale);
@@ -85,7 +85,7 @@ double boost_qlogis(double p, double location, double scale, bool lower_tail) {
 
 double boost_dlogis(double x, double location, double scale) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   
   boost::math::logistic_distribution<> dist(location, scale);
@@ -96,7 +96,7 @@ double boost_dlogis(double x, double location, double scale) {
 // Extreme value distribution functions using Boost.Math
 double boost_pextreme(double q, double location, double scale, bool lower_tail) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   
   boost::math::extreme_value_distribution<> dist(location, scale);
@@ -111,10 +111,10 @@ double boost_pextreme(double q, double location, double scale, bool lower_tail) 
 
 double boost_qextreme(double p, double location, double scale, bool lower_tail) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   if (p < 0.0 || p > 1.0) {
-    throw std::runtime_error("Probability must be between 0 and 1.");
+    throw std::invalid_argument("Probability must be between 0 and 1.");
   }
   
   boost::math::extreme_value_distribution<> dist(location, scale);
@@ -131,7 +131,7 @@ double boost_qextreme(double p, double location, double scale, bool lower_tail) 
 
 double boost_dextreme(double x, double location, double scale) {
   if (scale <= 0) {
-    throw std::runtime_error("Scale must be positive.");
+    throw std::invalid_argument("Scale must be positive.");
   }
   
   boost::math::extreme_value_distribution<> dist(location, scale);
@@ -142,7 +142,7 @@ double boost_dextreme(double x, double location, double scale) {
 // Chi-squared distribution functions using Boost.Math
 double boost_pchisq(double q, double df, bool lower_tail) {
   if (df <= 0) {
-    throw std::runtime_error("Degrees of freedom must be positive.");
+    throw std::invalid_argument("Degrees of freedom must be positive.");
   }
   
   boost::math::chi_squared_distribution<> dist(df);
@@ -159,10 +159,10 @@ double boost_pchisq(double q, double df, bool lower_tail) {
 
 double boost_qchisq(double p, double df, bool lower_tail) {
   if (df <= 0) {
-    throw std::runtime_error("Degrees of freedom must be positive.");
+    throw std::invalid_argument("Degrees of freedom must be positive.");
   }
   if (p < 0.0 || p > 1.0) {
-    throw std::runtime_error("Probability must be between 0 and 1.");
+    throw std::invalid_argument("Probability must be between 0 and 1.");
   }
   
   boost::math::chi_squared_distribution<> dist(df);
@@ -181,7 +181,7 @@ double boost_qchisq(double p, double df, bool lower_tail) {
 // Function to generate a sequence of integers from start to end (inclusive)
 std::vector<int> seqcpp(int start, int end) {
   if (start > end) {
-    throw std::runtime_error("Error: start must be less than or equal to end for the sequence function.");
+    throw std::invalid_argument("start must be less than or equal to end for the sequence function.");
   }
   
   // Calculate the size required for the vector (inclusive range: end - start + 1)
@@ -270,7 +270,6 @@ std::vector<int> findInterval3(const std::vector<double>& x,
 
 
 
-
 static const double EPS = 3.0e-8;
 
 inline double SIGN(double a, double b) {
@@ -285,7 +284,7 @@ double brent(const std::function<double(double)>& f,
   double d = 0.0, d1 = 0.0;
   
   if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) {
-    throw std::runtime_error("Root must be bracketed in brent");
+    throw std::invalid_argument("Root must be bracketed in brent");
   }
   
   for (int iter = 1; iter <= maxiter; ++iter) {
@@ -365,7 +364,7 @@ double bisect(const std::function<double(double)>& f,
   double fa = f(a), fb = f(b);
   
   if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) {
-    throw std::runtime_error("Root must be bracketed in bisect");
+    throw std::invalid_argument("Root must be bracketed in bisect");
   }
   
   double xmid, fmid;
@@ -399,8 +398,8 @@ double bisect(const std::function<double(double)>& f,
 // Compute the p-th quantile of vector x using R type 7 method
 double quantilecpp(const std::vector<double>& x, double p) {
   int n = static_cast<int>(x.size());
-  if (n == 0) throw std::runtime_error("Empty vector");
-  if (p < 0.0 || p > 1.0) throw std::runtime_error("p must be in [0,1]");
+  if (n == 0) throw std::invalid_argument("Empty vector");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument("p must be in [0,1]");
   
   // Copy input vector and sort it to find elements reliably
   std::vector<double> y(x);
@@ -428,7 +427,7 @@ double quantilecpp(const std::vector<double>& x, double p) {
 
 // Compute the quantile corresponding to survival function S at probability p
 double squantilecpp(const std::function<double(double)>& S, double p, double tol) {
-  if (p < 0.0 || p > 1.0) throw std::runtime_error("p must be in [0,1]");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument("p must be in [0,1]");
   
   double lower = 0.0;
   double upper = 1.0;
@@ -440,8 +439,7 @@ double squantilecpp(const std::function<double(double)>& S, double p, double tol
     upper *= 2.0;
     Su = S(upper);
     if (upper > 1e12)  // avoid infinite loop
-      throw std::runtime_error(
-          "Cannot find suitable upper bound for quantile search");
+      throw std::runtime_error("Cannot find suitable upper bound for quantile search");
   }
   
   // Define the function to find the root for
@@ -471,7 +469,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
   for (int i = 0; i < p; ++i) {
     const std::string& var = variables[i];
     if (!data.containElementNamed(var)) 
-      throw std::runtime_error("Data must contain variable: " + var);
+      throw std::invalid_argument("Data must contain variable: " + var);
     
     if (data.int_cols.count(var)) {
       auto col = data.int_cols.at(var);
@@ -522,7 +520,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
       
       string_lookups.push_back(w);
     } else {
-      throw std::runtime_error("Unsupported variable type in bygroup: " + var);
+      throw std::invalid_argument("Unsupported variable type in bygroup: " + var);
     }
   }
   
@@ -708,7 +706,6 @@ int cholesky2(std::vector<std::vector<double>>& matrix, int n, double toler) {
 }
 
 
-
 // Solve system after cholesky2 decomposition
 void chsolve2(std::vector<std::vector<double>>& matrix, int n, std::vector<double>& y) {
   // Forward substitution: solve L * z = y
@@ -733,7 +730,6 @@ void chsolve2(std::vector<std::vector<double>>& matrix, int n, std::vector<doubl
     }
   }
 }
-
 
 
 // Invert a matrix after cholesky2 decomposition
@@ -895,9 +891,9 @@ void row_house(std::vector<std::vector<double>>& A,
   int n_total = static_cast<int>(A[0].size());
   
   if (i1 < 0 || i1 > i2 || i2 >= m_total) 
-    throw std::runtime_error("Invalid row indices i1 and i2");
+    throw std::invalid_argument("Invalid row indices i1 and i2");
   if (j1 < 0 || j1 > j2 || j2 >= n_total)
-    throw std::runtime_error("Invalid column indices j1 and j2");
+    throw std::invalid_argument("Invalid column indices j1 and j2");
   
   int m = i2 - i1 + 1;
   int n = j2 - j1 + 1;
@@ -924,7 +920,7 @@ void row_house(std::vector<std::vector<double>>& A,
 // Maximum element in a vector
 double max_elem(const std::vector<double>& x, int start, int end) {
   if (start > end || start < 0 || end >= static_cast<int>(x.size())) {
-    throw std::runtime_error("Invalid start or end indices in max_elem");
+    throw std::invalid_argument("Invalid start or end indices in max_elem");
   }
   return *std::max_element(x.begin() + start, x.begin() + end + 1);
 }
@@ -1051,6 +1047,7 @@ std::vector<int> match3(const std::vector<int>& id1,
   
   return result;
 }
+
 
 
 // Untreated counterfactual time calculation
@@ -1205,7 +1202,7 @@ double qtpwexpcpp1(const double p,
   int m = static_cast<int>(piecewiseSurvivalTime.size());
   
   if (m == 0 || static_cast<int>(lambda.size()) != m)
-    throw std::runtime_error("Invalid piecewise model inputs.");
+    throw std::invalid_argument("Invalid piecewise model inputs.");
   
   // Convert p -> cumulative probability above lowerBound
   double u;
