@@ -1,7 +1,6 @@
 // [[Rcpp::depends(RcppParallel)]]
 #include <RcppParallel.h>
 #include <RcppThread.h>
-#include <mutex>
 #include "logistic_regression.h"
 #include "thread_utils.h"
 
