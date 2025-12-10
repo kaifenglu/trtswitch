@@ -1,5 +1,20 @@
 #include "utilities.h"
+#include "dataframe_list.h" // DataFrameCpp, ListCpp
 
+#include <vector>
+#include <string>
+#include <algorithm>   // sort, upper_bound, max_element, etc.
+#include <numeric>     // iota, accumulate, inner_product
+#include <functional>  // std::function
+#include <cmath>       // isnan, isinf, fabs, pow, log, exp, sqrt
+#include <limits>      // numeric_limits
+#include <stdexcept>   // exceptions
+
+// Boost.Math distributions used for probability / quantile / density functions
+#include <boost/math/distributions/normal.hpp>
+#include <boost/math/distributions/logistic.hpp>
+#include <boost/math/distributions/extreme_value.hpp>
+#include <boost/math/distributions/chi_squared.hpp>
 
 // Normal distribution functions using Boost.Math
 double boost_pnorm(double q, double mean, double sd, bool lower_tail) {

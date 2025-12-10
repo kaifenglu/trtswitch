@@ -1,12 +1,16 @@
 #ifndef __UTILITIES__
 #define __UTILITIES__
 
-#include "dataframe_list.h"
-#include <boost/math/distributions/normal.hpp>
-#include <boost/math/distributions/logistic.hpp>
-#include <boost/math/distributions/extreme_value.hpp>
-#include <boost/math/distributions/chi_squared.hpp>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <stdexcept>
+#include <limits>
 
+#include <Rcpp.h>
+
+struct DataFrameCpp; 
+struct ListCpp; 
 
 double boost_pnorm(double q, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
 double boost_qnorm(double p, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
