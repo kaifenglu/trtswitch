@@ -1,17 +1,11 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
-#include <iostream>
-#include <cmath>
-#include <numeric>
 #include <vector>
 #include <string>
-#include <limits>
-#include <map>
 #include <unordered_map>
 #include <variant>
 #include <algorithm>
-#include <functional>
 #include <stdexcept>
 
 #include <Rcpp.h>
