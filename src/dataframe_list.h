@@ -19,8 +19,7 @@
 
 #include <Rcpp.h>
 
-// include ska flat_hash_map (vendor this header in your package)
-#include "vendor/ska/flat_hash_map.hpp"
+#include "ska/flat_hash_map.hpp"
 
 //
 // FlatMatrix: contiguous column-major matrix representation

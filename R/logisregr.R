@@ -203,7 +203,7 @@ logisregr <- function(data, event = "event", covariates = "",
     length(covariates) == 0
   
   # Precompute the formulas used repeatedly by prepare_df
-  elements <- unique(c(event, covariates, freq, weight, offset))
+  elements <- unique(c(event, covariates, freq, weight, offset, id))
   elements <- elements[elements != ""]
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
   
@@ -216,41 +216,71 @@ logisregr <- function(data, event = "event", covariates = "",
   # Helper: prepare a single data.frame (subset rows with complete cases for
   # the variables of interest and add model-matrix columns if needed).
   prepare_df <- function(df) {
-    # normalize rownames, then subset rows by complete cases for elements
+    # normalize rownames
     rownames(df) <- NULL
-    mf <- model.frame(fml_all, data = df, na.action = na.omit)
-    rownum <- as.integer(rownames(mf))
-    df2 <- df[rownum, , drop = FALSE]
+    
+    # FAST ROW SELECTION: use complete.cases on the relevant columns (much cheaper than model.frame)
+    # elements vector was computed earlier in the wrapper scope (event, covariates, freq, weight, offset)
+    sel_cols <- intersect(elements, names(df))        # only existing columns
+    if (length(sel_cols) == 0) {
+      # Nothing to filter on: keep all rows
+      df2 <- df
+    } else {
+      # use base::complete.cases on the subset of columns we care about
+      rows_ok <- which(complete.cases(df[ , sel_cols, drop = FALSE]))
+      if (length(rows_ok) == 0) {
+        # no complete rows -> return zero-row frame with same columns
+        df2 <- df[integer(0), , drop = FALSE]
+      } else {
+        df2 <- df[rows_ok, , drop = FALSE]
+      }
+    }
     
     if (misscovariates) {
-      # Intercept-only model: keep minimal metadata
+      # Intercept-only model: minimal metadata
       list(df = df2,
-           p = 0L,
            t1 = terms(formula("~1")),
            param = "(Intercept)",
            varnames = character(0),
            xlevels = NULL)
     } else {
-      # Build model matrix for covariates on the already subset data
-      mf1 <- model.frame(fml_cov, data = df2, na.action = na.pass)
-      mm <- model.matrix(fml_cov, mf1)
-      # canonical column names used by the C++ code
-      colnames(mm) <- make.names(colnames(mm))
-      param <- colnames(mm)
-      varnames <- if (ncol(mm) > 1) param[-1] else character(0)
-      # copy model-matrix columns into df2 only if they are missing
-      if (length(varnames) > 0) {
-        missing_cols <- setdiff(varnames, names(df2))
-        if (length(missing_cols) > 0) {
-          for (vn in missing_cols) df2[[vn]] <- mm[, vn, drop = TRUE]
-        }
+      # QUICK PATH: if all covariates present in df2 and are numeric, avoid model.matrix
+      cov_present <- covariates %in% names(df2)
+      all_numeric <- FALSE
+      if (all(cov_present)) {
+        all_numeric <- all(vapply(df2[ covariates ], is.numeric, logical(1)))
       }
-      list(df = df2,
-           p = length(varnames),
-           t1 = terms(fml_cov),
-           param = param,
-           varnames = varnames,
-           xlevels = mf1$xlev)
+      
+      if (all_numeric) {
+        # Build design columns directly from numeric covariates (intercept + columns)
+        # This avoids model.matrix and is valid when covariates are simple numeric columns.
+        param <- c("(Intercept)", make.names(covariates))
+        varnames <- if (length(covariates) > 0) make.names(covariates) else character(0)
+        list(df = df2,
+             t1 = terms(fml_cov),
+             param = param,
+             varnames = varnames,
+             xlevels = NULL)
+      } else {
+        # FALLBACK (existing robust behavior): use model.frame + model.matrix on df2
+        mf1 <- model.frame(fml_cov, data = df2, na.action = na.pass)
+        mm <- model.matrix(fml_cov, mf1)
+        param <- colnames(mm)
+        colnames(mm) <- make.names(colnames(mm))
+        varnames <- if (ncol(mm) > 1) colnames(mm)[-1] else character(0)
+        # copy model-matrix columns into df2 only if they are missing
+        if (length(varnames) > 0) {
+          missing_cols <- setdiff(varnames, names(df2))
+          if (length(missing_cols) > 0) {
+            for (vn in missing_cols) df2[[vn]] <- mm[, vn, drop = TRUE]
+          }
+        }
+        list(df = df2,
+             t1 = terms(fml_cov),
+             param = param,
+             varnames = varnames,
+             xlevels = mf1$xlev)
+      }
     }
   }
   
@@ -264,7 +294,7 @@ logisregr <- function(data, event = "event", covariates = "",
     if (fit$p > 0) {
       fit$param <- meta$param
       fit$beta <- fit$parest$beta
-      names(fit$beta) <- rep(fit$param, length(fit$beta) / fit$p)
+      names(fit$beta) <- fit$param
       
       if (fit$p > 1) {
         fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
@@ -278,9 +308,9 @@ logisregr <- function(data, event = "event", covariates = "",
         }
       }
       
-      dimnames(fit$vbeta) <- list(names(fit$beta), fit$param)
+      dimnames(fit$vbeta) <- list(fit$param, fit$param)
       if (meta$robust) {
-        dimnames(fit$vbeta_naive) <- list(names(fit$beta), fit$param)
+        dimnames(fit$vbeta_naive) <- list(fit$param, fit$param)
       }
     }
     

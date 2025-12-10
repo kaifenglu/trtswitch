@@ -80,8 +80,8 @@
 #' @importFrom RcppParallel setThreadOptions
 #' @importFrom parallel clusterEvalQ clusterExport detectCores makeCluster 
 #' parLapply stopCluster
-#' @importFrom stats formula makepredictcall model.frame model.matrix 
-#' na.omit na.pass pchisq plogis qnorm rbinom rexp terms
+#' @importFrom stats complete.cases formula makepredictcall model.frame 
+#' model.matrix na.omit na.pass pchisq plogis qnorm rbinom rexp terms
 #' @importFrom rlang .data
 #' @importFrom data.table data.table dcast  fifelse nafill
 #'   setDT setnames setorderv shift .N .SD :=
