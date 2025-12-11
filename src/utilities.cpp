@@ -533,123 +533,127 @@ ListCpp qrcpp(const FlatMatrix& X, double tol) {
     return empty_res;
   }
   
-  // Convert to row-major vector-of-vectors for easier port of algorithm
-  std::vector<std::vector<double>> A(static_cast<size_t>(m), std::vector<double>(static_cast<size_t>(n)));
-  for (int c = 0; c < n; ++c) {
-    size_t coloff = FlatMatrix::idx_col(0, c, m);
-    for (int r = 0; r < m; ++r) {
-      A[static_cast<size_t>(r)][static_cast<size_t>(c)] = X.data[coloff + static_cast<size_t>(r)];
-    }
-  }
+  // Work on a local copy of X (we will store Householder vectors into it)
+  FlatMatrix A = X;
   
-  // Compute squared column norms
+  // squared column norms
   std::vector<double> cvec(static_cast<size_t>(n), 0.0);
   for (int j = 0; j < n; ++j) {
+    size_t off = FlatMatrix::idx_col(0, j, m);
     double s = 0.0;
-    for (int i = 0; i < m; ++i) s += A[static_cast<size_t>(i)][static_cast<size_t>(j)] * A[static_cast<size_t>(i)][static_cast<size_t>(j)];
+    for (int i = 0; i < m; ++i) {
+      double v = A.data[off + static_cast<size_t>(i)];
+      s += v * v;
+    }
     cvec[static_cast<size_t>(j)] = s;
   }
-  
-  int k = 0;
-  for (; k < n; ++k) if (cvec[static_cast<size_t>(k)] > tol) break;
   
   int r = -1;
   std::vector<int> piv(static_cast<size_t>(n));
   std::iota(piv.begin(), piv.end(), 0);
-  double tau = max_elem(cvec, 0, n - 1);
+  double tau = 0.0;
+  if (n > 0) tau = max_elem(cvec, 0, n - 1);
   
   while (tau > tol) {
     ++r;
-    // find k such that cvec[k] > tol; find next pivot index k
+    // find next pivot index kidx (first column with cvec > tol starting at r)
     int kidx = r;
-    for (int kk = r; kk < n; ++kk) if (cvec[static_cast<size_t>(kk)] > tol) { kidx = kk; break; }
-    // swap columns r and kidx
-    std::swap(piv[static_cast<size_t>(r)], piv[static_cast<size_t>(kidx)]);
-    for (int i = 0; i < m; ++i) std::swap(A[static_cast<size_t>(i)][static_cast<size_t>(r)], A[static_cast<size_t>(i)][static_cast<size_t>(kidx)]);
-    std::swap(cvec[static_cast<size_t>(r)], cvec[static_cast<size_t>(kidx)]);
+    for (int kk = r; kk < n; ++kk) {
+      if (cvec[static_cast<size_t>(kk)] > tol) { kidx = kk; break; }
+    }
     
-    // Householder on column r
-    std::vector<double> v(static_cast<size_t>(m - r));
-    for (int i = 0; i < m - r; ++i) v[static_cast<size_t>(i)] = A[static_cast<size_t>(i + r)][static_cast<size_t>(r)];
-    v = house(v);
+    // swap columns r and kidx in A, swap pivot indices and cvec
+    if (kidx != r) {
+      // swap column data
+      size_t off_r = FlatMatrix::idx_col(0, r, m);
+      size_t off_k = FlatMatrix::idx_col(0, kidx, m);
+      for (int ii = 0; ii < m; ++ii) {
+        std::swap(A.data[off_r + static_cast<size_t>(ii)], A.data[off_k + static_cast<size_t>(ii)]);
+      }
+      std::swap(piv[static_cast<size_t>(r)], piv[static_cast<size_t>(kidx)]);
+      std::swap(cvec[static_cast<size_t>(r)], cvec[static_cast<size_t>(kidx)]);
+    }
+    
+    // Householder on column r (subcolumn rows r..m-1)
+    int msub = m - r;
+    std::vector<double> x(static_cast<size_t>(msub));
+    for (int i = 0; i < msub; ++i) {
+      x[static_cast<size_t>(i)] = A.data[FlatMatrix::idx_col(r + i, r, m)];
+    }
+    std::vector<double> v = house(x); // v[0] == 1
     
     // apply Householder to A[r..m-1, r..n-1]
-    // reuse row_house implementation but on row-major A: create a temporary FlatMatrix wrapper
-    // Simpler: apply to row-major A directly here
-    int msub = m - r;
-    int nsub = n - r;
-    std::vector<double> w(static_cast<size_t>(nsub), 0.0);
-    for (int jj = 0; jj < nsub; ++jj) {
-      double acc = 0.0;
-      for (int ii = 0; ii < msub; ++ii) acc += A[static_cast<size_t>(ii + r)][static_cast<size_t>(r + jj)] * v[static_cast<size_t>(ii)];
-      w[static_cast<size_t>(jj)] = acc * (-2.0 / sumsq(v));
-    }
-    for (int ii = 0; ii < msub; ++ii) {
-      for (int jj = 0; jj < nsub; ++jj) {
-        A[static_cast<size_t>(ii + r)][static_cast<size_t>(r + jj)] += v[static_cast<size_t>(ii)] * w[static_cast<size_t>(jj)];
-      }
+    if (msub > 0 && r < n) row_house(A, r, m - 1, r, n - 1, v);
+    
+    // store Householder vector in sub-diagonal of A (positions r+1..m-1, column r)
+    for (int i = 1; i < msub; ++i) {
+      A.data[FlatMatrix::idx_col(r + i, r, m)] = v[static_cast<size_t>(i)];
     }
     
-    // store Householder vector in sub-diagonal of A
-    for (int i = 1; i < m - r; ++i) A[static_cast<size_t>(i + r)][static_cast<size_t>(r)] = v[static_cast<size_t>(i)];
-    
-    // update squared norms
-    for (int i = r + 1; i < n; ++i) cvec[static_cast<size_t>(i)] -= A[static_cast<size_t>(r)][static_cast<size_t>(i)] * A[static_cast<size_t>(r)][static_cast<size_t>(i)];
-    
-    // next pivot
-    if (r < n - 1) {
-      tau = max_elem(cvec, r + 1, n - 1);
-    } else {
-      tau = 0.0;
+    // update squared norms for remaining columns
+    for (int j = r + 1; j < n; ++j) {
+      double val = A.data[FlatMatrix::idx_col(r, j, m)];
+      cvec[static_cast<size_t>(j)] -= val * val;
+      if (cvec[static_cast<size_t>(j)] < 0.0) cvec[static_cast<size_t>(j)] = 0.0;
     }
+    
+    if (r < n - 1) tau = max_elem(cvec, r + 1, n - 1);
+    else tau = 0.0;
+  } // end while
+  
+  // rank r (last pivot index found). Following previous convention return r (and push r+1 as rank)
+  // Recover Q (m x m) from stored Householder vectors in A
+  FlatMatrix Qf(m, m);
+  // initialize identity
+  for (int c = 0; c < m; ++c) {
+    size_t off = FlatMatrix::idx_col(0, c, m);
+    for (int i = 0; i < m; ++i) Qf.data[off + static_cast<size_t>(i)] = 0.0;
+    Qf.data[FlatMatrix::idx_col(c, c, m)] = 1.0;
   }
   
-  // Recover Q (m x m)
-  std::vector<std::vector<double>> Q(static_cast<size_t>(m), std::vector<double>(static_cast<size_t>(m), 0.0));
-  for (int i = 0; i < m; ++i) Q[static_cast<size_t>(i)][static_cast<size_t>(i)] = 1.0;
-  for (int kk = r; kk >= 0; --kk) {
-    std::vector<double> v(static_cast<size_t>(m - kk));
-    v[0] = 1.0;
-    for (int i = 1; i < m - kk; ++i) v[static_cast<size_t>(i)] = A[static_cast<size_t>(i + kk)][static_cast<size_t>(kk)];
-    // apply to Q[kk..m-1, kk..m-1]
-    int msub = m - kk;
-    std::vector<double> w(static_cast<size_t>(msub), 0.0);
-    for (int jj = kk; jj < m; ++jj) {
-      double acc = 0.0;
-      for (int ii = 0; ii < msub; ++ii) acc += Q[static_cast<size_t>(ii + kk)][static_cast<size_t>(jj)] * v[static_cast<size_t>(ii)];
-      w[static_cast<size_t>(jj - kk)] = acc * (-2.0 / sumsq(v));
-    }
-    for (int ii = 0; ii < msub; ++ii) {
+  if (r >= 0) {
+    for (int kk = r; kk >= 0; --kk) {
+      int msub_k = m - kk;
+      std::vector<double> vks(static_cast<size_t>(msub_k));
+      vks[0] = 1.0;
+      for (int ii = 1; ii < msub_k; ++ii) {
+        vks[static_cast<size_t>(ii)] = A.data[FlatMatrix::idx_col(kk + ii, kk, m)];
+      }
+      
+      // apply to Qf[kk..m-1, kk..m-1]
+      std::vector<double> w(static_cast<size_t>(msub_k), 0.0);
       for (int jj = kk; jj < m; ++jj) {
-        Q[static_cast<size_t>(ii + kk)][static_cast<size_t>(jj)] += v[static_cast<size_t>(ii)] * w[static_cast<size_t>(jj - kk)];
+        double acc = 0.0;
+        for (int ii = 0; ii < msub_k; ++ii) {
+          acc += Qf.data[FlatMatrix::idx_col(kk + ii, jj, m)] * vks[static_cast<size_t>(ii)];
+        }
+        w[static_cast<size_t>(jj - kk)] = acc * (-2.0 / sumsq(vks));
+      }
+      for (int ii = 0; ii < msub_k; ++ii) {
+        for (int jj = kk; jj < m; ++jj) {
+          size_t idx = FlatMatrix::idx_col(kk + ii, jj, m);
+          Qf.data[idx] += vks[static_cast<size_t>(ii)] * w[static_cast<size_t>(jj - kk)];
+        }
       }
     }
   }
   
   // Recover R (m x n) using upper triangle of A
-  std::vector<std::vector<double>> R(static_cast<size_t>(m), std::vector<double>(static_cast<size_t>(n), 0.0));
+  FlatMatrix Rf(m, n);
+  // initialize zeros
+  std::fill(Rf.data.begin(), Rf.data.end(), 0.0);
   for (int j = 0; j < n; ++j) {
-    for (int i = 0; i <= j && i < m; ++i) R[static_cast<size_t>(i)][static_cast<size_t>(j)] = A[static_cast<size_t>(i)][static_cast<size_t>(j)];
-  }
-  
-  // Convert A/Q/R back to FlatMatrix for outputs
-  FlatMatrix A_flat(m, n);
-  for (int c = 0; c < n; ++c) {
-    for (int r0 = 0; r0 < m; ++r0) {
-      A_flat.data[FlatMatrix::idx_col(r0, c, m)] = A[static_cast<size_t>(r0)][static_cast<size_t>(c)];
+    for (int i = 0; i <= j && i < m; ++i) {
+      Rf.data[FlatMatrix::idx_col(i, j, m)] = A.data[FlatMatrix::idx_col(i, j, m)];
     }
   }
-  FlatMatrix Q_flat(m, m);
-  for (int c = 0; c < m; ++c) for (int r0 = 0; r0 < m; ++r0) Q_flat.data[FlatMatrix::idx_col(r0, c, m)] = Q[static_cast<size_t>(r0)][static_cast<size_t>(c)];
-  FlatMatrix R_flat(m, n);
-  for (int c = 0; c < n; ++c) for (int r0 = 0; r0 < m; ++r0) R_flat.data[FlatMatrix::idx_col(r0, c, m)] = R[static_cast<size_t>(r0)][static_cast<size_t>(c)];
   
   ListCpp result;
-  result.push_back(A_flat, "qr");         // internal transformed A
-  result.push_back(r + 1, "rank");
+  result.push_back(A, "qr");         // internal transformed A (contains Householder data)
+  result.push_back(r + 1, "rank");   // number of pivots found
   result.push_back(piv, "pivot");
-  result.push_back(Q_flat, "Q");
-  result.push_back(R_flat, "R");
+  result.push_back(Qf, "Q");
+  result.push_back(Rf, "R");
   return result;
 }
 
