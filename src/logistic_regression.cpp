@@ -16,7 +16,7 @@
 
 // structure to hold parameters for logistic regression (now using FlatMatrix for design)
 struct logparams {
-  int n;
+  std::size_t n;
   int link_code; // 1: logit, 2: probit, 3: cloglog
   std::vector<double> y;
   FlatMatrix z; // n x p column-major
@@ -34,7 +34,7 @@ struct logparams {
 //
 ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   logparams *param = (logparams *) ex;
-  int n = param->n;
+  size_t n = param->n;
   const FlatMatrix& Z = param->z; // n x p
   
   // sizes as size_t for loop indices
