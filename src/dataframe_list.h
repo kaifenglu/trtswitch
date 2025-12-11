@@ -55,6 +55,7 @@ struct FlatMatrix {
     return static_cast<size_t>(col) * static_cast<size_t>(nrows) + static_cast<size_t>(row);
   }
   
+  // unchecked accessors (fast). Prefer data_ptr()/at_checked() for other usage.
   inline double& operator()(int r, int c) {
     return data[idx_col(r, c, nrow)];
   }
@@ -110,185 +111,51 @@ struct DataFrameCpp {
   }
   
   // Push single column overloads (double)
-  void push_back(const std::vector<double>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    numeric_cols[name] = col;
-    names_.push_back(name);
-  }
-  
-  // rvalue overload: move into the map to avoid copy when caller can move
-  void push_back(std::vector<double>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    numeric_cols.emplace(name, std::move(col));
-    names_.push_back(name);
-  }
+  void push_back(const std::vector<double>& col, const std::string& name);
+  void push_back(std::vector<double>&& col, const std::string& name);
   
   // int column overloads (const& + &&)
-  void push_back(const std::vector<int>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    int_cols[name] = col;
-    names_.push_back(name);
-  }
-  void push_back(std::vector<int>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    int_cols.emplace(name, std::move(col));
-    names_.push_back(name);
-  }
+  void push_back(const std::vector<int>& col, const std::string& name);
+  void push_back(std::vector<int>&& col, const std::string& name);
   
   // bool column overloads (const& + &&)
-  void push_back(const std::vector<bool>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    bool_cols[name] = col;
-    names_.push_back(name);
-  }
-  void push_back(std::vector<bool>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    bool_cols.emplace(name, std::move(col));
-    names_.push_back(name);
-  }
+  void push_back(const std::vector<bool>& col, const std::string& name);
+  void push_back(std::vector<bool>&& col, const std::string& name);
   
   // string column overloads (const& + &&)
-  void push_back(const std::vector<std::string>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    string_cols[name] = col;
-    names_.push_back(name);
-  }
-  void push_back(std::vector<std::string>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    string_cols.emplace(name, std::move(col));
-    names_.push_back(name);
-  }
+  void push_back(const std::vector<std::string>& col, const std::string& name);
+  void push_back(std::vector<std::string>&& col, const std::string& name);
   
   // Scalar expansions
-  void push_back(double value, const std::string& name) {
-    size_t cur = nrows();
-    if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
-    if (cur == 0) cur = 1;
-    std::vector<double> col(cur, value);
-    push_back(std::move(col), name);
-  }
-  void push_back(int value, const std::string& name) {
-    size_t cur = nrows();
-    if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
-    if (cur == 0) cur = 1;
-    std::vector<int> col(cur, value);
-    push_back(std::move(col), name);
-  }
-  void push_back(bool value, const std::string& name) {
-    size_t cur = nrows();
-    if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
-    if (cur == 0) cur = 1;
-    std::vector<bool> col(cur, value);
-    push_back(std::move(col), name);
-  }
-  void push_back(const std::string& value, const std::string& name) {
-    size_t cur = nrows();
-    if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
-    if (cur == 0) cur = 1;
-    std::vector<std::string> col(cur, value);
-    push_back(std::move(col), name);
-  }
+  void push_back(double value, const std::string& name);
+  void push_back(int value, const std::string& name);
+  void push_back(bool value, const std::string& name);
+  void push_back(const std::string& value, const std::string& name);
   
   // Efficient: push_back_flat accepts a column-major flattened buffer containing nrows * p values
-  // and will create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
-  void push_back_flat(const std::vector<double>& flat_col_major, int nrows, const std::string& base_name) {
-    if (flat_col_major.empty()) return;
-    if (containElementNamed(base_name)) throw std::runtime_error("Column '" + base_name + "' already exists.");
-    if (nrows <= 0) throw std::runtime_error("nrows must be > 0");
-    if (flat_col_major.size() % static_cast<size_t>(nrows) != 0)
-      throw std::runtime_error("flattened data size is not divisible by nrows");
-    int p = static_cast<int>(flat_col_major.size() / static_cast<size_t>(nrows));
-    check_row_size(static_cast<size_t>(nrows), base_name);
-    
-    if (p == 1) {
-      std::vector<double> col(nrows);
-      std::copy_n(flat_col_major.begin(), static_cast<size_t>(nrows), col.begin());
-      numeric_cols[base_name] = std::move(col);
-      names_.push_back(base_name);
-    } else {
-      for (int c = 0; c < p; ++c) {
-        std::string col_name = base_name + "." + std::to_string(c + 1);
-        if (containElementNamed(col_name)) throw std::runtime_error("Column '" + col_name + "' already exists.");
-        std::vector<double> col(nrows);
-        size_t offset = FlatMatrix::idx_col(0, c, nrows);
-        for (int r = 0; r < nrows; ++r) {
-          col[r] = flat_col_major[offset + static_cast<size_t>(r)];
-        }
-        numeric_cols.emplace(col_name, std::move(col));
-        names_.push_back(col_name);
-      }
-    }
-  }
+  void push_back_flat(const std::vector<double>& flat_col_major, int nrows, const std::string& base_name);
   
   // Push front variants (const& + && for all types)
-  void push_front(const std::vector<double>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    numeric_cols[name] = col;
-    names_.insert(names_.begin(), name);
-  }
-  void push_front(std::vector<double>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    numeric_cols.emplace(name, std::move(col));
-    names_.insert(names_.begin(), name);
-  }
+  void push_front(const std::vector<double>& col, const std::string& name);
+  void push_front(std::vector<double>&& col, const std::string& name);
   
-  void push_front(const std::vector<int>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    int_cols[name] = col;
-    names_.insert(names_.begin(), name);
-  }
-  void push_front(std::vector<int>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    int_cols.emplace(name, std::move(col));
-    names_.insert(names_.begin(), name);
-  }
+  void push_front(const std::vector<int>& col, const std::string& name);
+  void push_front(std::vector<int>&& col, const std::string& name);
   
-  void push_front(const std::vector<bool>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    bool_cols[name] = col;
-    names_.insert(names_.begin(), name);
-  }
-  void push_front(std::vector<bool>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    bool_cols.emplace(name, std::move(col));
-    names_.insert(names_.begin(), name);
-  }
+  void push_front(const std::vector<bool>& col, const std::string& name);
+  void push_front(std::vector<bool>&& col, const std::string& name);
   
-  void push_front(const std::vector<std::string>& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    string_cols[name] = col;
-    names_.insert(names_.begin(), name);
-  }
-  void push_front(std::vector<std::string>&& col, const std::string& name) {
-    if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-    check_row_size(col.size(), name);
-    string_cols.emplace(name, std::move(col));
-    names_.insert(names_.begin(), name);
-  }
+  void push_front(const std::vector<std::string>& col, const std::string& name);
+  void push_front(std::vector<std::string>&& col, const std::string& name);
+  
+  // Scalar expansions for push_front
+  void push_front(double value, const std::string& name);
+  void push_front(int value, const std::string& name);
+  void push_front(bool value, const std::string& name);
+  void push_front(const std::string& value, const std::string& name);
   
   // Erase column
-  void erase(const std::string& name) {
-    if (numeric_cols.erase(name)) { }
-    else if (int_cols.erase(name)) { }
-    else if (bool_cols.erase(name)) { }
-    else string_cols.erase(name);
-    names_.erase(std::remove(names_.begin(), names_.end(), name), names_.end());
-  }
+  void erase(const std::string& name);
   
   // Accessors with type checking
   template <typename T>
@@ -330,12 +197,7 @@ struct DataFrameCpp {
   }
   
   // reserve map buckets (useful to avoid rehashing)
-  void reserve_columns(size_t expected) {
-    numeric_cols.reserve(expected);
-    int_cols.reserve(expected);
-    bool_cols.reserve(expected);
-    string_cols.reserve(expected);
-  }
+  void reserve_columns(size_t expected);
 };
 
 //
@@ -357,10 +219,6 @@ struct ListCpp {
     std::vector<int>,
     std::vector<double>,
     std::vector<std::string>,
-    std::vector<std::vector<bool>>,
-    std::vector<std::vector<int>>,
-    std::vector<std::vector<double>>,
-    std::vector<std::vector<std::string>>,
     FlatMatrix,
     DataFrameCpp,
     ListPtr,                                 // pointer to nested ListCpp
@@ -383,22 +241,10 @@ struct ListCpp {
     }
     
     // Convenience overloads for adding ListCpp by value or by shared_ptr
-    void push_back(const ListCpp& l, const std::string& name) {
-      push_back(std::make_shared<ListCpp>(l), name);
-    }
-    void push_back(ListCpp&& l, const std::string& name) {
-      push_back(std::make_shared<ListCpp>(std::move(l)), name);
-    }
-    void push_back(const ListPtr& p, const std::string& name) {
-      if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-      data.emplace(name, p);
-      names_.push_back(name);
-    }
-    void push_back(ListPtr&& p, const std::string& name) {
-      if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-      data.emplace(name, std::move(p));
-      names_.push_back(name);
-    }
+    void push_back(const ListCpp& l, const std::string& name);
+    void push_back(ListCpp&& l, const std::string& name);
+    void push_back(const ListPtr& p, const std::string& name);
+    void push_back(ListPtr&& p, const std::string& name);
     
     // push_front variants
     template<typename T>
@@ -408,22 +254,10 @@ struct ListCpp {
       names_.insert(names_.begin(), name);
     }
     
-    void push_front(const ListCpp& l, const std::string& name) {
-      push_front(std::make_shared<ListCpp>(l), name);
-    }
-    void push_front(ListCpp&& l, const std::string& name) {
-      push_front(std::make_shared<ListCpp>(std::move(l)), name);
-    }
-    void push_front(const ListPtr& p, const std::string& name) {
-      if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-      data.emplace(name, p);
-      names_.insert(names_.begin(), name);
-    }
-    void push_front(ListPtr&& p, const std::string& name) {
-      if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-      data.emplace(name, std::move(p));
-      names_.insert(names_.begin(), name);
-    }
+    void push_front(const ListCpp& l, const std::string& name);
+    void push_front(ListCpp&& l, const std::string& name);
+    void push_front(const ListPtr& p, const std::string& name);
+    void push_front(ListPtr&& p, const std::string& name);
     
     std::vector<std::string> names() const { return names_; }
     
@@ -440,137 +274,41 @@ struct ListCpp {
     }
     
     // Convenience: get nested ListCpp by reference (throws if not present)
-    ListCpp& get_list(const std::string& name) {
-      if (!containsElementNamed(name)) throw std::runtime_error("Element with name '" + name + "' not found.");
-      auto& var = data.at(name);
-      if (auto p = std::get_if<ListPtr>(&var)) {
-        if (!*p) throw std::runtime_error("List pointer is null for element '" + name + "'");
-        return **p;
-      }
-      throw std::runtime_error("Element '" + name + "' is not a ListCpp");
-    }
-    const ListCpp& get_list(const std::string& name) const {
-      if (!containsElementNamed(name)) throw std::runtime_error("Element with name '" + name + "' not found.");
-      const auto& var = data.at(name);
-      if (auto p = std::get_if<ListPtr>(&var)) {
-        if (!*p) throw std::runtime_error("List pointer is null for element '" + name + "'");
-        return **p;
-      }
-      throw std::runtime_error("Element '" + name + "' is not a ListCpp");
-    }
+    ListCpp& get_list(const std::string& name);
+    const ListCpp& get_list(const std::string& name) const;
     
-    void erase(const std::string& name) {
-      data.erase(name);
-      names_.erase(std::remove(names_.begin(), names_.end(), name), names_.end());
-    }
+    
+    // Convenience overloads for storing FlatMatrix and DataFrameCpp by value or by move
+    void push_back(const FlatMatrix& fm, const std::string& name);
+    void push_back(FlatMatrix&& fm, const std::string& name);
+    void push_front(const FlatMatrix& fm, const std::string& name);
+    void push_front(FlatMatrix&& fm, const std::string& name);
+    
+    void push_back(const DataFrameCpp& df, const std::string& name);
+    void push_back(DataFrameCpp&& df, const std::string& name);
+    void push_front(const DataFrameCpp& df, const std::string& name);
+    void push_front(DataFrameCpp&& df, const std::string& name);
+    
+    // Convenience typed accessors
+    FlatMatrix& get_flatmatrix(const std::string& name) { return get<FlatMatrix>(name); }
+    const FlatMatrix& get_flatmatrix(const std::string& name) const { return get<FlatMatrix>(name); }
+    DataFrameCpp& get_dataframe(const std::string& name) { return get<DataFrameCpp>(name); }
+    const DataFrameCpp& get_dataframe(const std::string& name) const { return get<DataFrameCpp>(name); }
+    
+    void erase(const std::string& name);
 };
 
 //
-// Converters between R and C++ types
+// Converters between R and C++ types (declarations only)
 //
+// these functions are implemented in dataframe_list.cpp to avoid inline bloat.
+// They are declared here because they are part of the public type-related API.
+DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df);
+Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df);
+Rcpp::List convertListCppToR(const ListCpp& L);
 
-inline DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
-  DataFrameCpp df;
-  Rcpp::CharacterVector cn = r_df.names();
-  size_t nc = r_df.size();
-  if (nc == 0) return df;
-  for (size_t j = 0; j < nc; ++j) {
-    std::string name = Rcpp::as<std::string>(cn[j]);
-    Rcpp::RObject col = r_df[j];
-    if (Rcpp::is<Rcpp::NumericVector>(col)) {
-      Rcpp::NumericVector nv = col;
-      df.push_back(Rcpp::as<std::vector<double>>(nv), name);
-    } else if (Rcpp::is<Rcpp::IntegerVector>(col)) {
-      Rcpp::IntegerVector iv = col;
-      df.push_back(Rcpp::as<std::vector<int>>(iv), name);
-    } else if (Rcpp::is<Rcpp::LogicalVector>(col)) {
-      Rcpp::LogicalVector lv = col;
-      df.push_back(Rcpp::as<std::vector<bool>>(lv), name);
-    } else if (Rcpp::is<Rcpp::CharacterVector>(col)) {
-      Rcpp::CharacterVector cv = col;
-      df.push_back(Rcpp::as<std::vector<std::string>>(cv), name);
-    } else {
-      Rcpp::warning("Unsupported column type in DataFrame conversion: " + name);
-    }
-  }
-  return df;
-}
-
-inline Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df) {
-  Rcpp::List cols;
-  Rcpp::CharacterVector names;
-  for (const auto& nm : df.names_) {
-    names.push_back(nm);
-    if (df.numeric_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.numeric_cols.at(nm)));
-    } else if (df.int_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.int_cols.at(nm)));
-    } else if (df.bool_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.bool_cols.at(nm)));
-    } else if (df.string_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.string_cols.at(nm)));
-    } else {
-      cols.push_back(R_NilValue);
-    }
-  }
-  cols.names() = names;
-  return Rcpp::as<Rcpp::DataFrame>(cols);
-}
-
-//
-// Visitor for ListCpp -> R conversion, with special handling for FlatMatrix and nested ListCpp
-//
-struct RcppVisitor {
-  template <typename T>
-  Rcpp::RObject operator()(const T& x) const {
-    return Rcpp::wrap(x);
-  }
-  
-  Rcpp::RObject operator()(const FlatMatrix& fm) const {
-    if (fm.nrow <= 0 || fm.ncol <= 0) return R_NilValue;
-    Rcpp::NumericMatrix M(fm.nrow, fm.ncol);
-    std::memcpy(REAL(M), fm.data.data(), fm.data.size() * sizeof(double));
-    return M;
-  }
-  
-  Rcpp::RObject operator()(const DataFrameCpp& df) const {
-    return convertDataFrameCppToR(df);
-  }
-  
-  Rcpp::RObject operator()(const ListPtr& p) const {
-    if (!p) return R_NilValue;
-    return convertListCppToR(*p);
-  }
-  
-  Rcpp::RObject operator()(const std::vector<DataFrameCpp>& dfs) const {
-    Rcpp::List out;
-    for (const auto& df : dfs) out.push_back(convertDataFrameCppToR(df));
-    return out;
-  }
-  
-  Rcpp::RObject operator()(const std::vector<ListPtr>& lists) const {
-    Rcpp::List out;
-    for (const auto& p : lists) {
-      if (!p) out.push_back(R_NilValue);
-      else out.push_back(convertListCppToR(*p));
-    }
-    return out;
-  }
-};
-
-inline Rcpp::List convertListCppToR(const ListCpp& L) {
-  Rcpp::List out;
-  Rcpp::CharacterVector names;
-  for (const auto& nm : L.names_) names.push_back(nm);
-  out.names() = names;
-  for (const auto& nm : L.names_) {
-    const auto& var = L.data.at(nm);
-    Rcpp::RObject obj = std::visit(RcppVisitor{}, var);
-    out.push_back(obj);
-  }
-  return out;
-}
-
+// Rcpp wrap specializations - small and dispatcher only, keep in header so they
+// are visible at compile-time where Rcpp::wrap is instantiated.
 namespace Rcpp {
 template <> inline SEXP wrap(const DataFrameCpp& df) {
   return Rcpp::wrap(convertDataFrameCppToR(df));
@@ -585,5 +323,16 @@ template <> inline SEXP wrap(const FlatMatrix& fm) {
   return Rcpp::wrap(M);
 }
 } // namespace Rcpp
+
+// --------------------------- R <-> FlatMatrix / DataFrame helpers ------------
+// Declarations only (implement in dataframe_list.cpp)
+
+FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M);
+DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, const std::vector<std::string>& names = {});
+FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std::string>& cols = {});
+const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
+DataFrameCpp subset_rows(const DataFrameCpp& df, const std::vector<int>& row_idx);
+std::shared_ptr<ListCpp> listcpp_from_rlist(const Rcpp::List& rlist);
 
 #endif // __DATAFRAME_LIST__
