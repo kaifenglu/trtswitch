@@ -897,126 +897,178 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
   int n = static_cast<int>(data.nrows());
   int p = static_cast<int>(variables.size());
   ListCpp result;
-  std::vector<int> nlevels(p);
-  std::vector<std::vector<int>> indices(static_cast<size_t>(n), std::vector<int>(static_cast<size_t>(p), 0));
-  ListCpp lookups_per_variable;
+  std::vector<int> nlevels(static_cast<size_t>(p));
   
-  // store unique lookups by type
-  std::vector<std::vector<int>> int_lookups;
-  std::vector<std::vector<double>> numeric_lookups;
-  std::vector<std::vector<bool>> bool_lookups;
-  std::vector<std::vector<std::string>> string_lookups;
+  // IntMatrix for indices (n rows, p cols), column-major storage
+  IntMatrix indices_im(n, p);
+  
+  // Flattened lookup buffers and per-variable metadata
+  struct VarLookupInfo {
+    int type; // 0=int, 1=double, 2=bool, 3=string
+    size_t offset;
+    int size;
+  };
+  std::vector<VarLookupInfo> var_info(static_cast<size_t>(p));
+  
+  std::vector<int> int_flat;
+  std::vector<double> dbl_flat;
+  // use a byte buffer instead of vector<bool>
+  std::vector<unsigned char> bool_flat;
+  std::vector<std::string> str_flat;
+  
+  ListCpp lookups_per_variable; // will contain DataFrameCpp for each variable
   
   for (int i = 0; i < p; ++i) {
     const std::string& var = variables[static_cast<size_t>(i)];
     if (!data.containElementNamed(var)) throw std::invalid_argument("Data must contain variable: " + var);
     
     if (data.int_cols.count(var)) {
-      auto col = data.int_cols.at(var);
+      const auto& col = data.int_cols.at(var);
       auto w = unique_sorted(col);
       nlevels[static_cast<size_t>(i)] = static_cast<int>(w.size());
-      auto idx = matchcpp(col, w);
-      for (int j = 0; j < n; ++j) indices[static_cast<size_t>(j)][static_cast<size_t>(i)] = idx[static_cast<size_t>(j)];
+      auto idx = matchcpp(col, w); // indices 0..(levels-1)
+      
+      // append w to flat buffer and record metadata
+      size_t off = int_flat.size();
+      int_flat.insert(int_flat.end(), w.begin(), w.end());
+      var_info[static_cast<size_t>(i)] = VarLookupInfo{0, off, static_cast<int>(w.size())};
+      
+      // fill indices_im column i (column-major layout)
+      for (int r = 0; r < n; ++r) {
+        indices_im.data[IntMatrix::idx_col(r, i, n)] = idx[static_cast<size_t>(r)];
+      }
+      
       DataFrameCpp df_uv;
       df_uv.push_back(w, var);
-      lookups_per_variable.push_back(df_uv, var);
-      int_lookups.push_back(w);
+      lookups_per_variable.push_back(std::move(df_uv), var);
+      
     } else if (data.numeric_cols.count(var)) {
-      auto col = data.numeric_cols.at(var);
+      const auto& col = data.numeric_cols.at(var);
       auto w = unique_sorted(col);
       nlevels[static_cast<size_t>(i)] = static_cast<int>(w.size());
       auto idx = matchcpp(col, w);
-      for (int j = 0; j < n; ++j) indices[static_cast<size_t>(j)][static_cast<size_t>(i)] = idx[static_cast<size_t>(j)];
+      
+      size_t off = dbl_flat.size();
+      dbl_flat.insert(dbl_flat.end(), w.begin(), w.end());
+      var_info[static_cast<size_t>(i)] = VarLookupInfo{1, off, static_cast<int>(w.size())};
+      
+      for (int r = 0; r < n; ++r) {
+        indices_im.data[IntMatrix::idx_col(r, i, n)] = idx[static_cast<size_t>(r)];
+      }
+      
       DataFrameCpp df_uv;
       df_uv.push_back(w, var);
-      lookups_per_variable.push_back(df_uv, var);
-      numeric_lookups.push_back(w);
+      lookups_per_variable.push_back(std::move(df_uv), var);
+      
     } else if (data.bool_cols.count(var)) {
-      auto col = data.bool_cols.at(var);
+      const auto& col = data.bool_cols.at(var);
       auto w = unique_sorted(col);
       nlevels[static_cast<size_t>(i)] = static_cast<int>(w.size());
       auto idx = matchcpp(col, w);
-      for (int j = 0; j < n; ++j) indices[static_cast<size_t>(j)][static_cast<size_t>(i)] = idx[static_cast<size_t>(j)];
+      
+      size_t off = bool_flat.size();
+      // append as bytes
+      for (bool bv : w) bool_flat.push_back(bv ? 1u : 0u);
+      var_info[static_cast<size_t>(i)] = VarLookupInfo{2, off, static_cast<int>(w.size())};
+      
+      for (int r = 0; r < n; ++r) {
+        indices_im.data[IntMatrix::idx_col(r, i, n)] = idx[static_cast<size_t>(r)];
+      }
+      
       DataFrameCpp df_uv;
       df_uv.push_back(w, var);
-      lookups_per_variable.push_back(df_uv, var);
-      bool_lookups.push_back(w);
+      lookups_per_variable.push_back(std::move(df_uv), var);
+      
     } else if (data.string_cols.count(var)) {
-      auto col = data.string_cols.at(var);
+      const auto& col = data.string_cols.at(var);
       auto w = unique_sorted(col);
       nlevels[static_cast<size_t>(i)] = static_cast<int>(w.size());
       auto idx = matchcpp(col, w);
-      for (int j = 0; j < n; ++j) indices[static_cast<size_t>(j)][static_cast<size_t>(i)] = idx[static_cast<size_t>(j)];
+      
+      size_t off = str_flat.size();
+      str_flat.insert(str_flat.end(), w.begin(), w.end());
+      var_info[static_cast<size_t>(i)] = VarLookupInfo{3, off, static_cast<int>(w.size())};
+      
+      for (int r = 0; r < n; ++r) {
+        indices_im.data[IntMatrix::idx_col(r, i, n)] = idx[static_cast<size_t>(r)];
+      }
+      
       DataFrameCpp df_uv;
       df_uv.push_back(w, var);
-      lookups_per_variable.push_back(df_uv, var);
-      string_lookups.push_back(w);
+      lookups_per_variable.push_back(std::move(df_uv), var);
+      
     } else {
       throw std::invalid_argument("Unsupported variable type in bygroup: " + var);
     }
-  }
+  } // end for variables
   
   // compute combined index
   std::vector<int> combined_index(static_cast<size_t>(n), 0);
   int orep = 1;
-  for (int i = 0; i < p; ++i) orep *= nlevels[static_cast<size_t>(i)];
+  for (int i = 0; i < p; ++i) orep *= (nlevels[static_cast<size_t>(i)] > 0 ? nlevels[static_cast<size_t>(i)] : 1);
   for (int i = 0; i < p; ++i) {
-    orep /= nlevels[static_cast<size_t>(i)];
-    for (int j = 0; j < n; ++j) combined_index[static_cast<size_t>(j)] += indices[static_cast<size_t>(j)][static_cast<size_t>(i)] * orep;
+    int denom = (nlevels[static_cast<size_t>(i)] > 0 ? nlevels[static_cast<size_t>(i)] : 1);
+    orep /= denom;
+    for (int j = 0; j < n; ++j) {
+      int val = indices_im.data[IntMatrix::idx_col(j, i, n)];
+      combined_index[static_cast<size_t>(j)] += val * orep;
+    }
   }
   
   int lookup_nrows = 1;
-  for (int i = 0; i < p; ++i) lookup_nrows *= nlevels[static_cast<size_t>(i)];
+  for (int i = 0; i < p; ++i) lookup_nrows *= (nlevels[static_cast<size_t>(i)] > 0 ? nlevels[static_cast<size_t>(i)] : 1);
   
+  // Build lookup_df with columns repeated in the same pattern as before.
   DataFrameCpp lookup_df;
   for (int i = 0; i < p; ++i) {
     const std::string& var = variables[static_cast<size_t>(i)];
     int nlevels_i = nlevels[static_cast<size_t>(i)];
     int repeat_each = 1;
-    for (int j = i + 1; j < p; ++j) repeat_each *= nlevels[static_cast<size_t>(j)];
-    int times = lookup_nrows / (nlevels_i * repeat_each);
+    for (int j = i + 1; j < p; ++j) repeat_each *= (nlevels[static_cast<size_t>(j)] > 0 ? nlevels[static_cast<size_t>(j)] : 1);
+    int times = lookup_nrows / ( (nlevels_i>0 ? nlevels_i : 1) * repeat_each );
     
-    if (data.int_cols.count(var)) {
-      auto& w = int_lookups.front();
+    VarLookupInfo info = var_info[static_cast<size_t>(i)];
+    if (info.type == 0) {
+      const int* base = int_flat.empty() ? nullptr : int_flat.data() + info.offset;
       std::vector<int> col(static_cast<size_t>(lookup_nrows));
-      int idx = 0;
+      int idxw = 0;
       for (int t = 0; t < times; ++t) {
-        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idx++)] = w[static_cast<size_t>(level)];
+        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idxw++)] = base[static_cast<size_t>(level)];
       }
       lookup_df.push_back(std::move(col), var);
-      int_lookups.erase(int_lookups.begin());
-    } else if (data.numeric_cols.count(var)) {
-      auto& w = numeric_lookups.front();
+    } else if (info.type == 1) {
+      const double* base = dbl_flat.empty() ? nullptr : dbl_flat.data() + info.offset;
       std::vector<double> col(static_cast<size_t>(lookup_nrows));
-      int idx = 0;
+      int idxw = 0;
       for (int t = 0; t < times; ++t) {
-        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idx++)] = w[static_cast<size_t>(level)];
+        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idxw++)] = base[static_cast<size_t>(level)];
       }
       lookup_df.push_back(std::move(col), var);
-      numeric_lookups.erase(numeric_lookups.begin());
-    } else if (data.bool_cols.count(var)) {
-      auto& w = bool_lookups.front();
+    } else if (info.type == 2) {
+      const unsigned char* base = bool_flat.empty() ? nullptr : bool_flat.data() + info.offset;
       std::vector<bool> col(static_cast<size_t>(lookup_nrows));
-      int idx = 0;
+      int idxw = 0;
       for (int t = 0; t < times; ++t) {
-        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idx++)] = w[static_cast<size_t>(level)];
+        for (int level = 0; level < nlevels_i; ++level) {
+          for (int r = 0; r < repeat_each; ++r) {
+            col[static_cast<size_t>(idxw++)] = (base[static_cast<size_t>(level)] != 0);
+          }
+        }
       }
       lookup_df.push_back(std::move(col), var);
-      bool_lookups.erase(bool_lookups.begin());
-    } else if (data.string_cols.count(var)) {
-      auto& w = string_lookups.front();
+    } else { // string
+      const std::string* base = str_flat.empty() ? nullptr : str_flat.data() + info.offset;
       std::vector<std::string> col(static_cast<size_t>(lookup_nrows));
-      int idx = 0;
+      int idxw = 0;
       for (int t = 0; t < times; ++t) {
-        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idx++)] = w[static_cast<size_t>(level)];
+        for (int level = 0; level < nlevels_i; ++level) for (int r = 0; r < repeat_each; ++r) col[static_cast<size_t>(idxw++)] = base[static_cast<size_t>(level)];
       }
       lookup_df.push_back(std::move(col), var);
-      string_lookups.erase(string_lookups.begin());
     }
   }
   
   result.push_back(nlevels, "nlevels");
-  result.push_back(indices, "indices");
+  result.push_back(std::move(indices_im), "indices"); // IntMatrix variant supported
   result.push_back(lookups_per_variable, "lookups_per_variable");
   result.push_back(combined_index, "index");
   result.push_back(lookup_df, "lookup");

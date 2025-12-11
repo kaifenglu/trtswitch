@@ -39,10 +39,10 @@ std::vector<int> findInterval3(const std::vector<double>& x,
                                bool left_open = false);
 
 double brent(const std::function<double(double)>& f,
-             double x1, double x2, double tol = std::pow(std::numeric_limits<double>::epsilon(), 0.25), int maxiter = 1000);
+             double x1, double x2, double tol = 1e-4, int maxiter = 1000);
 
 double bisect(const std::function<double(double)>& f,
-              double x1, double x2, double tol = std::pow(std::numeric_limits<double>::epsilon(), 0.25), int maxiter = 1000);
+              double x1, double x2, double tol = 1e-4, int maxiter = 1000);
 
 double quantilecpp(const std::vector<double>& x, double p);
 
@@ -115,10 +115,10 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
 FlatMatrix transpose(const FlatMatrix& A);
 
 // Linear algebra helpers operating on FlatMatrix (declarations match implementations)
-int cholesky2(FlatMatrix& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
+int cholesky2(FlatMatrix& matrix, int n, double toler = 1e-12);
 void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y);
 void chinv2(FlatMatrix& matrix, int n);
-FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
+FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = 1e-12);
 
 // Survival, QR and other helpers (use FlatMatrix where appropriate)
 DataFrameCpp survsplit(const std::vector<double>& tstart,
