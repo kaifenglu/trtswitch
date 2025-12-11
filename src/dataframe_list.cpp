@@ -7,9 +7,6 @@
 
 #include <Rcpp.h> // ensure Rcpp types available in this TU
 
-// Implementations for DataFrameCpp and ListCpp members and the helper/converter
-// functions declared in dataframe_list.h.
-
 using std::string;
 using std::vector;
 
@@ -67,7 +64,7 @@ void DataFrameCpp::push_back(std::vector<std::string>&& col, const std::string& 
   names_.push_back(name);
 }
 
-// Scalar expansions
+// Scalar expansions (push_back)
 void DataFrameCpp::push_back(double value, const std::string& name) {
   size_t cur = nrows();
   if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
@@ -97,6 +94,8 @@ void DataFrameCpp::push_back(const std::string& value, const std::string& name) 
   push_back(std::move(col), name);
 }
 
+// Efficient: push_back_flat accepts a column-major flattened buffer containing nrows * p values
+// and will create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
 void DataFrameCpp::push_back_flat(const std::vector<double>& flat_col_major, int nrows, const std::string& base_name) {
   if (flat_col_major.empty()) return;
   if (containElementNamed(base_name)) throw std::runtime_error("Column '" + base_name + "' already exists.");
@@ -126,7 +125,7 @@ void DataFrameCpp::push_back_flat(const std::vector<double>& flat_col_major, int
   }
 }
 
-// Push front variants
+// Push front variants (vectors)
 void DataFrameCpp::push_front(const std::vector<double>& col, const std::string& name) {
   if (containElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -176,7 +175,7 @@ void DataFrameCpp::push_front(std::vector<std::string>&& col, const std::string&
   names_.insert(names_.begin(), name);
 }
 
-// Scalar expansions for push_front
+// Scalar expansions for push_front (new implementations)
 void DataFrameCpp::push_front(double value, const std::string& name) {
   size_t cur = nrows();
   if (cur == 0 && !names_.empty()) throw std::runtime_error("Cannot push scalar when DataFrame has 0 rows");
@@ -221,6 +220,8 @@ void DataFrameCpp::reserve_columns(size_t expected) {
   string_cols.reserve(expected);
 }
 
+
+
 // --------------------------- ListCpp small members --------------------------
 
 void ListCpp::push_back(const ListCpp& l, const std::string& name) {
@@ -238,6 +239,72 @@ void ListCpp::push_back(ListPtr&& p, const std::string& name) {
   if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
   data.emplace(name, std::move(p));
   names_.push_back(name);
+}
+
+// FlatMatrix overloads
+void ListCpp::push_back(const FlatMatrix& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, fm);
+  names_.push_back(name);
+}
+void ListCpp::push_back(FlatMatrix&& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(fm));
+  names_.push_back(name);
+}
+void ListCpp::push_front(const FlatMatrix& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, fm);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(FlatMatrix&& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(fm));
+  names_.insert(names_.begin(), name);
+}
+
+// IntMatrix overloads
+void ListCpp::push_back(const IntMatrix& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, im);
+  names_.push_back(name);
+}
+void ListCpp::push_back(IntMatrix&& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(im));
+  names_.push_back(name);
+}
+void ListCpp::push_front(const IntMatrix& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, im);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(IntMatrix&& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(im));
+  names_.insert(names_.begin(), name);
+}
+
+// DataFrameCpp overloads
+void ListCpp::push_back(const DataFrameCpp& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, df);
+  names_.push_back(name);
+}
+void ListCpp::push_back(DataFrameCpp&& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(df));
+  names_.push_back(name);
+}
+void ListCpp::push_front(const DataFrameCpp& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, df);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(DataFrameCpp&& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(df));
+  names_.insert(names_.begin(), name);
 }
 
 void ListCpp::push_front(const ListCpp& l, const std::string& name) {
@@ -276,50 +343,6 @@ const ListCpp& ListCpp::get_list(const std::string& name) const {
   throw std::runtime_error("Element '" + name + "' is not a ListCpp");
 }
 
-// FlatMatrix overloads
-void ListCpp::push_back(const FlatMatrix& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, fm);
-  names_.push_back(name);
-}
-void ListCpp::push_back(FlatMatrix&& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(fm));
-  names_.push_back(name);
-}
-void ListCpp::push_front(const FlatMatrix& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, fm);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(FlatMatrix&& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(fm));
-  names_.insert(names_.begin(), name);
-}
-
-// DataFrameCpp overloads
-void ListCpp::push_back(const DataFrameCpp& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, df);
-  names_.push_back(name);
-}
-void ListCpp::push_back(DataFrameCpp&& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(df));
-  names_.push_back(name);
-}
-void ListCpp::push_front(const DataFrameCpp& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, df);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(DataFrameCpp&& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(df));
-  names_.insert(names_.begin(), name);
-}
-
 void ListCpp::erase(const std::string& name) {
   data.erase(name);
   names_.erase(std::remove(names_.begin(), names_.end(), name), names_.end());
@@ -336,7 +359,6 @@ DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
   
   for (R_xlen_t j = 0; j < nc; ++j) {
     std::string name;
-    // handle missing/NULL column names robustly
     if (cn.size() > 0 && static_cast<R_xlen_t>(cn.size()) > j && !Rcpp::StringVector::is_na(cn[j]) && std::string(cn[j]) != "") {
       name = Rcpp::as<std::string>(cn[j]);
     } else {
@@ -396,6 +418,13 @@ struct RcppVisitor {
     return M;
   }
   
+  Rcpp::RObject operator()(const IntMatrix& im) const {
+    if (im.nrow <= 0 || im.ncol <= 0) return R_NilValue;
+    Rcpp::IntegerMatrix M(im.nrow, im.ncol);
+    std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
+    return M;
+  }
+  
   Rcpp::RObject operator()(const DataFrameCpp& df) const {
     return convertDataFrameCppToR(df);
   }
@@ -438,7 +467,7 @@ Rcpp::List convertListCppToR(const ListCpp& L) {
   return out;
 }
 
-// --------------------------- R <-> FlatMatrix / DataFrame helpers ------------
+// --------------------------- R <-> FlatMatrix / IntMatrix / DataFrame helpers ------------
 
 // Convert Rcpp::NumericMatrix to FlatMatrix (efficient memcpy when possible)
 FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M) {
@@ -447,6 +476,15 @@ FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M) {
   FlatMatrix fm(nr, nc);
   std::memcpy(fm.data.data(), REAL(M), static_cast<size_t>(nr) * static_cast<size_t>(nc) * sizeof(double));
   return fm;
+}
+
+// Convert Rcpp::IntegerMatrix to IntMatrix (efficient memcpy)
+IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M) {
+  int nr = M.nrow(), nc = M.ncol();
+  if (nr == 0 || nc == 0) return IntMatrix();
+  IntMatrix im(nr, nc);
+  std::memcpy(im.data.data(), INTEGER(M), static_cast<size_t>(nr) * static_cast<size_t>(nc) * sizeof(int));
+  return im;
 }
 
 // Build a DataFrameCpp from a FlatMatrix
@@ -472,17 +510,11 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std
     for (const auto& nm : df.names()) {
       if (df.numeric_cols.count(nm) || df.int_cols.count(nm) || df.bool_cols.count(nm)) cols.push_back(nm);
     }
-  } else {
-    cols = cols_in;
-  }
-  
+  } else cols = cols_in;
   if (cols.empty()) return FlatMatrix();
-  int ncol = static_cast<int>(cols.size());
-  int nrow = static_cast<int>(df.nrows());
+  int ncol = static_cast<int>(cols.size()), nrow = static_cast<int>(df.nrows());
   if (nrow == 0) return FlatMatrix();
-  
   FlatMatrix out(nrow, ncol);
-  
   for (int c = 0; c < ncol; ++c) {
     const std::string& name = cols[static_cast<size_t>(c)];
     size_t offset = FlatMatrix::idx_col(0, c, nrow);
@@ -507,18 +539,26 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std
       throw std::runtime_error("flatten_numeric_columns: column '" + name + "' not found or not numeric/integer/bool");
     }
   }
-  
   return out;
 }
-
 
 // numeric_column_ptr
 const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept {
   return df.numeric_col_ptr(name);
 }
 
+// int_column_ptr
+const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept {
+  return df.int_col_ptr(name);
+}
+
 // move_numeric_column
 void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name) {
+  df.push_back(std::move(col), name);
+}
+
+// move_int_column
+void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name) {
   df.push_back(std::move(col), name);
 }
 
@@ -566,7 +606,7 @@ DataFrameCpp subset_rows(const DataFrameCpp& df, const std::vector<int>& row_idx
 // Helper: use Rcpp::as<T>(obj) to perform conversions from RObject safely.
 
 static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::string& name, const Rcpp::RObject& obj) {
-  // Matrices first (matrix types are not vectors).
+  // NumericMatrix -> FlatMatrix
   if (Rcpp::is<Rcpp::NumericMatrix>(obj)) {
     Rcpp::NumericMatrix M = Rcpp::as<Rcpp::NumericMatrix>(obj);
     FlatMatrix fm = flatmatrix_from_Rmatrix(M);
@@ -574,36 +614,15 @@ static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::stri
     return true;
   }
   
+  // IntegerMatrix -> IntMatrix
   if (Rcpp::is<Rcpp::IntegerMatrix>(obj)) {
     Rcpp::IntegerMatrix M = Rcpp::as<Rcpp::IntegerMatrix>(obj);
-    int nr = M.nrow(), nc = M.ncol();
-    FlatMatrix fm(nr, nc);
-    for (int c = 0; c < nc; ++c) {
-      size_t off = FlatMatrix::idx_col(0, c, nr);
-      for (int r = 0; r < nr; ++r) {
-        // Rcpp::IntegerMatrix supports operator()(r,c)
-        fm.data[off + static_cast<size_t>(r)] = static_cast<double>(M(r, c));
-      }
-    }
-    target.push_back(std::move(fm), name);
+    IntMatrix im = intmatrix_from_Rmatrix(M);
+    target.push_back(std::move(im), name);
     return true;
   }
   
-  if (Rcpp::is<Rcpp::LogicalMatrix>(obj)) {
-    Rcpp::LogicalMatrix M = Rcpp::as<Rcpp::LogicalMatrix>(obj);
-    int nr = M.nrow(), nc = M.ncol();
-    FlatMatrix fm(nr, nc);
-    for (int c = 0; c < nc; ++c) {
-      size_t off = FlatMatrix::idx_col(0, c, nr);
-      for (int r = 0; r < nr; ++r) {
-        fm.data[off + static_cast<size_t>(r)] = M(r, c) ? 1.0 : 0.0;
-      }
-    }
-    target.push_back(std::move(fm), name);
-    return true;
-  }
-  
-  // Data frame -> DataFrameCpp
+  // DataFrame -> DataFrameCpp
   if (Rcpp::is<Rcpp::DataFrame>(obj)) {
     Rcpp::DataFrame rdf = Rcpp::as<Rcpp::DataFrame>(obj);
     DataFrameCpp cppdf = convertRDataFrameToCpp(rdf);
@@ -619,7 +638,7 @@ static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::stri
     return true;
   }
   
-  // Atomic vectors (scalars/1-D arrays)
+  // NumericVector -> std::vector<double>
   if (Rcpp::is<Rcpp::NumericVector>(obj)) {
     Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(obj);
     std::vector<double> v = Rcpp::as<std::vector<double>>(nv);
@@ -627,6 +646,7 @@ static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::stri
     return true;
   }
   
+  // IntegerVector -> std::vector<int>
   if (Rcpp::is<Rcpp::IntegerVector>(obj)) {
     Rcpp::IntegerVector iv = Rcpp::as<Rcpp::IntegerVector>(obj);
     std::vector<int> v = Rcpp::as<std::vector<int>>(iv);
@@ -634,6 +654,7 @@ static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::stri
     return true;
   }
   
+  // LogicalVector -> std::vector<bool>
   if (Rcpp::is<Rcpp::LogicalVector>(obj)) {
     Rcpp::LogicalVector lv = Rcpp::as<Rcpp::LogicalVector>(obj);
     std::vector<bool> v = Rcpp::as<std::vector<bool>>(lv);
@@ -641,6 +662,7 @@ static bool convert_r_object_to_listcpp_variant(ListCpp& target, const std::stri
     return true;
   }
   
+  // CharacterVector -> std::vector<string>
   if (Rcpp::is<Rcpp::CharacterVector>(obj)) {
     Rcpp::CharacterVector cv = Rcpp::as<Rcpp::CharacterVector>(obj);
     std::vector<std::string> v = Rcpp::as<std::vector<std::string>>(cv);

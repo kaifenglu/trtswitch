@@ -4,7 +4,8 @@
 // DataFrameCpp / ListCpp that uses ska::flat_hash_map (flat hash map)
 // for the internal maps to improve lookup performance and cache locality.
 // Uses FlatMatrix (column-major flattened std::vector<double>)
-// for efficient R interop (single memcpy).
+// and IntMatrix (column-major flattened std::vector<int>) for efficient R interop
+// (single memcpy).
 
 #include <algorithm>
 #include <cstddef>
@@ -22,7 +23,7 @@
 #include "ska/flat_hash_map.hpp"
 
 //
-// FlatMatrix: contiguous column-major matrix representation
+// FlatMatrix: contiguous column-major matrix representation (double)
 //
 struct FlatMatrix {
   std::vector<double> data; // column-major: element (r,c) => data[c * nrow + r]
@@ -55,7 +56,6 @@ struct FlatMatrix {
     return static_cast<size_t>(col) * static_cast<size_t>(nrows) + static_cast<size_t>(row);
   }
   
-  // unchecked accessors (fast). Prefer data_ptr()/at_checked() for other usage.
   inline double& operator()(int r, int c) {
     return data[idx_col(r, c, nrow)];
   }
@@ -66,6 +66,52 @@ struct FlatMatrix {
   // raw pointer accessors for parallel-friendly use
   inline const double* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
   inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
+};
+
+//
+// IntMatrix: contiguous column-major integer matrix representation (int)
+//
+struct IntMatrix {
+  std::vector<int> data; // column-major: element (r,c) => data[c * nrow + r]
+  int nrow = 0;
+  int ncol = 0;
+  
+  IntMatrix() = default;
+  IntMatrix(int nr, int nc) : data(static_cast<size_t>(nr) * static_cast<size_t>(nc)),
+  nrow(nr), ncol(nc) {}
+  
+  IntMatrix(std::vector<int>&& d, int nr, int nc)
+    : data(std::move(d)), nrow(nr), ncol(nc) {
+    if (static_cast<size_t>(nr) * static_cast<size_t>(nc) != data.size())
+      throw std::runtime_error("IntMatrix: data size mismatch with dimensions");
+  }
+  
+  inline void resize(int nr, int nc) {
+    nrow = nr; ncol = nc;
+    data.resize(static_cast<size_t>(nr) * static_cast<size_t>(nc));
+  }
+  
+  inline void fill(int v) { std::fill(data.begin(), data.end(), v); }
+  
+  inline bool empty() const noexcept { return data.empty() || nrow == 0 || ncol == 0; }
+  
+  inline size_t size() const noexcept { return data.size(); }
+  
+  // column-major index helper
+  inline static size_t idx_col(int row, int col, int nrows) noexcept {
+    return static_cast<size_t>(col) * static_cast<size_t>(nrows) + static_cast<size_t>(row);
+  }
+  
+  inline int& operator()(int r, int c) {
+    return data[idx_col(r, c, nrow)];
+  }
+  inline int operator()(int r, int c) const {
+    return data[idx_col(r, c, nrow)];
+  }
+  
+  // raw pointer accessors for parallel-friendly use
+  inline const int* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
+  inline int* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
 };
 
 //
@@ -133,6 +179,7 @@ struct DataFrameCpp {
   void push_back(const std::string& value, const std::string& name);
   
   // Efficient: push_back_flat accepts a column-major flattened buffer containing nrows * p values
+  // and will create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
   void push_back_flat(const std::vector<double>& flat_col_major, int nrows, const std::string& base_name);
   
   // Push front variants (const& + && for all types)
@@ -148,7 +195,7 @@ struct DataFrameCpp {
   void push_front(const std::vector<std::string>& col, const std::string& name);
   void push_front(std::vector<std::string>&& col, const std::string& name);
   
-  // Scalar expansions for push_front
+  // Scalar expansions for push_front (requested)
   void push_front(double value, const std::string& name);
   void push_front(int value, const std::string& name);
   void push_front(bool value, const std::string& name);
@@ -195,6 +242,16 @@ struct DataFrameCpp {
     auto it = numeric_cols.find(name);
     return it == numeric_cols.end() ? 0 : static_cast<int>(it->second.size());
   }
+
+  const int* int_col_ptr(const std::string& name) const noexcept {
+    auto it = int_cols.find(name);
+    return it == int_cols.end() ? nullptr : it->second.data();
+  }
+  
+  int int_col_nrows(const std::string& name) const noexcept {
+    auto it = int_cols.find(name);
+    return it == int_cols.end() ? 0 : static_cast<int>(it->second.size());
+  }
   
   // reserve map buckets (useful to avoid rehashing)
   void reserve_columns(size_t expected);
@@ -220,6 +277,7 @@ struct ListCpp {
     std::vector<double>,
     std::vector<std::string>,
     FlatMatrix,
+    IntMatrix,
     DataFrameCpp,
     ListPtr,                                 // pointer to nested ListCpp
     std::vector<DataFrameCpp>,
@@ -245,6 +303,22 @@ struct ListCpp {
     void push_back(ListCpp&& l, const std::string& name);
     void push_back(const ListPtr& p, const std::string& name);
     void push_back(ListPtr&& p, const std::string& name);
+    
+    // Convenience overloads for FlatMatrix / IntMatrix / DataFrameCpp
+    void push_back(const FlatMatrix& fm, const std::string& name);
+    void push_back(FlatMatrix&& fm, const std::string& name);
+    void push_front(const FlatMatrix& fm, const std::string& name);
+    void push_front(FlatMatrix&& fm, const std::string& name);
+    
+    void push_back(const IntMatrix& im, const std::string& name);
+    void push_back(IntMatrix&& im, const std::string& name);
+    void push_front(const IntMatrix& im, const std::string& name);
+    void push_front(IntMatrix&& im, const std::string& name);
+    
+    void push_back(const DataFrameCpp& df, const std::string& name);
+    void push_back(DataFrameCpp&& df, const std::string& name);
+    void push_front(const DataFrameCpp& df, const std::string& name);
+    void push_front(DataFrameCpp&& df, const std::string& name);
     
     // push_front variants
     template<typename T>
@@ -277,32 +351,14 @@ struct ListCpp {
     ListCpp& get_list(const std::string& name);
     const ListCpp& get_list(const std::string& name) const;
     
-    
-    // Convenience overloads for storing FlatMatrix and DataFrameCpp by value or by move
-    void push_back(const FlatMatrix& fm, const std::string& name);
-    void push_back(FlatMatrix&& fm, const std::string& name);
-    void push_front(const FlatMatrix& fm, const std::string& name);
-    void push_front(FlatMatrix&& fm, const std::string& name);
-    
-    void push_back(const DataFrameCpp& df, const std::string& name);
-    void push_back(DataFrameCpp&& df, const std::string& name);
-    void push_front(const DataFrameCpp& df, const std::string& name);
-    void push_front(DataFrameCpp&& df, const std::string& name);
-    
-    // Convenience typed accessors
-    FlatMatrix& get_flatmatrix(const std::string& name) { return get<FlatMatrix>(name); }
-    const FlatMatrix& get_flatmatrix(const std::string& name) const { return get<FlatMatrix>(name); }
-    DataFrameCpp& get_dataframe(const std::string& name) { return get<DataFrameCpp>(name); }
-    const DataFrameCpp& get_dataframe(const std::string& name) const { return get<DataFrameCpp>(name); }
-    
     void erase(const std::string& name);
 };
 
-//
-// Converters between R and C++ types (declarations only)
+// --------------------------- Converters between R and C++ types (declarations) ----
 //
 // these functions are implemented in dataframe_list.cpp to avoid inline bloat.
 // They are declared here because they are part of the public type-related API.
+
 DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df);
 Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df);
 Rcpp::List convertListCppToR(const ListCpp& L);
@@ -322,16 +378,25 @@ template <> inline SEXP wrap(const FlatMatrix& fm) {
   std::memcpy(REAL(M), fm.data.data(), fm.data.size() * sizeof(double));
   return Rcpp::wrap(M);
 }
+template <> inline SEXP wrap(const IntMatrix& im) {
+  if (im.nrow <= 0 || im.ncol <= 0) return R_NilValue;
+  Rcpp::IntegerMatrix M(im.nrow, im.ncol);
+  std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
+  return Rcpp::wrap(M);
+}
 } // namespace Rcpp
 
-// --------------------------- R <-> FlatMatrix / DataFrame helpers ------------
+// --------------------------- R <-> FlatMatrix / IntMatrix / DataFrame helpers ------------
 // Declarations only (implement in dataframe_list.cpp)
 
 FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M);
+IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M);
 DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, const std::vector<std::string>& names = {});
 FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std::string>& cols = {});
 const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
 void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
+const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
 DataFrameCpp subset_rows(const DataFrameCpp& df, const std::vector<int>& row_idx);
 std::shared_ptr<ListCpp> listcpp_from_rlist(const Rcpp::List& rlist);
 
