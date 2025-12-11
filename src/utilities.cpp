@@ -129,8 +129,7 @@ std::vector<int> findInterval3(const std::vector<double>& x,
   for (size_t i = 0; i < x.size(); ++i) {
     double xi = x[i];
     if (std::isnan(xi)) { out[i] = -1; continue; }
-    const double* pos = left_open ? std::lower_bound(v_begin, v_end, xi)
-      : std::upper_bound(v_begin, v_end, xi);
+    const double* pos = left_open ? std::lower_bound(v_begin, v_end, xi) : std::upper_bound(v_begin, v_end, xi);
     int idx = static_cast<int>(pos - v_begin);
     if (rightmost_closed) {
       if (left_open) {
@@ -890,58 +889,6 @@ double getpsiend(const std::function<double(double)>& f,
 }
 
 // --------------------------- bygroup (rewritten to use DataFrameCpp/ListCpp) ----
-
-// Helper functions used by bygroup: unique_sorted and matchcpp
-static std::vector<int> unique_sorted(const std::vector<int>& v) {
-  std::vector<int> w = v;
-  std::sort(w.begin(), w.end());
-  w.erase(std::unique(w.begin(), w.end()), w.end());
-  return w;
-}
-static std::vector<double> unique_sorted(const std::vector<double>& v) {
-  std::vector<double> w = v;
-  std::sort(w.begin(), w.end());
-  w.erase(std::unique(w.begin(), w.end()), w.end());
-  return w;
-}
-// matchcpp: return indices into 'lookup' for each element in 'values'
-static std::vector<int> matchcpp(const std::vector<int>& values, const std::vector<int>& lookup) {
-  std::vector<int> idx(values.size());
-  for (size_t i = 0; i < values.size(); ++i) {
-    auto it = std::lower_bound(lookup.begin(), lookup.end(), values[i]);
-    if (it == lookup.end() || *it != values[i]) idx[i] = -1;
-    else idx[i] = static_cast<int>(it - lookup.begin());
-  }
-  return idx;
-}
-static std::vector<int> matchcpp(const std::vector<double>& values, const std::vector<double>& lookup) {
-  std::vector<int> idx(values.size());
-  for (size_t i = 0; i < values.size(); ++i) {
-    auto it = std::lower_bound(lookup.begin(), lookup.end(), values[i]);
-    if (it == lookup.end() || *it != values[i]) idx[i] = -1;
-    else idx[i] = static_cast<int>(it - lookup.begin());
-  }
-  return idx;
-}
-static std::vector<int> matchcpp(const std::vector<bool>& values, const std::vector<bool>& lookup) {
-  std::vector<int> idx(values.size());
-  for (size_t i = 0; i < values.size(); ++i) {
-    auto it = std::lower_bound(lookup.begin(), lookup.end(), values[i]);
-    if (it == lookup.end() || *it != values[i]) idx[i] = -1;
-    else idx[i] = static_cast<int>(it - lookup.begin());
-  }
-  return idx;
-}
-static std::vector<int> matchcpp(const std::vector<std::string>& values, const std::vector<std::string>& lookup) {
-  std::vector<int> idx(values.size());
-  for (size_t i = 0; i < values.size(); ++i) {
-    auto it = std::lower_bound(lookup.begin(), lookup.end(), values[i]);
-    if (it == lookup.end() || *it != values[i]) idx[i] = -1;
-    else idx[i] = static_cast<int>(it - lookup.begin());
-  }
-  return idx;
-}
-
 ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables) {
   int n = static_cast<int>(data.nrows());
   int p = static_cast<int>(variables.size());

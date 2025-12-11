@@ -6,11 +6,12 @@
 #include <algorithm>
 #include <stdexcept>
 #include <limits>
+#include <functional>
 
 #include <Rcpp.h>
 
-struct DataFrameCpp; 
-struct ListCpp; 
+// Use the concrete types defined in dataframe_list.h
+#include "dataframe_list.h"
 
 double boost_pnorm(double q, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
 double boost_qnorm(double p, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
@@ -26,7 +27,6 @@ double boost_dextreme(double x, double location = 0.0, double scale = 1.0);
 
 double boost_pchisq(double q, double df, bool lower_tail = true);
 double boost_qchisq(double p, double df, bool lower_tail = true);
-
 
 std::vector<int> seqcpp(int start, int end);
 
@@ -50,62 +50,39 @@ double squantilecpp(const std::function<double(double)>& S, double p, double tol
 
 template <typename T>
 void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
-  // Create a temporary vector to store the subset elements
   std::vector<T> temp_subset(order.size());
-  
   for (size_t i = 0; i < order.size(); ++i) {
     int index = order[i];
-    // Safety check: ensure the index is valid for the source vector 'v'
     if (index < 0 || index >= static_cast<int>(v.size())) {
       throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
     }
-    // Select the element at the specified index
     temp_subset[i] = v[index];
   }
-  
-  // Replace the contents of 'v' with the elements from 'temp_subset'
   v.assign(temp_subset.begin(), temp_subset.end());
 }
 
-
 template <typename T>
 std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
-  // The size of the result vector is the same as the size of the order vector
   std::vector<T> result(order.size());
-  
   for (size_t i = 0; i < order.size(); ++i) {
     int index = order[i];
-    
-    // Safety check: ensure the index is valid for the source vector 'v'
     if (index < 0 || index >= static_cast<int>(v.size())) {
       throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
     }
-    
-    // Select the element at the specified index
     result[i] = v[index];
   }
-  
   return result;
 }
 
 template <typename T>
 std::vector<T> concat(const std::vector<T>& v1, const std::vector<T>& v2) {
-  // Determine the total size needed for the resulting vector.
   size_t total_size = v1.size() + v2.size();
-  
-  // Create a new result vector and reserve memory.
   std::vector<T> result;
   result.reserve(total_size);
-  
-  // Copy elements from the first vector using std::copy
   std::copy(v1.begin(), v1.end(), std::back_inserter(result));
-  
-  // Copy elements from the second vector using std::copy
   std::copy(v2.begin(), v2.end(), std::back_inserter(result));
-  
   return result;
 }
-
 
 template <typename T>
 std::vector<T> unique_sorted(const std::vector<T>& v) {
@@ -129,33 +106,31 @@ std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table) 
   return result;
 }
 
+// Use FlatMatrix-based signatures (efficient, column-major)
 ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables);
 
-std::vector<double> mat_vec_mult(const std::vector<std::vector<double>>& A, 
-                                 const std::vector<double>& x);
+// Matrix operations using FlatMatrix (efficient implementations in utilities.cpp)
+std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>& x);
+FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
+FlatMatrix transpose(const FlatMatrix& A);
 
-std::vector<std::vector<double>> mat_mat_mult(const std::vector<std::vector<double>>& A, 
-                                              const std::vector<std::vector<double>>& B);
+// Linear algebra helpers operating on FlatMatrix (declarations match implementations)
+int cholesky2(FlatMatrix& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
+void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y);
+void chinv2(FlatMatrix& matrix, int n);
+FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
 
-std::vector<std::vector<double>> transpose(const std::vector<std::vector<double>>& A);
-
-int cholesky2(std::vector<std::vector<double>>& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
-
-void chsolve2(std::vector<std::vector<double>>& matrix, int n, std::vector<double>& y);
-
-void chinv2(std::vector<std::vector<double>>& matrix, int n);
-
-std::vector<std::vector<double>> invsympd(const std::vector<std::vector<double>>& matrix, int n, double toler = std::pow(std::numeric_limits<double>::epsilon(), 0.75));
-
-DataFrameCpp survsplit(const std::vector<double>& tstart, 
-                       const std::vector<double>& tstop, 
+// Survival, QR and other helpers (use FlatMatrix where appropriate)
+DataFrameCpp survsplit(const std::vector<double>& tstart,
+                       const std::vector<double>& tstop,
                        const std::vector<double>& cut);
 
-ListCpp qrcpp(const std::vector<std::vector<double>>& X, double tol = 1e-07);
+// QR uses FlatMatrix as input
+ListCpp qrcpp(const FlatMatrix& X, double tol = 1e-07);
 
-std::vector<int> match3(const std::vector<int>& id1, 
-                        const std::vector<double>& v1, 
-                        const std::vector<int>& id2, 
+std::vector<int> match3(const std::vector<int>& id1,
+                        const std::vector<double>& v1,
+                        const std::vector<int>& id2,
                         const std::vector<double>& v2);
 
 DataFrameCpp untreated(double psi,
@@ -195,8 +170,5 @@ ListCpp getpsiest(double target,
 double getpsiend(const std::function<double(double)>& f,
                  bool lowerend,
                  double initialend);
-
-
-
 
 #endif // __UTILITIES__
