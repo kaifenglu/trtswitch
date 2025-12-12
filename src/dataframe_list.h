@@ -241,10 +241,27 @@ struct DataFrameCpp {
     auto it = int_cols.find(name);
     return it == int_cols.end() ? nullptr : it->second.data();
   }
-  
   std::size_t int_col_nrows(const std::string& name) const noexcept {
     auto it = int_cols.find(name);
     return it == int_cols.end() ? 0 : it->second.size();
+  }
+
+  const bool* bool_col_ptr(const std::string& name) const noexcept {
+    auto it = bool_cols.find(name);
+    return it == bool_cols.end() ? nullptr : it->second.data();
+  }
+  std::size_t bool_col_nrows(const std::string& name) const noexcept {
+    auto it = bool_cols.find(name);
+    return it == bool_cols.end() ? 0 : it->second.size();
+  }
+  
+  const std::string* string_col_ptr(const std::string& name) const noexcept {
+    auto it = string_cols.find(name);
+    return it == string_cols.end() ? nullptr : it->second.data();
+  }
+  std::size_t string_col_nrows(const std::string& name) const noexcept {
+    auto it = string_cols.find(name);
+    return it == string_cols.end() ? 0 : it->second.size();
   }
   
   // reserve map buckets (useful to avoid rehashing)
@@ -263,10 +280,10 @@ using ListPtr = std::shared_ptr<ListCpp>;
 struct ListCpp {
   std::vector<std::string> names_; // insertion order
   ska::flat_hash_map<std::string, std::variant<
-    bool, int, double, std::string,
-    std::vector<bool>,
-    std::vector<int>,
+    double, int, bool, std::string,
     std::vector<double>,
+    std::vector<int>,
+    std::vector<bool>,
     std::vector<std::string>,
     FlatMatrix,
     IntMatrix,
@@ -279,7 +296,7 @@ struct ListCpp {
     ListCpp() = default;
     
     std::size_t size() const { return data.size(); }
-    
+    std::vector<std::string> names() const { return names_; }
     bool containsElementNamed(const std::string& name) const { return data.count(name) > 0; }
     
     // Generic push_back for value-like types that match the variant alternatives
@@ -299,18 +316,12 @@ struct ListCpp {
     // Convenience overloads for FlatMatrix / IntMatrix / DataFrameCpp
     void push_back(const FlatMatrix& fm, const std::string& name);
     void push_back(FlatMatrix&& fm, const std::string& name);
-    void push_front(const FlatMatrix& fm, const std::string& name);
-    void push_front(FlatMatrix&& fm, const std::string& name);
-    
+     
     void push_back(const IntMatrix& im, const std::string& name);
     void push_back(IntMatrix&& im, const std::string& name);
-    void push_front(const IntMatrix& im, const std::string& name);
-    void push_front(IntMatrix&& im, const std::string& name);
     
     void push_back(const DataFrameCpp& df, const std::string& name);
     void push_back(DataFrameCpp&& df, const std::string& name);
-    void push_front(const DataFrameCpp& df, const std::string& name);
-    void push_front(DataFrameCpp&& df, const std::string& name);
     
     // push_front variants
     template<typename T>
@@ -325,7 +336,16 @@ struct ListCpp {
     void push_front(const ListPtr& p, const std::string& name);
     void push_front(ListPtr&& p, const std::string& name);
     
-    std::vector<std::string> names() const { return names_; }
+    void push_front(const FlatMatrix& fm, const std::string& name);
+    void push_front(FlatMatrix&& fm, const std::string& name);
+    
+    void push_front(const IntMatrix& im, const std::string& name);
+    void push_front(IntMatrix&& im, const std::string& name);
+    
+    void push_front(const DataFrameCpp& df, const std::string& name);
+    void push_front(DataFrameCpp&& df, const std::string& name);
+    
+    void erase(const std::string& name);
     
     template <typename T>
     T& get(const std::string& name) {
@@ -342,8 +362,6 @@ struct ListCpp {
     // Convenience: get nested ListCpp by reference (throws if not present)
     ListCpp& get_list(const std::string& name);
     const ListCpp& get_list(const std::string& name) const;
-    
-    void erase(const std::string& name);
 };
 
 // --------------------------- Converters between R and C++ types (declarations) ----
@@ -380,10 +398,10 @@ IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M);
 DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, const std::vector<std::string>& names = {});
 FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std::string>& cols = {});
 const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
-void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
 const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
 void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
-DataFrameCpp subset_rows(const DataFrameCpp& df, const std::vector<std::size_t>& row_idx);
+DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<std::size_t>& row_idx);
 std::shared_ptr<ListCpp> listcpp_from_rlist(const Rcpp::List& rlist);
 
 #endif // __DATAFRAME_LIST__

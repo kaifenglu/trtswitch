@@ -247,17 +247,6 @@ void ListCpp::push_back(FlatMatrix&& fm, const std::string& name) {
   data.emplace(name, std::move(fm));
   names_.push_back(name);
 }
-void ListCpp::push_front(const FlatMatrix& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, fm);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(FlatMatrix&& fm, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(fm));
-  names_.insert(names_.begin(), name);
-}
-
 // IntMatrix overloads
 void ListCpp::push_back(const IntMatrix& im, const std::string& name) {
   if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
@@ -268,16 +257,6 @@ void ListCpp::push_back(IntMatrix&& im, const std::string& name) {
   if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
   data.emplace(name, std::move(im));
   names_.push_back(name);
-}
-void ListCpp::push_front(const IntMatrix& im, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, im);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(IntMatrix&& im, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(im));
-  names_.insert(names_.begin(), name);
 }
 
 // DataFrameCpp overloads
@@ -291,17 +270,8 @@ void ListCpp::push_back(DataFrameCpp&& df, const std::string& name) {
   data.emplace(name, std::move(df));
   names_.push_back(name);
 }
-void ListCpp::push_front(const DataFrameCpp& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, df);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(DataFrameCpp&& df, const std::string& name) {
-  if (containsElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
-  data.emplace(name, std::move(df));
-  names_.insert(names_.begin(), name);
-}
 
+// Push front variants
 void ListCpp::push_front(const ListCpp& l, const std::string& name) {
   push_front(std::make_shared<ListCpp>(l), name);
 }
@@ -317,6 +287,44 @@ void ListCpp::push_front(ListPtr&& p, const std::string& name) {
   if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
   data.emplace(name, std::move(p));
   names_.insert(names_.begin(), name);
+}
+
+void ListCpp::push_front(const FlatMatrix& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, fm);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(FlatMatrix&& fm, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(fm));
+  names_.insert(names_.begin(), name);
+}
+
+void ListCpp::push_front(const IntMatrix& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, im);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(IntMatrix&& im, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(im));
+  names_.insert(names_.begin(), name);
+}
+
+void ListCpp::push_front(const DataFrameCpp& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, df);
+  names_.insert(names_.begin(), name);
+}
+void ListCpp::push_front(DataFrameCpp&& df, const std::string& name) {
+  if (containsElementNamed(name)) throw std::runtime_error("Column '" + name + "' already exists.");
+  data.emplace(name, std::move(df));
+  names_.insert(names_.begin(), name);
+}
+
+void ListCpp::erase(const std::string& name) {
+  data.erase(name);
+  names_.erase(std::remove(names_.begin(), names_.end(), name), names_.end());
 }
 
 ListCpp& ListCpp::get_list(const std::string& name) {
@@ -338,10 +346,6 @@ const ListCpp& ListCpp::get_list(const std::string& name) const {
   throw std::runtime_error("Element '" + name + "' is not a ListCpp");
 }
 
-void ListCpp::erase(const std::string& name) {
-  data.erase(name);
-  names_.erase(std::remove(names_.begin(), names_.end(), name), names_.end());
-}
 
 // --------------------------- Converters implementations ---------------------
 
@@ -548,7 +552,7 @@ void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string
 }
 
 // subset_rows
-DataFrameCpp subset_rows(const DataFrameCpp& df, const std::vector<std::size_t>& row_idx) {
+DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<std::size_t>& row_idx) {
   DataFrameCpp out;
   if (row_idx.empty()) {
     for (const auto& nm : df.names()) {
