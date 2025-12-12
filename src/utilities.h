@@ -1,12 +1,11 @@
-// utilities.h - helper declarations for trtswitch2
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
 #include <vector>
 #include <string>
 #include <functional>
-#include <cstddef> // for std::size_t
 #include <algorithm>
+#include <stdexcept>
 #include <Rcpp.h>
 
 #include "dataframe_list.h" // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
@@ -29,26 +28,38 @@ double boost_qchisq(double p, double df, bool lower_tail = true);
 
 // --------------------------- Small utilities --------------------------------
 
-// seqcpp: integer inclusive sequence; inputs are std::size_t
-std::vector<std::size_t> seqcpp(std::size_t start, std::size_t end);
+// seqcpp: inclusive sequence; inputs are int
+std::vector<int> seqcpp(int start, int end);
 
-// which: return indices of true values in vector<bool>
-std::vector<std::size_t> which(const std::vector<bool>& vec);
+// which: return indices of true values
+std::vector<int> which(const std::vector<unsigned char>& vec);
 
-// findInterval3: adapted helper (returns int indices following R-like convention)
+// findInterval3: adapted helper (return indices following R-like convention)
 std::vector<int> findInterval3(const std::vector<double>& x,
                                const std::vector<double>& v,
                                bool rightmost_closed = false,
                                bool all_inside = false,
                                bool left_open = false);
 
+// --------------------------- Root finders -----------------------------------
+double brent(const std::function<double(double)>& f,
+             double x1, double x2, double tol = 1e-8, int maxiter = 100);
+double bisect(const std::function<double(double)>& f,
+              double x1, double x2, double tol = 1e-8, int maxiter = 100);
+
+// --------------------------- Quantiles -------------------------------------
+double quantilecpp(const std::vector<double>& x, double p);
+double squantilecpp(const std::function<double(double)>& S, double p, double tol);
+
 // subset_in_place: reorder/keep elements of v according to 'order' (indices)
 template <typename T>
-void subset_in_place(std::vector<T>& v, const std::vector<std::size_t>& order) {
+void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
   std::vector<T> temp_subset(order.size());
-  for (std::size_t i = 0; i < order.size(); ++i) {
-    std::size_t index = order[i];
-    if (index < 0 || index >= v.size()) {
+  int n = order.size();
+  int nv = v.size();
+  for (int i = 0; i < n; ++i) {
+    int index = order[i];
+    if (index < 0 || index >= nv) {
       throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
     }
     temp_subset[i] = v[index];
@@ -58,11 +69,13 @@ void subset_in_place(std::vector<T>& v, const std::vector<std::size_t>& order) {
 
 // subset: return a subset of v according to 'order' (indices)
 template <typename T>
-std::vector<T> subset(const std::vector<T>& v, const std::vector<std::size_t>& order) {
+std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
   std::vector<T> result(order.size());
-  for (std::size_t i = 0; i < order.size(); ++i) {
-    std::size_t index = order[i];
-    if (index < 0 || index >= v.size()) {
+  int n = order.size();
+  int nv = v.size();
+  for (int i = 0; i < n; ++i) {
+    int index = order[i];
+    if (index < 0 || index >= nv) {
       throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
     }
     result[i] = v[index];
@@ -73,9 +86,8 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<std::size_t>& o
 // concat: concatenate two vectors
 template <typename T>
 std::vector<T> concat(const std::vector<T>& v1, const std::vector<T>& v2) {
-  std::size_t total_size = v1.size() + v2.size();
   std::vector<T> result;
-  result.reserve(total_size);
+  result.reserve(v1.size() + v2.size());
   std::copy(v1.begin(), v1.end(), std::back_inserter(result));
   std::copy(v2.begin(), v2.end(), std::back_inserter(result));
   return result;
@@ -94,7 +106,8 @@ std::vector<T> unique_sorted(const std::vector<T>& v) {
 template <typename T>
 std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table) {
   std::vector<int> result(x.size());
-  for (std::size_t i = 0; i < x.size(); ++i) {
+  int n = x.size();
+  for (int i = 0; i < n; ++i) {
     auto it = std::find(table.begin(), table.end(), x[i]);
     if (it != table.end()) {
       result[i] = static_cast<int>(std::distance(table.begin(), it));
@@ -105,16 +118,8 @@ std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table) 
   return result;
 }
 
-
-// --------------------------- Root finders -----------------------------------
-double brent(const std::function<double(double)>& f,
-             double x1, double x2, double tol = 1e-8, std::size_t maxiter = 100);
-double bisect(const std::function<double(double)>& f,
-              double x1, double x2, double tol = 1e-8, std::size_t maxiter = 100);
-
-// --------------------------- Quantiles -------------------------------------
-double quantilecpp(const std::vector<double>& x, double p);
-double squantilecpp(const std::function<double(double)>& S, double p, double tol);
+// bygroup: process grouping variables and return indices and lookup tables
+ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables);
 
 // --------------------------- Matrix utilities (FlatMatrix) ------------------
 std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>& x);
@@ -122,12 +127,10 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
 FlatMatrix transpose(const FlatMatrix& A);
 
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
-// NOTE: size_t is used for matrix dimension parameters to avoid signed/unsigned conversions.
-// Algorithmic behavior preserved.
-int cholesky2(FlatMatrix& matrix, std::size_t n, double toler = 1e-12);
-void chsolve2(FlatMatrix& matrix, std::size_t n, std::vector<double>& y);
-void chinv2(FlatMatrix& matrix, std::size_t n);
-FlatMatrix invsympd(const FlatMatrix& matrix, std::size_t n, double toler = 1e-12);
+int cholesky2(FlatMatrix& matrix, int n, double toler = 1e-12);
+void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y);
+void chinv2(FlatMatrix& matrix, int n);
+FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = 1e-12);
 
 // Survival helpers
 DataFrameCpp survsplit(const std::vector<double>& tstart,
@@ -182,9 +185,6 @@ ListCpp getpsiest(double target,
                   int direction);
 
 double getpsiend(const std::function<double(double)>& f,
-                 bool lowerend,
-                 double initialend);
-
-ListCpp bygroup(const DataFrameCpp& data, const std::vectorstd::string& variables);
+                 bool lowerend, double initialend);
 
 #endif // __UTILITIES_H__
