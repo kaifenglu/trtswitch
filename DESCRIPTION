@@ -29,5 +29,6 @@ Encoding: UTF-8
 NeedsCompilation: yes
 Depends: 
     R (>= 3.5)
+SystemRequirements: C++17    
 LazyData: true
 Config/testthat/edition: 3

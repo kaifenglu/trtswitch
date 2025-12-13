@@ -127,7 +127,7 @@ void DataFrameCpp::push_back_flat(const std::vector<double>& flat_col_major,
       if (containElementNamed(col_name)) 
         throw std::runtime_error("Column '" + col_name + "' already exists.");
       std::vector<double> col(nrows);
-      int offset = FlatMatrix::idx_col(0, c, nrows);
+      int offset = c * nrows;
       for (int r = 0; r < nrows; ++r) 
         col[r] = flat_col_major[offset + r];
       numeric_cols.emplace(col_name, std::move(col));
@@ -553,7 +553,7 @@ DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm,
     throw std::invalid_argument("dataframe_from_flatmatrix: names size must equal fm.ncol");
   for (int c = 0; c < fm.ncol; ++c) {
     std::vector<double> col(fm.nrow);
-    int offset = FlatMatrix::idx_col(0, c, fm.nrow);
+    int offset = c * fm.nrow;
     std::memcpy(col.data(), fm.data.data() + offset, fm.nrow * sizeof(double));
     std::string nm = names.empty() ? ("V" + std::to_string(c + 1)) : names[c];
     out.push_back(std::move(col), nm);
@@ -577,7 +577,7 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
   FlatMatrix out(nrow, ncol);
   for (int c = 0; c < ncol; ++c) {
     const std::string& name = cols[c];
-    int offset = FlatMatrix::idx_col(0, c, nrow);
+    int offset = c * nrow;
     
     if (df.numeric_cols.count(name)) {
       const std::vector<double>& src = df.numeric_cols.at(name);
@@ -703,8 +703,8 @@ void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx)
   newdata.resize(new_nrow * ncol);
   
   for (int c = 0; c < ncol; ++c) {
-    int off_old = FlatMatrix::idx_col(0, c, old_nrow);
-    int off_new = FlatMatrix::idx_col(0, c, new_nrow);
+    int off_old = c * old_nrow;
+    int off_new = c * new_nrow;
     for (int r = 0; r < new_nrow; ++r) {
       newdata[off_new + r] = fm.data[off_old + row_idx[r]];
     }
@@ -727,8 +727,8 @@ FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_i
   
   FlatMatrix out(new_nrow, ncol);
   for (int c = 0; c < ncol; ++c) {
-    int off_old = FlatMatrix::idx_col(0, c, old_nrow);
-    int off_new = FlatMatrix::idx_col(0, c, new_nrow);
+    int off_old = c * old_nrow;
+    int off_new = c * new_nrow;
     for (int r = 0; r < new_nrow; ++r) {
       out.data[off_new + r] = fm.data[off_old + row_idx[r]];
     }
@@ -758,10 +758,10 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   // column buffer.
   for (int c = 0; c < ncol; ++c) {
     const double* src1 = fm1.data.empty() ? nullptr : 
-    fm1.data.data() + FlatMatrix::idx_col(0, c, nrow1);
+    fm1.data.data() + c * nrow1;
     const double* src2 = fm2.data.empty() ? nullptr : 
-      fm2.data.data() + FlatMatrix::idx_col(0, c, nrow2);
-    double* dst = out.data.data() + FlatMatrix::idx_col(0, c, nrow);
+      fm2.data.data() + c * nrow2;
+    double* dst = out.data.data() + c * nrow;
     
     if (src1 && nrow1 > 0) {
       std::memcpy(dst, src1, nrow1 * sizeof(double));

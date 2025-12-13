@@ -3,7 +3,7 @@ Vendored third-party code for trtswitch
 
 1) ska::flat_hash_map (header-only)
    - Upstream URL: https://github.com/skarupke/flat_hash_map
-   - Vendored path in this package: src/vendor/ska/flat_hash_map.hpp
+   - Vendored path in this package: src/ska/flat_hash_map.hpp
    - Upstream commit/sha: 2c4687431f978f02a3780e24b8b701d22aa32d9c
    - Raw file URL at that commit:
      https://github.com/skarupke/flat_hash_map/commit/2c4687431f978f02a3780e24b8b701d22aa32d9c
