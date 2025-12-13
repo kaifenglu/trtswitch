@@ -125,6 +125,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
 std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>& x);
 FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
 FlatMatrix transpose(const FlatMatrix& A);
+double quadsym(const std::vector<double>& u, const FlatMatrix& v);
 
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
 int cholesky2(FlatMatrix& matrix, int n, double toler = 1e-12);

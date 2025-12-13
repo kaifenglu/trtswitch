@@ -453,7 +453,7 @@ std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>&
   std::vector<double> result(m, 0.0);
   for (int c = 0; c < p; ++c) {
     double xc = x[c];
-    int offset = FlatMatrix::idx_col(0, c, m);
+    int offset = c * m;
     const double* colptr = A.data_ptr() + offset;
     for (int r = 0; r < m; ++r) result[r] += colptr[r] * xc;
   }
@@ -471,9 +471,9 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B) {
   // Column-major: For each column j in B/C, compute 
   // C[:,j] = sum_{t=0..k-1} A[:,t] * B[t,j]
   for (int j = 0; j < n; ++j) {
-    int coff = FlatMatrix::idx_col(0, j, m);
+    int coff = j * m;
     for (int t = 0; t < k; ++t) {
-      int aoff = FlatMatrix::idx_col(0, t, m);
+      int aoff = t * m;
       double scale = B(t, j);
       if (scale == 0.0) continue;
       for (int i = 0; i < m; ++i) {
@@ -495,6 +495,23 @@ FlatMatrix transpose(const FlatMatrix& A) {
   return At;
 }
 
+double quadsym(const std::vector<double>& u, const FlatMatrix& v) {
+  int p = u.size();
+  const double* vptr = v.data_ptr();
+  const double* uptr = u.data();
+  double sum = 0.0;
+  
+  for (int j = 0; j < p; ++j) {
+    const double* col = vptr + j * p;
+    // diagonal term
+    sum += uptr[j] * uptr[j] * col[j]; // col[j] == v(j,j)
+    // off-diagonals i < j. Access column j contiguous for i = 0..j-1
+    double s = 0.0;
+    for (int i = 0; i < j; ++i) s += col[i] * uptr[i];
+    sum += 2.0 * uptr[j] * s;           // account for symmetric pair (i,j) and (j,i)
+  }
+  return sum;
+}
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
 // cholesky2: in-place working on FlatMatrix (n x n), returns rank * nonneg
 int cholesky2(FlatMatrix& matrix, int n, double toler) {
@@ -557,7 +574,7 @@ void chinv2(FlatMatrix& matrix, int n) {
     if (mii > 0.0) {
       matrix(i, i) = 1.0 / mii;
       for (int j = i + 1; j < n; ++j) {
-        int idx_ij = FlatMatrix::idx_col(i, j, n);
+        int idx_ij = j * n + i;
         matrix.data[idx_ij] = -matrix.data[idx_ij];
         for (int k = 0; k < i; ++k) {
           matrix(k, j) += matrix.data[idx_ij] * matrix(k, i);
@@ -690,7 +707,7 @@ void row_house(FlatMatrix& A, int i1, int i2, int j1, int j2, const std::vector<
   double beta = -2.0 / sumsq(v);
   std::vector<double> w(n, 0.0);
   for (int j = 0; j < n; ++j) {
-    int coloff = FlatMatrix::idx_col(0, j1 + j, m_total);
+    int coloff = (j1 + j) * m_total;
     double acc = 0.0;
     for (int i = 0; i < m; ++i) 
       acc += A.data[coloff + (i1 + i)] * v[i];
@@ -709,7 +726,7 @@ ListCpp qrcpp(const FlatMatrix& X, double tol) {
   FlatMatrix A = X;
   std::vector<double> c(n, 0.0);
   for (int j = 0; j < n; ++j) {
-    int off = FlatMatrix::idx_col(0, j, m);
+    int off = j * m;
     double s = 0.0;
     for (int i = 0; i < m; ++i) {
       double v = A.data[off + i];
@@ -730,8 +747,8 @@ ListCpp qrcpp(const FlatMatrix& X, double tol) {
       if (c[k] > tol) break;
     }
     if (k != r) {
-      int off_r = FlatMatrix::idx_col(0, r, m);
-      int off_k = FlatMatrix::idx_col(0, k, m);
+      int off_r = r * m;
+      int off_k = k * m;
       for (int i = 0; i < m; ++i) {
         std::swap(A.data[off_r + i], A.data[off_k + i]);
       }
