@@ -136,6 +136,14 @@ void DataFrameCpp::push_back_flat(const std::vector<double>& flat_col_major,
   }
 }
 
+void DataFrameCpp::push_back(const FlatMatrix& fm, const std::string& base_name) {
+  push_back_flat(fm.data, fm.nrow, base_name);
+}
+
+void DataFrameCpp::push_back(FlatMatrix&& fm, const std::string& base_name) {
+  push_back_flat(fm.data, fm.nrow, base_name);
+}
+
 // Push front variants (vectors)
 void DataFrameCpp::push_front(const std::vector<double>& col, const std::string& name) {
   if (containElementNamed(name)) 

@@ -271,10 +271,9 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
   FlatMatrix resid(n, p);
   const double* zptr = param->z.data_ptr();
   double* rptr = resid.data_ptr(); 
-  std::vector<double> vd(n);
   
   switch (param->link_code) {
-  case 1: // logit
+  case 1: { // logit
     std::vector<double> v(n);
     for (int person = 0; person < n; ++person) {
       double r = boost_plogis(eta[person]);
@@ -290,8 +289,10 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
       }
     }
     break;
+  }
     
-  case 2: // probit
+  case 2: { // probit
+    std::vector<double> vd(n);
     for (int person = 0; person < n; ++person) {
       double r = boost_pnorm(eta[person]);
       double phi = boost_dnorm(eta[person]);
@@ -309,8 +310,9 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
       }
     }
     break;
-    
-  case 3: // cloglog / extreme
+  }
+  case 3: {// cloglog / extreme
+    std::vector<double> vd(n);
     for (int person = 0; person < n; ++person) {
       double r = boost_pextreme(eta[person]);
       double phi = boost_dextreme(eta[person]);
@@ -328,6 +330,7 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
       }
     }
     break;
+  }
   }
   return resid;
 }
@@ -955,8 +958,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         }
         
         // update the score residuals
-        ressco.resize(ressco2.nrow(), ressco2.ncol());
-        std::copy_n(ressco2.data_ptr(), ressco2.nrow()*ressco2.ncol(), ressco.data_ptr());
+        ressco.resize(ressco2.nrow, ressco2.ncol);
+        std::copy_n(ressco2.data_ptr(), ressco2.nrow*ressco2.ncol, ressco.data_ptr());
         
         nr = nids;
         freqr = freqr0;
@@ -1193,8 +1196,8 @@ struct LogisRegWorker : public RcppParallel::Worker {
       flic(flic_), plci(plci_), alpha(alpha_), maxiter(maxiter_), 
       eps(eps_), results(results_) {}
   
-  void operator()(int begin, int end) {
-    for (int i = begin; i < end; ++i) {
+  void operator()(std::size_t begin, std::size_t end) {
+    for (std::size_t i = begin; i < end; ++i) {
       // Call the pure C++ function logisregcpp on data_ptr->at(i)
       ListCpp out = logisregcpp(
         (*data_ptr)[i], event, covariates, freq, weight, offset, id, link,

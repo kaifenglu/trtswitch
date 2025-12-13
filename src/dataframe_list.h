@@ -167,12 +167,13 @@ struct DataFrameCpp {
   void push_back(bool value, const std::string& name);
   void push_back(const std::string& value, const std::string& name);
   
-  // push_back_flat accepts a column-major flattened buffer containing 
-  // nrows * p values
-  // will create p new columns named base_name, base_name.1, ..., base_name.p 
-  // (if p>1)
-  void push_back_flat(const std::vector<double>& flat_col_major, 
-                      int nrows, const std::string& base_name);
+  // push_back_flat accepts a column-major flattened buffer containing nrows * p values
+  // will create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
+  void push_back_flat(const std::vector<double>& flat_col_major, int nrows, 
+                      const std::string& base_name);
+  
+  void push_back(const FlatMatrix& fm, const std::string& base_name);
+  void push_back(FlatMatrix&& fm, const std::string& base_name);
   
   // Push front variants (const& + && for all types)
   void push_front(const std::vector<double>& col, const std::string& name);
