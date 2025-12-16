@@ -1,7 +1,7 @@
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
-#progma once
+#pragma once
 
 #include <vector>
 #include <string>

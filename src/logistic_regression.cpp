@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 #include <numeric>   // iota, inner_product
-#include <cmath>     // isnan, isinf, fabs, NAN, exp, log
+#include <cmath>     // isnan, isinf, fabs, NaN, exp, log
 #include <stdexcept> // exceptions
 #include <algorithm> // sort, none_of, any_of
 
@@ -497,7 +497,7 @@ double logisregplloop(int p, const std::vector<double>& par,
   if (fail) {
     thread_utils::push_thread_warning(
       "logisregplloop did not converge within the maximum iterations.");
-    return NAN;
+    return NaN;
   }
   
   return newbeta[k];
@@ -688,12 +688,12 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (nevents == 0) {
     for (int i=0; i<p; ++i) {
       par[i] = (i == 0) ? "(Intercept)" : covariates[i-1];
-      b[i] = NAN;
-      z[i] = NAN;
-      expbeta[i] = NAN;
-      lb[i] = NAN;
-      ub[i] = NAN;
-      prob[i] = NAN;
+      b[i] = NaN;
+      z[i] = NaN;
+      expbeta[i] = NaN;
+      lb[i] = NaN;
+      ub[i] = NaN;
+      prob[i] = NaN;
       clparm[i] = "Wald";
     }
     
@@ -715,10 +715,10 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       break;
     }
     
-    loglik0 = NAN;
-    loglik1 = NAN;
-    regloglik0 = NAN;
-    regloglik1 = NAN;
+    loglik0 = NaN;
+    loglik1 = NaN;
+    regloglik0 = NaN;
+    regloglik1 = NaN;
     niter = 0;
     fail = true;
   } else {
@@ -1091,7 +1091,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (robust) {
     for (int i=0; i<p; ++i) {
       if (rseb[i] == 0) {
-        z[i] = NAN;
+        z[i] = NaN;
       } else {
         z[i] = b[i]/rseb[i];
       }
@@ -1099,7 +1099,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   } else {
     for (int i=0; i<p; ++i) {
       if (seb[i] == 0) {
-        z[i] = NAN;
+        z[i] = NaN;
       } else {
         z[i] = b[i]/seb[i];
       }

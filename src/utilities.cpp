@@ -998,7 +998,7 @@ ListCpp getpsiest(double target,
       roots.push_back(psi_root);
     }
   }
-  double root = NAN;
+  double root = NaN;
   if (!roots.empty()) {
     if (direction == -1) root = roots.front();
     else if (direction == 1) root = roots.back();
@@ -1029,13 +1029,13 @@ double getpsiend(const std::function<double(double)>& f,
              psiend <= LIMIT) {
         psiend += 1; zend = f(psiend);
       }
-      if (psiend > LIMIT) return NAN;
+      if (psiend > LIMIT) return NaN;
     }
     if (zend < 0) {
       while (!std::isinf(zend) && zend < 0 && psiend >= -LIMIT) {
         psiend -= 1; zend = f(psiend);
       }
-      if (std::isinf(zend) || std::isnan(zend) || psiend < -LIMIT) return NAN;
+      if (std::isinf(zend) || std::isnan(zend) || psiend < -LIMIT) return NaN;
     }
   } else {
     if ((std::isinf(zend) && zend < 0) || std::isnan(zend)) {
@@ -1043,13 +1043,13 @@ double getpsiend(const std::function<double(double)>& f,
              psiend >= -LIMIT) {
         psiend -= 1; zend = f(psiend);
       }
-      if (psiend < -LIMIT) return NAN;
+      if (psiend < -LIMIT) return NaN;
     }
     if (zend > 0) {
       while (!std::isinf(zend) && zend > 0 && psiend <= LIMIT) {
         psiend += 1; zend = f(psiend);
       }
-      if (std::isinf(zend) || std::isnan(zend) || psiend > LIMIT) return NAN;
+      if (std::isinf(zend) || std::isnan(zend) || psiend > LIMIT) return NaN;
     }
   }
   return psiend;
