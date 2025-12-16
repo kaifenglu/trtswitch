@@ -1,6 +1,7 @@
 #include "utilities.h"
 #include "dataframe_list.h" // DataFrameCpp, ListCpp
 
+#include <cstddef>
 #include <vector>
 #include <string>
 #include <algorithm>   // sort, upper_bound, max_element, etc.
@@ -108,12 +109,12 @@ std::vector<int> seqcpp(int start, int end) {
 }
 
 std::vector<int> which(const std::vector<unsigned char>& vec) {
-  std::vector<int> true_indices;
-  true_indices.reserve(vec.size());
+  std::vector<int> indices;
+  indices.reserve(vec.size());
   int n = vec.size();
   for (int i = 0; i < n; ++i) 
-    if (vec[i] != 0 && vec[i] != 255) true_indices.push_back(i);
-  return true_indices;
+    if (vec[i] != 0 && vec[i] != 255) indices.push_back(i);
+  return indices;
 }
 
 // findInterval3: adapted from previous implementation
@@ -683,11 +684,11 @@ double sumsq(const std::vector<double>& x) {
 }
 
 std::vector<double> house(const std::vector<double>& x) {
-  int n = x.size();
   double mu = std::sqrt(sumsq(x));
   std::vector<double> v = x; // copy
   if (mu > 0.0) {
     double beta = x[0] + std::copysign(mu, x[0]);
+    int n = x.size();
     for (int i = 1; i < n; ++i) v[i] /= beta;
   }
   v[0] = 1.0;

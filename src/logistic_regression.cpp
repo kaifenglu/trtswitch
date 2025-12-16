@@ -60,117 +60,99 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     a.assign(n, 0.0);
     b.assign(n, 0.0);
   }
+  // --- replace the "per-observation temporaries" / person loop + score/imat updates
+  // with this column-major friendly two-phase accumulation:
   
-  std::vector<double> z(p); // temporary covariate holder
-  switch (param->link_code) {
-  case 1: // logit
-    for (int person = 0; person < n; ++person) {
-      double f = param->freq[person];
-      double w = param->weight[person];
-      double y = param->y[person];
-      double et = eta[person];
-      for (int i = 0; i < p; ++i) z[i] = param->z(person, i);
-      
+  // assume earlier in f_der_0 we computed eta vector and declared:
+  // double loglik = 0.0;
+  // std::vector<double> score(pp, 0.0);
+  // FlatMatrix imat(p, p);  // column-major result
+  
+  // Pre-allocate per-observation temporaries
+  std::vector<double> rvec(n);     // fitted probabilities
+  std::vector<double> c1(n, 0.0);  // contribution for score: f*w*(y - r) or variant per link
+  std::vector<double> c2(n, 0.0);  // contribution for information: f*w*var-like term
+  
+  // short-hands to avoid repeated member access
+  const double* zptr = param->z.data_ptr();    // column-major: column j starts at zptr + j*n
+  const std::vector<double>& freqv = param->freq;
+  const std::vector<double>& wtv = param->weight;
+  const std::vector<double>& yv   = param->y;
+  
+  // 1) single pass over observations: compute r, loglik, c1, c2 (+ firth temporaries)
+  for (int person = 0; person < n; ++person) {
+    double f = freqv[person];
+    double w = wtv[person];
+    double y = yv[person];
+    double et = eta[person];
+    
+    if (param->link_code == 1) {                // logit
       double r = boost_plogis(et);
-      
-      double c = f * w * (y * et + std::log(1.0 - r));
-      loglik += c;
-      
-      c = f * w * (y - r);
-      for (int i = 0; i < p; ++i) {
-        score[i] += c * z[i];
-      }
-      
-      c = f * w * r * (1.0 - r);
-      for (int i = 0; i < p; ++i) {
-        for (int j = 0; j <= i; ++j) {
-          imat(i, j) += c * z[i] * z[j];
-        }
-      }
-      
+      rvec[person] = r;
+      loglik += f * w * (y * et + std::log(1.0 - r));
+      c1[person] = f * w * (y - r);
+      c2[person] = f * w * r * (1.0 - r);
       if (firth) {
         pi[person] = r;
-        d[person] = 1.0;
-        a[person] = r * (1.0 - r);
-        b[person] = 1.0 - 2.0 * r;
+        d[person]  = 1.0;
+        a[person]  = r * (1.0 - r);
+        b[person]  = 1.0 - 2.0 * r;
       }
-    }
-    break;
-    
-  case 2: // probit
-    for (int person = 0; person < n; ++person) {
-      double f = param->freq[person];
-      double w = param->weight[person];
-      double y = param->y[person];
-      double et = eta[person];
-      for (int i = 0; i < p; ++i) z[i] = param->z(person, i);
-
+    } else if (param->link_code == 2) {         // probit
       double r = boost_pnorm(et);
       double phi = boost_dnorm(et);
-      
-      double c = f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
-      loglik += c;
-      
-      c = f * w * (y - r) * (phi / (r * (1.0 - r)));
-      for (int i = 0; i < p; ++i) {
-        score[i] += c * z[i];
-      }
-      
-      c = f * w * (phi * phi / (r * (1.0 - r)));
-      for (int i = 0; i < p; ++i) {
-        for (int j = 0; j <= i; ++j) {
-          imat(i, j) += c * z[i] * z[j];
-        }
-      }
-      
+      rvec[person] = r;
+      // keep original loglik expression used previously for probit case
+      loglik += f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
+      c1[person] = f * w * (y - r) * (phi / (r * (1.0 - r)));
+      c2[person] = f * w * (phi * phi / (r * (1.0 - r)));
       if (firth) {
-        double dphi = -et; // f'(x)/f(x) for normal
+        double dphi = -et;
         pi[person] = r;
-        d[person] = phi / (r * (1.0 - r));
-        a[person] = phi * phi / (r * (1.0 - r));
-        b[person] = (2.0 * r - 1.0) * phi / (r * (1.0 - r)) + 2.0 * dphi;
+        d[person]  = phi / (r * (1.0 - r));
+        a[person]  = phi * phi / (r * (1.0 - r));
+        b[person]  = (2.0 * r - 1.0) * phi / (r * (1.0 - r)) + 2.0 * dphi;
+      }
+    } else {                                    // cloglog / extreme
+      double r = boost_pextreme(et);
+      double phi = boost_dextreme(et);
+      rvec[person] = r;
+      loglik += f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
+      c1[person] = f * w * (y - r) * (phi / (r * (1.0 - r)));
+      c2[person] = f * w * (phi * phi / (r * (1.0 - r)));
+      if (firth) {
+        double dphi = 1 - std::exp(et);
+        pi[person] = r;
+        d[person]  = phi / (r * (1.0 - r));
+        a[person]  = phi * phi / (r * (1.0 - r));
+        b[person]  = (2.0 * r - 1.0) * phi / (r * (1.0 - r)) + 2.0 * dphi;
       }
     }
-    break;
-    
-  case 3: // cloglog / extreme
-    for (int person = 0; person < n; ++person) {
-      double f = param->freq[person];
-      double w = param->weight[person];
-      double y = param->y[person];
-      double et = eta[person];
-      for (int i = 0; i < p; ++i) z[i] = param->z(person, i);
-      
-      double r = boost_pextreme(eta[person]);
-      double phi = boost_dextreme(eta[person]);
-      
-      double c = f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
-      loglik += c;
-      
-      c = f * w * (y - r) * (phi / (r * (1.0 - r)));
-      for (int i = 0; i < p; ++i) {
-        score[i] += c * z[i];
-      }
-      
-      c = f * w * (phi * phi / (r * (1.0 - r)));
-      for (int i = 0; i < p; ++i) {
-        for (int j = 0; j <= i; ++j) {
-          imat(i, j) += c * z[i] * z[j];
-        }
-      }
-      
-      if (firth) {
-        double dphi = 1 - std::exp(et); // f'(x)/f(x) for extreme value
-        pi[person] = r;
-        d[person] = phi / (r * (1.0 - r));
-        a[person] = phi * phi / (r * (1.0 - r));
-        b[person] = (2.0 * r - 1.0) * phi / (r * (1.0 - r)) + 2.0 * dphi;
-      }
-    }
-    break;
   }
   
-  // fill upper triangle (make symmetric)
+  // 2) compute score vector by column dot-products: score[j] = sum_i c1[i] * z_{i,j}
+  for (int j = 0; j < p; ++j) {
+    const double* zcol = zptr + j * n;   // start of column j
+    double s = 0.0;
+    // inner loop is contiguous load of zcol[i]
+    for (int i = 0; i < n; ++i) s += c1[i] * zcol[i];
+    score[j] = s;
+  }
+  
+  // 3) compute information matrix (lower triangle) using c2 as per-observation weight
+  for (int i = 0; i < p; ++i) {
+    const double* zi = zptr + i * n;
+    for (int j = 0; j <= i; ++j) {
+      const double* zj = zptr + j * n;
+      double sum = 0.0;
+      for (int k = 0; k < n; ++k) {
+        sum += c2[k] * zi[k] * zj[k];
+      }
+      imat(i, j) = sum;
+    }
+  }
+  
+  // 4) fill upper triangle as before (keep symmetric)
   for (int i = 0; i + 1 < p; ++i) {
     for (int j = i + 1; j < p; ++j) {
       imat(i, j) = imat(j, i);
@@ -187,17 +169,26 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     
     double penloglik = loglik + 0.5 * sumlog;
     
-    FlatMatrix xwx(p, p);
+    // precompute per-person scalar c[k] = f * w * a[k]
+    std::vector<double> c(n);
     for (int person = 0; person < n; ++person) {
-      double f = param->freq[person];
-      double w = param->weight[person];
-      for (int i = 0; i < p; ++i) z[i] = param->z(person, i);
-      
-      double c = f * w * a[person];
-      for (int i = 0; i < p; ++i) {
-        for (int j = 0; j <= i; ++j) {
-          xwx(i, j) += c * z[i] * z[j];
+      c[person] = param->freq[person] * param->weight[person] * a[person];
+    }
+    
+    FlatMatrix xwx(p, p); // data initially zeroed by constructor
+    const double* Zptr = param->z.data_ptr(); // column-major: col c starts at Zptr + c*n
+    
+    // compute lower triangle (i >= j) using column-major access
+    for (int i = 0; i < p; ++i) {
+      const double* zi = Zptr + i * n;        // Z(:, i)
+      for (int j = 0; j <= i; ++j) {
+        const double* zj = Zptr + j * n;      // Z(:, j)
+        double sum = 0.0;
+        // inner loop reads zi[k] and zj[k] contiguously
+        for (int k = 0; k < n; ++k) {
+          sum += c[k] * zi[k] * zj[k];
         }
+        xwx(i, j) = sum;
       }
     }
     
@@ -211,25 +202,41 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     // compute inverse of xwx as FlatMatrix
     FlatMatrix var = invsympd(xwx, p);
     
-    std::vector<double> g(p, 0.0);
-    for (int person = 0; person < n; ++person) {
-      double f = param->freq[person];
-      double w = param->weight[person];
-      for (int i = 0; i < p; ++i) z[i] = param->z(person, i);
-      
-      double h = 0.0; // diagonal of H = W^{1/2} X inv(X^T W X) X^T W^{1/2}
-      for (int i = 0; i < p; ++i) {
-        for (int j = 0; j < p; ++j) {
-          h += var(i, j) * z[i] * z[j];
-        }
+    // 1) compute M = Z * var  (n x p)
+    FlatMatrix M = mat_mat_mult(param->z, var); // M: n x p
+    const double* Mptr = M.data_ptr();
+    
+    // 2) compute h0[r] = sum_j M(r,j) * Z(r,j)
+    std::vector<double> h0(n, 0.0);
+    for (int j = 0; j < p; ++j) {
+      const double* Mcol = Mptr + j * n;
+      const double* Zcol = Zptr + j * n;
+      for (int i = 0; i < n; ++i) {
+        h0[i] += Mcol[i] * Zcol[i];
       }
-      h *= f * w * a[person];
-      
-      double resid = param->y[person] - pi[person];
-      double u = f * w * resid * d[person] + 0.5 * b[person] * h;
-      for (int i = 0; i < p; ++i) {
-        g[i] += u * z[i];
-      }
+    }
+    
+    // 3) compute u[r] = f*w*resid*d + 0.5*b*(f*w*a*h0)
+    std::vector<double> u(n);
+    const std::vector<double>& freqv = param->freq;
+    const std::vector<double>& wtv  = param->weight;
+    const std::vector<double>& yv   = param->y;
+    for (int i = 0; i < n; ++i) {
+      double f = freqv[i];
+      double w = wtv[i];
+      double resid = yv[i] - pi[i];
+      double h_scaled = h0[i] * f * w * a[i];
+      double part1 = f * w * resid * d[i];
+      u[i] = part1 + 0.5 * b[i] * h_scaled;
+    }
+    
+    // 4) compute g = Z^T * u
+    std::vector<double> g(p, 0.0); 
+    for (int j = 0; j < p; ++j) { 
+      const double* Zcol = Zptr + j * n; // Z(:, j) 
+      double sum = 0.0; 
+      for (int i = 0; i < n; ++i) sum += u[i] * Zcol[i]; 
+      g[j] = sum;
     }
     
     ListCpp result;
@@ -958,9 +965,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         }
         
         // update the score residuals
-        ressco.resize(ressco2.nrow, ressco2.ncol);
-        std::copy_n(ressco2.data_ptr(), ressco2.nrow*ressco2.ncol, ressco.data_ptr());
-        
+        ressco = std::move(ressco2);  
         nr = nids;
         freqr = freqr0;
       }

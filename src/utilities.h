@@ -1,12 +1,17 @@
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
+#progma once
+
 #include <vector>
 #include <string>
 #include <functional>
 #include <algorithm>
 #include <stdexcept>
 #include <Rcpp.h>
+#include <limits>
+
+inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 
 #include "dataframe_list.h" // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
 
