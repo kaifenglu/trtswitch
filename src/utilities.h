@@ -109,19 +109,28 @@ std::vector<T> unique_sorted(const std::vector<T>& v) {
 
 // matchcpp: for each element of x find its index in table or -1 if not found
 template <typename T>
-std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table) {
+std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table, 
+                          const int start_index = 0) {
   std::vector<int> result(x.size());
   int n = x.size();
   for (int i = 0; i < n; ++i) {
     auto it = std::find(table.begin(), table.end(), x[i]);
     if (it != table.end()) {
-      result[i] = static_cast<int>(std::distance(table.begin(), it));
+      result[i] = static_cast<int>(std::distance(table.begin(), it)) + start_index;
     } else {
       result[i] = -1;
     }
   }
   return result;
 }
+
+template <typename T>
+void print_vector(const std::vector<T>& vec, const std::string& label = "") {
+  if (!label.empty()) std::cout << label << ": ";
+  std::copy(vec.begin(), vec.end(), std::ostream_iterator<T>(std::cout, " "));
+  std::cout << std::endl;
+}
+
 
 // bygroup: process grouping variables and return indices and lookup tables
 ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables);

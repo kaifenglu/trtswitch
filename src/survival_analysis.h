@@ -24,5 +24,16 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
                       const double conflev = 0.95,
                       const bool keep_censor = false);
 
+DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
+                       const std::vector<std::string>& stratum,
+                       const std::string& treat = "treat",
+                       const std::string& time = "time",
+                       const std::string& time2 = "",
+                       const std::string& event = "event",
+                       const std::string& weight = "",
+                       const double milestone = 0,
+                       const double survDiffH0 = 0,
+                       const double conflev = 0.95);
+
 
 #endif // __SURVIVAL_ANALYSIS__

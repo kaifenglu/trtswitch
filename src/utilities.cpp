@@ -438,7 +438,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
   }
   
   result.push_back(nlevels, "nlevels");
-  result.push_back(std::move(indices), "indices");
+  result.push_back(indices, "indices");
   result.push_back(lookups_per_variable, "lookups_per_variable");
   result.push_back(combined_index, "index");
   result.push_back(lookup_df, "lookup");

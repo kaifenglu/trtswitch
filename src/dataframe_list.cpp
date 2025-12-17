@@ -1,9 +1,12 @@
 #include "dataframe_list.h"
 
 #include <cstring>   // std::memcpy
+#include <vector>
+#include <string>
 #include <algorithm>
 #include <stdexcept>
 #include <memory>
+#include <utility>  // std::move
 
 #include <Rcpp.h> // ensure Rcpp types available in this TU
 
@@ -419,22 +422,39 @@ DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
     
     Rcpp::RObject col = r_df[j];
     if (Rcpp::is<Rcpp::NumericVector>(col)) {
-      df.push_back(Rcpp::as<std::vector<double>>(col), name);
+      Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(col); // lightweight wrapper
+      R_xlen_t n = nv.size();
+      std::vector<double> out;
+      out.resize(static_cast<std::size_t>(n));
+      if (n > 0) {
+        // memcpy from R contiguous memory
+        std::memcpy(out.data(), REAL(nv), static_cast<std::size_t>(n) * sizeof(double));
+      }
+      df.push_back(std::move(out), name);
+      
     } else if (Rcpp::is<Rcpp::IntegerVector>(col)) {
-      df.push_back(Rcpp::as<std::vector<int>>(col), name);
+      Rcpp::IntegerVector iv = Rcpp::as<Rcpp::IntegerVector>(col);
+      R_xlen_t n = iv.size();
+      std::vector<int> out;
+      out.resize(static_cast<std::size_t>(n));
+      if (n > 0) {
+        std::memcpy(out.data(), INTEGER(iv), static_cast<std::size_t>(n) * sizeof(int));
+      }
+      df.push_back(std::move(out), name);
     } else if (Rcpp::is<Rcpp::LogicalVector>(col)) {
       Rcpp::LogicalVector lv = Rcpp::as<Rcpp::LogicalVector>(col);
       R_xlen_t n = lv.size();
       std::vector<unsigned char> out;
-      out.resize(n);
+      out.resize(static_cast<std::size_t>(n));
       for (R_xlen_t i = 0; i < n; ++i) {
-        int v = lv[i];                    // int: 0,1 or NA_LOGICAL
-        if (v == NA_LOGICAL) out[i] = 255;
-        else out[i] = v ? 1 : 0;
+        int v = lv[i]; // 0,1 or NA_LOGICAL
+        if (v == NA_LOGICAL) out[static_cast<std::size_t>(i)] = 255;
+        else out[static_cast<std::size_t>(i)] = v ? 1 : 0;
       }
       df.push_back(std::move(out), name);
     } else if (Rcpp::is<Rcpp::CharacterVector>(col)) {
-      df.push_back(Rcpp::as<std::vector<std::string>>(col), name);
+      std::vector<std::string> out = Rcpp::as<std::vector<std::string>>(col);
+      df.push_back(std::move(out), name);
     } else {
       Rcpp::warning("Unsupported column type in DataFrame conversion: " + name);
     }
@@ -636,6 +656,37 @@ void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string
 }
 
 // subset_rows
+void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx) {
+  DataFrameCpp out;
+  int max_index = *std::max_element(row_idx.begin(), row_idx.end());
+  if (max_index >= static_cast<int>(df.nrows())) 
+    throw std::runtime_error("subset_rows: row index out of range");
+  for (const auto& nm : df.names()) {
+    if (df.numeric_cols.count(nm)) {
+      const auto& src = df.numeric_cols.at(nm);
+      std::vector<double> dest; dest.reserve(row_idx.size());
+      for (int idx : row_idx) dest.push_back(src[idx]);
+      out.push_back(std::move(dest), nm);
+    } else if (df.int_cols.count(nm)) {
+      const auto& src = df.int_cols.at(nm);
+      std::vector<int> dest; dest.reserve(row_idx.size());
+      for (int idx : row_idx) dest.push_back(src[idx]);
+      out.push_back(std::move(dest), nm);
+    } else if (df.bool_cols.count(nm)) {
+      const auto& src = df.bool_cols.at(nm);
+      std::vector<unsigned char> dest; dest.reserve(row_idx.size());
+      for (int idx : row_idx) dest.push_back(src[idx]);
+      out.push_back(std::move(dest), nm);
+    } else if (df.string_cols.count(nm)) {
+      const auto& src = df.string_cols.at(nm);
+      std::vector<std::string> dest; dest.reserve(row_idx.size());
+      for (int idx : row_idx) dest.push_back(src[idx]);
+      out.push_back(std::move(dest), nm);
+    }
+  }
+  df = std::move(out);
+}
+
 DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx) {
   DataFrameCpp out;
   if (row_idx.empty()) {
@@ -674,6 +725,62 @@ DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& ro
     }
   }
   return out;
+}
+
+
+// Split a DataFrameCpp by the starting indices of blocks of rows
+std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx) {
+  int G = idx.size() - 1;
+  std::vector<DataFrameCpp> groups(G);
+  
+  // For each column, copy contiguous slices into groups
+  for (const auto& name : df.names()) {
+    if (df.numeric_cols.count(name)) {
+      const auto& src = df.get<double>(name);
+      for (int g = 0; g < G; ++g) {
+        int s = idx[g], e = idx[g+1], sz = e - s;
+        std::vector<double> dest;
+        dest.resize(static_cast<std::size_t>(sz));
+        if (sz > 0) {
+          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(double));
+        }
+        groups[g].push_back(std::move(dest), name);
+      }
+    } else if (df.int_cols.count(name)) {
+      const auto& src = df.get<int>(name);
+      for (int g = 0; g < G; ++g) {
+        int s = idx[g], e = idx[g+1], sz = e - s;
+        std::vector<int> dest;
+        dest.resize(static_cast<std::size_t>(sz));
+        if (sz > 0) {
+          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(int));
+        }
+        groups[g].push_back(std::move(dest), name);
+      }
+    } else if (df.bool_cols.count(name)) {
+      const auto& src = df.get<unsigned char>(name);
+      for (int g = 0; g < G; ++g) {
+        int s = idx[g], e = idx[g+1], sz = e - s;
+        std::vector<unsigned char> dest;
+        dest.resize(static_cast<std::size_t>(sz));
+        if (sz > 0) {
+          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(unsigned char));
+        }
+        groups[g].push_back(std::move(dest), name);
+      }
+    } else if (df.string_cols.count(name)) {
+      const auto& src = df.get<std::string>(name);
+      for (int g = 0; g < G; ++g) {
+        int s = idx[g], e = idx[g+1];
+        std::vector<std::string> dest;
+        dest.reserve(static_cast<std::size_t>(e - s));
+        for (int i = s; i < e; ++i) dest.push_back(src[i]);
+        groups[g].push_back(std::move(dest), name);
+      }
+    }
+  } // end for columns
+  
+  return groups;
 }
 
 // Validate row indices (throws if any out-of-range)

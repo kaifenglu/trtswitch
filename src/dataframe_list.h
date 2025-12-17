@@ -57,6 +57,34 @@ struct FlatMatrix {
   // raw pointer accessors for parallel-friendly use
   inline const double* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
   inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
+  
+  
+  // Print helper: pretty-print a small view of the matrix to an ostream (default std::cout)
+  inline void print(std::ostream& os = std::cout, int max_rows = 10, int max_cols = 10) const {
+    os << "FlatMatrix: " << nrow << " x " << ncol << "\n";
+    if (nrow == 0 || ncol == 0) return;
+    const int rows = std::min(nrow, max_rows);
+    const int cols = std::min(ncol, max_cols);
+    os.setf(std::ios::fmtflags(0), std::ios::floatfield);
+    os << std::fixed << std::setprecision(6);
+    for (int r = 0; r < rows; ++r) {
+      for (int c = 0; c < cols; ++c) {
+        os << (*this)(r, c);
+        if (c + 1 < cols) os << "\t";
+      }
+      if (cols < ncol) os << "\t...";
+      os << "\n";
+    }
+    if (rows < nrow) os << "...\n";
+    // restore formatting
+    os.unsetf(std::ios::floatfield);
+  }
+  
+  // ostream operator for convenience
+  friend inline std::ostream& operator<<(std::ostream& os, const FlatMatrix& fm) {
+    fm.print(os);
+    return os;
+  }
 };
 
 //
@@ -265,6 +293,67 @@ struct DataFrameCpp {
   
   // reserve map buckets (useful to avoid rehashing)
   void reserve_columns(int expected);
+  
+  // Print helper for DataFrameCpp: prints basic table view to ostream (default std::cout)
+  inline void print(std::ostream& os = std::cout, int max_rows = 10, bool show_col_types = false) const {
+    const std::size_t rows = nrows();
+    const std::size_t cols = size();
+    os << "DataFrameCpp: " << rows << " rows x " << cols << " cols\n";
+    if (cols == 0) return;
+    
+    // Print header (column names and optional types)
+    for (std::size_t c = 0; c < names_.size(); ++c) {
+      const std::string& nm = names_[c];
+      os << nm;
+      if (show_col_types) {
+        os << " (";
+        if (numeric_cols.count(nm)) os << "double";
+        else if (int_cols.count(nm)) os << "int";
+        else if (bool_cols.count(nm)) os << "bool";
+        else if (string_cols.count(nm)) os << "string";
+        else os << "unknown";
+        os << ")";
+      }
+      if (c + 1 < names_.size()) os << "\t";
+    }
+    os << "\n";
+    
+    if (rows == 0) return;
+    
+    const int rmax = static_cast<int>(std::min<std::size_t>(rows, static_cast<std::size_t>(max_rows)));
+    
+    for (int r = 0; r < rmax; ++r) {
+      for (std::size_t c = 0; c < names_.size(); ++c) {
+        const std::string& nm = names_[c];
+        if (numeric_cols.count(nm)) {
+          const auto& col = numeric_cols.at(nm);
+          os << col[r];
+        } else if (int_cols.count(nm)) {
+          const auto& col = int_cols.at(nm);
+          os << col[r];
+        } else if (bool_cols.count(nm)) {
+          const auto& col = bool_cols.at(nm);
+          unsigned char v = col[r];
+          if (v == 255) os << "NA";
+          else os << (v ? "TRUE" : "FALSE");
+        } else if (string_cols.count(nm)) {
+          const auto& col = string_cols.at(nm);
+          os << col[r];
+        } else {
+          os << "";
+        }
+        if (c + 1 < names_.size()) os << "\t";
+      }
+      os << "\n";
+    }
+    if (rmax < static_cast<int>(rows)) os << "...\n";
+  }
+  
+  // ostream operator for convenience
+  friend inline std::ostream& operator<<(std::ostream& os, const DataFrameCpp& df) {
+    df.print(os);
+    return os;
+  }
 };
 
 //
@@ -407,7 +496,9 @@ const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name
 const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
 void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
 void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
+void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
 DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx);
+std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx);
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
