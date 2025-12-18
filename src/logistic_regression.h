@@ -1,8 +1,6 @@
 #ifndef __LOGISTIC_REGRESSION__
 #define __LOGISTIC_REGRESSION__
 
-#include <Rcpp.h>
-
 struct DataFrameCpp; 
 struct ListCpp; 
 

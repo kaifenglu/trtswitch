@@ -1,6 +1,6 @@
-#' @title Estimate of Milestone Survival Difference
-#' @description Obtains the estimate of milestone survival difference
-#' between two treatment groups.
+#' @title Log-Rank Test of Survival Curve Difference
+#' @description Obtains the log-rank test using the Fleming-Harrington
+#' family of weights.
 #'
 #' @param data The input data frame or list of data frames that contains 
 #' the following variables:
@@ -21,7 +21,7 @@
 #'
 #'   * \code{weight}: The weight for each observation.
 #'
-#' @param stratum The name of the stratum variable in the input data.
+#' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param treat The name of the treatment variable in the input data.
 #' @param time The name of the time variable or the left end of each
 #'   interval for counting process data in the input data.
@@ -29,67 +29,52 @@
 #'   process data in the input data.
 #' @param event The name of the event variable in the input data.
 #' @param weight The name of the weight variable in the input data.
-#' @param milestone The milestone time at which to calculate the
-#'   survival probability.
-#' @param survDiffH0 The difference in milestone survival probabilities
-#'   under the null hypothesis. Defaults to 0 for superiority test.
-#' @param conflev The level of the two-sided confidence interval for
-#'   the difference in milestone survival probabilities. Defaults to 0.95.
+#' @param weight_readj Whether the weight variable at each event time
+#'   will be readjusted to be proportional to the number at risk by
+#'   treatment group. Defaults to `FALSE`.
+#' @param rho1 The first parameter of the Fleming-Harrington family of
+#'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
+#' @param rho2 The second parameter of the Fleming-Harrington family of
+#'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
 #' @param nthreads The number of threads to use in the computation (0 means 
-#'   the default RcppParallel behavior)   
-#'
+#'   the default RcppParallel behavior)
+#'   
 #' @return A data frame (or list of data frames if the input is a list 
 #' of data frames) with the following variables:
 #'
-#' * \code{milestone}: The milestone time relative to randomization.
+#' * \code{uscore}: The numerator of the log-rank test statistic.
 #'
-#' * \code{survDiffH0}: The difference in milestone survival probabilities
-#'   under the null hypothesis.
+#' * \code{vscore}: The variance of the log-rank score test statistic.
 #'
-#' * \code{surv1}: The estimated milestone survival probability for
-#'   the treatment group.
+#' * \code{logRankZ}: The Z-statistic value.
 #'
-#' * \code{surv2}: The estimated milestone survival probability for
-#'   the control group.
+#' * \code{logRankPValue}: The two-sided p-value.
 #'
-#' * \code{survDiff}: The estimated difference in milestone survival
-#'   probabilities.
+#' * \code{weight_readj}: Whether the weight variable will be readjusted.
 #'
-#' * \code{vsurv1}: The variance for surv1.
+#' * \code{rho1}: The first parameter of the Fleming-Harrington weights.
 #'
-#' * \code{vsurv2}: The variance for surv2.
-#'
-#' * \code{sesurvDiff}: The standard error for survDiff.
-#'
-#' * \code{survDiffZ}: The Z-statistic value.
-#'
-#' * \code{survDiffPValue}: The two-sided p-value.
-#'
-#' * \code{lower}: The lower bound of confidence interval.
-#'
-#' * \code{upper}: The upper bound of confidence interval.
-#'
-#' * \code{conflev}: The level of confidence interval.
+#' * \code{rho2}: The second parameter of the Fleming-Harrington weights.
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @examples
-#' 
+#'
 #' library(data.table)
 #' dt <- as.data.table(rawdata)
 #' data <- split(dt, by = "iterationNumber", keep.by = TRUE, flatten = FALSE)
 #'
-#' df <- kmdiff(data, stratum = "stratum", treat = "treatmentGroup", 
+#' df <- lrtest(data, stratum = "stratum", treat = "treatmentGroup", 
 #'              time = "timeUnderObservation", event = "event", 
-#'              milestone = 12)
+#'              rho1 = 0.5, rho2 = 0)
 #'              
 #' df_all <- rbindlist(df)
 #' df_all
 #'
 #' @export
-kmdiff <- function(data, stratum = "", treat = "", time = "time", 
+lrtest <- function(data, stratum = "", treat = "", time = "time", 
                    time2 = "", event = "event", weight = "",  
-                   milestone, survDiffH0 = 0, conflev = 0.95, nthreads = 0) {
+                   weight_readj = FALSE, rho1 = 0, rho2 = 0, nthreads = 0) {
   
   # Validate data: must be a data.frame or a list of data.frames
   if (!inherits(data, "data.frame") && !is.list(data)) {
@@ -108,8 +93,7 @@ kmdiff <- function(data, stratum = "", treat = "", time = "time",
     RcppParallel::setThreadOptions(min(nthreads, parallel::detectCores(logical = FALSE)))
   }
   
-  kmdiffRcpp(data, stratum = stratum, treat = treat, time = time, 
+  lrtestRcpp(data, stratum = stratum, treat = treat, time = time, 
              time2 = time2, event = event, weight = weight, 
-             milestone = milestone, survDiffH0 = survDiffH0,
-             conflev = conflev)
+             weight_readj = weight_readj, rho1 = rho1, rho2 = rho2)
 }

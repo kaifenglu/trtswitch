@@ -1,6 +1,7 @@
 // [[Rcpp::depends(RcppParallel)]]
 #include <RcppParallel.h>    // RcppParallel::Worker, parallelFor
 #include <RcppThread.h>      // RcppThread::Rcerr
+#include <Rcpp.h>
 
 #include "logistic_regression.h"
 #include "utilities.h"      // boost_pnorm, boost_plogis, etc.

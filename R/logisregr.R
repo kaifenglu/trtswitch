@@ -217,17 +217,24 @@ logisregr <- function(data, event = "event", covariates = "",
   # the variables of interest and add model-matrix columns if needed).
   prepare_df <- function(df) {
     # normalize rownames
+    if (is.data.frame(df) && (inherits(df, "data.table") || 
+                              inherits(df, "tbl") ||
+                              inherits(df, "tbl_df"))) {
+      df <- as.data.frame(df)
+    }
     rownames(df) <- NULL
     
-    # FAST ROW SELECTION: use complete.cases on the relevant columns (much cheaper than model.frame)
-    # elements vector was computed earlier in the wrapper scope (event, covariates, freq, weight, offset)
+    # FAST ROW SELECTION: use complete.cases on the relevant columns
+    # (much cheaper than model.frame)
+    # elements vector was computed earlier in the wrapper scope 
+    # (event, covariates, freq, weight, offset)
     sel_cols <- intersect(elements, names(df))        # only existing columns
     if (length(sel_cols) == 0) {
       # Nothing to filter on: keep all rows
       df2 <- df
     } else {
       # use base::complete.cases on the subset of columns we care about
-      rows_ok <- which(complete.cases(df[ , sel_cols, drop = FALSE]))
+      rows_ok <- which(complete.cases(df[, sel_cols, drop = FALSE]))
       if (length(rows_ok) == 0) {
         # no complete rows -> return zero-row frame with same columns
         df2 <- df[integer(0), , drop = FALSE]
@@ -408,7 +415,8 @@ logisregr <- function(data, event = "event", covariates = "",
       if (n_raw == 0) return(list())
       out <- vector("list", n_raw)
       for (i in seq_len(n_raw)) {
-        out[[i]] <- postprocess_one(raw_list[[i]], c(metas[[i]], list(orig_data = data[[i]], robust = robust)))
+        out[[i]] <- postprocess_one(raw_list[[i]], c(metas[[i]], list(
+          orig_data = data[[i]], robust = robust)))
       }
       return(out)
     } else {
@@ -433,7 +441,8 @@ logisregr <- function(data, event = "event", covariates = "",
           maxiter = maxiter,
           eps = eps
         )
-        out[[i]] <- postprocess_one(raw, c(metas[[i]], list(orig_data = data[[i]], robust = robust)))
+        out[[i]] <- postprocess_one(raw, c(metas[[i]], list(
+          orig_data = data[[i]], robust = robust)))
       }
       return(out)
     }

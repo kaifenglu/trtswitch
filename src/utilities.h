@@ -32,6 +32,7 @@ double boost_pchisq(double q, double df, bool lower_tail = true);
 double boost_qchisq(double p, double df, bool lower_tail = true);
 
 // --------------------------- Small utilities --------------------------------
+inline double sq(double x) noexcept { return x * x; }
 
 // seqcpp: inclusive sequence; inputs are int
 std::vector<int> seqcpp(int start, int end);

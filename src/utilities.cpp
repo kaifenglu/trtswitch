@@ -85,6 +85,10 @@ double boost_dextreme(double x, double location, double scale) {
 
 double boost_pchisq(double q, double df, bool lower_tail) {
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
+  if (std::isinf(q)) {
+    if (q > 0.0) return lower_tail ? 1.0 : 0.0;
+    else return lower_tail ? 0.0 : 1.0;
+  }
   boost::math::chi_squared_distribution<> dist(df);
   double p = boost::math::cdf(dist, q);
   return lower_tail ? p : (1.0 - p);
