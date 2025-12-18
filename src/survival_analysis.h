@@ -13,7 +13,6 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
                              const std::string& transform = "loglog",
                              const std::vector<double>& probs = {0.25, 0.5, 0.75});
 
-
 DataFrameCpp kmestcpp(const DataFrameCpp& data,
                       const std::vector<std::string>& stratum,
                       const std::string& time = "time",
@@ -34,6 +33,17 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
                        const double milestone = 0,
                        const double survDiffH0 = 0,
                        const double conflev = 0.95);
+
+DataFrameCpp lrtestcpp(const DataFrameCpp& data,
+                       const std::vector<std::string>& stratum,
+                       const std::string& treat = "treat",
+                       const std::string& time = "time",
+                       const std::string& time2 = "",
+                       const std::string& event = "event",
+                       const std::string& weight = "",
+                       const bool weight_readj = false,
+                       const double rho1 = 0,
+                       const double rho2 = 0);
 
 
 #endif // __SURVIVAL_ANALYSIS__

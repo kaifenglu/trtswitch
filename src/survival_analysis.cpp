@@ -43,8 +43,8 @@ std::vector<double> fsurvci(double surv, double sesurv, std::string& ct, double 
   } else if (ct == "arcsin" || ct == "asin" || ct == "asinsqrt") {
     grad = 1.0 / (2.0 * std::sqrt(surv * (1.0 - surv)));
     hw = z * grad * sesurv;
-    lower = std::pow(std::sin(std::asin(std::sqrt(surv)) - hw), 2);
-    upper = std::pow(std::sin(std::asin(std::sqrt(surv)) + hw), 2);
+    lower = sq(std::sin(std::asin(std::sqrt(surv)) - hw));
+    upper = sq(std::sin(std::asin(std::sqrt(surv)) + hw));
   } else {
     throw std::invalid_argument("Unknown confidence type: " + ct);
   }
@@ -74,9 +74,10 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
       throw std::invalid_argument("event must be 1 or 0");
     }
   }
-  bool any_event = false;
-  for (int v : event) if (v == 1) { any_event = true; break; }
-  if (!any_event) throw std::invalid_argument("at least 1 event is needed");
+  
+  int total_events = 0;
+  for (int v : event) if (v == 1) ++total_events;
+  if (total_events == 0) throw std::invalid_argument("at least 1 event is needed");
   
   if (!(cilevel > 0.0 && cilevel < 1.0)) {
     throw std::invalid_argument("cilevel must lie between 0 and 1");
@@ -108,8 +109,7 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
     if (!(p > 0.0 && p < 1.0)) 
       throw std::invalid_argument("Elements of probs must lie between 0 and 1");
   }
-  
-  
+
   // sort by time, and event with event in descending order
   std::vector<int> order(n);
   std::iota(order.begin(), order.end(), 0);
@@ -125,11 +125,15 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
     event2[i] = event[order[i]];
   }
   
-  std::vector<double> time0(n, NaN), nrisk0(n), nevent0(n);
-  std::vector<double> surv0(n), sesurv0(n);
+  std::vector<double> time0, nrisk0, nevent0, surv0, sesurv0;
+  time0.reserve(total_events);
+  nrisk0.reserve(total_events);
+  nevent0.reserve(total_events);
+  surv0.reserve(total_events);
+  sesurv0.reserve(total_events);
+  
   double t = 0, nrisk = n, nevent = 0, surv = 1, vcumhaz = 0, sesurv;
   
-  int i = 0;
   bool cache = false; // buffer for the current event time
   for (int j=0; j<n; ++j) {
     if ((j == 0 && event2[j] == 1) ||
@@ -144,13 +148,11 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
         }
         sesurv = surv * std::sqrt(vcumhaz);
         
-        time0[i] = t;
-        nrisk0[i] = nrisk;
-        nevent0[i] = nevent;
-        surv0[i] = surv;
-        sesurv0[i] = sesurv;
-        
-        ++i;
+        time0.push_back(t);
+        nrisk0.push_back(nrisk);
+        nevent0.push_back(nevent);
+        surv0.push_back(surv);
+        sesurv0.push_back(sesurv);
       }
       
       // update the buffer for the current event time
@@ -171,13 +173,11 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
       }
       sesurv = surv * std::sqrt(vcumhaz);
       
-      time0[i] = t;
-      nrisk0[i] = nrisk;
-      nevent0[i] = nevent;
-      surv0[i] = surv;
-      sesurv0[i] = sesurv;
-      
-      ++i;
+      time0.push_back(t);
+      nrisk0.push_back(nrisk);
+      nevent0.push_back(nevent);
+      surv0.push_back(surv);
+      sesurv0.push_back(sesurv);
       
       // empty the buffer for the current event time
       cache = false;
@@ -194,30 +194,15 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
     }
     sesurv = surv * std::sqrt(vcumhaz);
     
-    time0[i] = t;
-    nrisk0[i] = nrisk;
-    nevent0[i] = nevent;
-    surv0[i] = surv;
-    sesurv0[i] = sesurv;
-    
-    ++i;
+    time0.push_back(t);
+    nrisk0.push_back(nrisk);
+    nevent0.push_back(nevent);
+    surv0.push_back(surv);
+    sesurv0.push_back(sesurv);
   }
   
-  // keep only non-missing records (time0 != NaN)
-  std::vector<int> keep_indices;
-  keep_indices.reserve(i);
-  for (int j = 0; j < i; ++j) {
-    if (!std::isnan(time0[j])) keep_indices.push_back(j);
-  }
-  int n0 = static_cast<int>(keep_indices.size());
-  
-  subset_in_place(time0, keep_indices);
-  subset_in_place(nrisk0, keep_indices);
-  subset_in_place(nevent0, keep_indices);
-  subset_in_place(surv0, keep_indices);
-  subset_in_place(sesurv0, keep_indices);
-  
-  
+  int n0 = time0.size();
+
   std::vector<double> z(n0, NaN), grad(n0, NaN);
   double zcrit = boost_qnorm((1.0 + cilevel) /2.0);
   
@@ -239,48 +224,48 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
           
         case 3: // loglog / log-log / cloglog
           grad[i] = 1.0 / (surv0[i] * std::log(surv0[i]));
-          z[i] = (std::log(-std::log(surv0[i])) - std::log(-std::log(q))) / 
-            (grad[i] * sesurv0[i]);
+          z[i] = (std::log(-std::log(surv0[i])) - std::log(-std::log(q))) / (grad[i] * sesurv0[i]);
           break;
           
         case 4: // logit
           grad[i] = 1.0 / (surv0[i] * (1.0 - surv0[i]));
-          z[i] = (boost_qlogis(surv0[i]) - boost_qlogis(q)) /
-            (grad[i] * sesurv0[i]);
+          z[i] = (boost_qlogis(surv0[i]) - boost_qlogis(q)) / (grad[i] * sesurv0[i]);
           break;
           
         case 5: // arcsin / asin / asinsqrt
           grad[i] = 1.0 / (2.0 * std::sqrt(surv0[i] * (1.0 - surv0[i])));
-          z[i] = (std::asin(std::sqrt(surv0[i])) - std::asin(std::sqrt(q))) /
-            (grad[i] * sesurv0[i]);
+          z[i] = (std::asin(std::sqrt(surv0[i])) - std::asin(std::sqrt(q))) / (grad[i] * sesurv0[i]);
           break;
         }
       }
     }
     
-    std::vector<int> index;
+   // find indices with |z| <= zcrit (we only need min and max)
+    int imin = -1, imax = -1;
     for (int i = 0; i < n0; ++i) {
-      if (!std::isnan(z[i]) && std::abs(z[i]) <= zcrit) index.push_back(i);
+      if (!std::isnan(z[i]) && std::fabs(z[i]) <= zcrit) {
+        if (imin == -1) imin = i;
+        imax = i;
+      }
     }
-    
-    
-    if (index.empty()) {
+    if (imin == -1) {
       lower[j] = upper[j] = NaN;
     } else {
-      int imin = *std::min_element(index.begin(), index.end());
-      int imax = *std::max_element(index.begin(), index.end());
       lower[j] = time0[imin];
       if (imax < n0 - 1) upper[j] = time0[imax + 1];
       else upper[j] = NaN;
     }
     
-    
-    // quantile: first time where surv0 < q
+    // quantile: first time where surv0 < q. surv0 is non-increasing, do binary search
     int first_lt = -1;
-    for (int i = 0; i < n0; ++i) {
-      if (!std::isnan(surv0[i]) && surv0[i] < q) {
-        first_lt = i;
-        break;
+    int lo = 0, hi = n0 - 1;
+    while (lo <= hi) {
+      int mid = (lo + hi) >> 1;
+      if (surv0[mid] < q) {
+        first_lt = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
       }
     }
     if (first_lt >= 0) quantile[j] = time0[first_lt];
@@ -544,7 +529,7 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
       const int p1 = order1[i1];
       if (tstartn[p1] < dtime || stratumn[p1] != istratum) break;
       
-      nrisk--;
+      --nrisk;
       nriskw -= weightn[p1];
       nriskw2 -= weightn[p1] * weightn[p1];
     }
@@ -713,7 +698,7 @@ struct kmestWorker : public RcppParallel::Worker {
   
   void operator()(std::size_t begin, std::size_t end) {
     for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function logisregcpp on data_ptr->at(i)
+      // Call the pure C++ function kmestcpp on data_ptr->at(i)
       DataFrameCpp out = kmestcpp(
         (*data_ptr)[i], stratum, time, time2, event, weight, 
         conftype, conflev, keep_censor);
@@ -733,7 +718,7 @@ Rcpp::List kmestRcpp(SEXP data,
                      const double conflev = 0.95,
                      const bool keep_censor = false) {
   
-  // Case A: single data.frame -> call logisregcpp on main thread
+  // Case A: single data.frame -> call kmestcpp on main thread
   if (Rf_inherits(data, "data.frame")) {
     Rcpp::DataFrame rdf(data);
     DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
@@ -1225,7 +1210,7 @@ struct kmdiffWorker : public RcppParallel::Worker {
   
   void operator()(std::size_t begin, std::size_t end) {
     for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function logisregcpp on data_ptr->at(i)
+      // Call the pure C++ function kmdiffcpp on data_ptr->at(i)
       DataFrameCpp out = kmdiffcpp(
         (*data_ptr)[i], stratum, treat, time, time2, event, weight, 
         milestone, survDiffH0, conflev);
@@ -1246,7 +1231,7 @@ Rcpp::List kmdiffRcpp(SEXP data,
                       const double survDiffH0 = 0,
                       const double conflev = 0.95) {
   
-  // Case A: single data.frame -> call logisregcpp on main thread
+  // Case A: single data.frame -> call kmdiffcpp on main thread
   if (Rf_inherits(data, "data.frame")) {
     Rcpp::DataFrame rdf(data);
     DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
@@ -1287,6 +1272,504 @@ Rcpp::List kmdiffRcpp(SEXP data,
     kmdiffWorker worker(
         &data_vec, stratum, treat, time, time2, event, weight, 
         milestone, survDiffH0, conflev, &results
+    );
+    
+    // Execute parallelFor (this will schedule work across threads)
+    RcppParallel::parallelFor(0, m, worker);
+    
+    // Drain thread-collected warnings (on main thread) into R's warning system
+    thread_utils::drain_thread_warnings_to_R();
+    
+    // Convert C++ DataFrameCpp results back to R on the main thread
+    Rcpp::List out(m);
+    for (int i = 0; i < m; ++i) {
+      out[i] = Rcpp::wrap(results[i]);
+    }
+    return out;
+  }
+  
+  // Neither a data.frame nor a list: error
+  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
+  return R_NilValue; // unreachable
+}
+
+
+// Compute log-rank test statistic
+DataFrameCpp lrtestcpp(const DataFrameCpp& data,
+                       const std::vector<std::string>& stratum,
+                       const std::string& treat,
+                       const std::string& time,
+                       const std::string& time2,
+                       const std::string& event,
+                       const std::string& weight,
+                       const bool weight_readj,
+                       const double rho1,
+                       const double rho2) {
+  int n = data.nrows();
+  
+  std::vector<int> stratumn(n);
+  int p_stratum = stratum.size();
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    stratumn = out.get<std::vector<int>>("index");
+  }
+  
+  // ---- treatment -> integer coding 1/2 ----
+  if (!data.containElementNamed(treat)) {
+    throw std::invalid_argument("data must contain the treat variable");
+  }
+  std::vector<int> treatn(n);
+  if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+    std::vector<int> treatv(n);
+    if (data.bool_cols.count(treat)) {
+      const auto& vb = data.get<unsigned char>(treat);
+      for (int i = 0; i < n; ++i) treatv[i] = vb[i] ? 1 : 0;
+    } else treatv = data.get<int>(treat);
+    auto treatwi = unique_sorted(treatv); // obtain unique treatment values
+    if (treatwi.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwi.begin(), treatwi.end(), [](int v) { return v == 0 || v == 1; })) {
+      // special handling for 0/1 => map to 2,1 (so treated = 1, control = 2)
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
+    } else {
+      treatn = matchcpp(treatv, treatwi, 1);
+    }
+  } else if (data.numeric_cols.count(treat)) {
+    const auto& tv = data.get<double>(treat);
+    auto treatwn = unique_sorted(tv);
+    if (treatwn.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwn.begin(), treatwn.end(), [](double v) { return v == 0.0 || v == 1.0; })) {
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(tv[i]);
+    } else {
+      treatn = matchcpp(tv, treatwn, 1);
+    }
+  } else if (data.string_cols.count(treat)) {
+    const auto& tv = data.get<std::string>(treat);
+    auto treatwc = unique_sorted(tv);
+    if (treatwc.size() != 2) 
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    treatn = matchcpp(tv, treatwc, 1);
+  } else {
+    throw std::invalid_argument("incorrect type for the treat variable in the input data");
+  }
+  
+  // ---- time / time2 ----
+  if (!data.containElementNamed(time)) {
+    throw std::invalid_argument("data must contain the time variable");
+  }
+  std::vector<double> timen = data.get<double>(time);
+  for (double v : timen) if (v < 0.0)
+    throw std::invalid_argument("time must be nonnegative for each subject");
+  
+  bool has_time2 = !time2.empty() && data.containElementNamed(time2);
+  std::vector<double> time2n(n);
+  if (has_time2) {
+    time2n = data.get<double>(time2);
+    for (int i = 0; i < n; ++i) {
+      if (time2n[i] <= timen[i]) {
+        throw std::invalid_argument("time2 must be greater than time for each observation");
+      }
+    }
+  }
+  
+  // unify right censored data with counting process data
+  std::vector<double> tstartn(n), tstopn(n);
+  if (!has_time2) {
+    tstopn = std::move(timen);
+    // tstartn remains zero-initialized
+  } else {
+    tstartn = std::move(timen);
+    tstopn = std::move(time2n);
+  }
+  
+  // ---- event -> numeric 0/1 ----
+  if (!data.containElementNamed(event))
+    throw std::invalid_argument("data must contain the event variable");
+  std::vector<double> eventn(n);
+  if (data.bool_cols.count(event)) {
+    const auto& vb = data.get<unsigned char>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+  } else if (data.int_cols.count(event)) {
+    const auto& vi = data.get<int>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(event)) {
+    eventn = data.get<double>(event);
+  } else {
+    throw std::invalid_argument("event variable must be bool, integer or numeric");
+  }
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  
+  std::vector<double> weightn(n, 1.0);
+  if (!weight.empty() && data.containElementNamed(weight)) {
+    weightn = data.get<double>(weight);
+    for (double v : weightn) if (v <= 0.0)
+      throw std::invalid_argument("weight must be greater than 0");
+  }
+  
+  if (rho1 < 0) throw std::invalid_argument("rho1 must be non-negative");
+  if (rho2 < 0) throw std::invalid_argument("rho2 must be non-negative");
+  
+  // sort by stopping time in descending order within each stratum
+  std::vector<int> order(n);
+  std::iota(order.begin(), order.end(), 0);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
+    if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
+    return eventn[i] < eventn[j];
+  });
+  
+  subset_in_place(stratumn, order);
+  subset_in_place(treatn, order);
+  subset_in_place(tstartn, order);
+  subset_in_place(tstopn, order);
+  subset_in_place(eventn, order);
+  subset_in_place(weightn, order);
+  
+  // sort by starting time in descending order within each stratum
+  std::vector<int> order1(n);
+  std::iota(order1.begin(), order1.end(), 0);
+  std::sort(order1.begin(), order1.end(), [&](int i, int j) {
+    if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
+    return tstartn[i] > tstartn[j];
+  });
+  
+  double u = 0; // score
+  double v = 0; // information (variance for score)
+  
+  double nrisk = 0, nrisk_1 = 0, nrisk_2 = 0;    // number at risk
+  double nriskw = 0, nriskw_1 = 0, nriskw_2 = 0; // weighted # at risk
+  double nriskw2_1 = 0, nriskw2_2 = 0;           // weight^2 # at risk
+  double nevent = 0;                             // number of events
+  double neventw = 0, neventw_1 = 0;             // weighted # events
+
+  int istratum = stratumn[0]; // current stratum
+  int i1 = 0;                 // index for removing out-of-risk subjects
+  
+  if (rho1 == 0 && rho2 == 0) {
+    for (int i = 0; i < n; ) {
+      // Reset when entering a new stratum
+      if (stratumn[i] != istratum) {
+        istratum = stratumn[i];
+        i1 = i;
+        
+        nrisk = nrisk_1 = nrisk_2 = 0;
+        nriskw = nriskw_1 = nriskw_2 = 0;
+        nriskw2_1 = nriskw2_2 = 0;
+      }
+      
+      const double dtime = tstopn[i];
+      
+      // Process all persons tied at this dtime
+      for (; i < n && tstopn[i] == dtime && stratumn[i] == istratum; ++i) {
+        ++nrisk;
+        double w = weightn[i];
+        nriskw += w;
+        if (treatn[i] == 1) {
+          ++nrisk_1; nriskw_1 += w; nriskw2_1 += w*w;
+        } else {
+          ++nrisk_2; nriskw_2 += w; nriskw2_2 += w*w;
+        }
+        
+        if (eventn[i] == 1) {
+          ++nevent; neventw += w;
+          if (treatn[i] == 1) neventw_1 += w;
+        }
+      }
+      
+      // Remove subjects leaving risk set
+      for (; i1<n; ++i1) {
+        const int p1 = order1[i1];
+        if (tstartn[p1] < dtime || stratumn[p1] != istratum) break;
+        
+        --nrisk;
+        double w = weightn[p1]; 
+        nriskw -= w;
+        if (treatn[p1] == 1) {
+          --nrisk_1; nriskw_1 -= w; nriskw2_1 -= w*w;
+        } else {
+          --nrisk_2; nriskw_2 -= w; nriskw2_2 -= w*w;
+        }
+      }
+      
+      // Add contributions for deaths at this time
+      if (nevent > 0) {
+        if (nrisk_1 > 0 && nrisk_2 > 0) {
+          if (!weight_readj) {
+            u += neventw_1 - neventw * (nriskw_1 / nriskw);
+            double v1 = sq(nriskw_1 / nriskw) * nriskw2_2;
+            double v2 = sq(nriskw_2 / nriskw) * nriskw2_1;
+            v += nevent * (nrisk - nevent)/(nrisk * (nrisk - 1)) * (v1 + v2);
+          } else {
+            double neventw_2 = neventw - neventw_1;
+            double neventwa_1 = neventw_1 * nrisk_1 / nriskw_1;
+            double neventwa_2 = neventw_2 * nrisk_2 / nriskw_2;
+            double neventwa = neventwa_1 + neventwa_2;
+            u += neventwa_1 - neventwa * (nrisk_1 / nrisk);
+            double v1 = sq(nrisk_1 / nrisk) * nriskw2_2 * sq(nrisk_2 / nriskw_2);
+            double v2 = sq(nrisk_2 / nrisk) * nriskw2_1 * sq(nrisk_1 / nriskw_1);
+            v += nevent * (nrisk - nevent)/(nrisk * (nrisk - 1)) * (v1 + v2);
+          }
+        }
+        
+        // Reset after processing deaths
+        nevent = neventw = neventw_1 = 0;
+      }
+    }
+  } else { // need to collect summaries for each event time and then iterate backward
+    std::vector<int> stratum0;
+    std::vector<double> time0;
+    std::vector<double> nrisk0, nrisk_10, nrisk_20;
+    std::vector<double> nriskw0, nriskw_10, nriskw_20;
+    std::vector<double> nriskw2_10, nriskw2_20;
+    std::vector<double> nevent0, neventw0, neventw_10;
+    int d = n/4; // upper bound on number of unique event times
+    stratum0.reserve(d); time0.reserve(d);
+    nrisk0.reserve(d); nrisk_10.reserve(d); nrisk_20.reserve(d);
+    nriskw0.reserve(d); nriskw_10.reserve(d); nriskw_20.reserve(d);
+    nriskw2_10.reserve(d); nriskw2_20.reserve(d);
+    nevent0.reserve(d); neventw0.reserve(d); neventw_10.reserve(d);
+    
+    for (int i = 0; i < n; ) {
+      // Reset when entering a new stratum
+      if (stratumn[i] != istratum) {
+        istratum = stratumn[i];
+        i1 = i;
+        
+        nrisk = nrisk_1 = nrisk_2 = 0;
+        nriskw = nriskw_1 = nriskw_2 = 0;
+        nriskw2_1 = nriskw2_2 = 0;
+      }
+      
+      const double dtime = tstopn[i];
+      
+      // Process all persons tied at this dtime
+      for (; i < n && tstopn[i] == dtime && stratumn[i] == istratum; ++i) {
+        ++nrisk;
+        double w = weightn[i]; 
+        nriskw += w;
+        if (treatn[i] == 1) {
+          ++nrisk_1; nriskw_1 += w; nriskw2_1 += w*w;
+        } else {
+          ++nrisk_2; nriskw_2 += w; nriskw2_2 += w*w;
+        }
+        
+        if (eventn[i] == 1) {
+          ++nevent; neventw += w;
+          if (treatn[i] == 1) neventw_1 += w;
+        }
+      }
+      
+      // Remove subjects leaving risk set
+      for (; i1<n; ++i1) {
+        const int p1 = order1[i1];
+        if (tstartn[p1] < dtime || stratumn[p1] != istratum) break;
+        
+        --nrisk;
+        double w = weightn[p1]; 
+        nriskw -= w;
+        if (treatn[p1] == 1) {
+          --nrisk_1; nriskw_1 -= w; nriskw2_1 -= w*w;
+        } else {
+          --nrisk_2; nriskw_2 -= w; nriskw2_2 -= w*w;
+        }
+      }
+      
+      // add to the temporary storage
+      if (nevent > 0) {
+        stratum0.push_back(istratum);
+        time0.push_back(dtime);
+        nrisk0.push_back(nrisk);
+        nrisk_10.push_back(nrisk_1);
+        nrisk_20.push_back(nrisk_2);
+        nriskw0.push_back(nriskw);
+        nriskw_10.push_back(nriskw_1);
+        nriskw_20.push_back(nriskw_2);
+        nriskw2_10.push_back(nriskw2_1);
+        nriskw2_20.push_back(nriskw2_2);
+        nevent0.push_back(nevent);
+        neventw0.push_back(neventw);
+        neventw_10.push_back(neventw_1);
+
+        // Reset after processing deaths
+        nevent = neventw = neventw_1 = 0;
+      }
+    }
+    
+    int m = time0.size();
+    if (m > 0) {
+      double surv = 1.0;
+      istratum = stratum0[m - 1];
+      for (int i = m-1; i >= 0; --i) {
+        nrisk = nrisk0[i];
+        nrisk_1 = nrisk_10[i];
+        nrisk_2 = nrisk_20[i];
+        nriskw = nriskw0[i];
+        nriskw_1 = nriskw_10[i];
+        nriskw_2 = nriskw_20[i];
+        nriskw2_1 = nriskw2_10[i];
+        nriskw2_2 = nriskw2_20[i];
+        nevent = nevent0[i];
+        neventw = neventw0[i];
+        neventw_1 = neventw_10[i];
+        
+        // Reset when entering a new stratum
+        if (stratum0[i] != istratum) {
+          istratum = stratum0[i];
+          surv = 1;
+        }
+        
+        // add to the main terms with S(t-)^rho1*(1 - S(t-))^rho2 weights
+        double w = std::pow(surv, rho1) * std::pow(1 - surv, rho2);
+        
+        double neventwa = 0, neventwa_1 = 0, neventwa_2 = 0;
+        if (weight_readj) {
+          double neventw_2 = neventw - neventw_1;
+          neventwa_1 = neventw_1 * nrisk_1 / nriskw_1;
+          neventwa_2 = neventw_2 * nrisk_2 / nriskw_2;
+          neventwa = neventwa_1 + neventwa_2;
+        }
+        
+        if (nrisk_1 > 0 && nrisk_2 > 0) {
+          if (!weight_readj) {
+            u += w * (neventw_1 - neventw * (nriskw_1 / nriskw));
+            double v1 = sq(nriskw_1 / nriskw) * nriskw2_2;
+            double v2 = sq(nriskw_2 / nriskw) * nriskw2_1;
+            v += w * w * nevent * (nrisk - nevent) / (nrisk * (nrisk - 1)) * (v1 + v2);
+          } else {
+            u += w * (neventwa_1 - neventwa * (nrisk_1 / nrisk));
+            double v1 = sq(nrisk_1 / nrisk) * nriskw2_2 * sq(nrisk_2 / nriskw_2);
+            double v2 = sq(nrisk_2 / nrisk) * nriskw2_1 * sq(nrisk_1 / nriskw_1);
+            v += w * w * nevent * (nrisk - nevent) / (nrisk * (nrisk - 1)) * (v1 + v2);
+          }
+        }
+        
+        // update survival probability
+        if (!weight_readj) surv *= (1.0 - neventw / nriskw);
+        else surv *= (1.0 - neventwa / nrisk);
+      }
+    }
+  }
+  
+  double z, p;
+  if (v <= 0.0) {
+    z = NaN; p = NaN;
+  } else {
+    z = u / std::sqrt(v);
+    p = 2.0 * boost_pnorm(-std::fabs(z));
+  }
+  
+  DataFrameCpp result;
+  result.push_back(u, "uscore");
+  result.push_back(v, "vscore");
+  result.push_back(z, "logRankZ");
+  result.push_back(p, "logRankPValue");
+  result.push_back(weight_readj, "weight_readj");
+  result.push_back(rho1, "rho1");
+  result.push_back(rho2, "rho2");
+  
+  return result;
+}
+
+
+// ----------------------------------------------------------------------------
+// Parallel worker
+// ----------------------------------------------------------------------------
+
+struct lrtestWorker : public RcppParallel::Worker {
+  const std::vector<DataFrameCpp>* data_ptr;
+  const std::vector<std::string>& stratum;
+  const std::string& treat;
+  const std::string& time;
+  const std::string& time2;
+  const std::string& event;
+  const std::string& weight;
+  const bool weight_readj;
+  const double rho1;
+  const double rho2;
+  
+  std::vector<DataFrameCpp>* results;
+  
+  lrtestWorker(const std::vector<DataFrameCpp>* data_ptr_,
+               const std::vector<std::string>& stratum_,
+               const std::string& treat_,
+               const std::string& time_,
+               const std::string& time2_,
+               const std::string& event_,
+               const std::string& weight_,
+               const bool weight_readj_,
+               const double rho1_,
+               const double rho2_,
+               std::vector<DataFrameCpp>* results_)
+    : data_ptr(data_ptr_), stratum(stratum_), treat(treat_), time(time_), 
+      time2(time2_), event(event_), weight(weight_), weight_readj(weight_readj_), 
+      rho1(rho1_), rho2(rho2_), results(results_) {}
+  
+  void operator()(std::size_t begin, std::size_t end) {
+    for (std::size_t i = begin; i < end; ++i) {
+      // Call the pure C++ function lrtestcpp on data_ptr->at(i)
+      DataFrameCpp out = lrtestcpp(
+        (*data_ptr)[i], stratum, treat, time, time2, event, weight, 
+        weight_readj, rho1, rho2);
+      (*results)[i] = std::move(out);
+    }
+  }
+};
+
+// [[Rcpp::export]]
+Rcpp::List lrtestRcpp(SEXP data,
+                      const std::vector<std::string>& stratum,
+                      const std::string& treat = "treat",
+                      const std::string& time = "time",
+                      const std::string& time2 = "",
+                      const std::string& event = "event",
+                      const std::string& weight = "",
+                      const bool weight_readj = false,
+                      const double rho1 = 0,
+                      const double rho2 = 0) {
+  
+  // Case A: single data.frame -> call lrtestcpp on main thread
+  if (Rf_inherits(data, "data.frame")) {
+    Rcpp::DataFrame rdf(data);
+    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
+    
+    // Call core C++ function directly on the DataFrameCpp
+    DataFrameCpp cpp_result = lrtestcpp(
+      dfcpp, stratum, treat, time, time2, event, weight, 
+      weight_readj, rho1, rho2);
+    
+    thread_utils::drain_thread_warnings_to_R();
+    return Rcpp::wrap(cpp_result);
+  }
+  
+  // Case B: list of data.frames -> process in parallel
+  if (TYPEOF(data) == VECSXP) {
+    Rcpp::List lst(data);
+    int m = lst.size();
+    if (m == 0) return Rcpp::List(); // nothing to do
+    
+    // Convert each element to DataFrameCpp.
+    std::vector<DataFrameCpp> data_vec;
+    data_vec.reserve(m);
+    for (int i = 0; i < m; ++i) {
+      SEXP el = lst[i];
+      if (!Rf_inherits(el, "data.frame")) {
+        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
+      }
+      Rcpp::DataFrame rdf(el);
+      
+      DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
+      data_vec.push_back(std::move(dfcpp));
+    }
+    
+    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
+    std::vector<DataFrameCpp> results(m);
+    
+    // Build worker and run parallelFor across all indices [0, m)
+    lrtestWorker worker(
+        &data_vec, stratum, treat, time, time2, event, weight, 
+        weight_readj, rho1, rho2, &results
     );
     
     // Execute parallelFor (this will schedule work across threads)
