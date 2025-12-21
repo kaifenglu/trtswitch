@@ -208,6 +208,10 @@ ListCpp bscpp(
     bool warn_outside)
 {
   // compute basis matrix 
+  if (x.empty() || (x.size() == 1 && std::isnan(x[0]))) {
+    throw std::invalid_argument("input 'x' is empty or NA");
+  }
+  
   int m = x.size();
   int ord = 1 + degree;
   if (ord <= 1) throw std::invalid_argument("'degree' must be a positive integer");
@@ -219,7 +223,9 @@ ListCpp bscpp(
   
   // boundary knots
   std::vector<double> boundary_knots = boundary_knots_in;
-  if (boundary_knots.size() == 0) {
+  
+  if (boundary_knots.empty() || 
+      (boundary_knots.size() == 1 && std::isnan(boundary_knots[0]))) {
     if (n == 1) {
       boundary_knots = { z[0]*7.0/8.0, z[0]*9.0/8.0 };
     } else {
@@ -231,9 +237,10 @@ ListCpp bscpp(
     if (boundary_knots.size() != 2) throw std::invalid_argument("boundary_knots must have length 2");
   }
   
+  
   // compute K and knots
   std::vector<double> knots = knots_in;
-  bool mk_knots = (df > 0) && knots.empty();
+  bool mk_knots = (df > 0) && (knots.empty() || (knots.size() == 1 && std::isnan(knots[0])));
   int K = 0; // number of inner knots
   if (mk_knots) {
     K = df - ord + (1 - (intercept ? 1 : 0));
@@ -452,6 +459,11 @@ ListCpp nscpp(
     bool intercept,
     const std::vector<double>& boundary_knots_in)
 {
+  // compute basis matrix 
+  if (x.empty() || (x.size() == 1 && std::isnan(x[0]))) {
+    throw std::invalid_argument("input 'x' is empty or NA");
+  }
+  
   int m = x.size();
   
   // NA handling
@@ -461,7 +473,8 @@ ListCpp nscpp(
   
   // boundary knots
   std::vector<double> boundary_knots = boundary_knots_in;
-  if (boundary_knots.size() == 0) {
+  if (boundary_knots.empty() || 
+      (boundary_knots.size() == 1 && std::isnan(boundary_knots[0]))) {
     if (n == 1) boundary_knots = { z[0]*7.0/8.0, z[0]*9.0/8.0 };
     else {
       double mn = *std::min_element(z.begin(), z.end());
@@ -474,7 +487,7 @@ ListCpp nscpp(
   
   // compute K and knots
   std::vector<double> knots = knots_in;
-  bool mk_knots = (df > 0) && knots.empty();
+  bool mk_knots = (df > 0) && (knots.empty() || (knots.size() == 1 && std::isnan(knots[0])));
   int K = 0; // number of interior knots
   if (mk_knots) {
     K = df - 1 - (intercept ? 1 : 0);
@@ -690,3 +703,6 @@ ListCpp nscpp(
   
   return out;
 }
+
+
+

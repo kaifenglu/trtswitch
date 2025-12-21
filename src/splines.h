@@ -43,4 +43,6 @@ ListCpp nscpp(
     bool intercept = false,
     const std::vector<double>& boundary_knots = {});
 
+
+
 #endif // __SPLINES__
