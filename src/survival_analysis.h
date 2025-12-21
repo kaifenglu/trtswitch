@@ -45,5 +45,12 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
                        const double rho1 = 0,
                        const double rho2 = 0);
 
+DataFrameCpp rmestcpp(const DataFrameCpp& data,
+                      const std::vector<std::string>& stratum,
+                      const std::string& time,
+                      const std::string& event,
+                      const double milestone,
+                      const double conflev,
+                      const bool biascorrection);
 
 #endif // __SURVIVAL_ANALYSIS__

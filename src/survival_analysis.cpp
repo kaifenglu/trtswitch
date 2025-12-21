@@ -359,13 +359,11 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   int n = data.nrows();
   
-  bool has_stratum;
+  bool has_stratum = false;
   std::vector<int> stratumn(n);
   DataFrameCpp u_stratum;
   int p_stratum = stratum.size();
-  if (p_stratum == 0 || (p_stratum == 1 && stratum[0] == "")) {
-    has_stratum = false;
-  } else {
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
     ListCpp out = bygroup(data, stratum);
     has_stratum = true;
     stratumn = out.get<std::vector<int>>("index");
@@ -443,10 +441,13 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   // confidence interval for survival probability
   double z = boost_qnorm((1.0 + conflev) / 2.0);
   
-  std::vector<int> stratum1(n), size1(n);
-  std::vector<double> time1(n), nrisk1(n), nevent1(n), ncensor1(n);
-  std::vector<double> surv1(n), sesurv1(n);
-  std::vector<double> lower1(n), upper1(n);
+  std::vector<int> stratum1, size1;
+  std::vector<double> time1, nrisk1, nevent1, ncensor1;
+  std::vector<double> surv1, sesurv1;
+  std::vector<double> lower1, upper1;
+  stratum1.reserve(n); size1.reserve(n); time1.reserve(n);
+  nrisk1.reserve(n); nevent1.reserve(n); ncensor1.reserve(n);
+  surv1.reserve(n); sesurv1.reserve(n); lower1.reserve(n); upper1.reserve(n);
   
   // sort by stopping time in descending order within each stratum
   std::vector<int> order(n);
@@ -485,11 +486,13 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   int i1 = 0;                 // index for removing out-of-risk subjects
   
   int stratum_size = 0;
-  std::vector<int> stratum0(n), size00(n);
-  std::vector<double> time0(n), nrisk0(n), nriskw0(n), nriskw20(n);
-  std::vector<double> nevent0(n), neventw0(n), ncensor0(n);
+  std::vector<int> stratum0, size00;
+  std::vector<double> time0, nrisk0, nriskw0, nriskw20;
+  std::vector<double> nevent0, neventw0, ncensor0;
+  stratum0.reserve(n); size00.reserve(n); time0.reserve(n);
+  nrisk0.reserve(n); nriskw0.reserve(n); nriskw20.reserve(n);
+  nevent0.reserve(n); neventw0.reserve(n); ncensor0.reserve(n);
   
-  int index = 0;
   for (int i = 0; i < n; ) {
     // Reset when entering a new stratum
     if (stratumn[i] != istratum) {
@@ -535,17 +538,16 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
     }
     
     if (nevent > 0 || keep_censor) {
-      stratum0[index] = istratum;
-      time0[index] = dtime;
-      nrisk0[index] = nrisk;
-      nriskw0[index] = nriskw;
-      nriskw20[index] = nriskw2;
-      nevent0[index] = nevent;
-      neventw0[index] = neventw;
-      ncensor0[index] = ncensor;
+      stratum0.push_back(istratum);
+      time0.push_back(dtime);
+      nrisk0.push_back(nrisk);
+      nriskw0.push_back(nriskw);
+      nriskw20.push_back(nriskw2);
+      nevent0.push_back(nevent);
+      neventw0.push_back(neventw);
+      ncensor0.push_back(ncensor);
       
       nevent = neventw = 0;
-      ++index;
     }
     
     ncensor = 0;
@@ -554,13 +556,14 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   size00[istratum] = stratum_size; // update size of the last stratum
   
-  std::vector<int> size0(index);
-  std::vector<double> surv0(index), sesurv0(index);
-  std::vector<double> lower0(index), upper0(index);
+  int m = stratum0.size();
+  std::vector<int> size0(m);
+  std::vector<double> surv0(m), sesurv0(m);
+  std::vector<double> lower0(m), upper0(m);
   
-  if (index > 0) {
-    istratum = stratum0[index - 1];
-    for (int i = index - 1; i >= 0; --i) {
+  if (m > 0) {
+    istratum = stratum0[m - 1];
+    for (int i = m - 1; i >= 0; --i) {
       double nevent_l = nevent0[i];
       double neventw_l = neventw0[i];
       double nriskw_l = nriskw0[i];
@@ -591,37 +594,21 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
     }
   }
   
-  // update the global index (reverse)
-  for (int i = 0; i < index; ++i) {
-    int k = index - 1 - i;
-    stratum1[i] = stratum0[k];
-    size1[i] = size0[k];
-    time1[i] = time0[k];
-    nrisk1[i] = nrisk0[k];
-    nevent1[i] = nevent0[k];
-    ncensor1[i] = ncensor0[k];
-    surv1[i] = surv0[k];
-    sesurv1[i] = sesurv0[k];
+  // update the global m (reverse)
+  for (int i = 0; i < m; ++i) {
+    int k = m - 1 - i;
+    stratum1.push_back(stratum0[k]);
+    size1.push_back(size0[k]);
+    time1.push_back(time0[k]);
+    nrisk1.push_back(nrisk0[k]);
+    nevent1.push_back(nevent0[k]);
+    ncensor1.push_back(ncensor0[k]);
+    surv1.push_back(surv0[k]);
+    sesurv1.push_back(sesurv0[k]);
     if (ct != "none") {
-      lower1[i] = lower0[k];
-      upper1[i] = upper0[k];
+      lower1.push_back(lower0[k]);
+      upper1.push_back(upper0[k]);
     }
-  }
-  
-  // subset to the used portion
-  std::vector<int> sub(index);
-  std::iota(sub.begin(), sub.end(), 0);
-  subset_in_place(stratum1, sub);
-  subset_in_place(size1, sub);
-  subset_in_place(time1, sub);
-  subset_in_place(nrisk1, sub);
-  subset_in_place(nevent1, sub);
-  subset_in_place(ncensor1, sub);
-  subset_in_place(surv1, sub);
-  subset_in_place(sesurv1, sub);
-  if (ct != "none") {
-    subset_in_place(lower1, sub);
-    subset_in_place(upper1, sub);
   }
   
   DataFrameCpp result;
@@ -793,13 +780,11 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
                        const double conflev) {
   int n = data.nrows();
 
-  bool has_stratum;
+  bool has_stratum = false;
   std::vector<int> stratumn(n);
   DataFrameCpp u_stratum;
   int p_stratum = stratum.size();
-  if (p_stratum == 0 || (p_stratum == 1 && stratum[0] == "")) {
-    has_stratum = false;
-  } else {
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
     ListCpp out = bygroup(data, stratum);
     has_stratum = true;
     stratumn = out.get<std::vector<int>>("index");
@@ -1009,7 +994,7 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
         noerr = false;
       }
       
-      break;
+      continue;
     }
   }
 
@@ -1093,7 +1078,7 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
         noerr = false;
       }
       
-      break;
+      continue;
     }
     
     m[i] = treatsize[j1] + treatsize[j2];
@@ -1790,3 +1775,430 @@ Rcpp::List lrtestRcpp(SEXP data,
   Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
   return R_NilValue; // unreachable
 }
+
+
+// Compute Restricted Mean Survival Time
+DataFrameCpp rmestcpp(const DataFrameCpp& data,
+                      const std::vector<std::string>& stratum,
+                      const std::string& time,
+                      const std::string& event,
+                      const double milestone,
+                      const double conflev,
+                      const bool biascorrection) {
+  int n = data.nrows();
+  
+  bool has_stratum = false;
+  std::vector<int> stratumn(n);
+  DataFrameCpp u_stratum;
+  int p_stratum = stratum.size();
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    has_stratum = true;
+    stratumn = out.get<std::vector<int>>("index");
+    u_stratum = out.get<DataFrameCpp>("lookup");
+  }
+  
+  if (!data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  
+  std::vector<double> timen = data.get<double>(time);
+  for (double v : timen) if (v < 0.0)
+    throw std::invalid_argument("time must be nonnegative for each subject");
+  
+  if (!data.containElementNamed(event))
+    throw std::invalid_argument("data must contain the event variable");
+  
+  // event -> numeric 0/1
+  std::vector<double> eventn(n);
+  if (data.bool_cols.count(event)) {
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+  } else if (data.int_cols.count(event)) {
+    const std::vector<int>& vi = data.get<int>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(event)) {
+    eventn = data.get<double>(event);
+  } else {
+    throw std::invalid_argument("event variable must be bool, integer or numeric");
+  }
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  
+  
+  if (std::isnan(milestone)) {
+    throw std::invalid_argument("milestone must be provided");
+  }
+  
+  if (milestone <= 0) {
+    throw std::invalid_argument("milestone must be positive");
+  }
+  
+  if (conflev <= 0.0 || conflev >= 1.0) {
+    throw std::invalid_argument("conflev must lie between 0 and 1");
+  }
+  
+  double z = boost_qnorm((1.0 + conflev) / 2.0);
+  
+  std::vector<int> stratum0, size0;
+  std::vector<double> rmst0, stderr0, lower0, upper0;
+  stratum0.reserve(n); size0.reserve(n);
+  rmst0.reserve(n); stderr0.reserve(n); lower0.reserve(n); upper0.reserve(n);
+  
+  bool noerr = true;
+  
+  // sort by stratum, time, and event with event in descending order
+  std::vector<int> order(n);
+  std::iota(order.begin(), order.end(), 0);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
+    if (timen[i] != timen[j]) return timen[i] < timen[j];
+    return eventn[i] > eventn[j];
+  });
+  
+  subset_in_place(stratumn, order);
+  subset_in_place(timen, order);
+  subset_in_place(eventn, order);
+  
+  
+  // identify the locations of the unique values of stratum
+  std::vector<int> idx1(1,0);
+  for (int i=1; i<n; ++i) {
+    if (stratumn[i] != stratumn[i-1]) {
+      idx1.push_back(i);
+    }
+  }
+  
+  int nstrata = idx1.size();
+  idx1.push_back(n);
+  
+  for (int i=0; i<nstrata; ++i) {
+    std::vector<int> q2 = seqcpp(idx1[i], idx1[i+1] - 1);
+    std::vector<double> time2 = subset(timen, q2);
+    std::vector<double> event2 = subset(eventn, q2);
+    
+    int n2 = q2.size();
+    
+    double max_time = *std::max_element(time2.begin(), time2.end());
+    if (milestone > max_time) {
+      std::string stratumerr;
+      if (!has_stratum) {
+        stratumerr = "";
+      } else {
+        for (int j = 0; j < p_stratum; ++j) {
+          std::string s = stratum[j];
+          if (u_stratum.int_cols.count(s)) {
+            auto v = u_stratum.get<int>(s);
+            stratumerr += " " + s + " = " + std::to_string(v[i]);
+          } else if (u_stratum.numeric_cols.count(s)) {
+            auto v = u_stratum.get<double>(s);
+            stratumerr += " " + s + " = " + std::to_string(v[i]);
+          } else if (u_stratum.string_cols.count(s)) {
+            auto v = u_stratum.get<std::string>(s);
+            stratumerr += " " + s + " = " + v[i];
+          } else {
+            throw std::invalid_argument("unsupported type for stratum variable " + s);
+          }
+        }
+      }
+      
+      std::string str1 = "The milestone is larger than the largest observed time";
+      std::string errmsg = str1;
+      if (!stratumerr.empty()) {
+        errmsg = errmsg + " " + stratumerr;
+      }
+      
+      if (noerr) {
+        thread_utils::push_thread_warning(
+          errmsg + "\nAdditional warning messages are suppressed.");
+        noerr = false;
+      }
+      
+      continue;
+    }
+    
+    std::vector<double> time0, nrisk0, nevent0, surv0;
+    time0.reserve(n2); nrisk0.reserve(n2); nevent0.reserve(n2); surv0.reserve(n2);
+    
+    double t = 0, nrisk = n2, nevent = 0, surv = 1.0;
+    bool cache = false;
+    for (int j=0; j<n2; ++j) {
+      if ((j == 0 && event2[j] == 1) || (j >= 1 && event2[j] == 1 && time2[j] > time2[j-1])) {
+        // new event
+        // add the info for the previous event
+        if (cache) {
+          surv *= (1.0 - nevent/nrisk);
+          
+          time0.push_back(t);
+          nrisk0.push_back(nrisk);
+          nevent0.push_back(nevent);
+          surv0.push_back(surv);
+        }
+        
+        // update the buffer for the current event time
+        t = time2[j];
+        nrisk = n2-j;
+        nevent = 1;
+        
+        cache = true;
+      } else if (j >= 1 && event2[j] == 1 && event2[j-1] == 1 && time2[j] == time2[j-1]) { 
+        // tied event
+        ++nevent;
+      } else if (j >= 1 && event2[j] == 0 && event2[j-1] == 1) {
+        // new censoring
+        // add the info for the previous event
+        surv *= (1.0 - nevent/nrisk);
+        
+        time0.push_back(t);
+        nrisk0.push_back(nrisk);
+        nevent0.push_back(nevent);
+        surv0.push_back(surv);
+        
+        // empty the cache for the current event time
+        cache = false;
+      }
+    }
+    
+    // add the info for the last event
+    if (cache) {
+      surv *= (1.0 - nevent/nrisk);
+      
+      time0.push_back(t);
+      nrisk0.push_back(nrisk);
+      nevent0.push_back(nevent);
+      surv0.push_back(surv);
+    }
+    
+    // locate the latest event time before milestone
+    std::vector<double> milestone1(1, milestone);
+    int N = findInterval3(milestone1, time0)[0];
+    
+    // prepend time zero information
+    time0.insert(time0.begin(), 0.0);
+    nrisk0.insert(nrisk0.begin(), n2);
+    nevent0.insert(nevent0.begin(), 0.0);
+    surv0.insert(surv0.begin(), 1.0);
+    
+    // replace the last time of interest with milestone
+    if (N == static_cast<int>(time0.size()) - 1) {
+      time0.push_back(milestone);
+    } else {
+      time0[N+1] = milestone;
+    }
+    
+    // calculate the partial sum of the trapezoid integration
+    std::vector<double> rmstx(N+1);
+    rmstx[0] = surv0[0] * (time0[1] - time0[0]);
+    for (int k = 1; k <= N; ++k) {
+      rmstx[k] = rmstx[k-1] + surv0[k] * (time0[k+1] - time0[k]);
+    }
+    
+    // calculate rmst and its variance
+    double u = rmstx[N];
+    double v = 0.0;
+    for (int k=1; k<=N; ++k) {
+      // rmst from the kth event time to milestone
+      double a = u - rmstx[k-1];
+      // do not add variance if the largest observed time is an event time
+      if (nrisk0[k] > nevent0[k]) {
+        v += nevent0[k] * a * a / (nrisk0[k] * (nrisk0[k] - nevent0[k]));
+      }
+    }
+    
+    // apply bias correction if requested
+    if (biascorrection) {
+      double m1 = 0;
+      for (int k = 1; k <= N; ++k) {
+        m1 += nevent0[k];
+      }
+      
+      if (m1 <= 1.0) {
+        std::string stratumerr;
+        if (!has_stratum) {
+          stratumerr = "";
+        } else {
+          for (int j = 0; j < p_stratum; ++j) {
+            std::string s = stratum[j];
+            if (u_stratum.int_cols.count(s)) {
+              auto v = u_stratum.get<int>(s);
+              stratumerr += " " + s + " = " + std::to_string(v[i]);
+            } else if (u_stratum.numeric_cols.count(s)) {
+              auto v = u_stratum.get<double>(s);
+              stratumerr += " " + s + " = " + std::to_string(v[i]);
+            } else if (u_stratum.string_cols.count(s)) {
+              auto v = u_stratum.get<std::string>(s);
+              stratumerr += " " + s + " = " + v[i];
+            } else {
+              throw std::invalid_argument("unsupported type for stratum variable " + s);
+            }
+          }
+        }
+        
+        std::string str1 = "Bias correction is not done due to no or";
+        std::string str2 = "only 1 event before the milestone time:";
+        std::string errmsg = str1 + " " + str2;
+        if (!stratumerr.empty()) {
+          errmsg = errmsg + " " + stratumerr;
+        }
+        
+        if (noerr) {
+          thread_utils::push_thread_warning(
+            errmsg + "\nAdditional warning messages are suppressed.");
+          noerr = false;
+        }
+        
+        continue;
+      } else {
+        v = m1 / (m1 - 1.0) * v;
+      }
+    }
+    
+    stratum0.push_back(i);
+    size0.push_back(n2);
+    rmst0.push_back(u);
+    stderr0.push_back(sqrt(v));
+    lower0.push_back(u - z*stderr0.back());
+    upper0.push_back(u + z*stderr0.back());
+  }
+  
+  DataFrameCpp result;
+  result.push_back(size0, "size");
+  result.push_back(milestone, "milestone");
+  result.push_back(rmst0, "rmst");
+  result.push_back(stderr0, "stderr");
+  result.push_back(lower0, "lower");
+  result.push_back(upper0, "upper");
+  result.push_back(conflev, "conflev");
+  result.push_back(biascorrection, "biascorrection");
+  
+  if (has_stratum) {
+    for (int i = 0; i < p_stratum; ++i) {
+      std::string s = stratum[i];
+      if (u_stratum.int_cols.count(s)) {
+        auto v = u_stratum.get<int>(s);
+        subset_in_place(v, stratum0);
+        result.push_back(v, s);
+      } else if (u_stratum.numeric_cols.count(s)) {
+        auto v = u_stratum.get<double>(s);
+        subset_in_place(v, stratum0);
+        result.push_back(v, s);
+      } else if (u_stratum.string_cols.count(s)) {
+        auto v = u_stratum.get<std::string>(s);
+        subset_in_place(v, stratum0);
+        result.push_back(v, s);
+      } else {
+        throw std::invalid_argument("unsupported type for stratum variable " + s);
+      }
+    }
+  }
+  
+  return result;
+}
+
+
+// ----------------------------------------------------------------------------
+// Parallel worker
+// ----------------------------------------------------------------------------
+
+struct rmestWorker : public RcppParallel::Worker {
+  const std::vector<DataFrameCpp>* data_ptr;
+  const std::vector<std::string>& stratum;
+  const std::string& time;
+  const std::string& event;
+  const double milestone;
+  const double conflev;
+  const bool biascorrection;
+  
+  std::vector<DataFrameCpp>* results;
+  
+  rmestWorker(const std::vector<DataFrameCpp>* data_ptr_,
+              const std::vector<std::string>& stratum_,
+              const std::string& time_,
+              const std::string& event_,
+              const double milestone_,
+              const double conflev_,
+              const bool biascorrection_,
+              std::vector<DataFrameCpp>* results_)
+    : data_ptr(data_ptr_), stratum(stratum_), time(time_), 
+      event(event_), milestone(milestone_), conflev(conflev_), 
+      biascorrection(biascorrection_), results(results_) {}
+  
+  void operator()(std::size_t begin, std::size_t end) {
+    for (std::size_t i = begin; i < end; ++i) {
+      // Call the pure C++ function rmestcpp on data_ptr->at(i)
+      DataFrameCpp out = rmestcpp(
+        (*data_ptr)[i], stratum, time, event, milestone, conflev, 
+        biascorrection);
+      (*results)[i] = std::move(out);
+    }
+  }
+};
+
+// [[Rcpp::export]]
+Rcpp::List rmestRcpp(SEXP data,
+                     const std::vector<std::string>& stratum,
+                     const std::string& time = "time",
+                     const std::string& event = "event",
+                     const double milestone = 0,
+                     const double conflev = 0.95,
+                     const bool biascorrection = false) {
+  
+  // Case A: single data.frame -> call rmestcpp on main thread
+  if (Rf_inherits(data, "data.frame")) {
+    Rcpp::DataFrame rdf(data);
+    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
+    
+    // Call core C++ function directly on the DataFrameCpp
+    DataFrameCpp cpp_result = rmestcpp(
+      dfcpp, stratum, time, event, milestone, conflev, biascorrection
+    );
+    
+    thread_utils::drain_thread_warnings_to_R();
+    return Rcpp::wrap(cpp_result);
+  }
+  
+  // Case B: list of data.frames -> process in parallel
+  if (TYPEOF(data) == VECSXP) {
+    Rcpp::List lst(data);
+    int m = lst.size();
+    if (m == 0) return Rcpp::List(); // nothing to do
+    
+    // Convert each element to DataFrameCpp.
+    std::vector<DataFrameCpp> data_vec;
+    data_vec.reserve(m);
+    for (int i = 0; i < m; ++i) {
+      SEXP el = lst[i];
+      if (!Rf_inherits(el, "data.frame")) {
+        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
+      }
+      Rcpp::DataFrame rdf(el);
+      data_vec.emplace_back(convertRDataFrameToCpp(rdf));
+    }
+    
+    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
+    std::vector<DataFrameCpp> results(m);
+    
+    // Build worker and run parallelFor across all indices [0, m)
+    rmestWorker worker(
+        &data_vec, stratum, time, event, milestone, conflev, 
+        biascorrection, &results
+    );
+    
+    // Execute parallelFor (this will schedule work across threads)
+    RcppParallel::parallelFor(0, m, worker);
+    
+    // Drain thread-collected warnings (on main thread) into R's warning system
+    thread_utils::drain_thread_warnings_to_R();
+    
+    // Convert C++ DataFrameCpp results back to R on the main thread
+    Rcpp::List out(m);
+    for (int i = 0; i < m; ++i) {
+      out[i] = Rcpp::wrap(results[i]);
+    }
+    return out;
+  }
+  
+  // Neither a data.frame nor a list: error
+  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
+  return R_NilValue; // unreachable
+}
+
