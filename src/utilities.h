@@ -8,7 +8,6 @@
 #include <functional>
 #include <algorithm>
 #include <stdexcept>
-#include <Rcpp.h>
 #include <limits>
 
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();

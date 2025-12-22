@@ -29,7 +29,7 @@ FlatMatrix splineDesigncpp(
 ListCpp bscpp(
     const std::vector<double>& x,
     int df,
-    const std::vector<double>& knots,
+    const std::vector<double>& knots = {},
     int degree = 3,
     bool intercept = false,
     const std::vector<double>& boundary_knots = {},
@@ -39,7 +39,7 @@ ListCpp bscpp(
 ListCpp nscpp(
     const std::vector<double>& x,
     int df,
-    const std::vector<double>& knots,
+    const std::vector<double>& knots = {},
     bool intercept = false,
     const std::vector<double>& boundary_knots = {});
 
