@@ -55,7 +55,7 @@ std::vector<double> fsurvci(double surv, double sesurv, std::string& ct, double 
 
 // Compute survival quantiles and confidence intervals
 DataFrameCpp survQuantilecpp(const std::vector<double>& time,
-                             const std::vector<int>& event,
+                             const std::vector<double>& event,
                              const double cilevel,
                              const std::string& transform,
                              const std::vector<double>& probs) {
@@ -111,15 +111,14 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
   }
 
   // sort by time, and event with event in descending order
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     if (time[i] != time[j]) return time[i] < time[j];
     return event[i] > event[j];
   });
   
   std::vector<double> time2(n);
-  std::vector<int> event2(n);
+  std::vector<double> event2(n);
   for (int i = 0; i < n; ++i) {
     time2[i] = time[order[i]];
     event2[i] = event[order[i]];
@@ -330,14 +329,14 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
 //' @export
 // [[Rcpp::export]]
 Rcpp::DataFrame survQuantile(const Rcpp::NumericVector& time,
-                             const Rcpp::IntegerVector& event,
+                             const Rcpp::NumericVector& event,
                              const double cilevel = 0.95,
                              const std::string& transform = "loglog",
                              const Rcpp::NumericVector& probs = 
                                Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
   
   std::vector<double> time_vec = Rcpp::as<std::vector<double>>(time);
-  std::vector<int> event_vec = Rcpp::as<std::vector<int>>(event);
+  std::vector<double> event_vec = Rcpp::as<std::vector<double>>(event);
   std::vector<double> probs_vec = Rcpp::as<std::vector<double>>(probs);
   
   DataFrameCpp result = survQuantilecpp(time_vec, event_vec, cilevel, transform, probs_vec);
@@ -443,15 +442,13 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   std::vector<int> stratum1, size1;
   std::vector<double> time1, nrisk1, nevent1, ncensor1;
-  std::vector<double> surv1, sesurv1;
-  std::vector<double> lower1, upper1;
-  stratum1.reserve(n); size1.reserve(n); time1.reserve(n);
-  nrisk1.reserve(n); nevent1.reserve(n); ncensor1.reserve(n);
+  std::vector<double> surv1, sesurv1, lower1, upper1;
+  stratum1.reserve(n); size1.reserve(n); 
+  time1.reserve(n); nrisk1.reserve(n); nevent1.reserve(n); ncensor1.reserve(n);
   surv1.reserve(n); sesurv1.reserve(n); lower1.reserve(n); upper1.reserve(n);
   
   // sort by stopping time in descending order within each stratum
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     if (stratumn[i] != stratumn[j]) return stratumn[i] > stratumn[j];
     if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
@@ -465,8 +462,7 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   subset_in_place(weightn, order);
   
   // sort by starting time in descending order within each stratum
-  std::vector<int> order1(n);
-  std::iota(order1.begin(), order1.end(), 0);
+  std::vector<int> order1 = seqcpp(0, n-1);
   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
     if (stratumn[i] != stratumn[j]) return stratumn[i] > stratumn[j];
     return tstartn[i] > tstartn[j];
@@ -489,8 +485,8 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   std::vector<int> stratum0, size00;
   std::vector<double> time0, nrisk0, nriskw0, nriskw20;
   std::vector<double> nevent0, neventw0, ncensor0;
-  stratum0.reserve(n); size00.reserve(n); time0.reserve(n);
-  nrisk0.reserve(n); nriskw0.reserve(n); nriskw20.reserve(n);
+  stratum0.reserve(n); size00.reserve(n); 
+  time0.reserve(n); nrisk0.reserve(n); nriskw0.reserve(n); nriskw20.reserve(n);
   nevent0.reserve(n); neventw0.reserve(n); ncensor0.reserve(n);
   
   for (int i = 0; i < n; ) {
@@ -558,8 +554,7 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   int m = stratum0.size();
   std::vector<int> size0(m);
-  std::vector<double> surv0(m), sesurv0(m);
-  std::vector<double> lower0(m), upper0(m);
+  std::vector<double> surv0(m), sesurv0(m), lower0(m), upper0(m);
   
   if (m > 0) {
     istratum = stratum0[m - 1];
@@ -633,16 +628,13 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
       std::string s = stratum[i];
       if (u_stratum.int_cols.count(s)) {
         auto v = u_stratum.get<int>(s);
-        subset_in_place(v, stratum1);
-        result.push_back(v, s);
+        result.push_back(subset(v, stratum1), s);
       } else if (u_stratum.numeric_cols.count(s)) {
         auto v = u_stratum.get<double>(s);
-        subset_in_place(v, stratum1);
-        result.push_back(v, s);
+        result.push_back(subset(v, stratum1), s);
       } else if (u_stratum.string_cols.count(s)) {
         auto v = u_stratum.get<std::string>(s);
-        subset_in_place(v, stratum1);
-        result.push_back(v, s);
+        result.push_back(subset(v, stratum1), s);
       } else {
         throw std::invalid_argument("unsupported type for stratum variable " + s);
       }
@@ -652,118 +644,96 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   return result;
 }
 
-// ----------------------------------------------------------------------------
-// Parallel worker
-// ----------------------------------------------------------------------------
 
-struct kmestWorker : public RcppParallel::Worker {
-  const std::vector<DataFrameCpp>* data_ptr;
-  const std::vector<std::string>& stratum;
-  const std::string& time;
-  const std::string& time2;
-  const std::string& event;
-  const std::string& weight;
-  const std::string& conftype;
-  const double conflev;
-  const bool keep_censor;
-  
-  std::vector<DataFrameCpp>* results;
-  
-  kmestWorker(const std::vector<DataFrameCpp>* data_ptr_,
-              const std::vector<std::string>& stratum_,
-              const std::string& time_,
-              const std::string& time2_,
-              const std::string& event_,
-              const std::string& weight_,
-              const std::string& conftype_,
-              const double conflev_,
-              const bool keep_censor_,
-              std::vector<DataFrameCpp>* results_)
-    : data_ptr(data_ptr_), stratum(stratum_), time(time_), 
-      time2(time2_), event(event_), weight(weight_), conftype(conftype_), 
-      conflev(conflev_), keep_censor(keep_censor_), results(results_) {}
-  
-  void operator()(std::size_t begin, std::size_t end) {
-    for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function kmestcpp on data_ptr->at(i)
-      DataFrameCpp out = kmestcpp(
-        (*data_ptr)[i], stratum, time, time2, event, weight, 
-        conftype, conflev, keep_censor);
-      (*results)[i] = std::move(out);
-    }
-  }
-};
-
+//' @title Kaplan-Meier Estimates of Survival Curve
+//' @description Obtains the Kaplan-Meier estimates of the survival curve.
+//'
+//' @param data The input data frame that contains the following variables:
+//'
+//'   * \code{stratum}: The stratum.
+//'
+//'   * \code{time}: The follow-up time for right censored data, or
+//'     the left end of each interval for counting process data.
+//'
+//'   * \code{time2}: The right end of each interval for counting process
+//'     data. Intervals are assumed to be open on the left
+//'     and closed on the right, and event indicates whether an event
+//'     occurred at the right end of each interval.
+//'
+//'   * \code{event}: The event indicator, 1=event, 0=no event.
+//'
+//'   * \code{weight}: The weight for each observation.
+//'
+//' @param stratum The name(s) of the stratum variable(s) in the input data.
+//' @param time The name of the time variable or the left end of each
+//'   interval for counting process data in the input data.
+//' @param time2 The name of the right end of each interval for counting
+//'   process data in the input data.
+//' @param event The name of the event variable in the input data.
+//' @param weight The name of the weight variable in the input data.
+//' @param conftype The type of the confidence interval. One of "none",
+//'   "plain", "log", "log-log" (the default), or "arcsin".
+//'   The arcsin option bases the intervals on asin(sqrt(survival)).
+//' @param conflev The level of the two-sided confidence interval for
+//'   the survival probabilities. Defaults to 0.95.
+//' @param keep_censor Whether to retain the censoring time in the output
+//'   data frame.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{size}: The number of subjects in the stratum.
+//'
+//' * \code{time}: The event time.
+//'
+//' * \code{nrisk}: The number of subjects at risk.
+//'
+//' * \code{nevent}: The number of subjects having the event.
+//'
+//' * \code{ncensor}: The number of censored subjects.
+//'
+//' * \code{surv}: The Kaplan-Meier estimate of the survival probability.
+//'
+//' * \code{sesurv}: The standard error of the estimated survival
+//'   probability based on the Greendwood formula.
+//'
+//' * \code{lower}: The lower bound of confidence interval if requested.
+//'
+//' * \code{upper}: The upper bound of confidence interval if requested.
+//'
+//' * \code{conflev}: The level of confidence interval if requested.
+//'
+//' * \code{conftype}: The type of confidence interval if requested.
+//'
+//' * \code{stratum}: The stratum.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' kmest(data = aml, stratum = "x", time = "time", event = "status")
+//'
+//' @export
 // [[Rcpp::export]]
-Rcpp::List kmestRcpp(SEXP data,
-                     const std::vector<std::string>& stratum,
-                     const std::string& time = "time",
-                     const std::string& time2 = "",
-                     const std::string& event = "event",
-                     const std::string& weight = "",
-                     const std::string& conftype = "log-log",
-                     const double conflev = 0.95,
-                     const bool keep_censor = false) {
+Rcpp::DataFrame kmest(const Rcpp::DataFrame& data,
+                      const Rcpp::StringVector& stratum = "",
+                      const std::string& time = "time",
+                      const std::string& time2 = "",
+                      const std::string& event = "event",
+                      const std::string& weight = "",
+                      const std::string& conftype = "log-log",
+                      const double conflev = 0.95,
+                      const bool keep_censor = false) {
   
-  // Case A: single data.frame -> call kmestcpp on main thread
-  if (Rf_inherits(data, "data.frame")) {
-    Rcpp::DataFrame rdf(data);
-    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-    
-    // Call core C++ function directly on the DataFrameCpp
-    DataFrameCpp cpp_result = kmestcpp(
-      dfcpp, stratum, time, time2, event, weight, 
-      conftype, conflev, keep_censor
-    );
-    
-    thread_utils::drain_thread_warnings_to_R();
-    return Rcpp::wrap(cpp_result);
-  }
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
-  // Case B: list of data.frames -> process in parallel
-  if (TYPEOF(data) == VECSXP) {
-    Rcpp::List lst(data);
-    int m = lst.size();
-    if (m == 0) return Rcpp::List(); // nothing to do
-    
-    // Convert each element to DataFrameCpp.
-    std::vector<DataFrameCpp> data_vec;
-    data_vec.reserve(m);
-    for (int i = 0; i < m; ++i) {
-      SEXP el = lst[i];
-      if (!Rf_inherits(el, "data.frame")) {
-        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
-      }
-      Rcpp::DataFrame rdf(el);
-      data_vec.emplace_back(convertRDataFrameToCpp(rdf));
-    }
-    
-    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
-    std::vector<DataFrameCpp> results(m);
-    
-    // Build worker and run parallelFor across all indices [0, m)
-    kmestWorker worker(
-        &data_vec, stratum, time, time2, event, weight, 
-        conftype, conflev, keep_censor, &results
-    );
-    
-    // Execute parallelFor (this will schedule work across threads)
-    RcppParallel::parallelFor(0, m, worker);
-    
-    // Drain thread-collected warnings (on main thread) into R's warning system
-    thread_utils::drain_thread_warnings_to_R();
-    
-    // Convert C++ DataFrameCpp results back to R on the main thread
-    Rcpp::List out(m);
-    for (int i = 0; i < m; ++i) {
-      out[i] = Rcpp::wrap(results[i]);
-    }
-    return out;
-  }
+  DataFrameCpp cpp_result = kmestcpp(
+    dfcpp, stratumcpp, time, time2, event, weight, 
+    conftype, conflev, keep_censor
+  );
   
-  // Neither a data.frame nor a list: error
-  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
-  return R_NilValue; // unreachable
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
 }
 
 
@@ -909,8 +879,7 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   bool noerr = true;
   
   // sort by stratum
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     return stratumn[i] < stratumn[j];
   });
@@ -924,12 +893,14 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   
   // identify the locations of the unique values of stratum
   std::vector<int> idx(1,0);
-  for (int i=1; i<n; ++i) {
-    if (stratumn[i] != stratumn[i-1]) {
-      idx.push_back(i);
+  if (has_stratum) {
+    for (int i=1; i<n; ++i) {
+      if (stratumn[i] != stratumn[i-1]) {
+        idx.push_back(i);
+      }
     }
   }
-  
+
   int nstrata = idx.size();
   idx.push_back(n);
   
@@ -1006,9 +977,7 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   dfin.push_back(eventn, "event");
   dfin.push_back(weightn, "weight");
   
-  std::vector<std::string> stratum_arg = {"stratum", "treat"};
-  
-  DataFrameCpp dfout = kmestcpp(dfin, stratum_arg, "tstart", "tstop", 
+  DataFrameCpp dfout = kmestcpp(dfin, {"stratum", "treat"}, "tstart", "tstop", 
                                 "event", "weight", "none", 0.95, false);
   
   std::vector<int> stratum2 = dfout.get<int>("stratum");
@@ -1022,10 +991,12 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   
   // identify the locations of the unique values of stratum
   std::vector<int> idx2(1,0);
-  for (int i=1; i<n2; ++i) {
-    if (stratum2[i] != stratum2[i-1]) {
-      idx2.push_back(i);
-    }
+  if (has_stratum) {
+    for (int i=1; i<n2; ++i) {
+      if (stratum2[i] != stratum2[i-1]) {
+        idx2.push_back(i);
+      }
+    } 
   }
   
   nstrata = idx2.size();
@@ -1160,122 +1131,107 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
 }
 
 
-// ----------------------------------------------------------------------------
-// Parallel worker
-// ----------------------------------------------------------------------------
 
-struct kmdiffWorker : public RcppParallel::Worker {
-  const std::vector<DataFrameCpp>* data_ptr;
-  const std::vector<std::string>& stratum;
-  const std::string& treat;
-  const std::string& time;
-  const std::string& time2;
-  const std::string& event;
-  const std::string& weight;
-  const double milestone;
-  const double survDiffH0;
-  const double conflev;
-  
-  std::vector<DataFrameCpp>* results;
-  
-  kmdiffWorker(const std::vector<DataFrameCpp>* data_ptr_,
-               const std::vector<std::string>& stratum_,
-               const std::string& treat_,
-               const std::string& time_,
-               const std::string& time2_,
-               const std::string& event_,
-               const std::string& weight_,
-               const double milestone_,
-               const double survDiffH0_,
-               const double conflev_,
-               std::vector<DataFrameCpp>* results_)
-    : data_ptr(data_ptr_), stratum(stratum_), treat(treat_), time(time_), 
-      time2(time2_), event(event_), weight(weight_), milestone(milestone_), 
-      survDiffH0(survDiffH0_), conflev(conflev_), results(results_) {}
-  
-  void operator()(std::size_t begin, std::size_t end) {
-    for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function kmdiffcpp on data_ptr->at(i)
-      DataFrameCpp out = kmdiffcpp(
-        (*data_ptr)[i], stratum, treat, time, time2, event, weight, 
-        milestone, survDiffH0, conflev);
-      (*results)[i] = std::move(out);
-    }
-  }
-};
-
+//' @title Estimate of Milestone Survival Difference
+//' @description Obtains the estimate of milestone survival difference
+//' between two treatment groups.
+//'
+//' @param data The input data frame that contains the following variables:
+//'
+//'   * \code{stratum}: The stratum.
+//'
+//'   * \code{treat}: The treatment.
+//'
+//'   * \code{time}: The follow-up time for right censored data, or
+//'     the left end of each interval for counting process data.
+//'
+//'   * \code{time2}: The right end of each interval for counting process
+//'     data. Intervals are assumed to be open on the left
+//'     and closed on the right, and event indicates whether an event
+//'     occurred at the right end of each interval.
+//'
+//'   * \code{event}: The event indicator, 1=event, 0=no event.
+//'
+//'   * \code{weight}: The weight for each observation.
+//'
+//' @param stratum The name of the stratum variable in the input data.
+//' @param treat The name of the treatment variable in the input data.
+//' @param time The name of the time variable or the left end of each
+//'   interval for counting process data in the input data.
+//' @param time2 The name of the right end of each interval for counting
+//'   process data in the input data.
+//' @param event The name of the event variable in the input data.
+//' @param weight The name of the weight variable in the input data.
+//' @param milestone The milestone time at which to calculate the
+//'   survival probability.
+//' @param survDiffH0 The difference in milestone survival probabilities
+//'   under the null hypothesis. Defaults to 0 for superiority test.
+//' @param conflev The level of the two-sided confidence interval for
+//'   the difference in milestone survival probabilities. Defaults to 0.95.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{milestone}: The milestone time relative to randomization.
+//'
+//' * \code{survDiffH0}: The difference in milestone survival probabilities
+//'   under the null hypothesis.
+//'
+//' * \code{surv1}: The estimated milestone survival probability for
+//'   the treatment group.
+//'
+//' * \code{surv2}: The estimated milestone survival probability for
+//'   the control group.
+//'
+//' * \code{survDiff}: The estimated difference in milestone survival
+//'   probabilities.
+//'
+//' * \code{vsurv1}: The variance for surv1.
+//'
+//' * \code{vsurv2}: The variance for surv2.
+//'
+//' * \code{sesurvDiff}: The standard error for survDiff.
+//'
+//' * \code{survDiffZ}: The Z-statistic value.
+//'
+//' * \code{survDiffPValue}: The two-sided p-value.
+//'
+//' * \code{lower}: The lower bound of confidence interval.
+//'
+//' * \code{upper}: The upper bound of confidence interval.
+//'
+//' * \code{conflev}: The level of confidence interval.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' kmdiff(data = rawdata[rawdata$iterationNumber == 1, ],
+//'        stratum = "stratum", treat = "treatmentGroup",
+//'        time = "timeUnderObservation", event = "event",
+//'        milestone = 12)
+//'              
+//' @export
 // [[Rcpp::export]]
-Rcpp::List kmdiffRcpp(SEXP data,
-                      const std::vector<std::string>& stratum,
-                      const std::string& treat = "treat",
-                      const std::string& time = "time",
-                      const std::string& time2 = "",
-                      const std::string& event = "event",
-                      const std::string& weight = "",
-                      const double milestone = 0,
-                      const double survDiffH0 = 0,
-                      const double conflev = 0.95) {
+Rcpp::DataFrame kmdiff(const Rcpp::DataFrame& data,
+                       const Rcpp::StringVector& stratum = "",
+                       const std::string& treat = "treat",
+                       const std::string& time = "time",
+                       const std::string& time2 = "",
+                       const std::string& event = "event",
+                       const std::string& weight = "",
+                       const double milestone = 0,
+                       const double survDiffH0 = 0,
+                       const double conflev = 0.95) {
   
-  // Case A: single data.frame -> call kmdiffcpp on main thread
-  if (Rf_inherits(data, "data.frame")) {
-    Rcpp::DataFrame rdf(data);
-    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-    
-    // Call core C++ function directly on the DataFrameCpp
-    DataFrameCpp cpp_result = kmdiffcpp(
-      dfcpp, stratum, treat, time, time2, event, weight, 
-      milestone, survDiffH0, conflev);
-    
-    thread_utils::drain_thread_warnings_to_R();
-    return Rcpp::wrap(cpp_result);
-  }
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
-  // Case B: list of data.frames -> process in parallel
-  if (TYPEOF(data) == VECSXP) {
-    Rcpp::List lst(data);
-    int m = lst.size();
-    if (m == 0) return Rcpp::List(); // nothing to do
-    
-    // Convert each element to DataFrameCpp.
-    std::vector<DataFrameCpp> data_vec;
-    data_vec.reserve(m);
-    for (int i = 0; i < m; ++i) {
-      SEXP el = lst[i];
-      if (!Rf_inherits(el, "data.frame")) {
-        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
-      }
-      Rcpp::DataFrame rdf(el);
-      
-      DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-      data_vec.push_back(std::move(dfcpp));
-    }
-    
-    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
-    std::vector<DataFrameCpp> results(m);
-    
-    // Build worker and run parallelFor across all indices [0, m)
-    kmdiffWorker worker(
-        &data_vec, stratum, treat, time, time2, event, weight, 
-        milestone, survDiffH0, conflev, &results
-    );
-    
-    // Execute parallelFor (this will schedule work across threads)
-    RcppParallel::parallelFor(0, m, worker);
-    
-    // Drain thread-collected warnings (on main thread) into R's warning system
-    thread_utils::drain_thread_warnings_to_R();
-    
-    // Convert C++ DataFrameCpp results back to R on the main thread
-    Rcpp::List out(m);
-    for (int i = 0; i < m; ++i) {
-      out[i] = Rcpp::wrap(results[i]);
-    }
-    return out;
-  }
+  DataFrameCpp cpp_result = kmdiffcpp(
+    dfcpp, stratumcpp, treat, time, time2, event, weight, 
+    milestone, survDiffH0, conflev);
   
-  // Neither a data.frame nor a list: error
-  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
-  return R_NilValue; // unreachable
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
 }
 
 
@@ -1397,8 +1353,7 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
   if (rho2 < 0) throw std::invalid_argument("rho2 must be non-negative");
   
   // sort by stopping time in descending order within each stratum
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
     if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
@@ -1413,8 +1368,7 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
   subset_in_place(weightn, order);
   
   // sort by starting time in descending order within each stratum
-  std::vector<int> order1(n);
-  std::iota(order1.begin(), order1.end(), 0);
+  std::vector<int> order1 = seqcpp(0, n-1);
   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
     return tstartn[i] > tstartn[j];
@@ -1658,123 +1612,94 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
 }
 
 
-// ----------------------------------------------------------------------------
-// Parallel worker
-// ----------------------------------------------------------------------------
-
-struct lrtestWorker : public RcppParallel::Worker {
-  const std::vector<DataFrameCpp>* data_ptr;
-  const std::vector<std::string>& stratum;
-  const std::string& treat;
-  const std::string& time;
-  const std::string& time2;
-  const std::string& event;
-  const std::string& weight;
-  const bool weight_readj;
-  const double rho1;
-  const double rho2;
-  
-  std::vector<DataFrameCpp>* results;
-  
-  lrtestWorker(const std::vector<DataFrameCpp>* data_ptr_,
-               const std::vector<std::string>& stratum_,
-               const std::string& treat_,
-               const std::string& time_,
-               const std::string& time2_,
-               const std::string& event_,
-               const std::string& weight_,
-               const bool weight_readj_,
-               const double rho1_,
-               const double rho2_,
-               std::vector<DataFrameCpp>* results_)
-    : data_ptr(data_ptr_), stratum(stratum_), treat(treat_), time(time_), 
-      time2(time2_), event(event_), weight(weight_), weight_readj(weight_readj_), 
-      rho1(rho1_), rho2(rho2_), results(results_) {}
-  
-  void operator()(std::size_t begin, std::size_t end) {
-    for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function lrtestcpp on data_ptr->at(i)
-      DataFrameCpp out = lrtestcpp(
-        (*data_ptr)[i], stratum, treat, time, time2, event, weight, 
-        weight_readj, rho1, rho2);
-      (*results)[i] = std::move(out);
-    }
-  }
-};
-
+//' @title Log-Rank Test of Survival Curve Difference
+//' @description Obtains the log-rank test using the Fleming-Harrington
+//' family of weights.
+//'
+//' @param data The input data frame or list of data frames that contains 
+//' the following variables:
+//'
+//'   * \code{stratum}: The stratum.
+//'
+//'   * \code{treat}: The treatment.
+//'
+//'   * \code{time}: The follow-up time for right censored data, or
+//'     the left end of each interval for counting process data.
+//'
+//'   * \code{time2}: The right end of each interval for counting process
+//'     data. Intervals are assumed to be open on the left
+//'     and closed on the right, and event indicates whether an event
+//'     occurred at the right end of each interval.
+//'
+//'   * \code{event}: The event indicator, 1=event, 0=no event.
+//'
+//'   * \code{weight}: The weight for each observation.
+//'
+//' @param stratum The name(s) of the stratum variable(s) in the input data.
+//' @param treat The name of the treatment variable in the input data.
+//' @param time The name of the time variable or the left end of each
+//'   interval for counting process data in the input data.
+//' @param time2 The name of the right end of each interval for counting
+//'   process data in the input data.
+//' @param event The name of the event variable in the input data.
+//' @param weight The name of the weight variable in the input data.
+//' @param weight_readj Whether the weight variable at each event time
+//'   will be readjusted to be proportional to the number at risk by
+//'   treatment group. Defaults to `FALSE`.
+//' @param rho1 The first parameter of the Fleming-Harrington family of
+//'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
+//' @param rho2 The second parameter of the Fleming-Harrington family of
+//'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
+//'   
+//' @return A data frame with the following variables:
+//'
+//' * \code{uscore}: The numerator of the log-rank test statistic.
+//'
+//' * \code{vscore}: The variance of the log-rank score test statistic.
+//'
+//' * \code{logRankZ}: The Z-statistic value.
+//'
+//' * \code{logRankPValue}: The two-sided p-value.
+//'
+//' * \code{weight_readj}: Whether the weight variable will be readjusted.
+//'
+//' * \code{rho1}: The first parameter of the Fleming-Harrington weights.
+//'
+//' * \code{rho2}: The second parameter of the Fleming-Harrington weights.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' lrtest(rawdata[rawdata$iterationNumber == 1, ], 
+//'        stratum = "stratum", treat = "treatmentGroup", 
+//'        time = "timeUnderObservation", event = "event", 
+//'        rho1 = 0.5, rho2 = 0)
+//'              
+//' @export
 // [[Rcpp::export]]
-Rcpp::List lrtestRcpp(SEXP data,
-                      const std::vector<std::string>& stratum,
-                      const std::string& treat = "treat",
-                      const std::string& time = "time",
-                      const std::string& time2 = "",
-                      const std::string& event = "event",
-                      const std::string& weight = "",
-                      const bool weight_readj = false,
-                      const double rho1 = 0,
-                      const double rho2 = 0) {
+Rcpp::DataFrame lrtest(const Rcpp::DataFrame data,
+                       const Rcpp::StringVector& stratum = "",
+                       const std::string& treat = "treat",
+                       const std::string& time = "time",
+                       const std::string& time2 = "",
+                       const std::string& event = "event",
+                       const std::string& weight = "",
+                       const bool weight_readj = false,
+                       const double rho1 = 0,
+                       const double rho2 = 0) {
   
-  // Case A: single data.frame -> call lrtestcpp on main thread
-  if (Rf_inherits(data, "data.frame")) {
-    Rcpp::DataFrame rdf(data);
-    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-    
-    // Call core C++ function directly on the DataFrameCpp
-    DataFrameCpp cpp_result = lrtestcpp(
-      dfcpp, stratum, treat, time, time2, event, weight, 
-      weight_readj, rho1, rho2);
-    
-    thread_utils::drain_thread_warnings_to_R();
-    return Rcpp::wrap(cpp_result);
-  }
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
-  // Case B: list of data.frames -> process in parallel
-  if (TYPEOF(data) == VECSXP) {
-    Rcpp::List lst(data);
-    int m = lst.size();
-    if (m == 0) return Rcpp::List(); // nothing to do
-    
-    // Convert each element to DataFrameCpp.
-    std::vector<DataFrameCpp> data_vec;
-    data_vec.reserve(m);
-    for (int i = 0; i < m; ++i) {
-      SEXP el = lst[i];
-      if (!Rf_inherits(el, "data.frame")) {
-        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
-      }
-      Rcpp::DataFrame rdf(el);
-      
-      DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-      data_vec.push_back(std::move(dfcpp));
-    }
-    
-    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
-    std::vector<DataFrameCpp> results(m);
-    
-    // Build worker and run parallelFor across all indices [0, m)
-    lrtestWorker worker(
-        &data_vec, stratum, treat, time, time2, event, weight, 
-        weight_readj, rho1, rho2, &results
-    );
-    
-    // Execute parallelFor (this will schedule work across threads)
-    RcppParallel::parallelFor(0, m, worker);
-    
-    // Drain thread-collected warnings (on main thread) into R's warning system
-    thread_utils::drain_thread_warnings_to_R();
-    
-    // Convert C++ DataFrameCpp results back to R on the main thread
-    Rcpp::List out(m);
-    for (int i = 0; i < m; ++i) {
-      out[i] = Rcpp::wrap(results[i]);
-    }
-    return out;
-  }
+  DataFrameCpp cpp_result = lrtestcpp(
+    dfcpp, stratumcpp, treat, time, time2, event, weight, 
+    weight_readj, rho1, rho2);
   
-  // Neither a data.frame nor a list: error
-  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
-  return R_NilValue; // unreachable
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
 }
+
 
 
 // Compute Restricted Mean Survival Time
@@ -1824,7 +1749,6 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   for (double val : eventn) if (val != 0 && val != 1)
     throw std::invalid_argument("event must be 1 or 0 for each observation");
   
-  
   if (std::isnan(milestone)) {
     throw std::invalid_argument("milestone must be provided");
   }
@@ -1847,8 +1771,7 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   bool noerr = true;
   
   // sort by stratum, time, and event with event in descending order
-  std::vector<int> order(n);
-  std::iota(order.begin(), order.end(), 0);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
     if (timen[i] != timen[j]) return timen[i] < timen[j];
@@ -1859,12 +1782,13 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   subset_in_place(timen, order);
   subset_in_place(eventn, order);
   
-  
   // identify the locations of the unique values of stratum
   std::vector<int> idx1(1,0);
-  for (int i=1; i<n; ++i) {
-    if (stratumn[i] != stratumn[i-1]) {
-      idx1.push_back(i);
+  if (has_stratum) {
+    for (int i=1; i<n; ++i) {
+      if (stratumn[i] != stratumn[i-1]) {
+        idx1.push_back(i);
+      }
     }
   }
   
@@ -2095,110 +2019,408 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
 }
 
 
-// ----------------------------------------------------------------------------
-// Parallel worker
-// ----------------------------------------------------------------------------
-
-struct rmestWorker : public RcppParallel::Worker {
-  const std::vector<DataFrameCpp>* data_ptr;
-  const std::vector<std::string>& stratum;
-  const std::string& time;
-  const std::string& event;
-  const double milestone;
-  const double conflev;
-  const bool biascorrection;
-  
-  std::vector<DataFrameCpp>* results;
-  
-  rmestWorker(const std::vector<DataFrameCpp>* data_ptr_,
-              const std::vector<std::string>& stratum_,
-              const std::string& time_,
-              const std::string& event_,
-              const double milestone_,
-              const double conflev_,
-              const bool biascorrection_,
-              std::vector<DataFrameCpp>* results_)
-    : data_ptr(data_ptr_), stratum(stratum_), time(time_), 
-      event(event_), milestone(milestone_), conflev(conflev_), 
-      biascorrection(biascorrection_), results(results_) {}
-  
-  void operator()(std::size_t begin, std::size_t end) {
-    for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function rmestcpp on data_ptr->at(i)
-      DataFrameCpp out = rmestcpp(
-        (*data_ptr)[i], stratum, time, event, milestone, conflev, 
-        biascorrection);
-      (*results)[i] = std::move(out);
-    }
-  }
-};
-
+//' @title Estimate of Restricted Mean Survival Time
+//' @description Obtains the estimate of restricted means survival time
+//' for each stratum.
+//'
+//' @param data The input data frame that contains the following variables:
+//'
+//'   * \code{stratum}: The stratum.
+//'
+//'   * \code{time}: The possibly right-censored survival time.
+//'
+//'   * \code{event}: The event indicator.
+//'
+//' @param stratum The name of the stratum variable in the input data.
+//' @param time The name of the time variable in the input data.
+//' @param event The name of the event variable in the input data.
+//' @param milestone The milestone time at which to calculate the
+//'   restricted mean survival time.
+//' @param conflev The level of the two-sided confidence interval for
+//'   the survival probabilities. Defaults to 0.95.
+//' @param biascorrection Whether to apply bias correction for the
+//'   variance estimate. Defaults to no bias correction.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{stratum}: The stratum variable.
+//'
+//' * \code{size}: The number of subjects in the stratum.
+//'
+//' * \code{milestone}: The milestone time relative to randomization.
+//'
+//' * \code{rmst}: The estimate of restricted mean survival time.
+//'
+//' * \code{stderr}: The standard error of the estimated rmst.
+//'
+//' * \code{lower}: The lower bound of confidence interval if requested.
+//'
+//' * \code{upper}: The upper bound of confidence interval if requested.
+//'
+//' * \code{conflev}: The level of confidence interval if requested.
+//'
+//' * \code{biascorrection}: Whether to apply bias correction for the
+//'   variance estimate.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' rmest(data = aml, stratum = "x",
+//'       time = "time", event = "status", milestone = 24)
+//'
+//' @export
 // [[Rcpp::export]]
-Rcpp::List rmestRcpp(SEXP data,
-                     const std::vector<std::string>& stratum,
-                     const std::string& time = "time",
-                     const std::string& event = "event",
-                     const double milestone = 0,
-                     const double conflev = 0.95,
-                     const bool biascorrection = false) {
+Rcpp::DataFrame rmest(const Rcpp::DataFrame& data,
+                      const Rcpp::StringVector& stratum = "",
+                      const std::string& time = "time",
+                      const std::string& event = "event",
+                      const double milestone = 0,
+                      const double conflev = 0.95,
+                      const bool biascorrection = false) {
   
-  // Case A: single data.frame -> call rmestcpp on main thread
-  if (Rf_inherits(data, "data.frame")) {
-    Rcpp::DataFrame rdf(data);
-    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-    
-    // Call core C++ function directly on the DataFrameCpp
-    DataFrameCpp cpp_result = rmestcpp(
-      dfcpp, stratum, time, event, milestone, conflev, biascorrection
-    );
-    
-    thread_utils::drain_thread_warnings_to_R();
-    return Rcpp::wrap(cpp_result);
-  }
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
-  // Case B: list of data.frames -> process in parallel
-  if (TYPEOF(data) == VECSXP) {
-    Rcpp::List lst(data);
-    int m = lst.size();
-    if (m == 0) return Rcpp::List(); // nothing to do
-    
-    // Convert each element to DataFrameCpp.
-    std::vector<DataFrameCpp> data_vec;
-    data_vec.reserve(m);
-    for (int i = 0; i < m; ++i) {
-      SEXP el = lst[i];
-      if (!Rf_inherits(el, "data.frame")) {
-        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
-      }
-      Rcpp::DataFrame rdf(el);
-      data_vec.emplace_back(convertRDataFrameToCpp(rdf));
-    }
-    
-    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
-    std::vector<DataFrameCpp> results(m);
-    
-    // Build worker and run parallelFor across all indices [0, m)
-    rmestWorker worker(
-        &data_vec, stratum, time, event, milestone, conflev, 
-        biascorrection, &results
-    );
-    
-    // Execute parallelFor (this will schedule work across threads)
-    RcppParallel::parallelFor(0, m, worker);
-    
-    // Drain thread-collected warnings (on main thread) into R's warning system
-    thread_utils::drain_thread_warnings_to_R();
-    
-    // Convert C++ DataFrameCpp results back to R on the main thread
-    Rcpp::List out(m);
-    for (int i = 0; i < m; ++i) {
-      out[i] = Rcpp::wrap(results[i]);
-    }
-    return out;
-  }
+  DataFrameCpp cpp_result = rmestcpp(
+    dfcpp, stratumcpp, time, event, milestone, conflev, biascorrection
+  );
   
-  // Neither a data.frame nor a list: error
-  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
-  return R_NilValue; // unreachable
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
 }
 
+
+
+DataFrameCpp rmdiffcpp(const DataFrameCpp& data,
+                       const std::vector<std::string>& stratum,
+                       const std::string& treat,
+                       const std::string& time,
+                       const std::string& event,
+                       const double milestone,
+                       const double rmstDiffH0,
+                       const double conflev,
+                       const bool biascorrection) {
+  int n = data.nrows();
+  
+  bool has_stratum = false;
+  std::vector<int> stratumn(n);
+  DataFrameCpp u_stratum;
+  int p_stratum = stratum.size();
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    has_stratum = true;
+    stratumn = out.get<std::vector<int>>("index");
+    u_stratum = out.get<DataFrameCpp>("lookup");
+  }
+  
+  if (!data.containElementNamed(treat)) {
+    throw std::invalid_argument("data must contain the treat variable");
+  }
+  
+  // create the numeric treat variable
+  std::vector<int> treatn(n);
+  std::vector<int> treatwi;
+  std::vector<double> treatwn;
+  std::vector<std::string> treatwc;
+  if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+    std::vector<int> treatv(n);
+    if (data.bool_cols.count(treat)) {
+      const std::vector<unsigned char>& treatvb = data.get<unsigned char>(treat);
+      for (int i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
+    } else treatv = data.get<int>(treat);
+    treatwi = unique_sorted(treatv); // obtain unique treatment values
+    if (treatwi.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwi.begin(), treatwi.end(), [](int v) { return v == 0 || v == 1; })) {
+      treatwi = {1, 0}; // special handling for 1/0 treatment coding
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
+    } else {
+      treatn = matchcpp(treatv, treatwi, 1);
+    }
+  } else if (data.numeric_cols.count(treat)) {
+    const std::vector<double>& treatv = data.get<double>(treat);
+    treatwn = unique_sorted(treatv);
+    if (treatwn.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwn.begin(), treatwn.end(), [](double v) { return v == 0.0 || v == 1.0; })) {
+      treatwn = {1.0, 0.0};
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
+    } else {
+      treatn = matchcpp(treatv, treatwn, 1);
+    }
+  } else if (data.string_cols.count(treat)) {
+    const std::vector<std::string>& treatv = data.get<std::string>(treat);
+    treatwc = unique_sorted(treatv);
+    if (treatwc.size() != 2) 
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    treatn = matchcpp(treatv, treatwc, 1);
+  } else {
+    throw std::invalid_argument("incorrect type for the treat variable in the input data");
+  }
+  
+  if (!data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  
+  std::vector<double> timen = data.get<double>(time);
+  for (double v : timen) if (v < 0.0)
+    throw std::invalid_argument("time must be nonnegative for each subject");
+  
+  if (!data.containElementNamed(event))
+    throw std::invalid_argument("data must contain the event variable");
+  
+  // event -> numeric 0/1
+  std::vector<double> eventn(n);
+  if (data.bool_cols.count(event)) {
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+  } else if (data.int_cols.count(event)) {
+    const std::vector<int>& vi = data.get<int>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(event)) {
+    eventn = data.get<double>(event);
+  } else {
+    throw std::invalid_argument("event variable must be bool, integer or numeric");
+  }
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  
+  
+  if (std::isnan(milestone)) {
+    throw std::invalid_argument("milestone must be provided");
+  }
+  
+  if (milestone <= 0) {
+    throw std::invalid_argument("milestone must be positive");
+  }
+  
+  if (conflev <= 0.0 || conflev >= 1.0) {
+    throw std::invalid_argument("conflev must lie between 0 and 1");
+  }
+  
+  
+  bool noerr = true;
+  
+  DataFrameCpp dfin; 
+  dfin.push_back(stratumn, "stratum");
+  dfin.push_back(treatn, "treat");
+  dfin.push_back(timen, "time");
+  dfin.push_back(eventn, "event");
+  
+  DataFrameCpp dfout = rmestcpp(dfin, {"stratum", "treat"}, "time", "event",
+                                milestone, 0.95, biascorrection);
+  
+  std::vector<int> stratum1 = dfout.get<int>("stratum");
+  std::vector<int> treat1 = dfout.get<int>("treat");
+  std::vector<int> treatsize = dfout.get<int>("size");
+  std::vector<double> rmstime1 = dfout.get<double>("rmst");
+  std::vector<double> stderr1 = dfout.get<double>("stderr");
+  int n1 = stratum1.size();
+  
+  // identify the locations of the unique values of stratum
+  std::vector<int> idx(1,0);
+  if (has_stratum) {
+    for (int i=1; i<n1; ++i) {
+      if (stratum1[i] != stratum1[i-1]) {
+        idx.push_back(i);
+      }
+    }
+  }
+  
+  int nstrata = idx.size();
+  idx.push_back(n1);
+  
+  std::vector<int> m(nstrata, 0); // number of subjects in each stratum
+  for (int i=0; i<nstrata; ++i) {
+    int j1 = idx[i], j2 = idx[i+1] - 1;
+    if (treat1[j1] != 1 || treat1[j2] != 2) {
+      std::string stratumerr;
+      if (!has_stratum) {
+        stratumerr = "";
+      } else {
+        for (int j = 0; j < p_stratum; ++j) {
+          std::string s = stratum[j];
+          if (u_stratum.int_cols.count(s)) {
+            auto v = u_stratum.get<int>(s);
+            stratumerr += " " + s + " = " + std::to_string(v[i]);
+          } else if (u_stratum.numeric_cols.count(s)) {
+            auto v = u_stratum.get<double>(s);
+            stratumerr += " " + s + " = " + std::to_string(v[i]);
+          } else if (u_stratum.string_cols.count(s)) {
+            auto v = u_stratum.get<std::string>(s);
+            stratumerr += " " + s + " = " + v[i];
+          } else {
+            throw std::invalid_argument("unsupported type for stratum variable " + s);
+          }
+        }
+      }
+      
+      int k = treat1[j1] != 1 ? 0 : 1;
+      std::string treaterr;
+      if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+        treaterr = " " + treat + " = " + std::to_string(treatwi[k]);
+      } else if (data.numeric_cols.count(treat)) {
+        treaterr = " " + treat + " = " + std::to_string(treatwn[k]);
+      } else if (data.string_cols.count(treat)) {
+        treaterr = " " + treat + " = " + treatwc[k];
+      } else {
+        throw std::invalid_argument("unsupported type for treat variable " + treat);
+      }
+      
+      std::string str1 = "The data set does not contain";
+      std::string errmsg = str1 + treaterr;
+      if (!stratumerr.empty()) errmsg = errmsg + " " + stratumerr;
+      
+      if (noerr) {
+        thread_utils::push_thread_warning(
+          errmsg + "\nAdditional warning messages are suppressed.");
+        noerr = false;
+      }
+      
+      continue;
+    }
+    
+    m[i] += treatsize[j1] + treatsize[j2];
+  }
+  
+  double M = std::accumulate(m.begin(), m.end(), 0.0);
+  std::vector<double> p(nstrata);
+  
+  double rmst1 = 0.0, rmst2 = 0.0, vrmst1 = 0.0, vrmst2 = 0.0;
+  for (int i=0; i<nstrata; ++i) {
+    p[i] = m[i]/M; // fraction of subjects in the stratum
+    std::vector<int> q = seqcpp(idx[i], idx[i+1]-1);
+    std::vector<double> rmst = subset(rmstime1, q);
+    std::vector<double> stderrx = subset(stderr1, q);
+    std::vector<double> vrmst(2); 
+    for (int j=0; j<2; ++j) vrmst[j] = stderrx[j]*stderrx[j];
+    rmst1 += p[i] * rmst[0];
+    rmst2 += p[i] * rmst[1];
+    vrmst1 += p[i] * p[i] * vrmst[0];
+    vrmst2 += p[i] * p[i] * vrmst[1];
+  }
+  
+  double z = boost_qnorm((1.0 + conflev) / 2.0);
+  
+  double rmstDiff = rmst1 - rmst2;
+  double sermstDiff= std::sqrt(vrmst1 + vrmst2);
+  double rmstDiffZ = (rmstDiff - rmstDiffH0)/sermstDiff;
+  double rmstDiffPValue = 2.0 * boost_pnorm(-std::fabs(rmstDiffZ));
+  double lower = rmstDiff - z*sermstDiff;
+  double upper = rmstDiff + z*sermstDiff;
+  
+  DataFrameCpp result;
+  result.push_back(milestone, "milestone");
+  result.push_back(rmstDiffH0, "rmstDiffH0");
+  result.push_back(rmst1, "rmst1");
+  result.push_back(rmst2, "rmst2");
+  result.push_back(rmstDiff, "rmstDiff");
+  result.push_back(vrmst1, "vrmst1");
+  result.push_back(vrmst2, "vrmst2");
+  result.push_back(sermstDiff, "sermstDiff");
+  result.push_back(rmstDiffZ, "rmstDiffZ");
+  result.push_back(rmstDiffPValue, "rmstDiffPValue");
+  result.push_back(lower, "lower");
+  result.push_back(upper, "upper");
+  result.push_back(conflev, "conflev");
+  result.push_back(biascorrection, "biascorrection");
+  
+  return result;
+}
+
+
+//' @title Estimate of Restricted Mean Survival Time Difference
+//' @description Obtains the estimate of restricted mean survival time
+//' difference between two treatment groups.
+//'
+//' @param data The input data frame that contains the following variables:
+//'
+//'   * \code{stratum}: The stratum.
+//'
+//'   * \code{treat}: The treatment.
+//'
+//'   * \code{time}: The possibly right-censored survival time.
+//'
+//'   * \code{event}: The event indicator.
+//'
+//' @param stratum The name of the stratum variable in the input data.
+//' @param treat The name of the treatment variable in the input data.
+//' @param time The name of the time variable in the input data.
+//' @param event The name of the event variable in the input data.
+//' @param milestone The milestone time at which to calculate the
+//'   restricted mean survival time.
+//' @param rmstDiffH0 The difference in restricted mean survival times
+//'   under the null hypothesis. Defaults to 0 for superiority test.
+//' @param conflev The level of the two-sided confidence interval for
+//'   the difference in restricted mean survival times. Defaults to 0.95.
+//' @param biascorrection Whether to apply bias correction for the
+//'   variance estimate of individual restricted mean survival times.
+//'   Defaults to no bias correction.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{milestone}: The milestone time relative to randomization.
+//'
+//' * \code{rmstDiffH0}: The difference in restricted mean survival times
+//'   under the null hypothesis.
+//'
+//' * \code{rmst1}: The estimated restricted mean survival time for
+//'   the treatment group.
+//'
+//' * \code{rmst2}: The estimated restricted mean survival time for
+//'   the control group.
+//'
+//' * \code{rmstDiff}: The estimated difference in restricted mean
+//'   survival times.
+//'
+//' * \code{vrmst1}: The variance for rmst1.
+//'
+//' * \code{vrmst2}: The variance for rmst2.
+//'
+//' * \code{sermstDiff}: The standard error for rmstDiff.
+//'
+//' * \code{rmstDiffZ}: The Z-statistic value.
+//'
+//' * \code{rmstDiffPValue}: The two-sided p-value.
+//'
+//' * \code{lower}: The lower bound of confidence interval.
+//'
+//' * \code{upper}: The upper bound of confidence interval.
+//'
+//' * \code{conflev}: The level of confidence interval.
+//'
+//' * \code{biascorrection}: Whether to apply bias correction for the
+//'   variance estimate of individual restricted mean survival times.
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @examples
+//'
+//' rmdiff(data = rawdata[rawdata$iterationNumber == 1, ], 
+//'        stratum = "stratum", treat = "treatmentGroup",
+//'        time = "timeUnderObservation", event = "event",
+//'        milestone = 12)
+//'
+//' @export
+// [[Rcpp::export]]
+Rcpp::DataFrame rmdiff(const Rcpp::DataFrame& data,
+                       const Rcpp::StringVector& stratum = "",
+                       const std::string& treat = "treat",
+                       const std::string& time = "time",
+                       const std::string& event = "event",
+                       const double milestone = 0,
+                       const double rmstDiffH0 = 0,
+                       const double conflev = 0.95,
+                       const bool biascorrection = false) {
+  
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  
+  DataFrameCpp cpp_result = rmdiffcpp(
+    dfcpp, stratumcpp, treat, time, event, milestone,
+    rmstDiffH0, conflev,  biascorrection
+  );
+  
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
+}

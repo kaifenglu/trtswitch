@@ -525,7 +525,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   
   int n = data.nrows();
   int p = covariates.size() + 1;
-  if (p == 2 && covariates.size() > 0 && covariates[0].empty()) p = 1;
+  if (p == 2 && covariates[0].empty()) p = 1;
   
   if (event.empty()) throw std::invalid_argument("event variable is not specified");
   if (!data.containElementNamed(event)) 
@@ -628,6 +628,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   });
   
   if (link1 == "log-log" || link1 == "loglog") link1 = "cloglog";
+  
   int link_code = 0;
   if (link1 == "logit") link_code = 1;
   else if (link1 == "probit") link_code = 2;
@@ -673,9 +674,9 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   std::vector<std::string> par(p);
   std::vector<double> b(p), seb(p), rseb(p);
   std::vector<double> z(p), expbeta(p);
+  FlatMatrix vb(p, p), rvb(p, p);
   std::vector<double> lb(p), ub(p), prob(p);
   std::vector<std::string> clparm(p);
-  FlatMatrix vb(p, p), rvb(p, p);
   
   // linear predictor and fitted values for all observations
   std::vector<double> linear_predictors(n), fitted_values(n);
@@ -690,12 +691,21 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     for (int i=0; i<p; ++i) {
       par[i] = (i == 0) ? "(Intercept)" : covariates[i-1];
       b[i] = NaN;
+      seb[i] = NaN;
+      rseb[i] = NaN;
       z[i] = NaN;
       expbeta[i] = NaN;
       lb[i] = NaN;
       ub[i] = NaN;
       prob[i] = NaN;
       clparm[i] = "Wald";
+    }
+    
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<p; ++i) {
+        vb(i,j) = NaN;    
+        rvb(i,j) = NaN;
+      }
     }
     
     for (int person = 0; person < n; ++person) {
@@ -760,8 +770,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       bool fail = out.get<bool>("fail");
       if (fail) {
         thread_utils::push_thread_warning(
-          "logisregloop failed to converge for the full model;" 
-          " continuing with current results.");
+          "logisregloop failed to converge for the full model; continuing with current results.");
       }
       
       b = out.get<std::vector<double>>("coef");
@@ -1155,66 +1164,9 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   return result;
 }
 
-// ----------------------------------------------------------------------------
-// Parallel worker (unchanged much, uses logisregcpp above)
-// ----------------------------------------------------------------------------
-
-struct LogisRegWorker : public RcppParallel::Worker {
-  const std::vector<DataFrameCpp>* data_ptr;
-  const std::string& event;
-  const std::vector<std::string>& covariates;
-  const std::string& freq;
-  const std::string& weight;
-  const std::string& offset;
-  const std::string& id;
-  const std::string& link;
-  const std::vector<double>& init;
-  const bool robust;
-  const bool firth;
-  const bool flic;
-  const bool plci;
-  const double alpha;
-  const int maxiter;
-  const double eps;
-  
-  std::vector<ListCpp>* results;
-  
-  LogisRegWorker(const std::vector<DataFrameCpp>* data_ptr_,
-                 const std::string& event_,
-                 const std::vector<std::string>& covariates_,
-                 const std::string& freq_,
-                 const std::string& weight_,
-                 const std::string& offset_,
-                 const std::string& id_,
-                 const std::string& link_,
-                 const std::vector<double>& init_,
-                 bool robust_,
-                 bool firth_,
-                 bool flic_,
-                 bool plci_,
-                 double alpha_,
-                 int maxiter_,
-                 double eps_,
-                 std::vector<ListCpp>* results_)
-    : data_ptr(data_ptr_), event(event_), covariates(covariates_), 
-      freq(freq_), weight(weight_), offset(offset_), id(id_), 
-      link(link_), init(init_), robust(robust_), firth(firth_),
-      flic(flic_), plci(plci_), alpha(alpha_), maxiter(maxiter_), 
-      eps(eps_), results(results_) {}
-  
-  void operator()(std::size_t begin, std::size_t end) {
-    for (std::size_t i = begin; i < end; ++i) {
-      // Call the pure C++ function logisregcpp on data_ptr->at(i)
-      ListCpp out = logisregcpp(
-        (*data_ptr)[i], event, covariates, freq, weight, offset, id, link,
-        init, robust, firth, flic, plci, alpha, maxiter, eps);
-      (*results)[i] = std::move(out);
-    }
-  }
-};
 
 // [[Rcpp::export]]
-Rcpp::List logisregRcpp(SEXP data,
+Rcpp::List logisregRcpp(const Rcpp::DataFrame& data,
                         const std::string& event,
                         const std::vector<std::string>& covariates,
                         const std::string& freq,
@@ -1231,65 +1183,13 @@ Rcpp::List logisregRcpp(SEXP data,
                         const int maxiter,
                         const double eps) {
   
-  // Case A: single data.frame -> call logisregcpp on main thread
-  if (Rf_inherits(data, "data.frame")) {
-    Rcpp::DataFrame rdf(data);
-    DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-    
-    // Call core C++ function directly on the DataFrameCpp
-    ListCpp cpp_result = logisregcpp(
-      dfcpp, event, covariates, freq, weight, offset, id, link,
-      init, robust, firth, flic, plci, alpha, maxiter, eps
-    );
-    
-    thread_utils::drain_thread_warnings_to_R();
-    return Rcpp::wrap(cpp_result);
-  }
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
   
-  // Case B: list of data.frames -> process in parallel
-  if (TYPEOF(data) == VECSXP) {
-    Rcpp::List lst(data);
-    int m = lst.size();
-    if (m == 0) return Rcpp::List(); // nothing to do
-    
-    // Convert each element to DataFrameCpp.
-    std::vector<DataFrameCpp> data_vec;
-    data_vec.reserve(m);
-    for (int i = 0; i < m; ++i) {
-      SEXP el = lst[i];
-      if (!Rf_inherits(el, "data.frame")) {
-        Rcpp::stop("When 'data' is a list, every element must be a data.frame.");
-      }
-      Rcpp::DataFrame rdf(el);
-      
-      DataFrameCpp dfcpp = convertRDataFrameToCpp(rdf);
-      data_vec.push_back(std::move(dfcpp));
-    }
-    
-    // Pre-allocate result vector of C++ objects (no R API used inside worker threads)
-    std::vector<ListCpp> results(m);
-    
-    // Build worker and run parallelFor across all indices [0, m)
-    LogisRegWorker worker(
-        &data_vec, event, covariates, freq, weight, offset, id, link,
-        init, robust, firth, flic, plci, alpha, maxiter, eps, &results
-    );
-    
-    // Execute parallelFor (this will schedule work across threads)
-    RcppParallel::parallelFor(0, m, worker);
-    
-    // Drain thread-collected warnings (on main thread) into R's warning system
-    thread_utils::drain_thread_warnings_to_R();
-    
-    // Convert C++ ListCpp results back to R on the main thread
-    Rcpp::List out(m);
-    for (int i = 0; i < m; ++i) {
-      out[i] = Rcpp::wrap(results[i]);
-    }
-    return out;
-  }
+  ListCpp cpp_result = logisregcpp(
+    dfcpp, event, covariates, freq, weight, offset, id, link,
+    init, robust, firth, flic, plci, alpha, maxiter, eps
+  );
   
-  // Neither a data.frame nor a list: error
-  Rcpp::stop("Input 'data' must be either a data.frame or a list of data.frames.");
-  return R_NilValue; // unreachable
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
 }

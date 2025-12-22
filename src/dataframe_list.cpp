@@ -403,175 +403,6 @@ const ListCpp& ListCpp::get_list(const std::string& name) const {
 }
 
 
-// -------------------------- Converters implementations ---------------------
-
-DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
-  DataFrameCpp df;
-  Rcpp::CharacterVector cn = r_df.names();
-  R_xlen_t nc = r_df.size();
-  if (nc == 0) return df;
-  
-  for (R_xlen_t j = 0; j < nc; ++j) {
-    std::string name;
-    if (cn.size() > 0 && static_cast<R_xlen_t>(cn.size()) > j && 
-        !Rcpp::StringVector::is_na(cn[j]) && std::string(cn[j]) != "") {
-        name = Rcpp::as<std::string>(cn[j]);
-    } else {
-      name = "V" + std::to_string(j + 1);
-    }
-    
-    Rcpp::RObject col = r_df[j];
-    if (Rcpp::is<Rcpp::NumericVector>(col)) {
-      Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(col); // lightweight wrapper
-      R_xlen_t n = nv.size();
-      std::vector<double> out;
-      out.resize(static_cast<std::size_t>(n));
-      if (n > 0) {
-        // memcpy from R contiguous memory
-        std::memcpy(out.data(), REAL(nv), static_cast<std::size_t>(n) * sizeof(double));
-      }
-      df.push_back(std::move(out), name);
-      
-    } else if (Rcpp::is<Rcpp::IntegerVector>(col)) {
-      Rcpp::IntegerVector iv = Rcpp::as<Rcpp::IntegerVector>(col);
-      R_xlen_t n = iv.size();
-      std::vector<int> out;
-      out.resize(static_cast<std::size_t>(n));
-      if (n > 0) {
-        std::memcpy(out.data(), INTEGER(iv), static_cast<std::size_t>(n) * sizeof(int));
-      }
-      df.push_back(std::move(out), name);
-    } else if (Rcpp::is<Rcpp::LogicalVector>(col)) {
-      Rcpp::LogicalVector lv = Rcpp::as<Rcpp::LogicalVector>(col);
-      R_xlen_t n = lv.size();
-      std::vector<unsigned char> out;
-      out.resize(static_cast<std::size_t>(n));
-      for (R_xlen_t i = 0; i < n; ++i) {
-        int v = lv[i]; // 0,1 or NA_LOGICAL
-        if (v == NA_LOGICAL) out[static_cast<std::size_t>(i)] = 255;
-        else out[static_cast<std::size_t>(i)] = v ? 1 : 0;
-      }
-      df.push_back(std::move(out), name);
-    } else if (Rcpp::is<Rcpp::CharacterVector>(col)) {
-      std::vector<std::string> out = Rcpp::as<std::vector<std::string>>(col);
-      df.push_back(std::move(out), name);
-    } else {
-      Rcpp::warning("Unsupported column type in DataFrame conversion: " + name);
-    }
-  }
-  return df;
-}
-
-Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df) {
-  Rcpp::List cols;
-  Rcpp::CharacterVector names;
-  for (const auto& nm : df.names_) {
-    names.push_back(nm);
-    if (df.numeric_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.numeric_cols.at(nm)));
-    } else if (df.int_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.int_cols.at(nm)));
-    } else if (df.bool_cols.count(nm)) {
-      std::vector<unsigned char> v = df.bool_cols.at(nm);
-      R_xlen_t n = v.size();
-      Rcpp::LogicalVector lv(n);
-      for (R_xlen_t i = 0; i < n; ++i) {
-        unsigned char bv = v[i];
-        if (bv == 255) lv[i] = NA_LOGICAL;
-        else lv[i] = (bv != 0);
-      }
-      cols.push_back(std::move(lv));
-    } else if (df.string_cols.count(nm)) {
-      cols.push_back(Rcpp::wrap(df.string_cols.at(nm)));
-    } else {
-      cols.push_back(R_NilValue);
-    }
-  }
-  cols.names() = names;
-  return Rcpp::as<Rcpp::DataFrame>(cols);
-}
-
-// Visitor
-struct RcppVisitor {
-  template <typename T>
-  Rcpp::RObject operator()(const T& x) const {
-    return Rcpp::wrap(x);
-  }
-  
-  Rcpp::RObject operator()(const FlatMatrix& fm) const {
-    if (fm.nrow == 0 || fm.ncol == 0) return R_NilValue;
-    Rcpp::NumericMatrix M(fm.nrow, fm.ncol);
-    std::memcpy(REAL(M), fm.data.data(), fm.data.size() * sizeof(double));
-    return M;
-  }
-  
-  Rcpp::RObject operator()(const IntMatrix& im) const {
-    if (im.nrow == 0 || im.ncol == 0) return R_NilValue;
-    Rcpp::IntegerMatrix M(im.nrow, im.ncol);
-    std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
-    return M;
-  }
-  
-  Rcpp::RObject operator()(const DataFrameCpp& df) const {
-    return convertDataFrameCppToR(df);
-  }
-  
-  Rcpp::RObject operator()(const ListPtr& p) const {
-    if (!p) return R_NilValue;
-    return convertListCppToR(*p);
-  }
-  
-  Rcpp::RObject operator()(const std::vector<DataFrameCpp>& dfs) const {
-    Rcpp::List out;
-    for (const auto& df : dfs) out.push_back(convertDataFrameCppToR(df));
-    return out;
-  }
-  
-  Rcpp::RObject operator()(const std::vector<ListPtr>& lists) const {
-    Rcpp::List out;
-    for (const auto& p : lists) {
-      if (!p) out.push_back(R_NilValue);
-      else out.push_back(convertListCppToR(*p));
-    }
-    return out;
-  }
-};
-
-// convert ListCpp -> R list
-Rcpp::List convertListCppToR(const ListCpp& L) {
-  int p = L.names_.size();
-  Rcpp::List out(p);
-  Rcpp::CharacterVector names(p);
-  RcppVisitor visitor;
-  for (int i = 0; i < p; ++i) {
-    const auto& nm = L.names_[i];
-    const auto& var = L.data.at(nm);
-    Rcpp::RObject obj = std::visit(visitor, var);
-    out[i] = obj;
-    names[i] = nm;
-  }
-  out.names() = names;
-  return out;
-}
-
-// Convert Rcpp::NumericMatrix to FlatMatrix
-FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M) {
-  int nr = M.nrow(), nc = M.ncol();
-  if (nr == 0 || nc == 0) return FlatMatrix();
-  FlatMatrix fm(nr, nc);
-  std::memcpy(fm.data.data(), REAL(M), nr * nc * sizeof(double));
-  return fm;
-}
-
-// Convert Rcpp::IntegerMatrix to IntMatrix
-IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M) {
-  int nr = M.nrow(), nc = M.ncol();
-  if (nr == 0 || nc == 0) return IntMatrix();
-  IntMatrix im(nr, nc);
-  std::memcpy(im.data.data(), INTEGER(M), nr * nc * sizeof(int));
-  return im;
-}
-
 // Build a DataFrameCpp from a FlatMatrix
 DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, 
                                        const std::vector<std::string>& names) {
@@ -783,6 +614,7 @@ std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vec
   return groups;
 }
 
+
 // Validate row indices (throws if any out-of-range)
 static inline void validate_row_idx(int nrows, const std::vector<int>& row_idx) {
   int n = row_idx.size();
@@ -892,6 +724,174 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   return out;
 }
 
+
+// -------------------------- Converters implementations ---------------------
+DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
+  DataFrameCpp df;
+  Rcpp::CharacterVector cn = r_df.names();
+  R_xlen_t nc = r_df.size();
+  if (nc == 0) return df;
+  
+  for (R_xlen_t j = 0; j < nc; ++j) {
+    std::string name;
+    if (cn.size() > 0 && static_cast<R_xlen_t>(cn.size()) > j && 
+        !Rcpp::StringVector::is_na(cn[j]) && std::string(cn[j]) != "") {
+        name = Rcpp::as<std::string>(cn[j]);
+    } else {
+      name = "V" + std::to_string(j + 1);
+    }
+    
+    Rcpp::RObject col = r_df[j];
+    if (Rcpp::is<Rcpp::NumericVector>(col)) {
+      Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(col); // lightweight wrapper
+      R_xlen_t n = nv.size();
+      std::vector<double> out;
+      out.resize(static_cast<std::size_t>(n));
+      if (n > 0) {
+        // memcpy from R contiguous memory
+        std::memcpy(out.data(), REAL(nv), static_cast<std::size_t>(n) * sizeof(double));
+      }
+      df.push_back(std::move(out), name);
+      
+    } else if (Rcpp::is<Rcpp::IntegerVector>(col)) {
+      Rcpp::IntegerVector iv = Rcpp::as<Rcpp::IntegerVector>(col);
+      R_xlen_t n = iv.size();
+      std::vector<int> out;
+      out.resize(static_cast<std::size_t>(n));
+      if (n > 0) {
+        std::memcpy(out.data(), INTEGER(iv), static_cast<std::size_t>(n) * sizeof(int));
+      }
+      df.push_back(std::move(out), name);
+    } else if (Rcpp::is<Rcpp::LogicalVector>(col)) {
+      Rcpp::LogicalVector lv = Rcpp::as<Rcpp::LogicalVector>(col);
+      R_xlen_t n = lv.size();
+      std::vector<unsigned char> out;
+      out.resize(static_cast<std::size_t>(n));
+      for (R_xlen_t i = 0; i < n; ++i) {
+        int v = lv[i]; // 0,1 or NA_LOGICAL
+        if (v == NA_LOGICAL) out[static_cast<std::size_t>(i)] = 255;
+        else out[static_cast<std::size_t>(i)] = v ? 1 : 0;
+      }
+      df.push_back(std::move(out), name);
+    } else if (Rcpp::is<Rcpp::CharacterVector>(col)) {
+      std::vector<std::string> out = Rcpp::as<std::vector<std::string>>(col);
+      df.push_back(std::move(out), name);
+    } else {
+      Rcpp::warning("Unsupported column type in DataFrame conversion: " + name);
+    }
+  }
+  return df;
+}
+
+Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df) {
+  Rcpp::List cols;
+  Rcpp::CharacterVector names;
+  for (const auto& nm : df.names_) {
+    names.push_back(nm);
+    if (df.numeric_cols.count(nm)) {
+      cols.push_back(Rcpp::wrap(df.numeric_cols.at(nm)));
+    } else if (df.int_cols.count(nm)) {
+      cols.push_back(Rcpp::wrap(df.int_cols.at(nm)));
+    } else if (df.bool_cols.count(nm)) {
+      std::vector<unsigned char> v = df.bool_cols.at(nm);
+      R_xlen_t n = v.size();
+      Rcpp::LogicalVector lv(n);
+      for (R_xlen_t i = 0; i < n; ++i) {
+        unsigned char bv = v[i];
+        if (bv == 255) lv[i] = NA_LOGICAL;
+        else lv[i] = (bv != 0);
+      }
+      cols.push_back(std::move(lv));
+    } else if (df.string_cols.count(nm)) {
+      cols.push_back(Rcpp::wrap(df.string_cols.at(nm)));
+    } else {
+      cols.push_back(R_NilValue);
+    }
+  }
+  cols.names() = names;
+  return Rcpp::as<Rcpp::DataFrame>(cols);
+}
+
+// Visitor
+struct RcppVisitor {
+  template <typename T>
+  Rcpp::RObject operator()(const T& x) const {
+    return Rcpp::wrap(x);
+  }
+  
+  Rcpp::RObject operator()(const FlatMatrix& fm) const {
+    if (fm.nrow == 0 || fm.ncol == 0) return R_NilValue;
+    Rcpp::NumericMatrix M(fm.nrow, fm.ncol);
+    std::memcpy(REAL(M), fm.data.data(), fm.data.size() * sizeof(double));
+    return M;
+  }
+  
+  Rcpp::RObject operator()(const IntMatrix& im) const {
+    if (im.nrow == 0 || im.ncol == 0) return R_NilValue;
+    Rcpp::IntegerMatrix M(im.nrow, im.ncol);
+    std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
+    return M;
+  }
+  
+  Rcpp::RObject operator()(const DataFrameCpp& df) const {
+    return convertDataFrameCppToR(df);
+  }
+  
+  Rcpp::RObject operator()(const ListPtr& p) const {
+    if (!p) return R_NilValue;
+    return convertListCppToR(*p);
+  }
+  
+  Rcpp::RObject operator()(const std::vector<DataFrameCpp>& dfs) const {
+    Rcpp::List out;
+    for (const auto& df : dfs) out.push_back(convertDataFrameCppToR(df));
+    return out;
+  }
+  
+  Rcpp::RObject operator()(const std::vector<ListPtr>& lists) const {
+    Rcpp::List out;
+    for (const auto& p : lists) {
+      if (!p) out.push_back(R_NilValue);
+      else out.push_back(convertListCppToR(*p));
+    }
+    return out;
+  }
+};
+
+// convert ListCpp -> R list
+Rcpp::List convertListCppToR(const ListCpp& L) {
+  int p = L.names_.size();
+  Rcpp::List out(p);
+  Rcpp::CharacterVector names(p);
+  RcppVisitor visitor;
+  for (int i = 0; i < p; ++i) {
+    const auto& nm = L.names_[i];
+    const auto& var = L.data.at(nm);
+    Rcpp::RObject obj = std::visit(visitor, var);
+    out[i] = obj;
+    names[i] = nm;
+  }
+  out.names() = names;
+  return out;
+}
+
+// Convert Rcpp::NumericMatrix to FlatMatrix
+FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M) {
+  int nr = M.nrow(), nc = M.ncol();
+  if (nr == 0 || nc == 0) return FlatMatrix();
+  FlatMatrix fm(nr, nc);
+  std::memcpy(fm.data.data(), REAL(M), nr * nc * sizeof(double));
+  return fm;
+}
+
+// Convert Rcpp::IntegerMatrix to IntMatrix
+IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M) {
+  int nr = M.nrow(), nc = M.ncol();
+  if (nr == 0 || nc == 0) return IntMatrix();
+  IntMatrix im(nr, nc);
+  std::memcpy(im.data.data(), INTEGER(M), nr * nc * sizeof(int));
+  return im;
+}
 
 
 // ----------------------- ListCpp construction from R list -----------------

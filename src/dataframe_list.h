@@ -457,8 +457,21 @@ struct ListCpp {
     const ListCpp& get_list(const std::string& name) const;
 };
 
-// ------------------- Converters between R and C++ types (declarations) ----
+DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, const std::vector<std::string>& names = {});
+FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std::string>& cols = {});
+const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
+void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
+void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
+DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx);
+std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx);
+void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
+FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
 
+
+// ------------------- Converters between R and C++ types (declarations) ----
 DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df);
 Rcpp::DataFrame convertDataFrameCppToR(const DataFrameCpp& df);
 Rcpp::List convertListCppToR(const ListCpp& L);
@@ -488,20 +501,6 @@ template <> inline SEXP wrap(const IntMatrix& im) {
 // Declarations for helpers implemented in dataframe_list.cpp
 FlatMatrix flatmatrix_from_Rmatrix(const Rcpp::NumericMatrix& M);
 IntMatrix intmatrix_from_Rmatrix(const Rcpp::IntegerMatrix& M);
-DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, 
-                                       const std::vector<std::string>& names = {});
-FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, 
-                                   const std::vector<std::string>& cols = {});
-const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
-const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
-void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
-void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
-void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
-DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx);
-std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx);
-void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
-FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
-FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
 std::shared_ptr<ListCpp> listcpp_from_rlist(const Rcpp::List& rlist);
 
 #endif // __DATAFRAME_LIST__
