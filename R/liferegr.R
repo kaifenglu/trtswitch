@@ -1,14 +1,21 @@
-#' @title Logistic Regression Models for Binary Data
-#' @description Obtains the parameter estimates from logistic regression
-#' models with binary data.
+#' @title Parametric Regression Models for Failure Time Data
+#' @description Obtains the parameter estimates from parametric
+#' regression models with uncensored, right censored, left censored, or
+#' interval censored data.
 #'
 #' @param data The input data frame that contains the following variables:
+#'
+#'   * \code{stratum}: The stratum.
+#'
+#'   * \code{time}: The follow-up time for right censored data, or
+#'     the left end of each interval for interval censored data.
+#'
+#'   * \code{time2}: The right end of each interval for interval
+#'     censored data.
 #'
 #'   * \code{event}: The event indicator, 1=event, 0=no event.
 #'
 #'   * \code{covariates}: The values of baseline covariates.
-#'
-#'   * \code{freq}: The frequency for each observation.
 #'
 #'   * \code{weight}: The weight for each observation.
 #'
@@ -17,87 +24,86 @@
 #'   * \code{id}: The optional subject ID to group the score residuals
 #'     in computing the robust sandwich variance.
 #'
-#' @param event The name of the event variable in the input data.
+#' @param stratum The name(s) of the stratum variable(s) in the input data.
+#' @param time The name of the time variable or the left end of each
+#'   interval for interval censored data in the input data.
+#' @param time2 The name of the right end of each interval for
+#'   interval censored data in the input data.
+#' @param event The name of the event variable in the input data
+#'   for right censored data.
 #' @param covariates The vector of names of baseline covariates
 #'   in the input data.
-#' @param freq The name of the frequency variable in the input data.
-#'   The frequencies must be the same for all observations within each
-#'   cluster as indicated by the id. Thus freq is the cluster frequency.
 #' @param weight The name of the weight variable in the input data.
 #' @param offset The name of the offset variable in the input data.
 #' @param id The name of the id variable in the input data.
-#' @param link The link function linking the response probabilities to the
-#'   linear predictors. Options include "logit" (default), "probit", and
-#'   "cloglog" (complementary log-log).
-#' @param init A vector of initial values for the model parameters. 
+#' @param dist The assumed distribution for time to event. Options include
+#'   "exponential", "weibull", "lognormal", and "loglogistic" to be
+#'   modeled on the log-scale, and "normal" and "logistic" to be modeled
+#'   on the original scale.
+#' @param init A vector of initial values for the model parameters, 
+#'   including regression coefficients and the log scale parameter. 
 #'   By default, initial values are derived from an intercept-only model. 
+#'   If this approach fails, ordinary least squares (OLS) estimates, 
+#'   ignoring censoring, are used instead.
 #' @param robust Whether a robust sandwich variance estimate should be
 #'   computed. In the presence of the id variable, the score residuals
 #'   will be aggregated for each id when computing the robust sandwich
 #'   variance estimate.
-#' @param firth Whether the firth's bias reducing penalized likelihood
-#'   should be used. The default is \code{FALSE}.
-#' @param flic Whether to apply intercept correction to obtain more
-#'   accurate predicted probabilities. The default is \code{FALSE}.
 #' @param plci Whether to obtain profile likelihood confidence interval.
 #' @param alpha The two-sided significance level.
 #' @param maxiter The maximum number of iterations.
 #' @param eps The tolerance to declare convergence. 
 #'
-#' @details
-#' Fitting a logistic regression model using Firth's bias reduction method
-#' is equivalent to penalization of the log-likelihood by the Jeffreys prior.
-#' Firth's penalized log-likelihood is given by
-#' \deqn{l(\beta) + \frac{1}{2} \log(\mbox{det}(I(\beta)))}
-#' and the components of the gradient \eqn{g(\beta)} are computed as
-#' \deqn{g(\beta_j) + \frac{1}{2} \mbox{trace}\left(I(\beta)^{-1}
-#' \frac{\partial I(\beta)}{\partial \beta_j}\right)}
-#' The Hessian matrix is not modified by this penalty.
+#' @details There are two ways to specify the model, one for right censored
+#' data through the time and event variables, and the other for interval
+#' censored data through the time (lower) and time2 (upper) variables.
+#' For the second form, we follow the convention used in SAS PROC LIFEREG:
 #'
-#' Firth's method reduces bias in maximum likelihood estimates of
-#' coefficients, but it introduces a bias toward one-half in the
-#' predicted probabilities.
+#' * If lower is not missing, upper is not missing, and lower is equal
+#'   to upper, then there is no censoring and the event occurred at
+#'   time lower.
 #'
-#' A straightforward modification to Firth’s logistic regression to
-#' achieve unbiased average predicted probabilities involves a post hoc
-#' adjustment of the intercept. This approach, known as Firth’s logistic
-#' regression with intercept correction (FLIC), preserves the
-#' bias-corrected effect estimates. By excluding the intercept from
-#' penalization, it ensures that we don't sacrifice the accuracy of
-#' effect estimates to improve the predictions.
+#' * If lower is not missing, upper is not missing, and lower < upper,
+#'   then the event time is censored within the interval (lower, upper).
+#'
+#' * If lower is missing, but upper is not missing, then upper will be
+#'   used as the left censoring value.
+#'
+#' * If lower is not missing, but upper is missing, then lower will be
+#'   used as the right censoring value.
+#'
+#' * If lower is not missing, upper is not missing, but lower > upper,
+#'   or if both lower and upper are missing, then the observation will
+#'   not be used.
 #'
 #' @return A list with the following components:
 #'
 #' * \code{sumstat}: The data frame of summary statistics of model fit
 #'   with the following variables:
 #'
-#'     - \code{n}: The number of subjects.
+#'     - \code{n}: The number of observations.
 #'
 #'     - \code{nevents}: The number of events.
 #'
-#'     - \code{loglik0}: The (penalized) log-likelihood under null.
+#'     - \code{loglik0}: The log-likelihood under null.
 #'
-#'     - \code{loglik1}: The maximum (penalized) log-likelihood.
+#'     - \code{loglik1}: The maximum log-likelihood.
 #'
 #'     - \code{niter}: The number of Newton-Raphson iterations.
 #'
+#'     - \code{dist}: The assumed distribution.
+#'
 #'     - \code{p}: The number of parameters, including the intercept,
-#'       and regression coefficients associated with the covariates.
+#'       regression coefficients associated with the covariates, and
+#'       the log scale parameters for the strata.
 #'
-#'     - \code{link}: The link function.
+#'     - \code{nvar}: The number of regression coefficients associated
+#'       with the covariates (excluding the intercept).
 #'
-#'     - \code{robust}: Whether a robust sandwich variance estimate should
-#'       be computed.
-#'
-#'     - \code{firth}: Whether the firth's penalized likelihood is used.
-#'
-#'     - \code{flic}: Whether to apply intercept correction.
-#'     
+#'     - \code{robust}: Whether the robust sandwich variance estimate
+#'       is requested.
+#'       
 #'     - \code{fail}: Whether the model fails to converge.
-#'
-#'     - \code{loglik0_unpenalized}: The unpenalized log-likelihood under null.
-#'
-#'     - \code{loglik1_unpenalized}: The maximum unpenalized log-likelihood.
 #'
 #' * \code{parest}: The data frame of parameter estimates with the
 #'   following variables:
@@ -123,22 +129,18 @@
 #'     - \code{method}: The method to compute the confidence interval and
 #'       p-value.
 #'
-#'     - \code{sebeta_naive}: The naive standard error of parameter estimate.
+#'     - \code{sebeta_naive}: The naive standard error of parameter estimate
+#'       if robust variance is requested.
 #'
-#'     - \code{vbeta_naive}: The naive covariance matrix of parameter
-#'       estimates.
+#'     - \code{vbeta_naive}: The naive covariance matrix for parameter
+#'       estimates if robust variance is requested.
 #'
-#' * \code{fitted}: The data frame with the following variables:
-#'
-#'     - \code{linear_predictors}: The linear fit on the link function scale.
-#'
-#'     - \code{fitted_values}: The fitted probabilities of having an event,
-#'       obtained by transforming the linear predictors by the inverse of
-#'       the link function.
+#' * \code{linear_predictors}: The vector of linear predictors.
 #'
 #' * \code{p}: The number of parameters.
 #'
-#' * \code{link}: The link function.
+#' * \code{nvar}: The number of columns of the design matrix excluding
+#'   the intercept.
 #'
 #' * \code{param}: The parameter names.
 #'
@@ -147,10 +149,6 @@
 #' * \code{vbeta}: The covariance matrix for parameter estimates.
 #'
 #' * \code{vbeta_naive}: The naive covariance matrix for parameter estimates.
-#'
-#' * \code{linear_predictors}: The linear fit on the link function scale.
-#'
-#' * \code{fitted_values}: The fitted probabilities of having an event.
 #'
 #' * \code{terms}: The terms object.
 #'
@@ -161,32 +159,34 @@
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @references
-#' David Firth.
-#' Bias Reduction of Maximum Likelihood Estimates.
-#' Biometrika 1993; 80:27–38.
-#'
-#' Georg Heinze and Michael Schemper.
-#' A solution to the problem of separation in logistic regression.
-#' Statistics in Medicine 2002;21:2409–2419.
-#'
-#' Rainer Puhr, Georg Heinze, Mariana Nold, Lara Lusa, and
-#' Angelika Geroldinger.
-#' Firth's logistic regression with rare events: accurate effect
-#' estimates and predictions?
-#' Statistics in Medicine 2017; 36:2302-2317.
+#' John D. Kalbfleisch and Ross L. Prentice.
+#' The Statistical Analysis of Failure Time Data.
+#' Wiley: New York, 1980.
 #'
 #' @examples
 #'
-#' (fit1 <- logisregr(
-#'   ingots, event = "NotReady", covariates = "Heat*Soak", freq = "Freq"))
+#' library(dplyr)
+#'
+#' # right censored data
+#' (fit1 <- liferegr(
+#'   data = rawdata %>% filter(iterationNumber == 1) %>% 
+#'          mutate(treat = (treatmentGroup == 1)),
+#'   stratum = "stratum",
+#'   time = "timeUnderObservation", event = "event",
+#'   covariates = "treat", dist = "weibull"))
+#'
+#' # tobit regression for left censored data
+#' (fit2 <- liferegr(
+#'   data = tobin %>% mutate(time = ifelse(durable>0, durable, NA)),
+#'   time = "time", time2 = "durable",
+#'   covariates = c("age", "quant"), dist = "normal"))
 #'
 #' @export
-logisregr <- function(data, event = "event", covariates = "",
-                      freq = "", weight = "", offset = "", id = "",
-                      link = "logit", init = NA_real_,
-                      robust = FALSE, firth = FALSE,
-                      flic = FALSE, plci = FALSE, alpha = 0.05,
-                      maxiter = 50, eps = 1.0e-9) {
+liferegr <- function(data, stratum = "", time = "time", time2 = "", 
+                     event = "event", covariates = "", weight = "", 
+                     offset = "", id = "", dist = "weibull", 
+                     init = NA_real_, robust = FALSE, plci = FALSE, 
+                     alpha = 0.05, maxiter = 50, eps = 1.0e-9) {
   
   # validate input
   if (!inherits(data, "data.frame")) {
@@ -200,13 +200,14 @@ logisregr <- function(data, event = "event", covariates = "",
     df <- data
   }
   
-  if (length(event) == 0 || (length(event) == 1 && event[1] == "")) {
-    stop("The event variable must be specified.")
-  } else if (length(event) > 1) {
-    stop("Only one event variable can be specified.")
+  if (length(time) > 1) {
+    stop("Only one time variable can be specified.")
   }
-  if (length(freq) > 1) {
-    stop("Only one frequency variable can be specified.")
+  if (length(time2) > 1) {
+    stop("Only one time2 variable can be specified.")
+  }
+  if (length(event) > 1) {
+    stop("Only one event variable can be specified.")
   }
   if (length(weight) > 1) {
     stop("Only one weight variable can be specified.")
@@ -219,7 +220,7 @@ logisregr <- function(data, event = "event", covariates = "",
   }
   
   # select complete cases for the relevant variables
-  elements <- unique(c(event, covariates, freq, weight, offset, id))
+  elements <- unique(c(stratum, covariates, weight, offset, id))
   elements <- elements[elements != ""]
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
   var_all <- rownames(attr(terms(fml_all), "factors"))
@@ -249,7 +250,7 @@ logisregr <- function(data, event = "event", covariates = "",
     xlevels = NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
-    
+               
     # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
     cov_present <- covariates %in% names(df)
     all_numeric <- FALSE
@@ -284,33 +285,38 @@ logisregr <- function(data, event = "event", covariates = "",
   }
   
   # call the core fitting function
-  fit <- logisregRcpp(
-    data =  df,
-    event = event,
+  fit <- liferegRcpp(
+    data = df, 
+    stratum = stratum, 
+    time = time,
+    time2 = time2, 
+    event = event, 
     covariates = varnames,
-    freq = freq,
-    weight = weight,
-    offset = offset,
-    id = id,
-    link = link,
-    init = init,
-    robust = robust,
-    firth = firth,
-    flic = flic,
-    plci = plci,
-    alpha = alpha,
-    maxiter = maxiter,
-    eps = eps
-  )
+    weight = weight, 
+    offset = offset, 
+    id = id, 
+    dist = dist,
+    init = init, 
+    robust = robust, 
+    plci = plci, 
+    alpha = alpha, 
+    maxiter = maxiter, 
+    eps = eps)
   
   # post-process the output
   fit$p <- fit$sumstat$p[1]
-  fit$link <- fit$sumstat$link[1]
+  fit$nvar <- fit$sumstat$nvar[1]
   
   if (fit$p > 0) {
-    fit$param <- param
+    par = fit$parest$param[1:fit$p]
+    if (length(par) > length(param)) {
+      fit$param = c(param, par[(1+length(param)):length(par)])
+    } else {
+      fit$param = param
+    }
+    
     fit$beta <- fit$parest$beta
-    names(fit$beta) <- fit$param
+    names(fit$beta) = fit$param
     
     if (fit$p > 1) {
       fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
@@ -324,36 +330,34 @@ logisregr <- function(data, event = "event", covariates = "",
       }
     }
     
-    dimnames(fit$vbeta) <- list(fit$param, fit$param)
+    dimnames(fit$vbeta) = list(fit$param, fit$param)
     if (robust) {
-      dimnames(fit$vbeta_naive) <- list(fit$param, fit$param)
+      dimnames(fit$vbeta_naive) = list(fit$param, fit$param)
     }
   }
   
-  fit$linear_predictors <- fit$fitted$linear_predictors
-  fit$fitted_values <- fit$fitted$fitted_values
   fit$terms <- t1
   if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = data,
-    event = event,
-    covariates = covariates,
-    freq = freq,
-    weight = weight,
+    data = data, 
+    stratum = stratum, 
+    time = time, 
+    time2 = time2,
+    event = event, 
+    covariates = covariates, 
+    weight = weight, 
     offset = offset,
-    id = id,
-    link = link,
-    init = init,
-    robust = robust,
-    firth = firth,
-    flic = flic,
-    plci = plci,
-    alpha = alpha,
-    maxiter = maxiter,
+    id = id, 
+    dist = dist, 
+    init = init, 
+    robust = robust, 
+    plci = plci, 
+    alpha = alpha, 
+    maxiter = maxiter, 
     eps = eps
   )
   
-  class(fit) <- "logisregr"
+  class(fit) = "liferegr"
   fit
 }

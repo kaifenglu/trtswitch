@@ -767,7 +767,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         out = logisregloop(p, bint, &param, maxiter, eps, firth, colfit, p);
       }
       
-      bool fail = out.get<bool>("fail");
+      fail = out.get<bool>("fail");
       if (fail) {
         thread_utils::push_thread_warning(
           "logisregloop failed to converge for the full model; continuing with current results.");
@@ -977,7 +977,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         // update the score residuals
         ressco = std::move(ressco2);  
         nr = nids;
-        freqr = freqr0;
+        freqr = std::move(freqr0);
       }
       
       FlatMatrix D = mat_mat_mult(ressco, vb);
@@ -1068,11 +1068,11 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         if (!robust) {
           lb[k] = b[k] - zcrit*seb[k];
           ub[k] = b[k] + zcrit*seb[k];
-          prob[k] = boost_pchisq(pow(b[k]/seb[k], 2), 1, 0);
+          prob[k] = boost_pchisq(sq(b[k] / seb[k]), 1, 0);
         } else {
           lb[k] = b[k] - zcrit*rseb[k];
           ub[k] = b[k] + zcrit*rseb[k];
-          prob[k] = boost_pchisq(pow(b[k]/rseb[k], 2), 1, 0);
+          prob[k] = boost_pchisq(sq(b[k] / rseb[k]), 1, 0);
         }
         clparm[k] = "Wald";
       }
@@ -1090,28 +1090,28 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       regloglik0 = loglik0;
       regloglik1 = loglik1;
     }
-  }
-  
-  // compute exp(beta)
-  for (int i=0; i<p; ++i) {
-    expbeta[i] = std::exp(b[i]);
-  }
-  
-  // compute z statistics
-  if (robust) {
+    
+    // compute exp(beta)
     for (int i=0; i<p; ++i) {
-      if (rseb[i] == 0) {
-        z[i] = NaN;
-      } else {
-        z[i] = b[i]/rseb[i];
-      }
+      expbeta[i] = std::exp(b[i]);
     }
-  } else {
-    for (int i=0; i<p; ++i) {
-      if (seb[i] == 0) {
-        z[i] = NaN;
-      } else {
-        z[i] = b[i]/seb[i];
+    
+    // compute z statistics
+    if (robust) {
+      for (int i=0; i<p; ++i) {
+        if (rseb[i] == 0) {
+          z[i] = NaN;
+        } else {
+          z[i] = b[i]/rseb[i];
+        }
+      }
+    } else {
+      for (int i=0; i<p; ++i) {
+        if (seb[i] == 0) {
+          z[i] = NaN;
+        } else {
+          z[i] = b[i]/seb[i];
+        }
       }
     }
   }

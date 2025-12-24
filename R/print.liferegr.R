@@ -1,27 +1,27 @@
-#' @title Print logisregr Object
-#' @description Prints the concise information of logisregr fit.
+#' @title Print liferegr Object
+#' @description Prints the concise information of liferegr fit.
 #'
-#' @param x The logisregr object to print.
+#' @param x The liferegr object to print.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a logistic regression model.
+#' @return A printout from the fit of an accelerated failue time model.
 #'
 #' @keywords internal
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @export
-print.logisregr <- function(x, ...) {
+print.liferegr <- function(x, ...) {
   lrchisq = -2*(x$sumstat$loglik0 - x$sumstat$loglik1)
-  degrees = x$sumstat$p - 1
+  degrees = x$sumstat$nvar
   pvalue = sapply(1:nrow(x$sumstat), function(i) {
-    ifelse(degrees[i] > 0,
-           pchisq(lrchisq[i], degrees[i], 0, lower.tail = FALSE),
+    ifelse(degrees[i] > 0, 
+           pchisq(lrchisq[i], degrees[i], 0, lower.tail = FALSE), 
            NA)
   })
   df1 <- cbind(x$sumstat[, c("n", "nevents", "loglik0", "loglik1")],
                lrchisq = lrchisq, df = degrees, pvalue = pvalue,
-               x$sumstat[, c("niter", "link", "firth", "flic")])
+               x$sumstat[, c("niter", "dist")])
   
   p = x$p
   if (p > 0) {
@@ -41,7 +41,6 @@ print.logisregr <- function(x, ...) {
                           paste("lower", 1-x$settings$alpha),
                           paste("upper", 1-x$settings$alpha), 
                           "p", "method")
-        
       } else {
         df = data.frame(param = x$param,
                         coef = x$parest$beta,
@@ -65,7 +64,7 @@ print.logisregr <- function(x, ...) {
                         p = x$parest$p,
                         method = x$parest$method)
         
-        colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", 
+        colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)",
                           "robust se", "z", 
                           paste("lower", 1-x$settings$alpha),
                           paste("upper", 1-x$settings$alpha), 
@@ -79,7 +78,7 @@ print.logisregr <- function(x, ...) {
                         z = x$parest$z,
                         p = x$parest$p)
         
-        colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", 
+        colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)",
                           "robust se", "z", "p")
       }
     }
