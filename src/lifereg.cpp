@@ -745,7 +745,7 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
       break;
       
     default:
-      throw std::runtime_error("Unknown status: " + std::to_string(status[person]));
+      throw std::runtime_error("Unknown status: " + std::to_string(st));
     }
   }
 
@@ -1779,41 +1779,42 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
   const std::vector<int>& status = param->status; 
   
   std::vector<double> g(n), dg(n), ddg(n), ds(n), dds(n), dsg(n);
-
+  
   // Main loop to compute  derivatives
   for (int person = 0; person < n; ++person) {
     const double s = sigma[person];
     const double inv_s = 1.0 / s;
-    const double logsig = std::log(sigma[person]);
+    const double logsig = std::log(s);
     const double eta_p = eta[person];
     const double tstart_p = tstart[person]; 
     const double tstop_p = tstop[person];
     const int st = status[person];
     
     switch (st) {
-
+    
     case 1: // event
       switch (dist_code) {
       case 1: case 2: { // exponential / weibull
       double u = (std::log(tstop_p) - eta_p) * inv_s;
       double eu = std::exp(u);
       double su = s * u;
-        g[person] = u - eu - logsig;
-        dg[person] = -(1.0 - eu) * inv_s;
-        ddg[person] = -eu * inv_s * inv_s;
-        ds[person] = -1.0 + dg[person] * su;
-        dds[person] = ddg[person] * su * su - dg[person] * su;
-        dsg[person] = ddg[person] * su - dg[person];
-        break;
+      g[person] = u - eu - logsig;        // log f(u) - log(s)
+      dg[person] = -(1.0 - eu) * inv_s;   // -f'(u)/f(u) * 1/s
+      ddg[person] = -eu * inv_s * inv_s;  // (f''(u)/f(u) - (f'(u)/f(u))^2) * 1/s^2
+      ds[person] = -1.0 + dg[person] * su;
+      dds[person] = ddg[person] * su * su - dg[person] * su;
+      dsg[person] = ddg[person] * su - dg[person];
+      break;
     }
       case 3: case 4: { // lognormal / normal
         double u;
         if (dist_code == 3) u = (std::log(tstop_p) - eta_p) * inv_s;
         else u = (tstop_p - eta_p) * inv_s;
         double su = s * u;
-        g[person] = std::log(boost_dnorm(u)) - logsig;
+        double d = boost_dnorm(u);
+        g[person] = std::log(d) - logsig;
         dg[person] = u * inv_s;
-        ddg[person] = -1.0 * inv_s * inv_s;
+        ddg[person] = -inv_s * inv_s;
         ds[person] = -1.0 + dg[person] * su;
         dds[person] = ddg[person] * su * su - dg[person] * su;
         dsg[person] = ddg[person] * su - dg[person];
@@ -1824,9 +1825,11 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         if (dist_code == 5) u = (std::log(tstop_p) - eta_p) * inv_s;
         else u = (tstop_p - eta_p) * inv_s;
         double su = s * u;
-        g[person] = std::log(boost_dlogis(u)) - logsig;
-        dg[person] = (1.0 - 2.0 * boost_plogis(u,0,1,0)) * inv_s;
-        ddg[person] = -2.0 * boost_dlogis(u) * inv_s * inv_s;
+        double q = boost_plogis(u, 0.0, 1.0, 0);
+        double d = boost_dlogis(u);
+        g[person] = std::log(d) - logsig;
+        dg[person] = (1.0 - 2.0 * q) * inv_s;
+        ddg[person] = -2.0 * d * inv_s * inv_s;
         ds[person] = -1.0 + dg[person] * su;
         dds[person] = ddg[person] * su * su - dg[person] * su;
         dsg[person] = ddg[person] * su - dg[person];
@@ -1834,7 +1837,7 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
       }
       }
       break;
-
+      
     case 3: // interval censoring
       switch (dist_code) {
       case 1: case 2: { // exponential / weibull
@@ -1846,13 +1849,15 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double q2 = std::exp(-e_u2);
         double d1 = e_u1 * q1; 
         double d2 = e_u2 * q2;
+        double r1 = 1.0 - e_u1;
+        double r2 = 1.0 - e_u2;
         double den = q1 - q2;
         g[person] = std::log(den);
-        dg[person] = (d1 - d2)/den * inv_s;
-        ddg[person] = -(d1 * (1.0 - e_u1) - d2 * (1 - e_u2)) / den * inv_s * inv_s - dg[person] * dg[person];
+        dg[person] = (d1 - d2) / den * inv_s;
+        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
         ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (u2 * u2 * (1.0 - e_u2) * d2 - u1 * u1 * (1.0 - e_u1) * d1) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (u2 * (1.0 - e_u2) * d2 - u1 * (1.0 - e_u1) * d1) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
+        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
         break;
       }
       case 3: case 4: { // lognormal / normal
@@ -1868,13 +1873,15 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double q2 = boost_pnorm(u2, 0.0, 1.0, 0);
         double d1 = boost_dnorm(u1); 
         double d2 = boost_dnorm(u2);
+        double r1 = -u1;
+        double r2 = -u2;
         double den = q1 - q2;
         g[person] = std::log(den);
         dg[person] = (d1 - d2) / den * inv_s;
-        ddg[person] = (d1 * u1 - d2 * u2) / den * inv_s * inv_s - dg[person] * dg[person];
+        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
         ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (-u2 * u2 * u2 * d2 + u1 * u1 * u1 * d1) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (-u2 * u2 * d2 + u1 * u1 * d1) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
+        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
         break;
       }
       case 5: case 6: { // loglogistic / logistic
@@ -1890,18 +1897,20 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double d2 = boost_dlogis(u2);
         double q1 = boost_plogis(u1, 0.0, 1.0, 0); 
         double q2 = boost_plogis(u2, 0.0, 1.0, 0);
+        double r1 = 2.0 * q1 - 1.0;
+        double r2 = 2.0 * q2 - 1.0;
         double den = q1 - q2;
         g[person] = std::log(den);
         dg[person] = (d1 - d2) / den * inv_s;
-        ddg[person] = -(d1 * (2.0 * q1 - 1.0) - d2 * (2.0 * q2 - 1.0)) / den * inv_s * inv_s - dg[person] * dg[person];
+        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
         ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (u2 * u2 * d2 * (2.0 * q2 - 1.0) - u1 * u1 * d1 * (2.0 * q1 - 1.0)) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (u2 * d2 * (2.0 * q2 - 1.0) - u1 * d1 * (2.0 * q1 - 1.0)) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
+        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
         break;
       }
       }
       break;
-
+      
     case 2: // left censoring
       switch (dist_code) {
       case 1: case 2: { // exponential / weibull
@@ -1909,10 +1918,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double e_u2 = std::exp(u2);
         double q2 = std::exp(-e_u2);
         double d2 = e_u2 * q2;
+        double r2 = 1.0 - e_u2;
+        double den = 1.0 - q2;
         double su = s * u2;
-        g[person] = std::log(1.0 - q2);
-        dg[person] = -d2 / (1.0 - q2) * inv_s;
-        ddg[person] = (1 - e_u2 - q2) * d2 / sq((1 - q2) * s);
+        g[person] = std::log(den);
+        dg[person] = -d2 / den * inv_s;
+        ddg[person] = -dg[person] * r2 * inv_s - dg[person] * dg[person];
         ds[person] = dg[person] * su;
         dds[person] = ddg[person] * su * su - ds[person];
         dsg[person] = ddg[person] * su - dg[person];
@@ -1922,12 +1933,14 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double u2;
         if (dist_code == 3) u2 = (std::log(tstop_p) - eta_p) * inv_s;
         else u2 = (tstop_p - eta_p) * inv_s;
-        double su = s * u2;
         double q2 = boost_pnorm(u2, 0.0, 1.0, 0);
         double d2 = boost_dnorm(u2);
-        g[person] = std::log(1.0 - q2);
-        dg[person] = -d2 / (1.0 - q2) * inv_s;
-        ddg[person] = -u2 * d2 / (1.0 - q2) * inv_s * inv_s - dg[person] * dg[person];
+        double r2 = -u2;
+        double den = 1.0 - q2;
+        double su = s * u2;
+        g[person] = std::log(den);
+        dg[person] = -d2 / den * inv_s;
+        ddg[person] = -dg[person] * r2 * inv_s - dg[person] * dg[person];
         ds[person] = dg[person] * su;
         dds[person] = ddg[person] * su * su - ds[person];
         dsg[person] = ddg[person] * su - dg[person];
@@ -1937,10 +1950,11 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double u2;
         if (param->dist_code==5) u2 = (std::log(tstop_p) - eta_p) * inv_s;
         else u2 = (tstop_p - eta_p) * inv_s;
-        double su = s * u2;
         double q2 = boost_plogis(u2, 0.0, 1.0, 0);
         double d2 = boost_dlogis(u2);
-        g[person] = std::log(1.0 - q2);
+        double den = 1.0 - q2;
+        double su = s * u2;
+        g[person] = std::log(den);
         dg[person] = -q2 * inv_s;
         ddg[person] = -d2 * inv_s * inv_s;
         ds[person] = dg[person] * su;
@@ -1950,7 +1964,7 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
       }
       }
       break;
-
+      
     case 0: // right censoring
       switch (dist_code) {
       case 1: case 2: { // exponential / weibull
@@ -1971,10 +1985,11 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         else u1 = (tstart_p - eta_p) * inv_s;
         double q1 = boost_pnorm(u1, 0.0, 1.0, 0);
         double d1 = boost_dnorm(u1);
+        double r1 = -u1;
         double su = s * u1;
         g[person] = std::log(q1);
         dg[person] = d1 / q1 * inv_s;
-        ddg[person] = u1 * d1 / q1 * inv_s * inv_s - dg[person] * dg[person];
+        ddg[person] = -dg[person] * r1 * inv_s - dg[person] * dg[person];
         ds[person] = dg[person] * su;
         dds[person] = ddg[person] * su * su - ds[person];
         dsg[person] = ddg[person] * su - dg[person];
@@ -1997,12 +2012,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
       }
       }
       break;
-
+      
     default:
       throw std::runtime_error("Unknown status: " + std::to_string(st));
     }
   }
-
+  
   ListCpp result;
   result.push_back(g, "g");
   result.push_back(dg, "dg");
