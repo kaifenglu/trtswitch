@@ -222,7 +222,7 @@ logisregr <- function(data, event = "event", covariates = "",
   elements <- unique(c(event, covariates, freq, weight, offset, id))
   elements <- elements[elements != ""]
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
-  var_all <- rownames(attr(terms(fml_all), "factors"))
+  var_all <- all.vars(fml_all)
   
   # check if the input data contains the required columns
   missing_cols <- setdiff(var_all, names(df))
@@ -336,9 +336,9 @@ logisregr <- function(data, event = "event", covariates = "",
   if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = data,
+    data = df,
     event = event,
-    covariates = covariates,
+    covariates = varnames,
     freq = freq,
     weight = weight,
     offset = offset,

@@ -1145,7 +1145,15 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   // --- time / time2 existence and checks ---
   if (!data.containElementNamed(time)) 
     throw std::invalid_argument("data must contain the time variable");
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
     for (int i = 0; i < n; ++i) if (!std::isnan(timen[i]) && timen[i] <= 0.0)
       throw std::invalid_argument("time must be positive for the " + dist1 + " distribution");
@@ -1154,7 +1162,14 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
-    time2n = data.get<double>(time2);
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }    
     if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
       for (int i = 0; i < n; ++i) if (!std::isnan(time2n[i]) && time2n[i] <= 0.0)
         throw std::invalid_argument("time2 must be positive for the " + dist1 + " distribution");
@@ -1212,13 +1227,29 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   // --- weight and offset ---
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
     for (double w : weightn) if (std::isnan(w) || w <= 0.0) 
       throw std::invalid_argument("weight must be greater than 0");
   }
+  
   std::vector<double> offsetn(n, 0.0);
-  if (!offset.empty() && data.containElementNamed(offset)) 
-    offsetn = data.get<double>(offset);
+  if (!offset.empty() && data.containElementNamed(offset)) {
+    if (data.int_cols.count(offset)) {
+      const std::vector<int>& vi = data.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(offset)) {
+      offsetn = data.get<double>(offset);
+    } else {
+      throw std::invalid_argument("offset variable must be integer or numeric");
+    }
+  }
   
   // --- id mapping ---
   bool has_id = !id.empty() && data.containElementNamed(id);
@@ -2024,15 +2055,15 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
                                 const FlatMatrix& vbeta,
                                 const DataFrameCpp& data,
                                 const std::vector<std::string>& stratum,
-                                const std::string time,
-                                const std::string time2,
-                                const std::string event,
+                                const std::string& time,
+                                const std::string& time2,
+                                const std::string& event,
                                 const std::vector<std::string>& covariates,
-                                const std::string weight,
-                                const std::string offset,
-                                const std::string id,
-                                const std::string dist,
-                                const std::string type,
+                                const std::string& weight,
+                                const std::string& offset,
+                                const std::string& id,
+                                const std::string& dist,
+                                const std::string& type,
                                 bool collapse,
                                 bool weighted) {
   // --- sizes and distribution normalization ---
@@ -2073,24 +2104,40 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   }
 
   // --- time / time2 existence and checks ---
-  if (!data.containElementNamed(time))
+  if (!data.containElementNamed(time)) 
     throw std::invalid_argument("data must contain the time variable");
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
     for (int i = 0; i < n; ++i) if (!std::isnan(timen[i]) && timen[i] <= 0.0)
       throw std::invalid_argument("time must be positive for the " + dist1 + " distribution");
   }
-
+  
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
-    time2n = data.get<double>(time2);
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }    
     if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
       for (int i = 0; i < n; ++i) if (!std::isnan(time2n[i]) && time2n[i] <= 0.0)
-        throw std::invalid_argument("time2 must be positive for the " + dist1 + " distribution");
+        throw std::invalid_argument("time2 must be positive for the " + 
+                                    dist1 + " distribution");
     }
   }
-
+  
   // --- event variable ---
   bool has_event = !event.empty() && data.containElementNamed(event);
   if (!has_time2 && !has_event) {
@@ -2112,7 +2159,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     for (double val : eventn) if (val != 0 && val != 1)
       throw std::invalid_argument("event must be 1 or 0 for each observation");
   }
-
+  
   // --- build design matrix zn (n x nvar) column-major FlatMatrix ---
   FlatMatrix zn(n, nvar);
   // intercept
@@ -2120,7 +2167,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   // covariates
   for (int j = 0; j < nvar - 1; ++j) {
     const std::string& zj = covariates[j];
-    if (!data.containElementNamed(zj))
+    if (!data.containElementNamed(zj)) 
       throw std::invalid_argument("data must contain the variables in covariates");
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
@@ -2138,18 +2185,34 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
   }
-
+  
   // --- weight and offset ---
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
-    for (double w : weightn) if (std::isnan(w) || w <= 0.0)
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
+    for (double w : weightn) if (std::isnan(w) || w <= 0.0) 
       throw std::invalid_argument("weight must be greater than 0");
   }
+  
   std::vector<double> offsetn(n, 0.0);
-  if (!offset.empty() && data.containElementNamed(offset))
-    offsetn = data.get<double>(offset);
-
+  if (!offset.empty() && data.containElementNamed(offset)) {
+    if (data.int_cols.count(offset)) {
+      const std::vector<int>& vi = data.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(offset)) {
+      offsetn = data.get<double>(offset);
+    } else {
+      throw std::invalid_argument("offset variable must be integer or numeric");
+    }
+  }
+  
   // --- id mapping ---
   bool has_id = !id.empty() && data.containElementNamed(id);
   std::vector<int> idn(n);
@@ -2212,8 +2275,10 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   }
   std::vector<int> status(n);
   for (int i = 0; i < n; ++i) {
-    if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] == tstop[i]) status[i] = 1;
-    else if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] < tstop[i]) status[i] = 3;
+    if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] == tstop[i]) 
+      status[i] = 1;
+    else if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] < tstop[i]) 
+      status[i] = 3;
     else if (std::isnan(tstart[i]) && !std::isnan(tstop[i])) status[i] = 2;
     else if (!std::isnan(tstart[i]) && std::isnan(tstop[i])) status[i] = 0;
     else status[i] = -1;
@@ -2241,11 +2306,11 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   std::vector<double> eta = offsetn; // initialize with offset
   // add contributions of each coefficient times column
   const double* zdata = zn.data_ptr();
-  for (int i = 0; i < nvar; ++i) {
-    double b = beta[i];
+  for (int j = 0; j < nvar; ++j) {
+    double b = beta[j];
     if (b == 0.0) continue;
-    const double* col = zdata + i * n1;
-    for (int r = 0; r < n1; ++r) eta[r] += b * col[i];
+    const double* col = zdata + j * n1;
+    for (int i = 0; i < n1; ++i) eta[i] += b * col[i];
   }
 
   // --- compute sigma per observation ---
@@ -2278,7 +2343,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   // --- prepare result matrix rr (n1 x K) ---
   FlatMatrix rr(n1, K);
   double* rdata = rr.data_ptr();
-
+  
   // Helper lambdas for rr indexing: rr(i,k) -> rdata[k * n1 + i]
 
   // --- simple types ---
@@ -2286,11 +2351,11 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     std::vector<double> yhat0(n1);
     for (int i = 0; i < n1; ++i) {
       if (status[i] == 0 || status[i] == 1) {
-        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)
           yhat0[i] = std::log(tstart[i]);
         else yhat0[i] = tstart[i];
       } else if (status[i] == 2) {
-        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)
           yhat0[i] = std::log(tstop[i]);
         else yhat0[i] = tstop[i];
       } else { // interval
@@ -2304,13 +2369,13 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         }
       }
       double val;
-      if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+      if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)
         val = std::exp(yhat0[i]) - std::exp(eta[i]);
       else val = yhat0[i] - eta[i];
       rdata[i] = val;
     }
   } else if (type_code == 2) { // martingale
-    if (dist_code == 4 || dist_code == 6) 
+    if (dist_code == 4 || dist_code == 6)
       throw std::invalid_argument("incorrect distribution for martingale residuals: " + dist1);
     for (int i = 0; i < n1; ++i) {
       if (status[i] == 0 || status[i] == 1) {
@@ -2327,13 +2392,14 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     }
   } else {
     // --- complex types using f_ld_1 ---
-    aftparams param = { dist_code, stratumn, tstart, tstop, status, weightn, offsetn, zn, nstrata };
+    aftparams param = { dist_code, stratumn, tstart, tstop, status, weightn, 
+                        offsetn, zn, nstrata };
     ListCpp der = f_ld_1(eta, s, &param);
     std::vector<double> g   = der.get<std::vector<double>>("g");
     std::vector<double> dg  = der.get<std::vector<double>>("dg");
     std::vector<double> ddg = der.get<std::vector<double>>("ddg");
-    std::vector<double> dsv = der.get<std::vector<double>>("ds");
-    std::vector<double> ddsv= der.get<std::vector<double>>("dds");
+    std::vector<double> ds = der.get<std::vector<double>>("ds");
+    std::vector<double> dds = der.get<std::vector<double>>("dds");
     std::vector<double> dsg = der.get<std::vector<double>>("dsg");
 
     if (type_code == 3) { // deviance
@@ -2345,7 +2411,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
           break;
         case 1:
           if (dist_code == 1 || dist_code == 2) loglik[i] = -std::log(s[i]) - 1.0;
-          else if (dist_code == 3 || dist_code == 4) 
+          else if (dist_code == 3 || dist_code == 4)
             loglik[i] = -std::log(std::sqrt(2.0*M_PI) * s[i]);
           else loglik[i] = -std::log(4.0 * s[i]);
           break;
@@ -2380,14 +2446,16 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
       }
     } else if (type_code == 4) { // working
       for (int i = 0; i < n1; ++i) rdata[i] = -dg[i] / ddg[i];
-    } else if (type_code == 5 || type_code == 6 || type_code == 7) { // dfbeta, dfbetas, ldcase
+    } else if (type_code == 5 || type_code == 6 || type_code == 7) { 
+      // dfbeta, dfbetas, ldcase
       // vbeta is p x p FlatMatrix (column-major)
       const double* vptr = vbeta.data_ptr();
       for (int i = 0; i < n1; ++i) {
         // compute score vector
         std::vector<double> score(p, 0.0);
-        for (int j = 0; j < nvar; ++j) score[j] = dg[i] * zn(j, i); // zn(j,i) helper via operator()
-        for (int j = nvar; j < p; ++j) score[j] = (stratumn[i] == j - nvar) ? dsv[i] : 0.0;
+        for (int j = 0; j < nvar; ++j) score[j] = dg[i] * zn(i,j);
+        for (int j = nvar; j < p; ++j) 
+          score[j] = (stratumn[i] == j - nvar) ? ds[i] : 0.0;
         // resid = score * vbeta  (1 x p) * (p x p) -> vector length p
         std::vector<double> resid(p, 0.0);
         for (int k = 0; k < p; ++k) {
@@ -2414,8 +2482,9 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
       const double* vptr = vbeta.data_ptr();
       for (int i = 0; i < n1; ++i) {
         std::vector<double> rscore(p, 0.0);
-        for (int j = 0; j < nvar; ++j) rscore[j] = -ddg[i] * zn(j, i) * s[i];
-        for (int j = nvar; j < p; ++j) rscore[j] = (stratumn[i] == j - nvar) ? -dsg[i] * s[i] : 0.0;
+        for (int j = 0; j < nvar; ++j) rscore[j] = -ddg[i] * zn(i,j) * s[i];
+        for (int j = nvar; j < p; ++j) 
+          rscore[j] = (stratumn[i] == j - nvar) ? -dsg[i] * s[i] : 0.0;
         std::vector<double> temp(p, 0.0);
         for (int k = 0; k < p; ++k) {
           const double* colvk = vptr + k * p;
@@ -2425,14 +2494,15 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         }
         double acc = 0.0;
         for (int k = 0; k < p; ++k) acc += temp[k] * rscore[k];
-        rdata[0 * n1 + i] = acc;
+        rdata[i] = acc;
       }
     } else if (type_code == 9) { // ldshape
       const double* vptr = vbeta.data_ptr();
       for (int i = 0; i < n1; ++i) {
         std::vector<double> sscore(p, 0.0);
-        for (int j = 0; j < nvar; ++j) sscore[j] = dsg[i] * zn(j, i);
-        for (int j = nvar; j < p; ++j) sscore[j] = (stratumn[i] == j - nvar) ? ddsv[i] : 0.0;
+        for (int j = 0; j < nvar; ++j) sscore[j] = dsg[i] * zn(i,j);
+        for (int j = nvar; j < p; ++j) 
+          sscore[j] = (stratumn[i] == j - nvar) ? dds[i] : 0.0;
         std::vector<double> temp(p, 0.0);
         for (int k = 0; k < p; ++k) {
           const double* colvk = vptr + k * p;
@@ -2442,15 +2512,15 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         }
         double acc = 0.0;
         for (int k = 0; k < p; ++k) acc += temp[k] * sscore[k];
-        rdata[0 * n1 + i] = acc;
+        rdata[i] = acc;
       }
     } else if (type_code == 10) { // matrix
       for (int i = 0; i < n1; ++i) {
         rdata[i] = g[i];
         rdata[1 * n1 + i] = dg[i];
         rdata[2 * n1 + i] = ddg[i];
-        rdata[3 * n1 + i] = dsv[i];
-        rdata[4 * n1 + i] = ddsv[i];
+        rdata[3 * n1 + i] = ds[i];
+        rdata[4 * n1 + i] = dds[i];
         rdata[5 * n1 + i] = dsg[i];
       }
     }
@@ -2470,28 +2540,56 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   if (collapse) {
     // order by id
     std::vector<int> order = seqcpp(0, n1 - 1);
-    std::sort(order.begin(), order.end(), [&](int a, int b){ return idn[a] < idn[b]; });
+    std::sort(order.begin(), order.end(), [&](int i, int j){ return idn[i] < idn[j]; });
     std::vector<int> id1 = subset(idn, order);
-    std::vector<int> idx;
-    idx.push_back(0);
+    std::vector<int> idx(1,0);
     for (int i = 1; i < n1; ++i) if (id1[i] != id1[i-1]) idx.push_back(i);
     int nids = static_cast<int>(idx.size());
     idx.push_back(n1);
 
     FlatMatrix rr1(nids, K);
     double* rr1ptr = rr1.data_ptr();
-    for (int grp = 0; grp < nids; ++grp) {
+    for (int i = 0; i < nids; ++i) {
       for (int k = 0; k < K; ++k) {
         double acc = 0.0;
         const double* rrcol = rdata + k * n1;
-        for (int j = idx[grp]; j < idx[grp+1]; ++j) {
+        for (int j = idx[i]; j < idx[i+1]; ++j) {
           acc += rrcol[order[j]];
         }
-        rr1ptr[ k * nids + grp ] = acc;
+        rr1ptr[ k * nids + i ] = acc;
       }
     }
     return rr1;
   }
 
   return rr;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::NumericMatrix residuals_liferegRcpp(
+    const std::vector<double>& beta,
+    const Rcpp::NumericMatrix& vbeta,
+    const Rcpp::DataFrame& data,
+    const std::vector<std::string>& stratum,
+    const std::string& time,
+    const std::string& time2,
+    const std::string& event,
+    const std::vector<std::string>& covariates,
+    const std::string& weight,
+    const std::string& offset,
+    const std::string& id,
+    const std::string& dist,
+    const std::string& type,
+    const bool collapse,
+    const bool weighted) {
+  
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
+  
+  FlatMatrix rrcpp = residuals_liferegcpp(
+    beta, vbetacpp, dfcpp, stratum, time, time2, event, covariates, 
+    weight, offset, id, dist, type, collapse, weighted);
+  
+  return Rcpp::wrap(rrcpp);
 }

@@ -530,8 +530,6 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (event.empty()) throw std::invalid_argument("event variable is not specified");
   if (!data.containElementNamed(event)) 
     throw std::invalid_argument("data must contain the event variable");
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
@@ -588,14 +586,24 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
+    if (data.int_cols.count(weight)) {
+      const auto& weighti = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(weighti[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else throw std::invalid_argument("weight variable must be integer or numeric");
     for (double v : weightn) if (v <= 0.0) 
       throw std::invalid_argument("weight must be greater than 0");
   }
   
   std::vector<double> offsetn(n, 0.0);
   if (!offset.empty() && data.containElementNamed(offset)) {
-    offsetn = data.get<double>(offset);
+    if (data.int_cols.count(offset)) {
+      const auto& offseti = data.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(offseti[i]);
+    } else if (data.numeric_cols.count(offset)) {
+      offsetn = data.get<double>(offset);
+    } else throw std::invalid_argument("offset variable must be integer or numeric");
   }
   
   // id processing (unchanged semantics)

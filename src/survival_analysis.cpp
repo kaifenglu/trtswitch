@@ -371,15 +371,29 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(time))
     throw std::invalid_argument("data must contain the time variable");
-  
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   for (double v : timen) if (v < 0.0)
     throw std::invalid_argument("time must be nonnegative for each subject");
   
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
-    time2n = data.get<double>(time2);
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }
     for (int i = 0; i < n; ++i) {
       if (time2n[i] <= timen[i]) {
         throw std::invalid_argument("time2 must be greater than time for each observation");
@@ -399,8 +413,6 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
@@ -418,7 +430,14 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
     for (double v : weightn) if (v <= 0.0)
       throw std::invalid_argument("weight must be greater than 0");
   }
@@ -812,14 +831,29 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   if (!data.containElementNamed(time)) {
     throw std::invalid_argument("data must contain the time variable");
   }
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   for (double v : timen) if (v < 0.0)
     throw std::invalid_argument("time must be nonnegative for each subject");
   
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
-    time2n = data.get<double>(time2);
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }
     for (int i = 0; i < n; ++i) {
       if (time2n[i] <= timen[i]) {
         throw std::invalid_argument("time2 must be greater than time for each observation");
@@ -839,8 +873,6 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
@@ -858,7 +890,14 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
     for (double v : weightn) if (v <= 0.0)
       throw std::invalid_argument("weight must be greater than 0");
   }
@@ -1302,14 +1341,29 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
   if (!data.containElementNamed(time)) {
     throw std::invalid_argument("data must contain the time variable");
   }
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const auto& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   for (double v : timen) if (v < 0.0)
     throw std::invalid_argument("time must be nonnegative for each subject");
   
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
-    time2n = data.get<double>(time2);
+    if (data.int_cols.count(time2)) {
+      const auto& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }
     for (int i = 0; i < n; ++i) {
       if (time2n[i] <= timen[i]) {
         throw std::invalid_argument("time2 must be greater than time for each observation");
@@ -1327,7 +1381,6 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
     tstopn = std::move(time2n);
   }
   
-  // ---- event -> numeric 0/1 ----
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
   std::vector<double> eventn(n);
@@ -1347,7 +1400,14 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
   
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
-    weightn = data.get<double>(weight);
+    if (data.int_cols.count(weight)) {
+      const auto& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
     for (double v : weightn) if (v <= 0.0)
       throw std::invalid_argument("weight must be greater than 0");
   }
@@ -1729,14 +1789,20 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   if (!data.containElementNamed(time))
     throw std::invalid_argument("data must contain the time variable");
   
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   for (double v : timen) if (v < 0.0)
     throw std::invalid_argument("time must be nonnegative for each subject");
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
@@ -2165,14 +2231,20 @@ DataFrameCpp rmdiffcpp(const DataFrameCpp& data,
   if (!data.containElementNamed(time))
     throw std::invalid_argument("data must contain the time variable");
   
-  std::vector<double> timen = data.get<double>(time);
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
   for (double v : timen) if (v < 0.0)
     throw std::invalid_argument("time must be nonnegative for each subject");
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
@@ -2200,7 +2272,6 @@ DataFrameCpp rmdiffcpp(const DataFrameCpp& data,
   if (conflev <= 0.0 || conflev >= 1.0) {
     throw std::invalid_argument("conflev must lie between 0 and 1");
   }
-  
   
   bool noerr = true;
   
