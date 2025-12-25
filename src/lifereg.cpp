@@ -43,7 +43,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   const std::vector<int>& status = param->status; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
-  double* zdata = param->z.data_ptr(); // column-major: zdata[col * n + row]
+  const double* zdata = param->z.data_ptr(); // column-major: zdata[col * n + row]
   
   // compute linear predictor eta efficiently using column-major storage:
   std::vector<double> eta = offset; // initialize with offset
@@ -51,9 +51,9 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    int off = i * n;
+    const double* col = zdata + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * zdata[off + r];
+      eta[r] += beta * col[r];
     }
   }
   
@@ -63,9 +63,8 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   if (dist_code != 1) { // all except exponential 
     for (int person = 0; person < n; ++person) { 
       int k = strata[person] + nvar; // index in par for log(sigma) 
-      double s = std::exp(par[k]); 
-      sigma[person] = s; 
-      logsigma[person] = par[k]; // par[k] == log(s) 
+      sigma[person] = std::exp(par[k]); 
+      logsigma[person] = par[k]; // par[k] == log(sigma) 
     } 
   }
   
@@ -485,8 +484,8 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   // Build result 
   ListCpp result; 
   result.push_back(loglik, "loglik"); 
-  result.push_back(score, "score"); 
-  result.push_back(imat, "imat"); 
+  result.push_back(std::move(score), "score"); 
+  result.push_back(std::move(imat), "imat"); 
   return result; 
 }
 
@@ -511,9 +510,9 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    int off = i * n;
+    const double* col = zdata + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * zdata[off + r];
+      eta[r] += beta * col[r];
     }
   }
   
@@ -995,9 +994,9 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   
   // Build and return result as ListCpp
   ListCpp result;
-  result.push_back(newbeta, "coef");
+  result.push_back(std::move(newbeta), "coef");
   result.push_back(iter, "iter");
-  result.push_back(var, "var");
+  result.push_back(std::move(var), "var");
   result.push_back(newlk, "loglik");
   result.push_back(fail, "fail");
   return result;
@@ -1106,22 +1105,20 @@ ListCpp liferegcpp(const DataFrameCpp& data,
                    const int maxiter,
                    const double eps) {
   
+  // --- sizes and distribution normalization ---
   int n = data.nrows();
   int nvar = static_cast<int>(covariates.size()) + 1;
-  if (nvar == 2 && covariates[0] == "") {
-    nvar = 1;
-  }
+  if (nvar == 2 && covariates[0] == "") nvar = 1;
   
-  // --- normalize distribution name ---
   std::string dist1 = dist;
-  std::for_each(dist1.begin(), dist1.end(), [](char & c) {
+  std::for_each(dist1.begin(), dist1.end(), [](char &c){ 
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
   if (dist1 == "log-logistic" || dist1 == "llogistic") dist1 = "loglogistic";
   else if (dist1 == "log-normal" || dist1 == "lnormal") dist1 = "lognormal";
   else if (dist1 == "gaussian") dist1 = "normal";
   
-  int dist_code;
+  int dist_code = 0;
   if (dist1 == "exponential") dist_code = 1;
   else if (dist1 == "weibull") dist_code = 2;
   else if (dist1 == "lognormal") dist_code = 3;
@@ -1130,7 +1127,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   else if (dist1 == "logistic") dist_code = 6;
   else throw std::invalid_argument("invalid distribution: " + dist1);
   
-  // --- handle stratum grouping ---
+  // --- handle strata (bygroup) ---
   std::vector<int> stratumn(n);
   int p_stratum = stratum.size();
   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
@@ -1139,48 +1136,36 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   }
   
   std::vector<int> stratumn1 = unique_sorted(stratumn);
-  int nstrata = stratumn1.size();
+  int nstrata = static_cast<int>(stratumn1.size());
   int p = (dist_code == 1) ? nvar : (nvar + nstrata);
-  
   if (dist_code == 1 && nstrata > 1) {
     throw std::invalid_argument("Stratification is not valid with the exponential distribution");
   }
   
-  // --- time / time2 existence and validations ---
-  if (!data.containElementNamed(time))
+  // --- time / time2 existence and checks ---
+  if (!data.containElementNamed(time)) 
     throw std::invalid_argument("data must contain the time variable");
-  
   std::vector<double> timen = data.get<double>(time);
-  for (int i = 0; i < n; ++i) {
-    if (!std::isnan(timen[i]) && (dist_code == 1 || dist_code == 2 || 
-        dist_code == 3 || dist_code == 5) && timen[i] <= 0.0) {
-      std::string errmsg = "time must be positive for the " + dist1 + " distribution";
-      throw std::invalid_argument(errmsg);
-    }
+  if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
+    for (int i = 0; i < n; ++i) if (!std::isnan(timen[i]) && timen[i] <= 0.0)
+      throw std::invalid_argument("time must be positive for the " + dist1 + " distribution");
   }
+  
   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
   std::vector<double> time2n(n);
   if (has_time2) {
     time2n = data.get<double>(time2);
-    for (int i = 0; i < n; ++i) {
-      if (!std::isnan(time2n[i]) && (dist_code == 1 || dist_code == 2 || 
-          dist_code == 3 || dist_code == 5) && time2n[i] <= 0) {
-        std::string errmsg = "time2 must be positive for the " + dist1 + " distribution";
-        throw std::invalid_argument(errmsg);
-      }
-      if (!std::isnan(timen[i]) && !std::isnan(time2n[i]) && time2n[i] < timen[i]) {
-        throw std::invalid_argument("time2 must be greater than or equal to time");
-      }
+    if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
+      for (int i = 0; i < n; ++i) if (!std::isnan(time2n[i]) && time2n[i] <= 0.0)
+        throw std::invalid_argument("time2 must be positive for the " + dist1 + " distribution");
     }
   }
   
-  // --- event existence if needed ---
-  bool has_event = data.containElementNamed(event) && !event.empty();
+  // --- event variable ---
+  bool has_event = !event.empty() && data.containElementNamed(event);
   if (!has_time2 && !has_event) {
-    throw std::invalid_argument("data must contain the event variable for right censored data");
+    throw std::invalid_argument("data must contain the event variable for right censored data"); 
   }
-  
-  // event -> numeric 0/1
   std::vector<double> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
@@ -1198,7 +1183,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       throw std::invalid_argument("event must be 1 or 0 for each observation");
   }
   
-  // --- build design matrix zn (n x nvar) as FlatMatrix column-major ---
+  // --- build design matrix zn (n x nvar) column-major FlatMatrix ---
   FlatMatrix zn(n, nvar);
   // intercept
   for (int i = 0; i < n; ++i) zn.data[i] = 1.0;
@@ -1207,36 +1192,35 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     const std::string& zj = covariates[j];
     if (!data.containElementNamed(zj)) 
       throw std::invalid_argument("data must contain the variables in covariates");
-    std::vector<double> u(n);
     if (data.bool_cols.count(zj)) {
-      const std::vector<unsigned char>& ub = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) u[i] = ub[i] ? 1.0 : 0.0;
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
-      const std::vector<int>& ui = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) u[i] = static_cast<double>(ui[i]);
+      const std::vector<int>& vi = data.get<int>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
-      u = data.get<double>(zj);
+      const std::vector<double>& vd = data.get<double>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
-    int off = (j + 1) * n;
-    for (int i = 0; i < n; ++i) zn.data[off + i] = u[i];
   }
   
-  // weight and offset processing
+  // --- weight and offset ---
   std::vector<double> weightn(n, 1.0);
   if (!weight.empty() && data.containElementNamed(weight)) {
     weightn = data.get<double>(weight);
-    for (double v : weightn) if (v <= 0.0) 
+    for (double w : weightn) if (std::isnan(w) || w <= 0.0) 
       throw std::invalid_argument("weight must be greater than 0");
   }
-  
   std::vector<double> offsetn(n, 0.0);
-  if (!offset.empty() && data.containElementNamed(offset)) {
+  if (!offset.empty() && data.containElementNamed(offset)) 
     offsetn = data.get<double>(offset);
-  }
   
-  // id processing (unchanged semantics)
+  // --- id mapping ---
   bool has_id = !id.empty() && data.containElementNamed(id);
   std::vector<int> idn(n);
   if (!has_id) {
@@ -1254,42 +1238,36 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       auto v = data.get<std::string>(id);
       auto w = unique_sorted(v);
       idn = matchcpp(v, w);
-    } else {
-      throw std::invalid_argument("incorrect type for the id variable in the input data");
-    }
+    } else throw std::invalid_argument("incorrect type for the id variable in the input data");
   }
   
-  
-  // exclude observations with missing values
+  // --- exclude observations with missing values ---
   std::vector<unsigned char> sub(n, 1);
   for (int i = 0; i < n; ++i) {
-    if (stratumn[i] == INT_MIN ||
+    if (stratumn[i] == INT_MIN || idn[i] == INT_MIN ||
         (std::isnan(timen[i]) && std::isnan(time2n[i])) ||
-        std::isnan(weightn[i]) || std::isnan(offsetn[i]) ||
-        idn[i] == INT_MIN) {
+        std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
       sub[i] = 0;
       continue;
     }
+    // check covariates columns
     for (int j = 0; j < nvar - 1; ++j) {
-      int off = (j + 1) * n;
-      if (std::isnan(zn.data[off + i])) {
-        sub[i] = 0;
-        break;
-      }
+      double v = zn.data[(j + 1) * n + i];
+      if (std::isnan(v)) { sub[i] = 0; break; }
     }
   }
+  std::vector<int> keep = which(sub);
+  if (keep.empty()) throw std::invalid_argument("no observations without missing values");
   
-  std::vector<int> order = which(sub);
-  subset_in_place(stratumn, order);
-  subset_in_place(timen, order);
-  subset_in_place(time2n, order);
-  subset_in_place(eventn, order);
-  subset_in_place(weightn, order);
-  subset_in_place(offsetn, order);
-  subset_in_place(idn, order);
-  subset_in_place_flatmatrix(zn, order);
-  n = order.size();
-  if (n == 0) throw std::invalid_argument("no observations without missing values");
+  subset_in_place(stratumn, keep);
+  subset_in_place(timen, keep);
+  subset_in_place(time2n, keep);
+  subset_in_place(eventn, keep);
+  subset_in_place(weightn, keep);
+  subset_in_place(offsetn, keep);
+  subset_in_place(idn, keep);
+  subset_in_place_flatmatrix(zn, keep);
+  n = keep.size();
   
   // sumstat data set
   double nobs, nevents;
@@ -1470,12 +1448,12 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         for (int i = 0; i < n1; ++i) y1[i] = y0[i] - offsetn[i];
         
         FlatMatrix v1(nvar, nvar); // X'WX
-        const double *zptr = zn.data_ptr();
+        const double *zdata = zn.data_ptr();
         double *vptr = v1.data_ptr();
         for (int j = 0; j < nvar; ++j) {
-          const double* zj = zptr + j * n1;          // pointer to Z(:,j)
+          const double* zj = zdata + j * n1;          // pointer to Z(:,j)
           for (int k = j; k < nvar; ++k) {
-            const double* zk = zptr + k * n1;        // pointer to Z(:,k)
+            const double* zk = zdata + k * n1;        // pointer to Z(:,k)
             double sum = 0.0;
             // inner loop reads zj[i] and zk[i] contiguously
             for (int i = 0; i < n1; ++i) {
@@ -1491,7 +1469,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         
         std::vector<double> u1(nvar, 0.0); // X'Wy
         for (int j = 0; j < nvar; ++j) {
-          const double* zj = zptr + j * n1;          // pointer to Z(:,j)
+          const double* zj = zdata + j * n1;          // pointer to Z(:,j)
           double sum = 0.0;
           // inner loop reads zj[i] contiguously
           for (int i = 0; i < n1; ++i) {
@@ -1712,27 +1690,29 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   sumstat.push_back(robust, "robust");
   sumstat.push_back(fail, "fail");
   
-  DataFrameCpp parest;
-  parest.push_back(par, "param");
-  parest.push_back(b, "beta");
-  parest.push_back(robust ? rseb : seb, "sebeta");
-  parest.push_back(z, "z");
-  parest.push_back(expbeta, "expbeta");
-  parest.push_back(robust ? rvb : vb, "vbeta");
-  parest.push_back(lb, "lower");
-  parest.push_back(ub, "upper");
-  parest.push_back(prob, "p");
-  parest.push_back(clparm, "method");
+  std::vector sebeta = robust ? rseb : seb;
+  FlatMatrix vbeta = robust ? rvb : vb;
   
+  DataFrameCpp parest;
+  parest.push_back(std::move(par), "param");
+  parest.push_back(std::move(b), "beta");
+  parest.push_back(std::move(sebeta), "sebeta");
+  parest.push_back(std::move(z), "z");
+  parest.push_back(std::move(expbeta), "expbeta");
+  parest.push_back(std::move(vbeta), "vbeta");
+  parest.push_back(std::move(lb), "lower");
+  parest.push_back(std::move(ub), "upper");
+  parest.push_back(std::move(prob), "p");
+  parest.push_back(std::move(clparm), "method");
   if (robust) {
-    parest.push_back(seb, "sebeta_naive");
-    parest.push_back(vb, "vbeta_naive");
+    parest.push_back(std::move(seb), "sebeta_naive");
+    parest.push_back(std::move(vb), "vbeta_naive");
   }
   
   ListCpp result;
-  result.push_back(sumstat, "sumstat");
-  result.push_back(parest, "parest");
-  result.push_back(linear_predictors, "linear_predictors");
+  result.push_back(std::move(sumstat), "sumstat");
+  result.push_back(std::move(parest), "parest");
+  result.push_back(std::move(linear_predictors), "linear_predictors");
   
   return result;
 }
@@ -1769,7 +1749,7 @@ Rcpp::List liferegRcpp(const Rcpp::DataFrame& data,
 
 
 // first and second derivatives of log likelihood with respect to eta and tau
-ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
+ListCpp f_ld_1(std::vector<double>& eta, std::vector<double>& sigma, void *ex) {
   aftparams *param = (aftparams *) ex;
   const int n = param->tstart.size();
   const int dist_code = param->dist_code;
@@ -1790,6 +1770,8 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
     const double tstop_p = tstop[person];
     const int st = status[person];
     
+    double vg = NaN, vdg = NaN, vddg = NaN, vds = NaN, vdds = NaN, vdsg = NaN;
+    
     switch (st) {
     
     case 1: // event
@@ -1798,12 +1780,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
       double u = (std::log(tstop_p) - eta_p) * inv_s;
       double eu = std::exp(u);
       double su = s * u;
-      g[person] = u - eu - logsig;        // log f(u) - log(s)
-      dg[person] = -(1.0 - eu) * inv_s;   // -f'(u)/f(u) * 1/s
-      ddg[person] = -eu * inv_s * inv_s;  // (f''(u)/f(u) - (f'(u)/f(u))^2) * 1/s^2
-      ds[person] = -1.0 + dg[person] * su;
-      dds[person] = ddg[person] * su * su - dg[person] * su;
-      dsg[person] = ddg[person] * su - dg[person];
+      vg = u - eu - logsig;        // log f(u) - log(s)
+      vdg = -(1.0 - eu) * inv_s;   // -f'(u)/f(u) * 1/s
+      vddg = -eu * inv_s * inv_s;  // (f''(u)/f(u) - (f'(u)/f(u))^2) * 1/s^2
+      vds = -1.0 + vdg * su;
+      vdds = vddg * su * su - vdg * su;
+      vdsg = vddg * su - vdg;
       break;
     }
       case 3: case 4: { // lognormal / normal
@@ -1812,12 +1794,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         else u = (tstop_p - eta_p) * inv_s;
         double su = s * u;
         double d = boost_dnorm(u);
-        g[person] = std::log(d) - logsig;
-        dg[person] = u * inv_s;
-        ddg[person] = -inv_s * inv_s;
-        ds[person] = -1.0 + dg[person] * su;
-        dds[person] = ddg[person] * su * su - dg[person] * su;
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(d) - logsig;
+        vdg = u * inv_s;
+        vddg = -inv_s * inv_s;
+        vds = -1.0 + vdg * su;
+        vdds = vddg * su * su - vdg * su;
+        vdsg = vddg * su - vdg;
         break;
       }
       case 5: case 6: { // loglogistic / logistic
@@ -1827,12 +1809,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double su = s * u;
         double q = boost_plogis(u, 0.0, 1.0, 0);
         double d = boost_dlogis(u);
-        g[person] = std::log(d) - logsig;
-        dg[person] = (1.0 - 2.0 * q) * inv_s;
-        ddg[person] = -2.0 * d * inv_s * inv_s;
-        ds[person] = -1.0 + dg[person] * su;
-        dds[person] = ddg[person] * su * su - dg[person] * su;
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(d) - logsig;
+        vdg = (1.0 - 2.0 * q) * inv_s;
+        vddg = -2.0 * d * inv_s * inv_s;
+        vds = -1.0 + vdg * su;
+        vdds = vddg * su * su - vdg * su;
+        vdsg = vddg * su - vdg;
         break;
       }
       }
@@ -1852,12 +1834,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double r1 = 1.0 - e_u1;
         double r2 = 1.0 - e_u2;
         double den = q1 - q2;
-        g[person] = std::log(den);
-        dg[person] = (d1 - d2) / den * inv_s;
-        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
-        ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        vg = std::log(den);
+        vdg = (d1 - d2) / den * inv_s;
+        vddg = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - vdg * vdg;
+        vds = (u1 * d1 - u2 * d2) / den;
+        vdds = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - vds * (1.0 + vds);
+        vdsg = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - vdg * (1.0 + vds);
         break;
       }
       case 3: case 4: { // lognormal / normal
@@ -1876,12 +1858,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double r1 = -u1;
         double r2 = -u2;
         double den = q1 - q2;
-        g[person] = std::log(den);
-        dg[person] = (d1 - d2) / den * inv_s;
-        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
-        ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        vg = std::log(den);
+        vdg = (d1 - d2) / den * inv_s;
+        vddg = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - vdg * vdg;
+        vds = (u1 * d1 - u2 * d2) / den;
+        vdds = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - vds * (1.0 + vds);
+        vdsg = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - vdg * (1.0 + vds);
         break;
       }
       case 5: case 6: { // loglogistic / logistic
@@ -1900,12 +1882,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double r1 = 2.0 * q1 - 1.0;
         double r2 = 2.0 * q2 - 1.0;
         double den = q1 - q2;
-        g[person] = std::log(den);
-        dg[person] = (d1 - d2) / den * inv_s;
-        ddg[person] = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - dg[person] * dg[person];
-        ds[person] = (u1 * d1 - u2 * d2) / den;
-        dds[person] = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - ds[person] * (1.0 + ds[person]);
-        dsg[person] = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - dg[person] * (1.0 + ds[person]);
+        vg = std::log(den);
+        vdg = (d1 - d2) / den * inv_s;
+        vddg = -(d1 * r1 - d2 * r2) / den * inv_s * inv_s - vdg * vdg;
+        vds = (u1 * d1 - u2 * d2) / den;
+        vdds = (u2 * u2 * d2 * r2 - u1 * u1 * d1 * r1) / den - vds * (1.0 + vds);
+        vdsg = (u2 * d2 * r2 - u1 * d1 * r1) / den * inv_s - vdg * (1.0 + vds);
         break;
       }
       }
@@ -1921,12 +1903,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double r2 = 1.0 - e_u2;
         double den = 1.0 - q2;
         double su = s * u2;
-        g[person] = std::log(den);
-        dg[person] = -d2 / den * inv_s;
-        ddg[person] = -dg[person] * r2 * inv_s - dg[person] * dg[person];
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(den);
+        vdg = -d2 / den * inv_s;
+        vddg = -vdg * r2 * inv_s - vdg * vdg;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       case 3: case 4: { // lognormal / normal
@@ -1938,12 +1920,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double r2 = -u2;
         double den = 1.0 - q2;
         double su = s * u2;
-        g[person] = std::log(den);
-        dg[person] = -d2 / den * inv_s;
-        ddg[person] = -dg[person] * r2 * inv_s - dg[person] * dg[person];
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(den);
+        vdg = -d2 / den * inv_s;
+        vddg = -vdg * r2 * inv_s - vdg * vdg;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       case 5: case 6: { // loglogistic / logistic
@@ -1954,12 +1936,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double d2 = boost_dlogis(u2);
         double den = 1.0 - q2;
         double su = s * u2;
-        g[person] = std::log(den);
-        dg[person] = -q2 * inv_s;
-        ddg[person] = -d2 * inv_s * inv_s;
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(den);
+        vdg = -q2 * inv_s;
+        vddg = -d2 * inv_s * inv_s;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       }
@@ -1971,12 +1953,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double u1 = (std::log(tstart_p) - eta_p) * inv_s;
         double e_u1 = std::exp(u1);
         double su = s * u1;
-        g[person] = -e_u1;
-        dg[person] = e_u1 * inv_s;
-        ddg[person] = -e_u1 * inv_s * inv_s;
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = -e_u1;
+        vdg = e_u1 * inv_s;
+        vddg = -e_u1 * inv_s * inv_s;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       case 3: case 4: { // lognormal / normal
@@ -1987,12 +1969,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double d1 = boost_dnorm(u1);
         double r1 = -u1;
         double su = s * u1;
-        g[person] = std::log(q1);
-        dg[person] = d1 / q1 * inv_s;
-        ddg[person] = -dg[person] * r1 * inv_s - dg[person] * dg[person];
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(q1);
+        vdg = d1 / q1 * inv_s;
+        vddg = -vdg * r1 * inv_s - vdg * vdg;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       case 5: case 6: { // loglogistic / logistic
@@ -2002,12 +1984,12 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
         double q1 = boost_plogis(u1, 0.0, 1.0, 0);
         double d1 = boost_dlogis(u1);
         double su = s * u1;
-        g[person] = std::log(q1);
-        dg[person] = (1.0 - q1) * inv_s;
-        ddg[person] = -d1 * inv_s * inv_s;
-        ds[person] = dg[person] * su;
-        dds[person] = ddg[person] * su * su - ds[person];
-        dsg[person] = ddg[person] * su - dg[person];
+        vg = std::log(q1);
+        vdg = (1.0 - q1) * inv_s;
+        vddg = -d1 * inv_s * inv_s;
+        vds = vdg * su;
+        vdds = vddg * su * su - vds;
+        vdsg = vddg * su - vdg;
         break;
       }
       }
@@ -2016,492 +1998,500 @@ ListCpp f_ld_1(std::vector<double> eta, std::vector<double> sigma, void *ex) {
     default:
       throw std::runtime_error("Unknown status: " + std::to_string(st));
     }
+    
+    g[person] = vg;
+    dg[person] = vdg;
+    ddg[person] = vddg;
+    ds[person] = vds;
+    dds[person] = vdds;
+    dsg[person] = vdsg;
   }
   
   ListCpp result;
-  result.push_back(g, "g");
-  result.push_back(dg, "dg");
-  result.push_back(ddg, "ddg");
-  result.push_back(ds, "ds");
-  result.push_back(dds, "dds");
-  result.push_back(dsg, "dsg");
+  result.push_back(std::move(g), "g");
+  result.push_back(std::move(dg), "dg");
+  result.push_back(std::move(ddg), "ddg");
+  result.push_back(std::move(ds), "ds");
+  result.push_back(std::move(dds), "dds");
+  result.push_back(std::move(dsg), "dsg");
   
   return result;
 }
-// 
-// // [[Rcpp::export]]
-// NumericMatrix residuals_liferegcpp(const NumericVector& beta,
-//                                    const NumericMatrix& vbeta,
-//                                    DataFrame data,
-//                                    const StringVector& stratum = "",
-//                                    const std::string time = "time",
-//                                    const std::string time2 = "",
-//                                    const std::string event = "event",
-//                                    const StringVector& covariates = "",
-//                                    const std::string weight = "",
-//                                    const std::string offset = "",
-//                                    const std::string id = "",
-//                                    const std::string dist = "weibull",
-//                                    const std::string type = "response",
-//                                    const bool collapse = false,
-//                                    const bool weighted = false) {
-//   
-//   int n = data.nrows();
-//   int nvar = static_cast<int>(covariates.size()) + 1;
-//   if (nvar == 2 && (covariates[0] == "" || covariates[0] == "none")) {
-//     nvar = 1;
-//   }
-//   
-//   std::string dist1 = dist;
-//   std::for_each(dist1.begin(), dist1.end(), [](char & c) {
-//     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-//   });
-//   
-//   if (dist1 == "log-logistic" || dist1 == "llogistic") {
-//     dist1 = "loglogistic";
-//   } else if  (dist1 == "log-normal" || dist1 == "lnormal") {
-//     dist1 = "lognormal";
-//   } else if (dist1 == "gaussian") {
-//     dist1 = "normal";
-//   }
-//   
-//   int dist_code;
-//   if (dist1 == "exponential") dist_code = 1;
-//   else if (dist1 == "weibull") dist_code = 2;
-//   else if (dist1 == "lognormal") dist_code = 3;
-//   else if (dist1 == "normal") dist_code = 4;
-//   else if (dist1 == "loglogistic") dist_code = 5;
-//   else if (dist1 == "logistic") dist_code = 6;
-//   else throw std::invalid_argument("invalid distribution: " + dist1);
-//   
-//   IntegerVector stratumn(n);
-//   int p_stratum = static_cast<int>(stratum.size());
-//   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-//     stratumn.fill(0);
-//   } else {
-//     List out = bygroup(data, stratum);
-//     stratumn = out["index"];
-//   }
-//   
-//   IntegerVector stratumn1 = unique(stratumn);
-//   int nstrata = static_cast<int>(stratumn1.size());
-//   int p = dist_code == 1 ? nvar : (nvar+nstrata);
-//   
-//   if (dist_code == 1 && nstrata > 1) {
-//     throw std::invalid_argument("Stratification is not valid with the exponential distribution");
-//   }
-//   
-//   bool has_time = hasVariable(data, time);
-//   if (!has_time) throw std::invalid_argument("data must contain the time variable");
-//   NumericVector timenz = data[time];
-//   NumericVector timen = clone(timenz);
-//   for (int i=0; i<n; ++i) {
-//     if (!std::isnan(timen[i]) && (dist_code == 1 || dist_code == 2 ||
-//         dist_code == 3 || dist_code == 5) && timen[i] <= 0) {
-//       std::string str1 = "time must be positive for each subject for the";
-//       std::string str2 = "distribution";
-//       std::string errmsg = str1 + " " + dist1 + " " + str2;
-//       throw std::invalid_argument(errmsg);
-//     }
-//   }
-//   
-//   bool has_time2 = hasVariable(data, time2);
-//   NumericVector time2n(n);
-//   if (has_time2) {
-//     NumericVector time2nz = data[time2];
-//     time2n = clone(time2nz);
-//     for (int i=0; i<n; ++i) {
-//       if (!std::isnan(time2n[i]) && (dist_code == 1 || dist_code == 2 ||
-//           dist_code == 3 || dist_code == 5) && time2n[i] <= 0) {
-//         std::string str1 = "time2 must be positive for each subject for the";
-//         std::string str2 = "distribution";
-//         std::string errmsg = str1 + " " + dist1 + " " + str2;
-//         throw std::invalid_argument(errmsg);
-//       }
-//     }
-//   }
-//   
-//   bool has_event = hasVariable(data, event);
-//   if (!has_time2 && !has_event) {
-//     throw std::invalid_argument("data must contain the event variable for right censored data");
-//   }
-//   
-//   IntegerVector eventn(n);
-//   if (has_event) {
-//     IntegerVector eventnz = data[event];
-//     eventn = clone(eventnz);
-//     if (is_true(any((eventn != 1) & (eventn != 0)))) {
-//       throw std::invalid_argument("event must be 1 or 0 for each subject");
-//     }
-//   }
-//   
-//   NumericMatrix zn(n,nvar);
-//   for (int i=0; i<n; ++i) {
-//     zn(i,0) = 1; // intercept
-//   }
-//   
-//   for (int j=0; j<nvar-1; ++j) {
-//     String zj = covariates[j];
-//     if (!hasVariable(data, zj)) {
-//       throw std::invalid_argument("data must contain the variables in covariates");
-//     }
-//     NumericVector u = data[zj];
-//     for (int i=0; i<n; ++i) {
-//       zn(i,j+1) = u[i];
-//     }
-//   }
-//   
-//   bool has_weight = hasVariable(data, weight);
-//   NumericVector weightn(n, 1.0);
-//   if (has_weight) {
-//     NumericVector weightnz = data[weight];
-//     weightn = clone(weightnz);
-//     if (is_true(any(weightn <= 0))) {
-//       throw std::invalid_argument("weight must be greater than 0");
-//     }
-//   }
-//   
-//   bool has_offset = hasVariable(data, offset);
-//   NumericVector offsetn(n);
-//   if (has_offset) {
-//     NumericVector offsetnz = data[offset];
-//     offsetn = clone(offsetnz);
-//   }
-//   
-//   // create the numeric id variable
-//   bool has_id = hasVariable(data, id);
-//   IntegerVector idn(n);
-//   if (!has_id) {
-//     idn = seq(0, n - 1);
-//   } else {
-//     SEXP col = data[id];
-//     SEXPTYPE col_type = TYPEOF(col);
-//     if (col_type == INTSXP) {
-//       IntegerVector v = col;
-//       IntegerVector w = unique(v);
-//       w.sort();
-//       idn = match(v, w) - 1;
-//     } else if (col_type == REALSXP) {
-//       NumericVector v = col;
-//       NumericVector w = unique(v);
-//       w.sort();
-//       idn = match(v, w) - 1;
-//     } else if (col_type == STRSXP) {
-//       StringVector v = col;
-//       StringVector w = unique(v);
-//       w.sort();
-//       idn = match(v, w) - 1;
-//     } else {
-//       throw std::invalid_argument("incorrect type for the id variable in the input data");
-//     }
-//   }
-//   
-//   // exclude observations with missing values
-//   LogicalVector sub(n,1);
-//   for (int i=0; i<n; ++i) {
-//     if (stratumn[i] == NA_INTEGER || idn[i] == NA_INTEGER ||
-//         (std::isnan(timen[i]) && std::isnan(time2n[i])) ||
-//         std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
-//       sub[i] = 0;
-//     }
-//     for (int j=0; j<nvar-1; ++j) {
-//       if (std::isnan(zn(i,j+1))) sub[i] = 0;
-//     }
-//   }
-//   
-//   IntegerVector q1 = which(sub);
-//   stratumn = stratumn[q1];
-//   timen = timen[q1];
-//   time2n = time2n[q1];
-//   eventn = eventn[q1];
-//   weightn = weightn[q1];
-//   offsetn = offsetn[q1];
-//   idn = idn[q1];
-//   zn = subset_matrix_by_row(zn, q1);
-//   int n1 = sum(sub);
-//   if (n1 == 0) throw std::invalid_argument("no observation is left after removing missing values");
-//   
-//   // unify right censored data with interval censored data
-//   NumericVector tstart(n1), tstop(n1);
-//   if (!has_time2) {
-//     tstart = timen;
-//     for (int i=0; i<n1; ++i) {
-//       tstop[i] = eventn[i] == 1 ? tstart[i] : NA_REAL;
-//     }
-//   } else {
-//     tstart = timen;
-//     tstop = time2n;
-//   }
-//   
-//   IntegerVector status(n1);
-//   for (int i=0; i<n1; ++i) {
-//     if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
-//         tstart[i] == tstop[i]) {
-//       status[i] = 1; // event
-//     } else if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) &&
-//       tstart[i] < tstop[i]) {
-//       status[i] = 3; // interval censoring
-//     } else if (std::isnan(tstart[i]) && !std::isnan(tstop[i])) {
-//       status[i] = 2; // left censoring
-//     } else if (!std::isnan(tstart[i]) && std::isnan(tstop[i])) {
-//       status[i] = 0; // right censoring
-//     } else {
-//       status[i] = -1; // exclude the observation
-//     }
-//   }
-//   
-//   // exclude records with invalid status
-//   IntegerVector q2 = which(status != -1);
-//   int n2 = static_cast<int>(q2.size());
-//   
-//   if (n2 < n1) {
-//     stratumn = stratumn[q2];
-//     tstart = tstart[q2];
-//     tstop = tstop[q2];
-//     status = status[q2];
-//     weightn = weightn[q2];
-//     offsetn = offsetn[q2];
-//     idn = idn[q2];
-//     zn = subset_matrix_by_row(zn,q2);
-//   }
-//   
-//   NumericVector eta(n2);
-//   for (int i = 0; i < n2; ++i) {
-//     eta[i] = offsetn[i];
-//     for (int j=0; j<nvar; ++j) {
-//       eta[i] += beta[j]*zn(i,j);
-//     }
-//   }
-//   
-//   NumericVector sig(n2, 1.0);
-//   if (dist_code != 1) {
-//     for (int i = 0; i < n2; ++i) {
-//       int j = stratumn[i] + nvar;
-//       sig[i] = std::exp(beta[j]);
-//     }
-//   }
-//   
-//   int K = 1;
-//   if (type == "dfbeta" || type == "dfbetas") {
-//     K = p;
-//   } else if (type == "matrix") {
-//     K = 6;
-//   }
-//   
-//   // Map type to integer code
-//   int type_code;
-//   if (type == "response") type_code = 1;
-//   else if (type == "martingale") type_code = 2;
-//   else if (type == "deviance") type_code = 3;
-//   else if (type == "working") type_code = 4;
-//   else if (type == "dfbeta") type_code = 5;
-//   else if (type == "dfbetas") type_code = 6;
-//   else if (type == "ldcase") type_code = 7;
-//   else if (type == "ldresp") type_code = 8;
-//   else if (type == "ldshape") type_code = 9;
-//   else if (type == "matrix") type_code = 10;
-//   else throw std::invalid_argument("invalid type of residuals" + type);
-//   
-//   // rr: residual matrix
-//   NumericMatrix rr(n2, K);
-//   
-//   switch (type_code) {
-//   
-//   case 1: { // response
-//     NumericVector yhat0(n2);
-//     for (int i = 0; i < n2; ++i) {
-//       switch (status[i]) {
-//       case 0: case 1: // right-censored or event
-//         switch (dist_code) {
-//         case 1: case 2: case 3: case 5: yhat0[i] = std::log(tstart[i]); break;
-//         default: yhat0[i] = tstart[i];
-//         }
-//         break;
-//       case 2: // left-censored
-//         switch (dist_code) {
-//         case 1: case 2: case 3: case 5: yhat0[i] = std::log(tstop[i]); break;
-//         default: yhat0[i] = tstop[i];
-//         }
-//         break;
-//       default: // interval-censored
-//         switch (dist_code) {
-//         case 1: case 2: {
-//           double width = (std::log(tstop[i]) - std::log(tstart[i])) / sig[i];
-//           yhat0[i] = std::log(tstart[i]) - sig[i] * std::log(width / (std::exp(width) - 1));
-//           break;
-//         }
-//         case 3: case 5:
-//           yhat0[i] = 0.5 * (std::log(tstart[i]) + std::log(tstop[i])); break;
-//         default: yhat0[i] = 0.5 * (tstart[i] + tstop[i]);
-//         }
-//       }
-//       
-//       switch (dist_code) {
-//       case 1: case 2: case 3: case 5:
-//         rr(i,0) = std::exp(yhat0[i]) - std::exp(eta[i]); break;
-//       default: rr(i,0) = yhat0[i] - eta[i];
-//       }
-//     }
-//     break;
-//   }
-//     
-//   case 2: { // martingale
-//     if (dist_code == 4 || dist_code == 6)
-//       throw std::invalid_argument("incorrect type of distribution" + dist1 +
-//         " for martingale residuals");
-//     for (int i = 0; i < n2; ++i) {
-//       if (status[i] == 0 || status[i] == 1) {
-//         double y = (std::log(tstart[i]) - eta[i]) / sig[i];
-//         switch (dist_code) {
-//         case 1: case 2: rr(i,0) = (status[i] == 1) - std::exp(y); break;
-//         case 3: rr(i,0) = (status[i] == 1) + boost_pnorm(y,0,1,0,1); break;
-//         case 5: rr(i,0) = (status[i] == 1) + boost_plogis(y,0,1,0,1); break;
-//         }
-//       } else rr(i,0) = NA_REAL;
-//     }
-//     break;
-//   }
-//     
-//   default: { // other types: deviance, working, dfbeta, ld*, matrix
-//     aftparams param = {dist_code, stratumn, tstart, tstop, status, weightn,
-//                        offsetn, zn, nstrata};
-//     List der = f_ld_1(eta, sig, &param);
-//     NumericVector g = der["g"], dg = der["dg"], ddg = der["ddg"];
-//     NumericVector ds = der["ds"], dds = der["dds"], dsg = der["dsg"];
-//     
-//     switch (type_code) {
-//     
-//     case 3: { // deviance
-//       NumericVector loglik(n2);
-//       for (int i = 0; i < n2; ++i) {
-//         switch (status[i]) {
-//         case 0: case 2: loglik[i] = 0; break; // right or left censored
-//         case 1:  // event
-//           switch (dist_code) {
-//           case 1: case 2: loglik[i] = -std::log(sig[i]) - 1; break;
-//           case 3: case 4: loglik[i] = -std::log(std::sqrt(2*M_PI)*sig[i]); break;
-//           default: loglik[i] = -std::log(4*sig[i]);
-//           }
-//           break;
-//         default: { // interval censored
-//             double width;
-//             switch (dist_code) {
-//             case 1: case 2: width = (std::log(tstop[i]) - std::log(tstart[i])) / sig[i];
-//               loglik[i] = - width/(std::exp(width)-1) + std::log(1 - std::exp(-width)); break;
-//             case 3: width = (std::log(tstop[i]) - std::log(tstart[i])) / sig[i];
-//               loglik[i] = std::log(2*boost_pnorm(width/2) - 1); break;
-//             case 4: width = (tstop[i] - tstart[i]) / sig[i];
-//               loglik[i] = std::log(2*boost_pnorm(width/2) - 1); break;
-//             case 5: width = (std::log(tstop[i]) - std::log(tstart[i])) / sig[i];
-//               loglik[i] = std::log((std::exp(width/2)-1)/(std::exp(width/2)+1)); break;
-//             default: width = (tstop[i] - tstart[i]) / sig[i];
-//             loglik[i] = std::log((std::exp(width/2)-1)/(std::exp(width/2)+1));
-//             }
-//           }
-//         }
-//         double val = -dg[i]/ddg[i];
-//         rr(i,0) = ((val>0) - (val<0))*std::sqrt(2*(loglik[i] - g[i]));
-//       }
-//       break;
-//     }
-//       
-//     case 4: { // working
-//       for (int i=0; i<n2; ++i) rr(i,0) = -dg[i]/ddg[i];
-//       break;
-//     }
-//       
-//     case 5: case 6: case 7: { // dfbeta, dfbetas, ldcase
-//       for (int i=0; i<n2; ++i) {
-//       NumericVector score(p), resid(p);
-//       for (int j=0; j<nvar; ++j) score[j] = dg[i]*zn(i,j);
-//       for (int j=nvar; j<p; ++j) score[j] = stratumn[i]==j-nvar ? ds[i] : 0;
-//       for (int k=0; k<p; ++k) for (int j=0; j<p; ++j)
-//         resid[k] += score[j]*vbeta(j,k);
-//       if (type_code==6) for (int k=0; k<p; ++k) resid[k] /= std::sqrt(vbeta(k,k));
-//       if (type_code==7) for (int k=0; k<p; ++k) rr(i,0) += resid[k]*score[k];
-//       else for (int k=0; k<p; ++k) rr(i,k) = resid[k];
-//     }
-//       break;
-//     }
-//       
-//     case 8: { // ldresp
-//       for (int i=0; i<n2; ++i) {
-//       NumericVector rscore(p), temp(p);
-//       for (int j=0; j<nvar; ++j) rscore[j] = -ddg[i]*zn(i,j)*sig[i];
-//       for (int j=nvar; j<p; ++j)
-//         rscore[j] = stratumn[i]==j-nvar ? -dsg[i]*sig[i] : 0;
-//       for (int k=0; k<p; ++k) for (int j=0; j<p; ++j)
-//         temp[k] += rscore[j]*vbeta(j,k);
-//       for (int k=0; k<p; ++k) rr(i,0) += temp[k]*rscore[k];
-//     }
-//       break;
-//     }
-//       
-//     case 9: { // ldshape
-//       for (int i=0; i<n2; ++i) {
-//       NumericVector sscore(p), temp(p);
-//       for (int j=0; j<nvar; ++j) sscore[j] = dsg[i]*zn(i,j);
-//       for (int j=nvar; j<p; ++j) sscore[j] = stratumn[i]==j-nvar ? dds[i] : 0;
-//       for (int k=0; k<p; ++k) for (int j=0; j<p; ++j)
-//         temp[k] += sscore[j]*vbeta(j,k);
-//       for (int k=0; k<p; ++k) rr(i,0) += temp[k]*sscore[k];
-//     }
-//       break;
-//     }
-//       
-//     case 10: { // matrix
-//       for (int i=0; i<n2; ++i) {
-//       rr(i,0)=g[i]; rr(i,1)=dg[i]; rr(i,2)=ddg[i];
-//       rr(i,3)=ds[i]; rr(i,4)=dds[i]; rr(i,5)=dsg[i];
-//     }
-//       break;
-//     }
-//       
-//     }
-//   } // end default
-//   } // end switch (type_code)
-//   
-//   // case weights
-//   if (weighted) {
-//     for (int i = 0; i < n2; ++i) {
-//       for (int k=0; k<K; ++k) {
-//         rr(i,k) *= weightn[i];
-//       }
-//     }
-//   }
-//   
-//   // collapse if needed
-//   if (collapse) {
-//     // order data by id
-//     IntegerVector order = seq(0, n2-1);
-//     std::sort(order.begin(), order.end(), [&](int i, int j) {
-//       return idn[i] < idn[j];
-//     });
-//     
-//     IntegerVector id2 = idn[order];
-//     IntegerVector idx(1,0);
-//     for (int i=1; i<n2; ++i) {
-//       if (id2[i] != id2[i-1]) {
-//         idx.push_back(i);
-//       }
-//     }
-//     
-//     int nids = static_cast<int>(idx.size());
-//     idx.push_back(n2);
-//     
-//     // collapse over id
-//     NumericMatrix rr2(nids,K);
-//     for (int i=0; i<nids; ++i) {
-//       for (int k=0; k<K; ++k) {
-//         for (int j=idx[i]; j<idx[i+1]; ++j) {
-//           rr2(i,k) += rr(order[j],k);
-//         }
-//       }
-//     }
-//     
-//     rr = rr2;
-//   }
-//   
-//   return rr;
-// }
-// 
+
+
+// residuals of the AFT model
+FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
+                                const FlatMatrix& vbeta,
+                                const DataFrameCpp& data,
+                                const std::vector<std::string>& stratum,
+                                const std::string time,
+                                const std::string time2,
+                                const std::string event,
+                                const std::vector<std::string>& covariates,
+                                const std::string weight,
+                                const std::string offset,
+                                const std::string id,
+                                const std::string dist,
+                                const std::string type,
+                                bool collapse,
+                                bool weighted) {
+  // --- sizes and distribution normalization ---
+  int n = data.nrows();
+  int nvar = static_cast<int>(covariates.size()) + 1;
+  if (nvar == 2 && covariates[0] == "") nvar = 1;
+
+  std::string dist1 = dist;
+  std::for_each(dist1.begin(), dist1.end(), [](char &c){
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+  if (dist1 == "log-logistic" || dist1 == "llogistic") dist1 = "loglogistic";
+  else if (dist1 == "log-normal" || dist1 == "lnormal") dist1 = "lognormal";
+  else if (dist1 == "gaussian") dist1 = "normal";
+
+  int dist_code = 0;
+  if (dist1 == "exponential") dist_code = 1;
+  else if (dist1 == "weibull") dist_code = 2;
+  else if (dist1 == "lognormal") dist_code = 3;
+  else if (dist1 == "normal") dist_code = 4;
+  else if (dist1 == "loglogistic") dist_code = 5;
+  else if (dist1 == "logistic") dist_code = 6;
+  else throw std::invalid_argument("invalid distribution: " + dist1);
+
+  // --- handle strata (bygroup) ---
+  std::vector<int> stratumn(n);
+  int p_stratum = stratum.size();
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    stratumn = out.get<std::vector<int>>("index");
+  }
+
+  std::vector<int> stratumn1 = unique_sorted(stratumn);
+  int nstrata = static_cast<int>(stratumn1.size());
+  int p = (dist_code == 1) ? nvar : (nvar + nstrata);
+  if (dist_code == 1 && nstrata > 1) {
+    throw std::invalid_argument("Stratification is not valid with the exponential distribution");
+  }
+
+  // --- time / time2 existence and checks ---
+  if (!data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  std::vector<double> timen = data.get<double>(time);
+  if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
+    for (int i = 0; i < n; ++i) if (!std::isnan(timen[i]) && timen[i] <= 0.0)
+      throw std::invalid_argument("time must be positive for the " + dist1 + " distribution");
+  }
+
+  bool has_time2 = !time2.empty() && data.containElementNamed(time2);
+  std::vector<double> time2n(n);
+  if (has_time2) {
+    time2n = data.get<double>(time2);
+    if ((dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)) {
+      for (int i = 0; i < n; ++i) if (!std::isnan(time2n[i]) && time2n[i] <= 0.0)
+        throw std::invalid_argument("time2 must be positive for the " + dist1 + " distribution");
+    }
+  }
+
+  // --- event variable ---
+  bool has_event = !event.empty() && data.containElementNamed(event);
+  if (!has_time2 && !has_event) {
+    throw std::invalid_argument("data must contain the event variable for right censored data");
+  }
+  std::vector<double> eventn(n);
+  if (has_event) {
+    if (data.bool_cols.count(event)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(event)) {
+      const std::vector<int>& vi = data.get<int>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(event)) {
+      eventn = data.get<double>(event);
+    } else {
+      throw std::invalid_argument("event variable must be bool, integer or numeric");
+    }
+    for (double val : eventn) if (val != 0 && val != 1)
+      throw std::invalid_argument("event must be 1 or 0 for each observation");
+  }
+
+  // --- build design matrix zn (n x nvar) column-major FlatMatrix ---
+  FlatMatrix zn(n, nvar);
+  // intercept
+  for (int i = 0; i < n; ++i) zn.data[i] = 1.0;
+  // covariates
+  for (int j = 0; j < nvar - 1; ++j) {
+    const std::string& zj = covariates[j];
+    if (!data.containElementNamed(zj))
+      throw std::invalid_argument("data must contain the variables in covariates");
+    if (data.bool_cols.count(zj)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(zj)) {
+      const std::vector<int>& vi = data.get<int>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(zj)) {
+      const std::vector<double>& vd = data.get<double>(zj);
+      int off = (j + 1) * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
+    } else {
+      throw std::invalid_argument("covariates must be bool, integer or numeric");
+    }
+  }
+
+  // --- weight and offset ---
+  std::vector<double> weightn(n, 1.0);
+  if (!weight.empty() && data.containElementNamed(weight)) {
+    weightn = data.get<double>(weight);
+    for (double w : weightn) if (std::isnan(w) || w <= 0.0)
+      throw std::invalid_argument("weight must be greater than 0");
+  }
+  std::vector<double> offsetn(n, 0.0);
+  if (!offset.empty() && data.containElementNamed(offset))
+    offsetn = data.get<double>(offset);
+
+  // --- id mapping ---
+  bool has_id = !id.empty() && data.containElementNamed(id);
+  std::vector<int> idn(n);
+  if (!has_id) {
+    std::iota(idn.begin(), idn.end(), 0);
+  } else {
+    if (data.int_cols.count(id)) {
+      auto v = data.get<int>(id);
+      auto w = unique_sorted(v);
+      idn = matchcpp(v, w);
+    } else if (data.numeric_cols.count(id)) {
+      auto v = data.get<double>(id);
+      auto w = unique_sorted(v);
+      idn = matchcpp(v, w);
+    } else if (data.string_cols.count(id)) {
+      auto v = data.get<std::string>(id);
+      auto w = unique_sorted(v);
+      idn = matchcpp(v, w);
+    } else throw std::invalid_argument("incorrect type for the id variable in the input data");
+  }
+
+  // --- exclude observations with missing values ---
+  std::vector<unsigned char> sub(n, 1);
+  for (int i = 0; i < n; ++i) {
+    if (stratumn[i] == INT_MIN || idn[i] == INT_MIN ||
+        (std::isnan(timen[i]) && std::isnan(time2n[i])) ||
+        std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
+      sub[i] = 0;
+      continue;
+    }
+    // check covariates columns
+    for (int j = 0; j < nvar - 1; ++j) {
+      double v = zn.data[(j + 1) * n + i];
+      if (std::isnan(v)) { sub[i] = 0; break; }
+    }
+  }
+  std::vector<int> keep = which(sub);
+  if (keep.empty()) throw std::invalid_argument("no observations without missing values");
+
+  subset_in_place(stratumn, keep);
+  subset_in_place(timen, keep);
+  subset_in_place(time2n, keep);
+  subset_in_place(eventn, keep);
+  subset_in_place(weightn, keep);
+  subset_in_place(offsetn, keep);
+  subset_in_place(idn, keep);
+  subset_in_place_flatmatrix(zn, keep);
+  n = static_cast<int>(keep.size());
+
+  // --- tstart / tstop and status ---
+  std::vector<double> tstart(n), tstop(n);
+  if (!has_time2) {
+    for (int i = 0; i < n; ++i) {
+      tstart[i] = timen[i];
+      tstop[i] = (eventn[i] == 1) ? tstart[i] : NaN;
+    }
+  } else {
+    tstart = timen;
+    tstop = time2n;
+  }
+  std::vector<int> status(n);
+  for (int i = 0; i < n; ++i) {
+    if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] == tstop[i]) status[i] = 1;
+    else if (!std::isnan(tstart[i]) && !std::isnan(tstop[i]) && tstart[i] < tstop[i]) status[i] = 3;
+    else if (std::isnan(tstart[i]) && !std::isnan(tstop[i])) status[i] = 2;
+    else if (!std::isnan(tstart[i]) && std::isnan(tstop[i])) status[i] = 0;
+    else status[i] = -1;
+  }
+
+  // exclude invalid status
+  std::vector<unsigned char> good(n, 1);
+  for (int i = 0; i < n; ++i) if (status[i] == -1) good[i] = 0;
+  std::vector<int> q = which(good);
+  int n1 = static_cast<int>(q.size());
+  if (n1 == 0) throw std::invalid_argument("no valid records after status filtering");
+
+  if (n1 < n) {
+    subset_in_place(stratumn, q);
+    subset_in_place(tstart, q);
+    subset_in_place(tstop, q);
+    subset_in_place(status, q);
+    subset_in_place(weightn, q);
+    subset_in_place(offsetn, q);
+    subset_in_place(idn, q);
+    subset_in_place_flatmatrix(zn, q);
+  }
+
+  // --- compute eta (linear predictor) ---
+  std::vector<double> eta = offsetn; // initialize with offset
+  // add contributions of each coefficient times column
+  const double* zdata = zn.data_ptr();
+  for (int i = 0; i < nvar; ++i) {
+    double b = beta[i];
+    if (b == 0.0) continue;
+    const double* col = zdata + i * n1;
+    for (int r = 0; r < n1; ++r) eta[r] += b * col[i];
+  }
+
+  // --- compute sigma per observation ---
+  std::vector<double> s(n1, 1.0);
+  if (dist_code != 1) {
+    for (int i = 0; i < n1; ++i) {
+      int k = stratumn[i] + nvar;
+      s[i] = std::exp(beta[k]);
+    }
+  }
+
+  // --- map type string to code ---
+  int K = 1;
+  if (type == "dfbeta" || type == "dfbetas") K = p;
+  else if (type == "matrix") K = 6;
+
+  int type_code = 0;
+  if (type == "response") type_code = 1;
+  else if (type == "martingale") type_code = 2;
+  else if (type == "deviance") type_code = 3;
+  else if (type == "working") type_code = 4;
+  else if (type == "dfbeta") type_code = 5;
+  else if (type == "dfbetas") type_code = 6;
+  else if (type == "ldcase") type_code = 7;
+  else if (type == "ldresp") type_code = 8;
+  else if (type == "ldshape") type_code = 9;
+  else if (type == "matrix") type_code = 10;
+  else throw std::invalid_argument("invalid type of residuals: " + type);
+
+  // --- prepare result matrix rr (n1 x K) ---
+  FlatMatrix rr(n1, K);
+  double* rdata = rr.data_ptr();
+
+  // Helper lambdas for rr indexing: rr(i,k) -> rdata[k * n1 + i]
+
+  // --- simple types ---
+  if (type_code == 1) { // response
+    std::vector<double> yhat0(n1);
+    for (int i = 0; i < n1; ++i) {
+      if (status[i] == 0 || status[i] == 1) {
+        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+          yhat0[i] = std::log(tstart[i]);
+        else yhat0[i] = tstart[i];
+      } else if (status[i] == 2) {
+        if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+          yhat0[i] = std::log(tstop[i]);
+        else yhat0[i] = tstop[i];
+      } else { // interval
+        if (dist_code == 1 || dist_code == 2) {
+          double width = (std::log(tstop[i]) - std::log(tstart[i])) / s[i];
+          yhat0[i] = std::log(tstart[i]) - s[i] * std::log(width / (std::exp(width) - 1.0));
+        } else if (dist_code == 3 || dist_code == 5) {
+          yhat0[i] = 0.5 * (std::log(tstart[i]) + std::log(tstop[i]));
+        } else {
+          yhat0[i] = 0.5 * (tstart[i] + tstop[i]);
+        }
+      }
+      double val;
+      if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5) 
+        val = std::exp(yhat0[i]) - std::exp(eta[i]);
+      else val = yhat0[i] - eta[i];
+      rdata[i] = val;
+    }
+  } else if (type_code == 2) { // martingale
+    if (dist_code == 4 || dist_code == 6) 
+      throw std::invalid_argument("incorrect distribution for martingale residuals: " + dist1);
+    for (int i = 0; i < n1; ++i) {
+      if (status[i] == 0 || status[i] == 1) {
+        double y = (std::log(tstart[i]) - eta[i]) / s[i];
+        double val = 0.0;
+        double evt = status[i] == 1 ? 1.0 : 0.0;
+        if (dist_code == 1 || dist_code == 2) val = evt - std::exp(y);
+        else if (dist_code == 3) val = evt + std::log(boost_pnorm(y,0,1,0));
+        else if (dist_code == 5) val = evt + std::log(boost_plogis(y,0,1,0));
+        rdata[i] = val;
+      } else {
+        rdata[i] = NaN;
+      }
+    }
+  } else {
+    // --- complex types using f_ld_1 ---
+    aftparams param = { dist_code, stratumn, tstart, tstop, status, weightn, offsetn, zn, nstrata };
+    ListCpp der = f_ld_1(eta, s, &param);
+    std::vector<double> g   = der.get<std::vector<double>>("g");
+    std::vector<double> dg  = der.get<std::vector<double>>("dg");
+    std::vector<double> ddg = der.get<std::vector<double>>("ddg");
+    std::vector<double> dsv = der.get<std::vector<double>>("ds");
+    std::vector<double> ddsv= der.get<std::vector<double>>("dds");
+    std::vector<double> dsg = der.get<std::vector<double>>("dsg");
+
+    if (type_code == 3) { // deviance
+      std::vector<double> loglik(n1);
+      for (int i = 0; i < n1; ++i) {
+        switch (status[i]) {
+        case 0: case 2:
+          loglik[i] = 0.0;
+          break;
+        case 1:
+          if (dist_code == 1 || dist_code == 2) loglik[i] = -std::log(s[i]) - 1.0;
+          else if (dist_code == 3 || dist_code == 4) 
+            loglik[i] = -std::log(std::sqrt(2.0*M_PI) * s[i]);
+          else loglik[i] = -std::log(4.0 * s[i]);
+          break;
+        default: { // interval censored
+            double width;
+            if (dist_code == 1 || dist_code == 2) {
+              width = (std::log(tstop[i]) - std::log(tstart[i])) / s[i];
+              loglik[i] = - width/(std::exp(width)-1.0) + std::log(1.0 - std::exp(-width));
+            } else if (dist_code == 3) {
+              width = (std::log(tstop[i]) - std::log(tstart[i])) / s[i];
+              loglik[i] = std::log(2.0 * boost_pnorm(width/2.0) - 1.0);
+            } else if (dist_code == 4) {
+              width = (tstop[i] - tstart[i]) / s[i];
+              loglik[i] = std::log(2.0 * boost_pnorm(width/2.0) - 1.0);
+            } else if (dist_code == 5) {
+              width = (std::log(tstop[i]) - std::log(tstart[i])) / s[i];
+              loglik[i] = std::log((std::exp(width/2.0)-1.0)/(std::exp(width/2.0)+1.0));
+            } else {
+              width = (tstop[i] - tstart[i]) / s[i];
+              loglik[i] = std::log((std::exp(width/2.0)-1.0)/(std::exp(width/2.0)+1.0));
+            }
+          }
+        }
+        double val = -dg[i] / ddg[i];
+        double dev = 0.0;
+        if (std::isfinite(loglik[i]) && std::isfinite(g[i])) {
+          double tmp = 2.0 * (loglik[i] - g[i]);
+          dev = (tmp > 0.0) ? std::sqrt(tmp) : 0.0;
+          if (val < 0) dev = -dev;
+        } else dev = NaN;
+        rdata[i] = dev;
+      }
+    } else if (type_code == 4) { // working
+      for (int i = 0; i < n1; ++i) rdata[i] = -dg[i] / ddg[i];
+    } else if (type_code == 5 || type_code == 6 || type_code == 7) { // dfbeta, dfbetas, ldcase
+      // vbeta is p x p FlatMatrix (column-major)
+      const double* vptr = vbeta.data_ptr();
+      for (int i = 0; i < n1; ++i) {
+        // compute score vector
+        std::vector<double> score(p, 0.0);
+        for (int j = 0; j < nvar; ++j) score[j] = dg[i] * zn(j, i); // zn(j,i) helper via operator()
+        for (int j = nvar; j < p; ++j) score[j] = (stratumn[i] == j - nvar) ? dsv[i] : 0.0;
+        // resid = score * vbeta  (1 x p) * (p x p) -> vector length p
+        std::vector<double> resid(p, 0.0);
+        for (int k = 0; k < p; ++k) {
+          double sum = 0.0;
+          const double* colvk = vptr + k * p; // vbeta(:,k)
+          for (int j = 0; j < p; ++j) sum += score[j] * colvk[j];
+          resid[k] = sum;
+        }
+        if (type_code == 6) {
+          for (int k = 0; k < p; ++k) {
+            double denom = vbeta(k,k);
+            if (denom <= 0.0) rdata[k * n1 + i] = NaN;
+            else rdata[k * n1 + i] = resid[k] / std::sqrt(denom);
+          }
+        } else if (type_code == 7) {
+          double acc = 0.0;
+          for (int k = 0; k < p; ++k) acc += resid[k] * score[k];
+          rdata[i] = acc;
+        } else {
+          for (int k = 0; k < p; ++k) rdata[k * n1 + i] = resid[k];
+        }
+      }
+    } else if (type_code == 8) { // ldresp
+      const double* vptr = vbeta.data_ptr();
+      for (int i = 0; i < n1; ++i) {
+        std::vector<double> rscore(p, 0.0);
+        for (int j = 0; j < nvar; ++j) rscore[j] = -ddg[i] * zn(j, i) * s[i];
+        for (int j = nvar; j < p; ++j) rscore[j] = (stratumn[i] == j - nvar) ? -dsg[i] * s[i] : 0.0;
+        std::vector<double> temp(p, 0.0);
+        for (int k = 0; k < p; ++k) {
+          const double* colvk = vptr + k * p;
+          double sum = 0.0;
+          for (int j = 0; j < p; ++j) sum += rscore[j] * colvk[j];
+          temp[k] = sum;
+        }
+        double acc = 0.0;
+        for (int k = 0; k < p; ++k) acc += temp[k] * rscore[k];
+        rdata[0 * n1 + i] = acc;
+      }
+    } else if (type_code == 9) { // ldshape
+      const double* vptr = vbeta.data_ptr();
+      for (int i = 0; i < n1; ++i) {
+        std::vector<double> sscore(p, 0.0);
+        for (int j = 0; j < nvar; ++j) sscore[j] = dsg[i] * zn(j, i);
+        for (int j = nvar; j < p; ++j) sscore[j] = (stratumn[i] == j - nvar) ? ddsv[i] : 0.0;
+        std::vector<double> temp(p, 0.0);
+        for (int k = 0; k < p; ++k) {
+          const double* colvk = vptr + k * p;
+          double sum = 0.0;
+          for (int j = 0; j < p; ++j) sum += sscore[j] * colvk[j];
+          temp[k] = sum;
+        }
+        double acc = 0.0;
+        for (int k = 0; k < p; ++k) acc += temp[k] * sscore[k];
+        rdata[0 * n1 + i] = acc;
+      }
+    } else if (type_code == 10) { // matrix
+      for (int i = 0; i < n1; ++i) {
+        rdata[i] = g[i];
+        rdata[1 * n1 + i] = dg[i];
+        rdata[2 * n1 + i] = ddg[i];
+        rdata[3 * n1 + i] = dsv[i];
+        rdata[4 * n1 + i] = ddsv[i];
+        rdata[5 * n1 + i] = dsg[i];
+      }
+    }
+  } // end complex types
+
+  // --- apply case weights if requested ---
+  if (weighted) {
+    for (int k = 0; k < K; ++k) {
+      double* col = rdata + k * n1;
+      for (int i = 0; i < n1; ++i) {
+        col[i] *= weightn[i];
+      }
+    }
+  }
+
+  // --- collapse by id if requested ---
+  if (collapse) {
+    // order by id
+    std::vector<int> order = seqcpp(0, n1 - 1);
+    std::sort(order.begin(), order.end(), [&](int a, int b){ return idn[a] < idn[b]; });
+    std::vector<int> id1 = subset(idn, order);
+    std::vector<int> idx;
+    idx.push_back(0);
+    for (int i = 1; i < n1; ++i) if (id1[i] != id1[i-1]) idx.push_back(i);
+    int nids = static_cast<int>(idx.size());
+    idx.push_back(n1);
+
+    FlatMatrix rr1(nids, K);
+    double* rr1ptr = rr1.data_ptr();
+    for (int grp = 0; grp < nids; ++grp) {
+      for (int k = 0; k < K; ++k) {
+        double acc = 0.0;
+        const double* rrcol = rdata + k * n1;
+        for (int j = idx[grp]; j < idx[grp+1]; ++j) {
+          acc += rrcol[order[j]];
+        }
+        rr1ptr[ k * nids + grp ] = acc;
+      }
+    }
+    return rr1;
+  }
+
+  return rr;
+}

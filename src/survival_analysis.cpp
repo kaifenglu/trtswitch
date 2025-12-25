@@ -273,9 +273,9 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
   
   DataFrameCpp result;
   result.push_back(probs, "prob");
-  result.push_back(quantile, "quantile");
-  result.push_back(lower, "lower");
-  result.push_back(upper, "upper");
+  result.push_back(std::move(quantile), "quantile");
+  result.push_back(std::move(lower), "lower");
+  result.push_back(std::move(upper), "upper");
   result.push_back(cilevel, "cilevel");
   result.push_back(ct, "transform");
   return result;
@@ -607,17 +607,17 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   }
   
   DataFrameCpp result;
-  result.push_back(size1, "size");
-  result.push_back(time1, "time");
-  result.push_back(nrisk1, "nrisk");
-  result.push_back(nevent1, "nevent");
-  result.push_back(ncensor1, "ncensor");
-  result.push_back(surv1, "surv");
-  result.push_back(sesurv1, "sesurv");
+  result.push_back(std::move(size1), "size");
+  result.push_back(std::move(time1), "time");
+  result.push_back(std::move(nrisk1), "nrisk");
+  result.push_back(std::move(nevent1), "nevent");
+  result.push_back(std::move(ncensor1), "ncensor");
+  result.push_back(std::move(surv1), "surv");
+  result.push_back(std::move(sesurv1), "sesurv");
   
   if (ct != "none") {
-    result.push_back(lower1, "lower");
-    result.push_back(upper1, "upper");
+    result.push_back(std::move(lower1), "lower");
+    result.push_back(std::move(upper1), "upper");
     result.push_back(conflev, "conflev");
     result.push_back(ct, "conftype");
   }
@@ -628,13 +628,16 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
       std::string s = stratum[i];
       if (u_stratum.int_cols.count(s)) {
         auto v = u_stratum.get<int>(s);
-        result.push_back(subset(v, stratum1), s);
+        subset_in_place(v, stratum1);
+        result.push_back(std::move(v), s);
       } else if (u_stratum.numeric_cols.count(s)) {
         auto v = u_stratum.get<double>(s);
-        result.push_back(subset(v, stratum1), s);
+        subset_in_place(v, stratum1);
+        result.push_back(std::move(v), s);
       } else if (u_stratum.string_cols.count(s)) {
         auto v = u_stratum.get<std::string>(s);
-        result.push_back(subset(v, stratum1), s);
+        subset_in_place(v, stratum1);
+        result.push_back(std::move(v), s);
       } else {
         throw std::invalid_argument("unsupported type for stratum variable " + s);
       }
@@ -970,12 +973,12 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   }
 
   DataFrameCpp dfin;
-  dfin.push_back(stratumn, "stratum");
-  dfin.push_back(treatn, "treat");
-  dfin.push_back(tstartn, "tstart");
-  dfin.push_back(tstopn, "tstop");
-  dfin.push_back(eventn, "event");
-  dfin.push_back(weightn, "weight");
+  dfin.push_back(std::move(stratumn), "stratum");
+  dfin.push_back(std::move(treatn), "treat");
+  dfin.push_back(std::move(tstartn), "tstart");
+  dfin.push_back(std::move(tstopn), "tstop");
+  dfin.push_back(std::move(eventn), "event");
+  dfin.push_back(std::move(weightn), "weight");
   
   DataFrameCpp dfout = kmestcpp(dfin, {"stratum", "treat"}, "tstart", "tstop", 
                                 "event", "weight", "none", 0.95, false);
@@ -1985,12 +1988,12 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   }
   
   DataFrameCpp result;
-  result.push_back(size0, "size");
+  result.push_back(std::move(size0), "size");
   result.push_back(milestone, "milestone");
-  result.push_back(rmst0, "rmst");
-  result.push_back(stderr0, "stderr");
-  result.push_back(lower0, "lower");
-  result.push_back(upper0, "upper");
+  result.push_back(std::move(rmst0), "rmst");
+  result.push_back(std::move(stderr0), "stderr");
+  result.push_back(std::move(lower0), "lower");
+  result.push_back(std::move(upper0), "upper");
   result.push_back(conflev, "conflev");
   result.push_back(biascorrection, "biascorrection");
   
@@ -2000,15 +2003,15 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
       if (u_stratum.int_cols.count(s)) {
         auto v = u_stratum.get<int>(s);
         subset_in_place(v, stratum0);
-        result.push_back(v, s);
+        result.push_back(std::move(v), s);
       } else if (u_stratum.numeric_cols.count(s)) {
         auto v = u_stratum.get<double>(s);
         subset_in_place(v, stratum0);
-        result.push_back(v, s);
+        result.push_back(std::move(v), s);
       } else if (u_stratum.string_cols.count(s)) {
         auto v = u_stratum.get<std::string>(s);
         subset_in_place(v, stratum0);
-        result.push_back(v, s);
+        result.push_back(std::move(v), s);
       } else {
         throw std::invalid_argument("unsupported type for stratum variable " + s);
       }
@@ -2202,10 +2205,10 @@ DataFrameCpp rmdiffcpp(const DataFrameCpp& data,
   bool noerr = true;
   
   DataFrameCpp dfin; 
-  dfin.push_back(stratumn, "stratum");
-  dfin.push_back(treatn, "treat");
-  dfin.push_back(timen, "time");
-  dfin.push_back(eventn, "event");
+  dfin.push_back(std::move(stratumn), "stratum");
+  dfin.push_back(std::move(treatn), "treat");
+  dfin.push_back(std::move(timen), "time");
+  dfin.push_back(std::move(eventn), "event");
   
   DataFrameCpp dfout = rmestcpp(dfin, {"stratum", "treat"}, "time", "event",
                                 milestone, 0.95, biascorrection);

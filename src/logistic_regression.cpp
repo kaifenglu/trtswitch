@@ -242,16 +242,16 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     
     ListCpp result;
     result.push_back(penloglik, "loglik");
-    result.push_back(g, "score");
-    result.push_back(imat, "imat");
+    result.push_back(std::move(g), "score");
+    result.push_back(std::move(imat), "imat");
     result.push_back(loglik, "regloglik");
-    result.push_back(score, "regscore");
+    result.push_back(std::move(score), "regscore");
     return result;
   } else {
     ListCpp result;
     result.push_back(loglik, "loglik");
-    result.push_back(score, "score");
-    result.push_back(imat, "imat");       // FlatMatrix
+    result.push_back(std::move(score), "score");
+    result.push_back(std::move(imat), "imat");       // FlatMatrix
     return result;
   }
 }
@@ -431,9 +431,9 @@ ListCpp logisregloop(int p, const std::vector<double>& par, void *ex,
       var(colfit[i], colfit[j]) = var1(i, j);
   
   ListCpp result;
-  result.push_back(newbeta, "coef");
+  result.push_back(std::move(newbeta), "coef");
   result.push_back(iter, "iter");
-  result.push_back(var, "var");
+  result.push_back(std::move(var), "var");
   result.push_back(newlk, "loglik");
   result.push_back(fail, "fail");
   
@@ -1135,31 +1135,34 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     sumstat.push_back(regloglik1, "loglik1_unpenalized");
   }
   
+  std::vector<double> sebeta = robust ? rseb : seb;
+  FlatMatrix vbeta = robust ? rvb : vb;
+  
   DataFrameCpp parest;
-  parest.push_back(par, "param");
-  parest.push_back(b, "beta");
-  parest.push_back(robust ? rseb : seb, "sebeta");
-  parest.push_back(z, "z");
-  parest.push_back(expbeta, "expbeta");
-  parest.push_back(robust ? rvb : vb, "vbeta");
-  parest.push_back(lb, "lower");
-  parest.push_back(ub, "upper");
-  parest.push_back(prob, "p");
-  parest.push_back(clparm, "method");
+  parest.push_back(std::move(par), "param");
+  parest.push_back(std::move(b), "beta");
+  parest.push_back(std::move(sebeta), "sebeta");
+  parest.push_back(std::move(z), "z");
+  parest.push_back(std::move(expbeta), "expbeta");
+  parest.push_back(std::move(vbeta), "vbeta");
+  parest.push_back(std::move(lb), "lower");
+  parest.push_back(std::move(ub), "upper");
+  parest.push_back(std::move(prob), "p");
+  parest.push_back(std::move(clparm), "method");
   
   if (robust) {
-    parest.push_back(seb, "sebeta_naive");
-    parest.push_back(vb, "vbeta_naive");
+    parest.push_back(std::move(seb), "sebeta_naive");
+    parest.push_back(std::move(vb), "vbeta_naive");
   }
   
   DataFrameCpp fitted;
-  fitted.push_back(linear_predictors, "linear_predictors");
-  fitted.push_back(fitted_values, "fitted_values");
+  fitted.push_back(std::move(linear_predictors), "linear_predictors");
+  fitted.push_back(std::move(fitted_values), "fitted_values");
   
   ListCpp result;
-  result.push_back(sumstat, "sumstat");
-  result.push_back(parest, "parest");
-  result.push_back(fitted, "fitted");
+  result.push_back(std::move(sumstat), "sumstat");
+  result.push_back(std::move(parest), "parest");
+  result.push_back(std::move(fitted), "fitted");
   
   return result;
 }
