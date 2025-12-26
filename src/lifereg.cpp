@@ -43,7 +43,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   const std::vector<int>& status = param->status; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
-  const double* zdata = param->z.data_ptr(); // column-major: zdata[col * n + row]
+  const double* zptr = param->z.data_ptr(); // column-major: zptr[col * n + row]
   
   // compute linear predictor eta efficiently using column-major storage:
   std::vector<double> eta = offset; // initialize with offset
@@ -51,7 +51,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    const double* col = zdata + i * n;
+    const double* col = zptr + i * n;
     for (int r = 0; r < n; ++r) {
       eta[r] += beta * col[r];
     }
@@ -87,7 +87,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
     
     // helper to get z_{j}(person) / sigma without allocating
     auto z = [&](int j)->double {
-      return zdata[j * n + person] * inv_s;
+      return zptr[j * n + person] * inv_s;
     };
     
     switch (st) {
@@ -502,7 +502,7 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
   const std::vector<double>& tstop = param->tstop; 
   const std::vector<int>& status = param->status; 
   const std::vector<double>& offset = param->offset; 
-  double* zdata = param->z.data_ptr(); // column-major: zdata[col * n + row]
+  double* zptr = param->z.data_ptr(); // column-major: zptr[col * n + row]
   
   // compute linear predictor eta efficiently using column-major storage:
   std::vector<double> eta = offset; // initialize with offset
@@ -510,7 +510,7 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    const double* col = zdata + i * n;
+    const double* col = zptr + i * n;
     for (int r = 0; r < n; ++r) {
       eta[r] += beta * col[r];
     }
@@ -527,7 +527,7 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
   
   // Main loop to compute residuals
   FlatMatrix resid(n, p);
-  double* rdata = resid.data_ptr(); // column-major: rdata[col * n + row]
+  double* rptr = resid.data_ptr(); // column-major: rptr[col * n + row]
   for (int person = 0; person < n; ++person) {
     const double s = sigma[person];
     const double inv_s = 1.0 / s;
@@ -539,12 +539,12 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
 
     // helper to get z_{j}(person) / sigma without allocating
     auto z = [&](int j)->double {
-      return zdata[j * n + person] * inv_s;
+      return zptr[j * n + person] * inv_s;
     };
     
     // helper to get resid_{j}(person) without allocating
     auto set_resid = [&](int person, int j, double val) {
-      rdata[j * n + person] = val;
+      rptr[j * n + person] = val;
     };
     
     switch (st) {
@@ -761,16 +761,16 @@ FlatMatrix f_jj_1(int p, const std::vector<double>& par, void *ex) {
   FlatMatrix jj(p,p);
   
   // Fast access pointers
-  const double* rdata = resid.data_ptr();     // length n * p, column-major
+  const double* rptr = resid.data_ptr();      // length n * p, column-major
   const double* wptr  = param->weight.data(); // length n
-  double* jjdata      = jj.data_ptr();        // length p * p, column-major
+  double* jjptr       = jj.data_ptr();        // length p * p, column-major
   
   // Compute jj(a,b) = sum_{person=0..n-1} w[person] * resid(person,a) * resid(person,b)
   // We compute only lower triangle (b <= a) and mirror to upper triangle for efficiency.
   for (int a = 0; a < p; ++a) {
-    const double* colA = rdata + a * n; // resid[:, a]
+    const double* colA = rptr + a * n; // resid[:, a]
     for (int b = 0; b <= a; ++b) {
-      const double* colB = rdata + b * n; // resid[:, b]
+      const double* colB = rptr + b * n; // resid[:, b]
       double sum = 0.0;
       // accumulate dot product of colA and colB, weighted by wptr
       for (int person = 0; person < n; ++person) {
@@ -778,8 +778,8 @@ FlatMatrix f_jj_1(int p, const std::vector<double>& par, void *ex) {
       }
       // store at (row=a, col=b) and (row=b, col=a)
       // column-major index: data[col * nrow + row], here nrow == p for jj
-      jjdata[ b * p + a ] = sum; // (a, b)
-      if (a != b) jjdata[ a * p + b ] = sum; // (b, a) mirror
+      jjptr[ b * p + a ] = sum; // (a, b)
+      if (a != b) jjptr[ a * p + b ] = sum; // (b, a) mirror
     }
   }
   
@@ -1080,8 +1080,7 @@ double liferegplloop(int p, const std::vector<double>& par, void *ex,
   }
   
   if (iter == maxiter) fail = true;
-  if (fail) thread_utils::push_thread_warning(
-      "liferegplloop did not converge within the maximum iterations.");
+  if (fail) thread_utils::push_thread_warning("liferegplloop did not converge.");
   
   return newbeta[k];
 }
@@ -1283,8 +1282,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     }
     // check covariates columns
     for (int j = 0; j < nvar - 1; ++j) {
-      double v = zn.data[(j + 1) * n + i];
-      if (std::isnan(v)) { sub[i] = 0; break; }
+      if (std::isnan(zn(i, j+1))) { sub[i] = 0; break; }
     }
   }
   std::vector<int> keep = which(sub);
@@ -1360,8 +1358,8 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       }
       
       b[i] = NaN;
-      seb[i] = NaN;
-      rseb[i] = NaN;
+      seb[i] = 0;
+      rseb[i] = 0;
       z[i] = NaN;
       expbeta[i] = NaN;
       lb[i] = NaN;
@@ -1372,8 +1370,8 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     
     for (int j = 0; j < p; ++j) {
       for (int i = 0; i < p; ++i) {
-        vb(i,j) = NaN;
-        rvb(i,j) = NaN;
+        vb(i,j) = 0;
+        rvb(i,j) = 0;
       }
     }
     
@@ -1479,12 +1477,12 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         for (int i = 0; i < n1; ++i) y1[i] = y0[i] - offsetn[i];
         
         FlatMatrix v1(nvar, nvar); // X'WX
-        const double *zdata = zn.data_ptr();
+        const double *zptr = zn.data_ptr();
         double *vptr = v1.data_ptr();
         for (int j = 0; j < nvar; ++j) {
-          const double* zj = zdata + j * n1;          // pointer to Z(:,j)
+          const double* zj = zptr + j * n1;          // pointer to Z(:,j)
           for (int k = j; k < nvar; ++k) {
-            const double* zk = zdata + k * n1;        // pointer to Z(:,k)
+            const double* zk = zptr + k * n1;        // pointer to Z(:,k)
             double sum = 0.0;
             // inner loop reads zj[i] and zk[i] contiguously
             for (int i = 0; i < n1; ++i) {
@@ -1500,7 +1498,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         
         std::vector<double> u1(nvar, 0.0); // X'Wy
         for (int j = 0; j < nvar; ++j) {
-          const double* zj = zdata + j * n1;          // pointer to Z(:,j)
+          const double* zj = zptr + j * n1;          // pointer to Z(:,j)
           double sum = 0.0;
           // inner loop reads zj[i] contiguously
           for (int i = 0; i < n1; ++i) {
@@ -2305,11 +2303,11 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   // --- compute eta (linear predictor) ---
   std::vector<double> eta = offsetn; // initialize with offset
   // add contributions of each coefficient times column
-  const double* zdata = zn.data_ptr();
+  const double* zptr = zn.data_ptr();
   for (int j = 0; j < nvar; ++j) {
     double b = beta[j];
     if (b == 0.0) continue;
-    const double* col = zdata + j * n1;
+    const double* col = zptr + j * n1;
     for (int i = 0; i < n1; ++i) eta[i] += b * col[i];
   }
 
@@ -2342,9 +2340,9 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
 
   // --- prepare result matrix rr (n1 x K) ---
   FlatMatrix rr(n1, K);
-  double* rdata = rr.data_ptr();
+  double* rrptr = rr.data_ptr();
   
-  // Helper lambdas for rr indexing: rr(i,k) -> rdata[k * n1 + i]
+  // Helper lambdas for rr indexing: rr(i,k) -> rrptr[k * n1 + i]
 
   // --- simple types ---
   if (type_code == 1) { // response
@@ -2372,7 +2370,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
       if (dist_code == 1 || dist_code == 2 || dist_code == 3 || dist_code == 5)
         val = std::exp(yhat0[i]) - std::exp(eta[i]);
       else val = yhat0[i] - eta[i];
-      rdata[i] = val;
+      rrptr[i] = val;
     }
   } else if (type_code == 2) { // martingale
     if (dist_code == 4 || dist_code == 6)
@@ -2385,9 +2383,9 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         if (dist_code == 1 || dist_code == 2) val = evt - std::exp(y);
         else if (dist_code == 3) val = evt + std::log(boost_pnorm(y,0,1,0));
         else if (dist_code == 5) val = evt + std::log(boost_plogis(y,0,1,0));
-        rdata[i] = val;
+        rrptr[i] = val;
       } else {
-        rdata[i] = NaN;
+        rrptr[i] = NaN;
       }
     }
   } else {
@@ -2442,10 +2440,10 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
           dev = (tmp > 0.0) ? std::sqrt(tmp) : 0.0;
           if (val < 0) dev = -dev;
         } else dev = NaN;
-        rdata[i] = dev;
+        rrptr[i] = dev;
       }
     } else if (type_code == 4) { // working
-      for (int i = 0; i < n1; ++i) rdata[i] = -dg[i] / ddg[i];
+      for (int i = 0; i < n1; ++i) rrptr[i] = -dg[i] / ddg[i];
     } else if (type_code == 5 || type_code == 6 || type_code == 7) { 
       // dfbeta, dfbetas, ldcase
       // vbeta is p x p FlatMatrix (column-major)
@@ -2467,15 +2465,15 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         if (type_code == 6) {
           for (int k = 0; k < p; ++k) {
             double denom = vbeta(k,k);
-            if (denom <= 0.0) rdata[k * n1 + i] = NaN;
-            else rdata[k * n1 + i] = resid[k] / std::sqrt(denom);
+            if (denom <= 0.0) rrptr[k * n1 + i] = NaN;
+            else rrptr[k * n1 + i] = resid[k] / std::sqrt(denom);
           }
         } else if (type_code == 7) {
           double acc = 0.0;
           for (int k = 0; k < p; ++k) acc += resid[k] * score[k];
-          rdata[i] = acc;
+          rrptr[i] = acc;
         } else {
-          for (int k = 0; k < p; ++k) rdata[k * n1 + i] = resid[k];
+          for (int k = 0; k < p; ++k) rrptr[k * n1 + i] = resid[k];
         }
       }
     } else if (type_code == 8) { // ldresp
@@ -2494,7 +2492,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         }
         double acc = 0.0;
         for (int k = 0; k < p; ++k) acc += temp[k] * rscore[k];
-        rdata[i] = acc;
+        rrptr[i] = acc;
       }
     } else if (type_code == 9) { // ldshape
       const double* vptr = vbeta.data_ptr();
@@ -2512,16 +2510,16 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
         }
         double acc = 0.0;
         for (int k = 0; k < p; ++k) acc += temp[k] * sscore[k];
-        rdata[i] = acc;
+        rrptr[i] = acc;
       }
     } else if (type_code == 10) { // matrix
       for (int i = 0; i < n1; ++i) {
-        rdata[i] = g[i];
-        rdata[1 * n1 + i] = dg[i];
-        rdata[2 * n1 + i] = ddg[i];
-        rdata[3 * n1 + i] = ds[i];
-        rdata[4 * n1 + i] = dds[i];
-        rdata[5 * n1 + i] = dsg[i];
+        rrptr[i] = g[i];
+        rrptr[1 * n1 + i] = dg[i];
+        rrptr[2 * n1 + i] = ddg[i];
+        rrptr[3 * n1 + i] = ds[i];
+        rrptr[4 * n1 + i] = dds[i];
+        rrptr[5 * n1 + i] = dsg[i];
       }
     }
   } // end complex types
@@ -2529,7 +2527,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   // --- apply case weights if requested ---
   if (weighted) {
     for (int k = 0; k < K; ++k) {
-      double* col = rdata + k * n1;
+      double* col = rrptr + k * n1;
       for (int i = 0; i < n1; ++i) {
         col[i] *= weightn[i];
       }
@@ -2552,7 +2550,7 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     for (int i = 0; i < nids; ++i) {
       for (int k = 0; k < K; ++k) {
         double acc = 0.0;
-        const double* rrcol = rdata + k * n1;
+        const double* rrcol = rrptr + k * n1;
         for (int j = idx[i]; j < idx[i+1]; ++j) {
           acc += rrcol[order[j]];
         }

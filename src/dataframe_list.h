@@ -130,6 +130,65 @@ struct IntMatrix {
   inline int* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
 };
 
+
+//
+// FlatArray: contiguous 3-way tensor representation (double)
+// Layout: column-major within each 2-D slice, and slices stacked.
+// Element (r,c,s) => data[ s * (nrow*ncol) + c * nrow + r ]
+//
+struct FlatArray {
+  std::vector<double> data;
+  int nrow = 0;
+  int ncol = 0;
+  int nslice = 0;
+  
+  FlatArray() = default;
+  FlatArray(int nr, int nc, int ns) : data(nr * nc * ns), nrow(nr), ncol(nc), nslice(ns) {}
+  
+  FlatArray(std::vector<double>&& d, int nr, int nc, int ns)
+    : data(std::move(d)), nrow(nr), ncol(nc), nslice(ns) {
+    if (nr * nc * ns != static_cast<int>(data.size()))
+      throw std::runtime_error("FlatArray: data size mismatch with dimensions");
+  }
+  
+  inline void resize(int nr, int nc, int ns) {
+    nrow = nr; ncol = nc; nslice = ns;
+    data.resize(nr * nc * ns);
+  }
+  
+  inline void fill(double v) { std::fill(data.begin(), data.end(), v); }
+  inline bool empty() const noexcept { return data.empty() || nrow == 0 || ncol == 0 || nslice == 0; }
+  inline std::size_t size() const noexcept { return data.size(); }
+  
+  // index helper: (row, col, slice)
+  inline static int idx(int row, int col, int slice, int nrows, int ncols) noexcept {
+    // slice outermost, then column, then row (rows contiguous)
+    return slice * (nrows * ncols) + col * nrows + row;
+  }
+  
+  inline double& operator()(int r, int c, int s) {
+    return data[idx(r, c, s, nrow, ncol)];
+  }
+  
+  inline double operator()(int r, int c, int s) const {
+    return data[idx(r, c, s, nrow, ncol)];
+  }
+  
+  // raw pointer access for parallel-friendly use
+  inline const double* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
+  inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
+  
+  // pointer to the start of slice s (returns pointer to element (0,0,s))
+  inline double* slice_ptr(int s) noexcept {
+    if (s < 0 || s >= nslice) return nullptr;
+    return data.empty() ? nullptr : data.data() + s * (nrow * ncol);
+  }
+  inline const double* slice_ptr(int s) const noexcept {
+    if (s < 0 || s >= nslice) return nullptr;
+    return data.empty() ? nullptr : data.data() + s * (nrow * ncol);
+  }
+};
+
 //
 // DataFrameCpp using ska::flat_hash_map for columns
 //

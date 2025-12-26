@@ -496,8 +496,7 @@ double logisregplloop(int p, const std::vector<double>& par,
   
   if (iter == maxiter) fail = true;
   if (fail) {
-    thread_utils::push_thread_warning(
-      "logisregplloop did not converge within the maximum iterations.");
+    thread_utils::push_thread_warning("logisregplloop did not converge.");
     return NaN;
   }
   
@@ -646,18 +645,14 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   // exclude observations with missing values
   std::vector<unsigned char> sub(n, 1);
   for (int i = 0; i < n; ++i) {
-    if (eventn[i] == INT_MIN ||
+    if (std::isnan(eventn[i]) ||
         std::isnan(freqn[i]) || std::isnan(weightn[i]) ||
         std::isnan(offsetn[i]) || idn[i] == INT_MIN) {
       sub[i] = 0;
       continue;
     }
     for (int j = 0; j < p - 1; ++j) {
-      int off = (j + 1) * n;
-      if (std::isnan(zn.data[off + i])) {
-        sub[i] = 0;
-        break;
-      }
+      if (std::isnan(zn(i, j+1))) { sub[i] = 0; break; }
     }
   }
   
@@ -699,8 +694,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     for (int i=0; i<p; ++i) {
       par[i] = (i == 0) ? "(Intercept)" : covariates[i-1];
       b[i] = NaN;
-      seb[i] = NaN;
-      rseb[i] = NaN;
+      seb[i] = 0;
+      rseb[i] = 0;
       z[i] = NaN;
       expbeta[i] = NaN;
       lb[i] = NaN;
@@ -711,8 +706,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     
     for (int j=0; j<p; ++j) {
       for (int i=0; i<p; ++i) {
-        vb(i,j) = NaN;    
-        rvb(i,j) = NaN;
+        vb(i,j) = 0;    
+        rvb(i,j) = 0;
       }
     }
     
