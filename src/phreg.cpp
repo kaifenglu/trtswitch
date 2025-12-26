@@ -244,18 +244,20 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
   
   // fill the symmetric elements of the tensor array
   if (firth) {
-    for (int i = 0; i < p; ++i) {
-      for (int j = 0; j < p; ++j) {
-        for (int k = 0; k <= p; ++k) {
-          // sort indices descending to get canonical representative (si >= sj >= sk)
-          int si = i, sj = j, sk = k;
-          if (si < sj) std::swap(si, sj);
-          if (sj < sk) std::swap(sj, sk);
-          if (si < sj) std::swap(si, sj);
-          dimat(i,j,k) = dimat(si,sj,sk);
-        }
-      }
-    }
+    for (int i = 0; i < p-1; ++i)
+      for (int j = i+1; j < p; ++j)
+        for (int k = 0; k <= i; ++k)
+          dimat(i,j,k) = dimat(j,i,k);
+    
+    for (int j = 0; j < p-1; ++j)
+      for (int i = j; i < p; ++i)
+        for (int k = j+1; k < p; ++k)
+          dimat(i,j,k) = dimat(i,k,j);
+    
+    for (int i = 0; i < p-1; ++i)
+      for (int j = i+1; j < p; ++j)
+        for (int k = i+1; k < p; ++k)
+          dimat(i,j,k) = dimat(k,j,i);
   }
   
   
@@ -484,10 +486,7 @@ double phregplloop(int p, const std::vector<double>& par, void *ex,
   }
 
   if (iter == maxiter) fail = true;
-  if (fail) {
-    thread_utils::push_thread_warning("phregplloop did not converge.");
-    return NaN;
-  }
+  if (fail) thread_utils::push_thread_warning("phregplloop did not converge.");
 
   return newbeta[k];
 }
@@ -1425,13 +1424,10 @@ ListCpp phregcpp(const DataFrameCpp& data,
         
         int nr; // number of rows in the score residual matrix
         if (!has_id) {
-          const double *wptr = weightna.data();
-          double *resscoptr = ressco.data_ptr();
-          
           for (int j = 0; j < p; ++j) {
-            double* colptr = resscoptr + j * n;
+            const int coloff = j * n;
             for (int i = 0; i < n; ++i) {
-              colptr[i] *= wptr[i];
+              ressco.data[coloff + i] *= weightna[i];
             }
           }
           nr = n;
@@ -1451,7 +1447,6 @@ ListCpp phregcpp(const DataFrameCpp& data,
           
           int nids = static_cast<int>(idx.size());
           idx.push_back(n);
-          
           
           FlatMatrix ressco1(nids,p);
           for (int j = 0; j < p; ++j) {
@@ -1647,7 +1642,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
   }
   
   // prepare the output data sets
-  ListCpp sumstat;
+  DataFrameCpp sumstat;
   sumstat.push_back(nobs, "n");
   sumstat.push_back(nevents, "nevents");
   sumstat.push_back(loglik0, "loglik0");
@@ -1671,7 +1666,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
   if (p > 0) {
     std::vector<double> sebeta = robust ? rseb : seb;
     FlatMatrix vbeta = robust ? rvb : vb;
-    ListCpp parest;
+    DataFrameCpp parest;
     parest.push_back(std::move(par), "param");
     parest.push_back(std::move(b), "beta");
     parest.push_back(std::move(sebeta), "sebeta");
@@ -1733,437 +1728,470 @@ ListCpp phregcpp(const DataFrameCpp& data,
 }
 
 
-// // [[Rcpp::export]]
-// DataFrame survfit_phregcpp(const int p,
-//                            const NumericVector& beta,
-//                            const NumericMatrix& vbeta,
-//                            DataFrame basehaz,
-//                            DataFrame newdata,
-//                            const StringVector& covariates = "",
-//                            const StringVector& stratum = "",
-//                            const std::string offset = "",
-//                            const std::string id = "",
-//                            const std::string tstart = "",
-//                            const std::string tstop = "",
-//                            const bool sefit = true,
-//                            const String conftype = "log-log",
-//                            const double conflev = 0.95) {
-//   
-//   int n0 = basehaz.nrows();
-//   int n = newdata.nrows();
-//   int nvar = static_cast<int>(covariates.size());
-//   
-//   std::string ct = conftype;
-//   std::for_each(ct.begin(), ct.end(), [](char & c) {
-//     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-//   });
-//   
-//   if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" ||
-//       ct=="logit" || ct=="arcsin")) {
-//     stop("conftype must be none, plain, log, log-log, logit, or arcsin");
-//   }
-//   
-//   if (conflev <= 0 || conflev >= 1) {
-//     stop("conflev must lie between 0 and 1");
-//   }
-//   
-//   double zcrit = boost_qnorm((1+conflev)/2,0,1,1,0);
-//   
-//   IntegerVector stratumn0(n0);
-//   DataFrame u_stratum0;
-//   IntegerVector nlevels;
-//   List lookups;
-//   int p_stratum = static_cast<int>(stratum.size());
-//   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-//     stratumn0.fill(0);
-//   } else {
-//     List out = bygroup(basehaz, stratum);
-//     stratumn0 = out["index"];
-//     u_stratum0 = DataFrame(out["lookup"]);
-//     nlevels = out["nlevels"];
-//     lookups = out["lookups"];
-//   }
-//   
-//   bool nullmodel = (p == 0 || (nvar == 1 &&
-//                     (covariates[0] == "" || covariates[0] == "none")));
-//   
-//   if (!nullmodel && nvar != p) {
-//     stop("incorrect number of covariates for the Cox model");
-//   }
-//   
-//   NumericMatrix zn(n,p);
-//   for (int j=0; j<p; ++j) {
-//     String zj = covariates[j];
-//     if (!hasVariable(newdata, zj)) {
-//       stop("newdata must contain the variables in covariates");
-//     }
-//     NumericVector u = newdata[zj];
-//     for (int i=0; i<n; ++i) {
-//       zn(i,j) = u[i];
-//     }
-//   }
-//   
-//   bool has_stratum;
-//   IntegerVector stratumn(n);
-//   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-//     has_stratum = false;
-//     stratumn.fill(0);
-//   } else {
-//     has_stratum = true;
-//     // match stratum in newdata to stratum in basehaz
-//     int orep = u_stratum0.nrow();
-//     for (int i=0; i<p_stratum; ++i) {
-//       orep /= nlevels[i];
-//       std::string s = as<std::string>(stratum[i]);
-//       IntegerVector idx;
-//       SEXP col = newdata[s];
-//       SEXPTYPE col_type = TYPEOF(col);
-//       if (col_type == LGLSXP || col_type == INTSXP) {
-//         IntegerVector v = col;
-//         IntegerVector w = lookups[i];
-//         idx = match(v, w) - 1;
-//       } else if (col_type == REALSXP) {
-//         NumericVector v = col;
-//         NumericVector w = lookups[i];
-//         idx = match(v, w) - 1;
-//       } else if (col_type == STRSXP) {
-//         StringVector v = col;
-//         StringVector w = lookups[i];
-//         idx = match(v, w) - 1;
-//       } else {
-//         stop("Unsupported type for stratum variable: " + s);
-//       }
-//       
-//       stratumn = stratumn + idx * orep;
-//     }
-//   }
-//   
-//   bool has_offset = hasVariable(newdata, offset);
-//   NumericVector offsetn(n);
-//   if (has_offset) {
-//     NumericVector offsetnz = newdata[offset];
-//     offsetn = clone(offsetnz);
-//   }
-//   
-//   NumericVector time0 = basehaz["time"];
-//   NumericVector nrisk0 = basehaz["nrisk"];
-//   NumericVector nevent0 = basehaz["nevent"];
-//   NumericVector ncensor0 = basehaz["ncensor"];
-//   NumericVector haz0 = basehaz["haz"];
-//   NumericVector vhaz0 = basehaz["varhaz"];
-//   NumericMatrix ghaz0(n0,p);
-//   for (int j=0; j<p; ++j) {
-//     std::string col_name = "gradhaz";
-//     if (p>1) col_name += "." + std::to_string(j+1);
-//     NumericVector u = basehaz[col_name];
-//     ghaz0(_,j) = u;
-//   }
-//   
-//   // create the numeric id variable
-//   bool has_id = hasVariable(newdata, id);
-//   IntegerVector idn(n);
-//   IntegerVector idwi;
-//   NumericVector idwn;
-//   StringVector idwc;
-//   if (!has_id) {
-//     idn = seq(0,n-1);
-//   } else { // input data has the counting process style of input
-//     SEXP col = newdata[id];
-//     SEXPTYPE col_type = TYPEOF(col);
-//     if (col_type == INTSXP) {
-//       IntegerVector idv = col;
-//       idwi = unique(idv);
-//       idwi.sort();
-//       idn = match(idv, idwi) - 1;
-//     } else if (col_type == REALSXP) {
-//       NumericVector idv = col;
-//       idwn = unique(idv);
-//       idwn.sort();
-//       idn = match(idv, idwn) - 1;
-//     } else if (col_type == STRSXP) {
-//       StringVector idv = col;
-//       idwc = unique(idv);
-//       idwc.sort();
-//       idn = match(idv, idwc) - 1;
-//     } else {
-//       stop("incorrect type for the id variable in newdata");
-//     }
-//   }
-//   
-//   // unify right-censoring data with counting process data
-//   NumericVector tstartn(n), tstopn(n);
-//   if (!has_id) { // right-censored data
-//     tstartn.fill(0.0);
-//     double maxt0 = max(time0) + 1.0;
-//     tstopn.fill(maxt0);
-//   } else {
-//     bool has_tstart = hasVariable(newdata, tstart);
-//     if (!has_tstart) stop("newdata must contain the tstart variable");
-//     NumericVector tstartnz = newdata[tstart];
-//     tstartn = clone(tstartnz);
-//     if (is_true(any(tstartn < 0))) {
-//       stop("tstart must be nonnegative for each observation");
-//     }
-//     
-//     bool has_tstop = hasVariable(newdata, tstop);
-//     if (!has_tstop) stop("newdata must contain the tstop variable");
-//     NumericVector tstopnz = newdata[tstop];
-//     tstopn = clone(tstopnz);
-//     if (is_true(any(tstopn <= tstartn))) {
-//       stop("tstop must be greater than tstart for each observation");
-//     }
-//   }
-//   
-//   // order data by id and tstop, assuming consecutive intervals
-//   IntegerVector order = seq(0, n-1);
-//   std::sort(order.begin(), order.end(), [&](int i, int j) {
-//     if (idn[i] != idn[j]) return idn[i] < idn[j];
-//     return tstopn[i] < tstopn[j];
-//   });
-//   
-//   idn = idn[order];
-//   stratumn = stratumn[order];
-//   tstartn = tstartn[order];
-//   tstopn = tstopn[order];
-//   offsetn = offsetn[order];
-//   if (p > 0) zn = subset_matrix_by_row(zn, order);
-//   
-//   // exclude observations with missing values
-//   LogicalVector sub(n,1);
-//   for (int i=0; i<n; ++i) {
-//     if (stratumn[i] == NA_INTEGER || idn[i] == NA_INTEGER ||
-//         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-//         std::isnan(offsetn[i])) {
-//       sub[i] = 0;
-//     }
-//     for (int j=0; j<p; ++j) {
-//       if (std::isnan(zn(i,j))) sub[i] = 0;
-//     }
-//   }
-//   
-//   order = which(sub);
-//   stratumn = stratumn[order];
-//   offsetn = offsetn[order];
-//   idn = idn[order];
-//   tstartn = tstartn[order];
-//   tstopn = tstopn[order];
-//   if (p > 0) zn = subset_matrix_by_row(zn, order);
-//   n = sum(sub);
-//   if (n == 0) stop("no observations left after removing missing values");
-//   
-//   // risk score
-//   NumericVector risk(n);
-//   for (int i=0; i<n; ++i) {
-//     double val = offsetn[i];
-//     for (int j=0; j<p; ++j) {
-//       val += beta[j]*zn(i,j);
-//     }
-//     risk[i] = std::exp(val);
-//   }
-//   
-//   // count number of observations for each id
-//   IntegerVector idx(1,0);
-//   for (int i=1; i<n; ++i) {
-//     if (idn[i] != idn[i-1]) {
-//       idx.push_back(i);
-//     }
-//   }
-//   
-//   int nids = static_cast<int>(idx.size());
-//   idx.push_back(n);
-//   
-//   int N = nids*n0; // upper bound on the number of rows in the output
-//   NumericVector time(N);
-//   NumericVector nrisk(N), nevent(N), ncensor(N);
-//   NumericVector cumhaz(N), vcumhaz(N), secumhaz(N);
-//   IntegerVector strata(N);
-//   NumericMatrix z(N,p);
-//   IntegerVector ids(N);
-//   
-//   // process by id
-//   int l = 0;
-//   for (int h=0; h<nids; ++h) {
-//     IntegerVector q1 = Range(idx[h], idx[h+1]-1);
-//     int n1 = static_cast<int>(q1.size());
-//     
-//     IntegerVector id2 = idn[q1];
-//     IntegerVector stratum2 = stratumn[q1];
-//     NumericVector tstart2 = tstartn[q1];
-//     NumericVector tstop2 = tstopn[q1];
-//     NumericVector risk2 = risk[q1];
-//     NumericMatrix z2 = subset_matrix_by_row(zn, q1);
-//     tstop2.push_front(tstart2[0]);
-//     
-//     // match the stratum in basehaz
-//     IntegerVector idx1 = which(stratumn0 == stratum2[0]);
-//     NumericVector time01 = time0[idx1];
-//     
-//     // left-open and right-closed intervals containing the event time
-//     IntegerVector idx2 = findInterval3(time01, tstop2, 0, 0, 1);
-//     IntegerVector sub = which((idx2 >= 1) & (idx2 <= n1));
-//     int m1 = sub.size();
-//     
-//     if (m1 != 0) {
-//       IntegerVector idx3 = idx1[sub];
-//       NumericVector time1 = time0[idx3];
-//       NumericVector nrisk1 = nrisk0[idx3];
-//       NumericVector nevent1 = nevent0[idx3];
-//       NumericVector ncensor1 = ncensor0[idx3];
-//       NumericVector haz1 = haz0[idx3];
-//       
-//       IntegerVector idx4 = idx2[sub];
-//       idx4 = idx4 - 1; // change to 0-1 indexing
-//       
-//       // cumulative hazards
-//       for (int i=0; i<m1; ++i) {
-//         int r = l + i;
-//         time[r] = time1[i];
-//         nrisk[r] = nrisk1[i];
-//         nevent[r] = nevent1[i];
-//         ncensor[r] = ncensor1[i];
-//         
-//         int k = idx4[i];
-//         ids[r] = id2[k];
-//         strata[r] = stratum2[k];
-//         for (int j=0; j<p; ++j) {
-//           z(r,j) = z2(k,j);
-//         }
-//         
-//         if (i==0) {
-//           cumhaz[r] = haz1[i]*risk2[k];
-//         } else {
-//           cumhaz[r] = cumhaz[r-1] + haz1[i]*risk2[k];
-//         }
-//       }
-//       
-//       if (sefit) {
-//         NumericVector vhaz1 = vhaz0[idx3];
-//         NumericMatrix ghaz1(m1,p);
-//         for (int j=0; j<p; ++j) {
-//           for (int i=0; i<m1; ++i) {
-//             ghaz1(i,j) = ghaz0(idx3[i],j);
-//           }
-//         }
-//         
-//         NumericMatrix a(m1,p);
-//         for (int j=0; j<p; ++j) {
-//           for (int i=0; i<m1; ++i) {
-//             int k = idx4[i];
-//             if (i==0) {
-//               a(i,j) = (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
-//             } else {
-//               a(i,j) = a(i-1,j) + (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
-//             }
-//           }
-//         }
-//         
-//         // calculate the first component of variance
-//         for (int i=0; i<m1; ++i) {
-//           int r = l + i;
-//           int k = idx4[i];
-//           if (i==0) {
-//             vcumhaz[r] = vhaz1[i]*risk2[k]*risk2[k];
-//           } else {
-//             vcumhaz[r] = vcumhaz[r-1] + vhaz1[i]*risk2[k]*risk2[k];
-//           }
-//         }
-//         
-//         // add the second component of variance
-//         for (int i=0; i<m1; ++i) {
-//           int r = l + i;
-//           for (int j=0; j<p; ++j) {
-//             for (int k=0; k<p; ++k) {
-//               vcumhaz[r] += a(i,j)*vbeta(j,k)*a(i,k);
-//             }
-//           }
-//           secumhaz[r] = std::sqrt(vcumhaz[r]);
-//         }
-//       }
-//       
-//       l += m1;
-//     }
-//   }
-//   
-//   IntegerVector sub2 = Range(0,l-1);
-//   time = time[sub2];
-//   nrisk = nrisk[sub2];
-//   nevent = nevent[sub2];
-//   ncensor = ncensor[sub2];
-//   cumhaz = cumhaz[sub2];
-//   secumhaz = secumhaz[sub2];
-//   strata = strata[sub2];
-//   z = subset_matrix_by_row(z, sub2);
-//   ids = ids[sub2];
-//   
-//   NumericVector surv = std::exp(-cumhaz);
-//   
-//   DataFrame result = DataFrame::create(
-//     _["time"] = time,
-//     _["nrisk"] = nrisk,
-//     _["nevent"] = nevent,
-//     _["ncensor"] = ncensor,
-//     _["cumhaz"] = cumhaz,
-//     _["surv"] = surv);
-//   
-//   if (sefit) {
-//     NumericVector sesurv = surv*secumhaz;
-//     
-//     NumericVector lower(l), upper(l);
-//     for (int i=0; i<l; ++i) {
-//       NumericVector ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
-//       lower[i] = ci[0];
-//       upper[i] = ci[1];
-//     }
-//     
-//     result.push_back(sesurv, "sesurv");
-//     result.push_back(lower, "lower");
-//     result.push_back(upper, "upper");
-//     result.push_back(conflev, "conflev");
-//     result.push_back(ct, "conftype");
-//   }
-//   
-//   for (int j=0; j<p; ++j) {
-//     NumericVector u = z(_,j);
-//     String zj = covariates[j];
-//     result.push_back(u, zj);
-//   }
-//   
-//   if (has_stratum) {
-//     for (int i=0; i<p_stratum; ++i) {
-//       std::string s = as<std::string>(stratum[i]);
-//       SEXP col = u_stratum0[s];
-//       SEXPTYPE col_type = TYPEOF(col);
-//       if (col_type == INTSXP) {
-//         IntegerVector v = col;
-//         result.push_back(v[strata], s);
-//       } else if (col_type == REALSXP) {
-//         NumericVector v = col;
-//         result.push_back(v[strata], s);
-//       } else if (col_type == STRSXP) {
-//         StringVector v = col;
-//         result.push_back(v[strata], s);
-//       } else {
-//         stop("Unsupported type for stratum variable: " + s);
-//       }
-//     }
-//   }
-//   
-//   if (has_id) {
-//     SEXP col = newdata[id];
-//     SEXPTYPE col_type = TYPEOF(col);
-//     if (col_type == INTSXP) {
-//       result.push_back(idwi[ids], id);
-//     } else if (col_type == REALSXP) {
-//       result.push_back(idwn[ids], id);
-//     } else if (col_type == STRSXP) {
-//       result.push_back(idwc[ids], id);
-//     } else {
-//       stop("incorrect type for the id variable in newdata");
-//     }
-//   }
-//   
-//   return result;
-// }
+// [[Rcpp::export]]
+Rcpp::List phregRcpp(const Rcpp::DataFrame& data,
+                     const std::vector<std::string>& stratum,
+                     const std::string& time,
+                     const std::string& time2,
+                     const std::string& event,
+                     const std::vector<std::string>& covariates,
+                     const std::string& weight,
+                     const std::string& offset,
+                     const std::string& id,
+                     const std::string& ties,
+                     const std::vector<double>& init,
+                     const bool robust,
+                     const bool est_basehaz,
+                     const bool est_resid,
+                     const bool firth,
+                     const bool plci,
+                     const double alpha,
+                     const int maxiter,
+                     const double eps) {
+  
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  
+  ListCpp cpp_result = phregcpp(
+    dfcpp, stratum, time, time2, event, covariates, weight, offset, id, 
+    ties, init, robust, est_basehaz, est_resid, firth, plci, alpha, 
+    maxiter, eps);
+  
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
+}
+
+
+
+DataFrameCpp survfit_phregcpp(const int p,
+                              const std::vector<double>& beta,
+                              const FlatMatrix& vbeta,
+                              const DataFrameCpp& basehaz,
+                              const DataFrameCpp& newdata,
+                              const std::vector<std::string>& covariates,
+                              const std::vector<std::string>& stratum,
+                              const std::string& offset,
+                              const std::string& id,
+                              const std::string& tstart,
+                              const std::string& tstop,
+                              const bool sefit,
+                              const std::string& conftype,
+                              const double conflev) {
+  
+  int n0 = basehaz.nrows();
+  int n = newdata.nrows();
+  int nvar = static_cast<int>(covariates.size());
+
+  std::string ct = conftype;
+  std::for_each(ct.begin(), ct.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+
+  if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" ||
+      ct=="logit" || ct=="arcsin")) {
+    stop("conftype must be none, plain, log, log-log, logit, or arcsin");
+  }
+
+  if (conflev <= 0 || conflev >= 1) {
+    stop("conflev must lie between 0 and 1");
+  }
+
+  double zcrit = boost_qnorm((1.0 + conflev) / 2.0);
+
+  IntegerVector stratumn0(n0);
+  DataFrame u_stratum0;
+  IntegerVector nlevels;
+  List lookups;
+  int p_stratum = static_cast<int>(stratum.size());
+  if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
+    stratumn0.fill(0);
+  } else {
+    List out = bygroup(basehaz, stratum);
+    stratumn0 = out["index"];
+    u_stratum0 = DataFrame(out["lookup"]);
+    nlevels = out["nlevels"];
+    lookups = out["lookups"];
+  }
+
+  bool nullmodel = (p == 0 || (nvar == 1 &&
+                    (covariates[0] == "" || covariates[0] == "none")));
+
+  if (!nullmodel && nvar != p) {
+    stop("incorrect number of covariates for the Cox model");
+  }
+
+  NumericMatrix zn(n,p);
+  for (int j=0; j<p; ++j) {
+    String zj = covariates[j];
+    if (!hasVariable(newdata, zj)) {
+      stop("newdata must contain the variables in covariates");
+    }
+    NumericVector u = newdata[zj];
+    for (int i=0; i<n; ++i) {
+      zn(i,j) = u[i];
+    }
+  }
+
+  bool has_stratum;
+  IntegerVector stratumn(n);
+  if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
+    has_stratum = false;
+    stratumn.fill(0);
+  } else {
+    has_stratum = true;
+    // match stratum in newdata to stratum in basehaz
+    int orep = u_stratum0.nrow();
+    for (int i=0; i<p_stratum; ++i) {
+      orep /= nlevels[i];
+      std::string s = as<std::string>(stratum[i]);
+      IntegerVector idx;
+      SEXP col = newdata[s];
+      SEXPTYPE col_type = TYPEOF(col);
+      if (col_type == LGLSXP || col_type == INTSXP) {
+        IntegerVector v = col;
+        IntegerVector w = lookups[i];
+        idx = match(v, w) - 1;
+      } else if (col_type == REALSXP) {
+        NumericVector v = col;
+        NumericVector w = lookups[i];
+        idx = match(v, w) - 1;
+      } else if (col_type == STRSXP) {
+        StringVector v = col;
+        StringVector w = lookups[i];
+        idx = match(v, w) - 1;
+      } else {
+        stop("Unsupported type for stratum variable: " + s);
+      }
+
+      stratumn = stratumn + idx * orep;
+    }
+  }
+
+  bool has_offset = hasVariable(newdata, offset);
+  NumericVector offsetn(n);
+  if (has_offset) {
+    NumericVector offsetnz = newdata[offset];
+    offsetn = clone(offsetnz);
+  }
+
+  NumericVector time0 = basehaz["time"];
+  NumericVector nrisk0 = basehaz["nrisk"];
+  NumericVector nevent0 = basehaz["nevent"];
+  NumericVector ncensor0 = basehaz["ncensor"];
+  NumericVector haz0 = basehaz["haz"];
+  NumericVector vhaz0 = basehaz["varhaz"];
+  NumericMatrix ghaz0(n0,p);
+  for (int j=0; j<p; ++j) {
+    std::string col_name = "gradhaz";
+    if (p>1) col_name += "." + std::to_string(j+1);
+    NumericVector u = basehaz[col_name];
+    ghaz0(_,j) = u;
+  }
+
+  // create the numeric id variable
+  bool has_id = hasVariable(newdata, id);
+  IntegerVector idn(n);
+  IntegerVector idwi;
+  NumericVector idwn;
+  StringVector idwc;
+  if (!has_id) {
+    idn = seq(0,n-1);
+  } else { // input data has the counting process style of input
+    SEXP col = newdata[id];
+    SEXPTYPE col_type = TYPEOF(col);
+    if (col_type == INTSXP) {
+      IntegerVector idv = col;
+      idwi = unique(idv);
+      idwi.sort();
+      idn = match(idv, idwi) - 1;
+    } else if (col_type == REALSXP) {
+      NumericVector idv = col;
+      idwn = unique(idv);
+      idwn.sort();
+      idn = match(idv, idwn) - 1;
+    } else if (col_type == STRSXP) {
+      StringVector idv = col;
+      idwc = unique(idv);
+      idwc.sort();
+      idn = match(idv, idwc) - 1;
+    } else {
+      stop("incorrect type for the id variable in newdata");
+    }
+  }
+
+  // unify right-censoring data with counting process data
+  NumericVector tstartn(n), tstopn(n);
+  if (!has_id) { // right-censored data
+    tstartn.fill(0.0);
+    double maxt0 = max(time0) + 1.0;
+    tstopn.fill(maxt0);
+  } else {
+    bool has_tstart = hasVariable(newdata, tstart);
+    if (!has_tstart) stop("newdata must contain the tstart variable");
+    NumericVector tstartnz = newdata[tstart];
+    tstartn = clone(tstartnz);
+    if (is_true(any(tstartn < 0))) {
+      stop("tstart must be nonnegative for each observation");
+    }
+
+    bool has_tstop = hasVariable(newdata, tstop);
+    if (!has_tstop) stop("newdata must contain the tstop variable");
+    NumericVector tstopnz = newdata[tstop];
+    tstopn = clone(tstopnz);
+    if (is_true(any(tstopn <= tstartn))) {
+      stop("tstop must be greater than tstart for each observation");
+    }
+  }
+
+  // order data by id and tstop, assuming consecutive intervals
+  IntegerVector order = seq(0, n-1);
+  std::sort(order.begin(), order.end(), [&](int i, int j) {
+    if (idn[i] != idn[j]) return idn[i] < idn[j];
+    return tstopn[i] < tstopn[j];
+  });
+
+  idn = idn[order];
+  stratumn = stratumn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  offsetn = offsetn[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+
+  // exclude observations with missing values
+  LogicalVector sub(n,1);
+  for (int i=0; i<n; ++i) {
+    if (stratumn[i] == NA_INTEGER || idn[i] == NA_INTEGER ||
+        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
+        std::isnan(offsetn[i])) {
+      sub[i] = 0;
+    }
+    for (int j=0; j<p; ++j) {
+      if (std::isnan(zn(i,j))) sub[i] = 0;
+    }
+  }
+
+  order = which(sub);
+  stratumn = stratumn[order];
+  offsetn = offsetn[order];
+  idn = idn[order];
+  tstartn = tstartn[order];
+  tstopn = tstopn[order];
+  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  n = sum(sub);
+  if (n == 0) stop("no observations left after removing missing values");
+
+  // risk score
+  NumericVector risk(n);
+  for (int i=0; i<n; ++i) {
+    double val = offsetn[i];
+    for (int j=0; j<p; ++j) {
+      val += beta[j]*zn(i,j);
+    }
+    risk[i] = std::exp(val);
+  }
+
+  // count number of observations for each id
+  IntegerVector idx(1,0);
+  for (int i=1; i<n; ++i) {
+    if (idn[i] != idn[i-1]) {
+      idx.push_back(i);
+    }
+  }
+
+  int nids = static_cast<int>(idx.size());
+  idx.push_back(n);
+
+  int N = nids*n0; // upper bound on the number of rows in the output
+  NumericVector time(N);
+  NumericVector nrisk(N), nevent(N), ncensor(N);
+  NumericVector cumhaz(N), vcumhaz(N), secumhaz(N);
+  IntegerVector strata(N);
+  NumericMatrix z(N,p);
+  IntegerVector ids(N);
+
+  // process by id
+  int l = 0;
+  for (int h=0; h<nids; ++h) {
+    IntegerVector q1 = Range(idx[h], idx[h+1]-1);
+    int n1 = static_cast<int>(q1.size());
+
+    IntegerVector id2 = idn[q1];
+    IntegerVector stratum2 = stratumn[q1];
+    NumericVector tstart2 = tstartn[q1];
+    NumericVector tstop2 = tstopn[q1];
+    NumericVector risk2 = risk[q1];
+    NumericMatrix z2 = subset_matrix_by_row(zn, q1);
+    tstop2.push_front(tstart2[0]);
+
+    // match the stratum in basehaz
+    IntegerVector idx1 = which(stratumn0 == stratum2[0]);
+    NumericVector time01 = time0[idx1];
+
+    // left-open and right-closed intervals containing the event time
+    IntegerVector idx2 = findInterval3(time01, tstop2, 0, 0, 1);
+    IntegerVector sub = which((idx2 >= 1) & (idx2 <= n1));
+    int m1 = sub.size();
+
+    if (m1 != 0) {
+      IntegerVector idx3 = idx1[sub];
+      NumericVector time1 = time0[idx3];
+      NumericVector nrisk1 = nrisk0[idx3];
+      NumericVector nevent1 = nevent0[idx3];
+      NumericVector ncensor1 = ncensor0[idx3];
+      NumericVector haz1 = haz0[idx3];
+
+      IntegerVector idx4 = idx2[sub];
+      idx4 = idx4 - 1; // change to 0-1 indexing
+
+      // cumulative hazards
+      for (int i=0; i<m1; ++i) {
+        int r = l + i;
+        time[r] = time1[i];
+        nrisk[r] = nrisk1[i];
+        nevent[r] = nevent1[i];
+        ncensor[r] = ncensor1[i];
+
+        int k = idx4[i];
+        ids[r] = id2[k];
+        strata[r] = stratum2[k];
+        for (int j=0; j<p; ++j) {
+          z(r,j) = z2(k,j);
+        }
+
+        if (i==0) {
+          cumhaz[r] = haz1[i]*risk2[k];
+        } else {
+          cumhaz[r] = cumhaz[r-1] + haz1[i]*risk2[k];
+        }
+      }
+
+      if (sefit) {
+        NumericVector vhaz1 = vhaz0[idx3];
+        NumericMatrix ghaz1(m1,p);
+        for (int j=0; j<p; ++j) {
+          for (int i=0; i<m1; ++i) {
+            ghaz1(i,j) = ghaz0(idx3[i],j);
+          }
+        }
+
+        NumericMatrix a(m1,p);
+        for (int j=0; j<p; ++j) {
+          for (int i=0; i<m1; ++i) {
+            int k = idx4[i];
+            if (i==0) {
+              a(i,j) = (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
+            } else {
+              a(i,j) = a(i-1,j) + (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
+            }
+          }
+        }
+
+        // calculate the first component of variance
+        for (int i=0; i<m1; ++i) {
+          int r = l + i;
+          int k = idx4[i];
+          if (i==0) {
+            vcumhaz[r] = vhaz1[i]*risk2[k]*risk2[k];
+          } else {
+            vcumhaz[r] = vcumhaz[r-1] + vhaz1[i]*risk2[k]*risk2[k];
+          }
+        }
+
+        // add the second component of variance
+        for (int i=0; i<m1; ++i) {
+          int r = l + i;
+          for (int j=0; j<p; ++j) {
+            for (int k=0; k<p; ++k) {
+              vcumhaz[r] += a(i,j)*vbeta(j,k)*a(i,k);
+            }
+          }
+          secumhaz[r] = std::sqrt(vcumhaz[r]);
+        }
+      }
+
+      l += m1;
+    }
+  }
+
+  IntegerVector sub2 = Range(0,l-1);
+  time = time[sub2];
+  nrisk = nrisk[sub2];
+  nevent = nevent[sub2];
+  ncensor = ncensor[sub2];
+  cumhaz = cumhaz[sub2];
+  secumhaz = secumhaz[sub2];
+  strata = strata[sub2];
+  z = subset_matrix_by_row(z, sub2);
+  ids = ids[sub2];
+
+  NumericVector surv = std::exp(-cumhaz);
+
+  DataFrame result = DataFrame::create(
+    _["time"] = time,
+    _["nrisk"] = nrisk,
+    _["nevent"] = nevent,
+    _["ncensor"] = ncensor,
+    _["cumhaz"] = cumhaz,
+    _["surv"] = surv);
+
+  if (sefit) {
+    NumericVector sesurv = surv*secumhaz;
+
+    NumericVector lower(l), upper(l);
+    for (int i=0; i<l; ++i) {
+      NumericVector ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
+      lower[i] = ci[0];
+      upper[i] = ci[1];
+    }
+
+    result.push_back(sesurv, "sesurv");
+    result.push_back(lower, "lower");
+    result.push_back(upper, "upper");
+    result.push_back(conflev, "conflev");
+    result.push_back(ct, "conftype");
+  }
+
+  for (int j=0; j<p; ++j) {
+    NumericVector u = z(_,j);
+    String zj = covariates[j];
+    result.push_back(u, zj);
+  }
+
+  if (has_stratum) {
+    for (int i=0; i<p_stratum; ++i) {
+      std::string s = as<std::string>(stratum[i]);
+      SEXP col = u_stratum0[s];
+      SEXPTYPE col_type = TYPEOF(col);
+      if (col_type == INTSXP) {
+        IntegerVector v = col;
+        result.push_back(v[strata], s);
+      } else if (col_type == REALSXP) {
+        NumericVector v = col;
+        result.push_back(v[strata], s);
+      } else if (col_type == STRSXP) {
+        StringVector v = col;
+        result.push_back(v[strata], s);
+      } else {
+        stop("Unsupported type for stratum variable: " + s);
+      }
+    }
+  }
+
+  if (has_id) {
+    SEXP col = newdata[id];
+    SEXPTYPE col_type = TYPEOF(col);
+    if (col_type == INTSXP) {
+      result.push_back(idwi[ids], id);
+    } else if (col_type == REALSXP) {
+      result.push_back(idwn[ids], id);
+    } else if (col_type == STRSXP) {
+      result.push_back(idwc[ids], id);
+    } else {
+      stop("incorrect type for the id variable in newdata");
+    }
+  }
+
+  return result;
+}
 // 
 // // schoenfeld residuals
 // List f_ressch(int p, const NumericVector& par, void *ex) {

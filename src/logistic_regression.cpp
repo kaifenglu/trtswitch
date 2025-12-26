@@ -27,33 +27,41 @@ struct logparams {
 };
 
 // --------------------------- f_der_0 (log-likelihood, score, information) ----
-//
-// Major changes:
-// - Use FlatMatrix for design matrix access (column-major).
-// - Use FlatMatrix for information matrix (p x p, column-major).
-// - Organize eta computation and inner loops to use column-major accesses where beneficial.
-//
 ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   logparams *param = (logparams *) ex;
-  int n = param->n;
-
+  const int n = param->n;
+  const int link_code = param->link_code;
+  const std::vector<double>& yv = param->y;
+  const double* zptr = param->z.data_ptr(); // column-major: column j starts at zptr + j*n
+  const std::vector<double>& freq = param->freq;
+  const std::vector<double>& weight = param->weight;
+  std::vector<double> fwvec(n);  // freq * weight per observation
+  for (int i = 0; i < n; ++i) {
+    fwvec[i] = freq[i] * weight[i];
+  }
+  
   // compute linear predictor eta efficiently using column-major storage:
   std::vector<double> eta = param->offset; // initialize with offset
   // add contributions of each coefficient times column
   for (int i = 0; i < p; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    int off = i * n;
+    const double* zi = zptr + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * param->z.data[off + r];
+      eta[r] += beta * zi[r];
     }
   }
   
   double loglik = 0.0;
-  std::vector<double> score(p, 0.0);
-  // information matrix in column-major p x p
-  FlatMatrix imat(p, p);
+  std::vector<double> score(p);
+  FlatMatrix imat(p, p); // information matrix in column-major p x p
   
+  // Pre-allocate per-observation temporaries
+  std::vector<double> rvec(n); // fitted probabilities
+  std::vector<double> c1(n);   // contribution for score: f*w*(y - r) or variant per link
+  std::vector<double> c2(n);   // contribution for information: f*w*var-like term
+
+  // firth temporaries
   std::vector<double> pi, d, a, b;
   if (firth) {
     pi.assign(n, 0.0);
@@ -61,52 +69,32 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     a.assign(n, 0.0);
     b.assign(n, 0.0);
   }
-  // --- replace the "per-observation temporaries" / person loop + score/imat updates
-  // with this column-major friendly two-phase accumulation:
-  
-  // assume earlier in f_der_0 we computed eta vector and declared:
-  // double loglik = 0.0;
-  // std::vector<double> score(pp, 0.0);
-  // FlatMatrix imat(p, p);  // column-major result
-  
-  // Pre-allocate per-observation temporaries
-  std::vector<double> rvec(n);     // fitted probabilities
-  std::vector<double> c1(n, 0.0);  // contribution for score: f*w*(y - r) or variant per link
-  std::vector<double> c2(n, 0.0);  // contribution for information: f*w*var-like term
-  
-  // short-hands to avoid repeated member access
-  const double* zptr = param->z.data_ptr();    // column-major: column j starts at zptr + j*n
-  const std::vector<double>& freqv = param->freq;
-  const std::vector<double>& wtv = param->weight;
-  const std::vector<double>& yv   = param->y;
   
   // 1) single pass over observations: compute r, loglik, c1, c2 (+ firth temporaries)
   for (int person = 0; person < n; ++person) {
-    double f = freqv[person];
-    double w = wtv[person];
+    double fw = fwvec[person];
     double y = yv[person];
     double et = eta[person];
     
-    if (param->link_code == 1) {                // logit
+    if (link_code == 1) {                // logit
       double r = boost_plogis(et);
       rvec[person] = r;
-      loglik += f * w * (y * et + std::log(1.0 - r));
-      c1[person] = f * w * (y - r);
-      c2[person] = f * w * r * (1.0 - r);
+      loglik += fw * (y * et + std::log(1.0 - r));
+      c1[person] = fw * (y - r);
+      c2[person] = fw * r * (1.0 - r);
       if (firth) {
         pi[person] = r;
         d[person]  = 1.0;
         a[person]  = r * (1.0 - r);
         b[person]  = 1.0 - 2.0 * r;
       }
-    } else if (param->link_code == 2) {         // probit
+    } else if (link_code == 2) {         // probit
       double r = boost_pnorm(et);
       double phi = boost_dnorm(et);
       rvec[person] = r;
-      // keep original loglik expression used previously for probit case
-      loglik += f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
-      c1[person] = f * w * (y - r) * (phi / (r * (1.0 - r)));
-      c2[person] = f * w * (phi * phi / (r * (1.0 - r)));
+      loglik += fw * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
+      c1[person] = fw * (y - r) * (phi / (r * (1.0 - r)));
+      c2[person] = fw * (phi * phi / (r * (1.0 - r)));
       if (firth) {
         double dphi = -et;
         pi[person] = r;
@@ -118,9 +106,9 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
       double r = boost_pextreme(et);
       double phi = boost_dextreme(et);
       rvec[person] = r;
-      loglik += f * w * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
-      c1[person] = f * w * (y - r) * (phi / (r * (1.0 - r)));
-      c2[person] = f * w * (phi * phi / (r * (1.0 - r)));
+      loglik += fw * (y * std::log(r / (1.0 - r)) + std::log(1.0 - r));
+      c1[person] = fw * (y - r) * (phi / (r * (1.0 - r)));
+      c2[person] = fw * (phi * phi / (r * (1.0 - r)));
       if (firth) {
         double dphi = 1 - std::exp(et);
         pi[person] = r;
@@ -173,17 +161,16 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     // precompute per-person scalar c[k] = f * w * a[k]
     std::vector<double> c(n);
     for (int person = 0; person < n; ++person) {
-      c[person] = param->freq[person] * param->weight[person] * a[person];
+      c[person] = fwvec[person] * a[person];
     }
     
     FlatMatrix xwx(p, p); // data initially zeroed by constructor
-    const double* Zptr = param->z.data_ptr(); // column-major: col c starts at Zptr + c*n
     
     // compute lower triangle (i >= j) using column-major access
     for (int i = 0; i < p; ++i) {
-      const double* zi = Zptr + i * n;        // Z(:, i)
+      const double* zi = zptr + i * n;        // Z(:, i)
       for (int j = 0; j <= i; ++j) {
-        const double* zj = Zptr + j * n;      // Z(:, j)
+        const double* zj = zptr + j * n;      // Z(:, j)
         double sum = 0.0;
         // inner loop reads zi[k] and zj[k] contiguously
         for (int k = 0; k < n; ++k) {
@@ -202,41 +189,36 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     
     // compute inverse of xwx as FlatMatrix
     FlatMatrix var = invsympd(xwx, p);
+    const double* vptr = var.data_ptr();
     
-    // 1) compute M = Z * var  (n x p)
-    FlatMatrix M = mat_mat_mult(param->z, var); // M: n x p
-    const double* Mptr = M.data_ptr();
-    
-    // 2) compute h0[r] = sum_j M(r,j) * Z(r,j)
     std::vector<double> h0(n, 0.0);
-    for (int j = 0; j < p; ++j) {
-      const double* Mcol = Mptr + j * n;
-      const double* Zcol = Zptr + j * n;
-      for (int i = 0; i < n; ++i) {
-        h0[i] += Mcol[i] * Zcol[i];
+    for (int k = 0; k < p; ++k) {
+      const double* zk = zptr + k * n;   // column k of Z
+      const double* vk = vptr + k * p;   // column k of var
+      for (int j = 0; j < p; ++j) {
+        const double* zj = zptr + j * n; // column j of Z
+        const double v = vk[j];          // var(j, k)
+        for (int i = 0; i < n; ++i) {
+          h0[i] += v * zj[i] * zk[i];
+        }
       }
     }
     
-    // 3) compute u[r] = f*w*resid*d + 0.5*b*(f*w*a*h0)
+    // compute u[r] = f*w*resid*d + 0.5*b*(f*w*a*h0)
     std::vector<double> u(n);
-    const std::vector<double>& freqv = param->freq;
-    const std::vector<double>& wtv  = param->weight;
-    const std::vector<double>& yv   = param->y;
     for (int i = 0; i < n; ++i) {
-      double f = freqv[i];
-      double w = wtv[i];
+      double fw = fwvec[i];
       double resid = yv[i] - pi[i];
-      double h_scaled = h0[i] * f * w * a[i];
-      double part1 = f * w * resid * d[i];
-      u[i] = part1 + 0.5 * b[i] * h_scaled;
+      double h_scaled = h0[i] * fw * a[i];
+      u[i] = fw * resid * d[i] + 0.5 * b[i] * h_scaled;
     }
     
-    // 4) compute g = Z^T * u
+    // compute g = Z^T * u
     std::vector<double> g(p, 0.0); 
     for (int j = 0; j < p; ++j) { 
-      const double* Zcol = Zptr + j * n; // Z(:, j) 
+      const double* zj = zptr + j * n; // Z(:, j) 
       double sum = 0.0; 
-      for (int i = 0; i < n; ++i) sum += u[i] * Zcol[i]; 
+      for (int i = 0; i < n; ++i) sum += u[i] * zj[i]; 
       g[j] = sum;
     }
     
@@ -257,35 +239,36 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
 }
 
 
-
 // --------------------------- f_ressco_0 (score residuals) --------------------
 // Returns an n x p FlatMatrix (column-major), where entry (r, c) equals 
 // residual for observation r and covariate c.
 FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
   logparams *param = (logparams *) ex;
-  int n = param->n;
-
+  const int n = param->n;
+  const int link_code = param->link_code;
+  const std::vector<double>& yv = param->y;
+  const double* zptr = param->z.data_ptr();    // column-major: column j starts at zptr + j*n
+  
   // compute eta similarly to f_der_0
   std::vector<double> eta = param->offset;
   for (int i = 0; i < p; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    int off = i * n;
+    const double* zi = zptr + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * param->z.data[off + r];
+      eta[r] += beta * zi[r];
     }
   }
   
   FlatMatrix resid(n, p);
-  const double* zptr = param->z.data_ptr();
   double* rptr = resid.data_ptr(); 
   
-  switch (param->link_code) {
+  switch (link_code) {
   case 1: { // logit
     std::vector<double> v(n);
     for (int person = 0; person < n; ++person) {
       double r = boost_plogis(eta[person]);
-      v[person] = param->y[person] - r;
+      v[person] = yv[person] - r;
     }
     
     for (int i = 0; i < p; ++i) {
@@ -305,7 +288,7 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
       double r = boost_pnorm(eta[person]);
       double phi = boost_dnorm(eta[person]);
       double d = phi / (r * (1.0 - r));
-      double v = param->y[person] - r;
+      double v = yv[person] - r;
       vd[person] = v * d;
     }
     
@@ -325,7 +308,7 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
       double r = boost_pextreme(eta[person]);
       double phi = boost_dextreme(eta[person]);
       double d = phi / (r * (1.0 - r));
-      double v = param->y[person] - r;
+      double v = yv[person] - r;
       vd[person] = v * d;
     }
     
@@ -495,10 +478,7 @@ double logisregplloop(int p, const std::vector<double>& par,
   }
   
   if (iter == maxiter) fail = true;
-  if (fail) {
-    thread_utils::push_thread_warning("logisregplloop did not converge.");
-    return NaN;
-  }
+  if (fail) thread_utils::push_thread_warning("logisregplloop did not converge.");
   
   return newbeta[k];
 }
@@ -913,14 +893,10 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       int nr; // number of rows in the score residual matrix
       std::vector<double> freqr;
       if (!has_id) {
-        double* rptr = ressco.data_ptr();         // column-major base pointer
-        const double* wptr = weightn.data();      // pointer to weights
-        
         for (int j = 0; j < p; ++j) {
-          double* colptr = rptr + j * n;    // start of column j
-          // inner loop reads/writes contiguous memory -> good locality & vectorization
+          const int coloff = j * n;    // start of column j
           for (int i = 0; i < n; ++i) {
-            colptr[i] *= wptr[i];
+            ressco.data[coloff + i] *= weightn[i];
           }
         }
         
@@ -933,10 +909,10 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           return idn[i] < idn[j];
         });
         
-        std::vector<int> id2 = subset(idn, order);
+        std::vector<int> id1 = subset(idn, order);
         std::vector<int> idx(1,0);
         for (int i=1; i<n; ++i) {
-          if (id2[i] != id2[i-1]) {
+          if (id1[i] != id1[i-1]) {
             idx.push_back(i);
           }
         }
@@ -944,67 +920,50 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         int nids = static_cast<int>(idx.size());
         idx.push_back(n);
         
-        std::vector<double> weight2 = subset(weightn, order);
-        std::vector<double> freq2 = subset(freqn, order);
-        std::vector<double> freqr0(nids); // cluster frequency
         
-        FlatMatrix ressco2(nids, p);
-        // raw pointers for fastest access
-        const double* src_ptr = ressco.data_ptr();     // column-major: col*nrows + row
-        double* dst_ptr = ressco2.data_ptr();          // column-major: col*nids + row
-        const double* wptr = weight2.data();
-        const int* order_ptr = order.data();           // if order is vector<int>
-        const int* idx_ptr = idx.data();               // idx length must be nids+1
-        
-        // For each column, walk source column contiguously and accumulate grouped sums
+        FlatMatrix ressco1(nids, p);
         for (int j = 0; j < p; ++j) {
-          const double* src_col = src_ptr + j * n;   // start of ressco(:,j)
-          double* dst_col = dst_ptr + j * nids;       // start of ressco2(:,j)
-          
+          const int coloff = j * n;           // start of ressco(:,j)
+          const int coloff1 = j * nids;       // start of ressco1(:,j)
           for (int i = 0; i < nids; ++i) {
             double sum = 0.0;
-            int kstart = idx_ptr[i];
-            int kend = idx_ptr[i + 1];
-            // accumulate weight2[k] * ressco[ order[k] , j ]
-            for (int k = kstart; k < kend; ++k) {
-              sum += wptr[k] * src_col[order_ptr[k]];
+            for (int k = idx[i]; k < idx[i+1]; ++k) {
+              int row = order[k];
+              sum += weightn[row] * ressco.data[coloff + row];
             }
-            dst_col[i] = sum;
+            ressco1.data[coloff1 + i] = sum;
           }
         }
         
+        std::vector<double> freq1(nids); // cluster frequency
         for (int i=0; i<nids; ++i) {
-          freqr0[i] = freq2[idx_ptr[i]];
+          freq1[i] = freqn[order[idx[i]]];
         }
         
         // update the score residuals
-        ressco = std::move(ressco2);  
+        ressco = std::move(ressco1);  
         nr = nids;
-        freqr = std::move(freqr0);
+        freqr = std::move(freq1);
       }
       
       FlatMatrix D = mat_mat_mult(ressco, vb);
-
+      
       const double* Dptr = D.data_ptr();      // Dcol_j starts at Dptr + j*nr_sz
       double* rvbptr     = rvb.data_ptr();    // rvbcol_k starts at rvbptr + k*p
-      const double* fptr = freqr.data();
       
-      // compute only upper triangle j <= k
       // rvb(j,k) corresponds to rvbptr[k*p + j] because column-major: column k, row j
       for (int j = 0; j < p; ++j) {
         const double* Dj = Dptr + j * nr;          // pointer to D(:,j)
-        for (int k = j; k < p; ++k) {
+        for (int k = 0; k <= j; ++k) {
           const double* Dk = Dptr + k * nr;        // pointer to D(:,k)
           double sum = 0.0;
           // inner loop reads Dj[i] and Dk[i] contiguously
           for (int i = 0; i < nr; ++i) {
-            sum += fptr[i] * Dj[i] * Dk[i];
+            sum += freqr[i] * Dj[i] * Dk[i];
           }
           // write into rvb(j,k) and mirror
           rvbptr[k * p + j] = sum;                // rvb(j,k)
-          if (k != j) {
-            rvbptr[j * p + k] = sum;              // rvb(k,j) = rvb(j,k)  (mirror)
-          }
+          if (j != k) rvbptr[j * p + k] = sum;    // rvb(k,j) = rvb(j,k)  (mirror)
         }
       }
       

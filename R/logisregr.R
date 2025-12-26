@@ -235,7 +235,6 @@ logisregr <- function(data, event = "event", covariates = "",
   rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
   if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
-  rownames(df) <- NULL
 
   # Determine if covariates were provided (empty string or NULL means no covariates)
   misscovariates <- length(covariates) == 0 || 
@@ -243,10 +242,10 @@ logisregr <- function(data, event = "event", covariates = "",
   
   # build design matrix and extract variable names
   if (misscovariates) {
-    t1 = terms(formula("~1"))
-    param = "(Intercept)"
-    varnames = character(0)
-    xlevels = NULL
+    t1 <- terms(formula("~1"))
+    param <- "(Intercept)"
+    varnames <- character(0)
+    xlevels <- NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
     
@@ -262,8 +261,8 @@ logisregr <- function(data, event = "event", covariates = "",
       # This avoids model.matrix and is valid when covariates are simple numeric columns.
       param <- c("(Intercept)", covariates)
       varnames <- covariates
-      t1 = terms(fml_cov)
-      xlevels = NULL      
+      t1 <- terms(fml_cov)
+      xlevels <- NULL      
     } else {
       # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
       mf <- model.frame(fml_cov, data = df, na.action = na.pass)
@@ -271,14 +270,12 @@ logisregr <- function(data, event = "event", covariates = "",
       param <- colnames(mm)
       colnames(mm) <- make.names(colnames(mm))
       varnames <- colnames(mm)[-1]
-      t1 = terms(fml_cov)
-      xlevels = mf$xlev
+      t1 <- terms(fml_cov)
+      xlevels <- mf$xlev
       # copy model-matrix columns into df only if they are missing
-      if (length(varnames) > 0) {
-        missing_cols <- setdiff(varnames, names(df))
-        if (length(missing_cols) > 0) {
-          for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
-        }
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
       }
     }
   }

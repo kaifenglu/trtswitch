@@ -1577,13 +1577,10 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       
       int nr; // number of rows in the score residual matrix
       if (!has_id) { // no clustering, just weight the score residuals
-        const double *wptr = weightn.data();
-        double *resscoptr = ressco.data_ptr();
-        
         for (int j = 0; j < p; ++j) {
-          double* colptr = resscoptr + j * n1;
+          const int coloff = j * n1;
           for (int i = 0; i < n1; ++i) {
-            colptr[i] *= wptr[i];
+            ressco.data[coloff + i] *= weightn[i];
           }
         }
         nr = n1;
@@ -1605,14 +1602,15 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         
         FlatMatrix ressco1(nids, p); // score residuals summed by id
         for (int j = 0; j < p; ++j) {
-          const int coloff = j * nids;
+          const int coloff = j * n1;
+          const int coloff1 = j * nids;
           for (int i = 0; i < nids; ++i) {
             double sum = 0.0;
             for (int k = idx[i]; k < idx[i+1]; ++k) {
               int row = order[k];
-              sum  += weightn[row] * ressco(row,j);
+              sum  += weightn[row] * ressco.data[coloff + row];
             }
-            ressco1.data[coloff + i] = sum;
+            ressco1.data[coloff1 + i] = sum;
           }
         }
         
