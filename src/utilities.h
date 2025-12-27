@@ -124,14 +124,6 @@ std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table,
   return result;
 }
 
-template <typename T>
-void print_vector(const std::vector<T>& vec, const std::string& label = "") {
-  if (!label.empty()) std::cout << label << ": ";
-  std::copy(vec.begin(), vec.end(), std::ostream_iterator<T>(std::cout, " "));
-  std::cout << std::endl;
-}
-
-
 // bygroup: process grouping variables and return indices and lookup tables
 ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables);
 
@@ -201,5 +193,83 @@ ListCpp getpsiest(double target,
 
 double getpsiend(const std::function<double(double)>& f,
                  bool lowerend, double initialend);
+
+
+
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <type_traits>
+
+// Print a std::vector<T> to std::cout.
+// Requirements: T must be streamable via operator<< to std::ostream.
+//
+// Parameters:
+//  - v: vector to print
+//  - label: optional prefix printed before the vector
+//  - precision: if >= 0, sets std::fixed and std::setprecision(precision) for floating values
+//  - head: number of leading elements to show when truncated
+//  - tail: number of trailing elements to show when truncated
+//  - sep: separator between elements (default ", ")
+//  - show_indices: if true prints each element as "idx: value"
+//  - endline: whether to append a newline at the end (true by default)
+template <typename T>
+void print_vector(const std::vector<T>& v,
+                  const std::string& label = "",
+                  int precision = -1,
+                  std::size_t head = 5,
+                  std::size_t tail = 5,
+                  const std::string& sep = ", ",
+                  bool show_indices = false,
+                  bool endline = true) {
+  static_assert(
+    std::is_convertible<decltype(std::declval<std::ostream&>() << std::declval<T>()), std::ostream&>::value,
+                                              "Type T must be streamable to std::ostream (operator<<)");
+  std::ostringstream ss;
+  if (!label.empty()) ss << label << ": ";
+  
+  std::size_t n = v.size();
+  if (n == 0) {
+    ss << "[]";
+    if (endline) ss << '\n';
+    std::cout << ss.str();
+    return;
+  }
+  
+  // Configure precision only if requested
+  bool use_precision = (precision >= 0);
+  if (use_precision) ss << std::fixed << std::setprecision(precision);
+  
+  ss << "[";
+  auto print_elem = [&](std::size_t i) {
+    if (show_indices) ss << i << ": ";
+    ss << v[i];
+  };
+  
+  if (n <= head + tail || head + tail == 0) {
+    for (std::size_t i = 0; i < n; ++i) {
+      if (i) ss << sep;
+      print_elem(i);
+    }
+  } else {
+    // print head
+    for (std::size_t i = 0; i < head; ++i) {
+      if (i) ss << sep;
+      print_elem(i);
+    }
+    ss << sep << "..." << sep;
+    // print tail
+    for (std::size_t j = n - tail; j < n; ++j) {
+      if (j != n - tail) ss << sep;
+      print_elem(j);
+    }
+  }
+  ss << "]";
+  if (endline) ss << '\n';
+  
+  std::cout << ss.str();
+}
+
 
 #endif // __UTILITIES_H__

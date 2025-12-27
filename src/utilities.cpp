@@ -312,9 +312,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
         indices(r, i) = idx[r];
       }
       
-      DataFrameCpp df_uv;
-      df_uv.push_back(w, var);
-      lookups_per_variable.push_back(std::move(df_uv), var);
+      lookups_per_variable.push_back(std::move(w), var);
       
     } else if (data.numeric_cols.count(var)) {
       const auto& col = data.numeric_cols.at(var);
@@ -330,9 +328,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
         indices(r, i) = idx[r];
       }
       
-      DataFrameCpp df_uv;
-      df_uv.push_back(w, var);
-      lookups_per_variable.push_back(std::move(df_uv), var);
+      lookups_per_variable.push_back(std::move(w), var);
       
     } else if (data.bool_cols.count(var)) {
       const auto& col = data.bool_cols.at(var);
@@ -348,9 +344,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
         indices(r, i) = idx[r];
       }
       
-      DataFrameCpp df_uv;
-      df_uv.push_back(w, var);
-      lookups_per_variable.push_back(std::move(df_uv), var);
+      lookups_per_variable.push_back(std::move(w), var);
       
     } else if (data.string_cols.count(var)) {
       const auto& col = data.string_cols.at(var);
@@ -366,9 +360,7 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
         indices(r, i) = idx[r];
       }
       
-      DataFrameCpp df_uv;
-      df_uv.push_back(w, var);
-      lookups_per_variable.push_back(std::move(df_uv), var);
+      lookups_per_variable.push_back(std::move(w), var);
       
     } else {
       throw std::invalid_argument("Unsupported variable type in bygroup: " + var);

@@ -79,8 +79,57 @@ residuals_liferegr <- function(
                    "working", "ldcase", "ldresp", "ldshape", "matrix"),
     collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
   
-  if (!inherits(object, "liferegr"))
-    stop("object must be of class 'liferegr'");
+  if (!inherits(object, "liferegr")) stop("object must be of class 'liferegr'");
+  
+  p <- object$p
+  df <- object$settings$data
+  stratum <- object$settings$stratum
+  covariates <- object$settings$covariates
+  weight <- object$settings$weight
+  offset <- object$settings$offset
+  id <- object$settings$id
+  
+  elements <- unique(c(stratum, covariates, weight, offset, id))
+  elements <- elements[elements != ""]
+  if (!(length(elements) == 0)) {
+    fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+    var_all <- all.vars(fml_all)
+    rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+    if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+    df <- df[rows_ok, , drop = FALSE]
+  }
+  
+  misscovariates <- length(covariates) == 0 || 
+    (length(covariates) == 1 && (covariates[1] == ""))
+  
+  if (!misscovariates) {
+    fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
+    
+    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
+    cov_present <- covariates %in% names(df)
+    all_numeric <- FALSE
+    if (all(cov_present)) {
+      all_numeric <- all(vapply(df[ covariates ], is.numeric, logical(1)))
+    }
+    
+    if (all_numeric) {
+      # Build design columns directly from numeric covariates (intercept + columns)
+      # This avoids model.matrix and is valid when covariates are simple numeric columns.
+      varnames <- covariates
+    } else {
+      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
+      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
+      mm <- model.matrix(fml_cov, mf)
+      colnames(mm) = make.names(colnames(mm))
+      varnames = colnames(mm)[-1]
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
+      }
+    }
+  } else {
+    varnames <- ""
+  }
   
   type <- match.arg(type)
   
@@ -94,15 +143,15 @@ residuals_liferegr <- function(
   
   rr = residuals_liferegRcpp(beta = object$beta,
                              vbeta = vv,
-                             data = object$settings$data,
-                             stratum = object$settings$stratum,
+                             data = df,
+                             stratum = stratum,
                              time = object$settings$time,
                              time2 = object$settings$time2,
                              event = object$settings$event,
-                             covariates = object$settings$covariates,
-                             weight = object$settings$weight,
-                             offset = object$settings$offset,
-                             id = object$settings$id,
+                             covariates = varnames,
+                             weight = weight,
+                             offset = offset,
+                             id = id,
                              dist = object$settings$dist,
                              type = type,
                              collapse = collapse,

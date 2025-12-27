@@ -96,7 +96,7 @@
 #' @export
 survfit_phregr <- function(object, newdata, sefit = TRUE,
                            conftype = "log-log", conflev = 0.95) {
-
+  
   if (!inherits(object, "phregr")) stop("object must be of class 'phregr'");
   
   p <- object$p
@@ -107,14 +107,14 @@ survfit_phregr <- function(object, newdata, sefit = TRUE,
     beta <- object$beta
     vbeta <- object$vbeta
   }
-
+  
   basehaz <- object$basehaz
-
+  
   covariates <- object$settings$covariates
   stratum <- object$settings$stratum
   offset <- object$settings$offset
   id <- object$settings$id
-
+  
   if (id != "") {
     tstart <- object$settings$time
     tstop <- object$settings$time2
@@ -122,38 +122,41 @@ survfit_phregr <- function(object, newdata, sefit = TRUE,
     tstart <- ""
     tstop <- ""
   }
-
-  nvar <- length(covariates)
-  if (nvar == 0 || (nvar == 1 && covariates[1] == "")) {
-    p1 <- 0
-  } else {
-    fml_cov <- formula(paste("~", paste(covariates, collapse = "+")))
-    p1 <- length(all.vars(fml_cov))
+  
+  misscovariates <- length(covariates) == 0 || 
+    (length(covariates) == 1 && (covariates[1] == ""))
+  
+  if (misscovariates && !(missing(newdata) || is.null(newdata))) {
+    stop("covariates must be specified when newdata is available")
   }
-
-  if (p >= 1 && p1 >= 1 && !(missing(newdata) || is.null(newdata))) {
+  
+  if (!(missing(newdata) || is.null(newdata))) {
     df <- newdata
-    mf <- model.frame(fml_cov, data = df, na.action = na.pass, xlev = object$xlevels)
-    mm <- model.matrix(fml_cov, mf)
-    colnames(mm) <- make.names(colnames(mm))
-    varnames <- colnames(mm)[-1]
-    missing_cols <- setdiff(varnames, names(df))
-    if (length(missing_cols) > 0) {
-      for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
+    fml_cov <- formula(paste("~", paste(covariates, collapse = "+")))
+    
+    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
+    cov_present <- covariates %in% names(df)
+    all_numeric <- FALSE
+    if (all(cov_present)) {
+      all_numeric <- all(vapply(df[ covariates ], is.numeric, logical(1)))
+    }
+    
+    if (all_numeric) {
+      # Build design columns directly from numeric covariates (intercept + columns)
+      # This avoids model.matrix and is valid when covariates are simple numeric columns.
+      varnames <- covariates
+    } else {
+      # Use model.matrix to handle factors and interactions
+      mf <- model.frame(fml_cov, data = df, na.action = na.pass, xlev = object$xlevels)
+      mm <- model.matrix(fml_cov, mf)
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
+      }
     }
   } else {
-    beta <- NA
-    vbeta <- NA
-    varnames <- ""
-  }
-
-  if (!is.matrix(vbeta)) vbeta <- as.matrix(vbeta)
-
-  if (missing(basehaz) || is.null(basehaz)) {
-    stop("basehaz must be provided")
-  }
-
-  if (missing(newdata) || is.null(newdata)) {
     if (p > 0) {
       stop("newdata must be provided for Cox models with covariates")
     } else {
@@ -164,8 +167,18 @@ survfit_phregr <- function(object, newdata, sefit = TRUE,
         df <- unique(basehaz[, stratum, drop = FALSE])
       }
     }
+    
+    beta <- NA
+    vbeta <- NA
+    varnames <- ""
   }
-
+  
+  if (!is.matrix(vbeta)) vbeta <- as.matrix(vbeta)
+  
+  if (missing(basehaz) || is.null(basehaz)) {
+    stop("basehaz must be provided")
+  }
+  
   survfit_phregRcpp(p = p, beta = beta, vbeta = vbeta, basehaz = basehaz,
                     newdata = df, covariates = varnames,
                     stratum = stratum, offset = offset, id = id,

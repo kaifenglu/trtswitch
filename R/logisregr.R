@@ -244,7 +244,7 @@ logisregr <- function(data, event = "event", covariates = "",
   if (misscovariates) {
     t1 <- terms(formula("~1"))
     param <- "(Intercept)"
-    varnames <- character(0)
+    varnames <- ""
     xlevels <- NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
@@ -333,9 +333,9 @@ logisregr <- function(data, event = "event", covariates = "",
   if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = df,
+    data = data,
     event = event,
-    covariates = varnames,
+    covariates = covariates,
     freq = freq,
     weight = weight,
     offset = offset,

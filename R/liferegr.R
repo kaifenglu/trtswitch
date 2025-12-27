@@ -245,7 +245,7 @@ liferegr <- function(data, stratum = "", time = "time", time2 = "",
   if (misscovariates) {
     t1 <- terms(formula("~1"))
     param <- "(Intercept)"
-    varnames <- character(0)
+    varnames <- ""
     xlevels <- NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
@@ -337,12 +337,12 @@ liferegr <- function(data, stratum = "", time = "time", time2 = "",
   if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = df, 
+    data = data, 
     stratum = stratum, 
     time = time, 
     time2 = time2,
     event = event, 
-    covariates = varnames, 
+    covariates = covariates, 
     weight = weight, 
     offset = offset,
     id = id, 

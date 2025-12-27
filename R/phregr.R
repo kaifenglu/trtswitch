@@ -257,7 +257,7 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
   if (misscovariates) {
     t1 <- terms(formula("~1"))
     param <- "(Intercept)"
-    varnames <- character(0)
+    varnames <- ""
     xlevels <- NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
