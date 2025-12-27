@@ -1687,7 +1687,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
   }
   
   if (est_basehaz) {
-    ListCpp basehaz;
+    DataFrameCpp basehaz;
     basehaz.push_back(std::move(dtime), "time");
     basehaz.push_back(std::move(dnrisk), "nrisk");
     basehaz.push_back(std::move(dnevent), "nevent");
@@ -1703,15 +1703,15 @@ ListCpp phregcpp(const DataFrameCpp& data,
         if (u_stratum.int_cols.count(s)) {
           auto v = u_stratum.get<int>(s);
           subset_in_place(v, dstratum);
-          result.push_back(std::move(v), s);
+          basehaz.push_back(std::move(v), s);
         } else if (u_stratum.numeric_cols.count(s)) {
           auto v = u_stratum.get<double>(s);
           subset_in_place(v, dstratum);
-          result.push_back(std::move(v), s);
+          basehaz.push_back(std::move(v), s);
         } else if (u_stratum.string_cols.count(s)) {
           auto v = u_stratum.get<std::string>(s);
           subset_in_place(v, dstratum);
-          result.push_back(std::move(v), s);
+          basehaz.push_back(std::move(v), s);
         } else {
           throw std::invalid_argument("unsupported type for stratum variable " + s);
         }
@@ -1800,14 +1800,14 @@ DataFrameCpp survfit_phregcpp(const int p,
   std::vector<int> stratumn0(n0);
   DataFrameCpp u_stratum0;
   std::vector<int> nlevels;
-  ListCpp& lookups;
+  ListPtr lookups_ptr;
   int p_stratum = static_cast<int>(stratum.size());
   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
     ListCpp out = bygroup(basehaz, stratum);
     stratumn0 = out.get<std::vector<int>>("index");
     u_stratum0 = out.get<DataFrameCpp>("lookup");
     nlevels = out.get<std::vector<int>>("nlevels");
-    lookups = out.get_list("lookups_per_variable");
+    lookups_ptr = out.get<ListPtr>("lookups_per_variable");
   }
 
   bool nullmodel = (p == 0 || (nvar == 1 && covariates[0] == ""));
@@ -1819,7 +1819,7 @@ DataFrameCpp survfit_phregcpp(const int p,
   FlatMatrix zn(n,p);
   for (int j = 0; j < p; ++j) {
     const std::string& zj = covariates[j];
-    if (!newdata.containElementNamed(zj)) 
+    if (!newdata.containElementNamed(zj))
       throw std::invalid_argument("newdata must contain the variables in covariates");
     if (newdata.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = newdata.get<unsigned char>(zj);
@@ -1838,19 +1838,19 @@ DataFrameCpp survfit_phregcpp(const int p,
     }
   }
 
-  bool has_stratum;
+  bool has_stratum = false;
   std::vector<int> stratumn(n);
-  if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-    has_stratum = false;
-  } else {
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
     has_stratum = true;
+    const ListCpp& lookups = *lookups_ptr;
+
     // match stratum in newdata to stratum in basehaz
     int orep = u_stratum0.nrows();
     for (int i = 0; i < p_stratum; ++i) {
       orep /= nlevels[i];
       std::string s = stratum[i];
       std::vector<int> idx;
-      
+
       if (newdata.bool_cols.count(s) || newdata.int_cols.count(s)) {
         std::vector<int> v;
         std::vector<int> w;
@@ -1879,13 +1879,13 @@ DataFrameCpp survfit_phregcpp(const int p,
       } else {
         throw std::invalid_argument("Unsupported type for stratum variable: " + s);
       }
-      
+
       for (int person = 0; person < n; ++person) {
-        stratumn[person] += idx[person] * orep; 
+        stratumn[person] += idx[person] * orep;
       }
     }
   }
-  
+
   std::vector<double> offsetn(n, 0.0);
   if (!offset.empty() && newdata.containElementNamed(offset)) {
     if (newdata.int_cols.count(offset)) {
@@ -1897,7 +1897,7 @@ DataFrameCpp survfit_phregcpp(const int p,
       throw std::invalid_argument("offset variable must be integer or numeric");
     }
   }
-  
+
   std::vector<double> time0 = basehaz.get<double>("time");
   std::vector<double> nrisk0 = basehaz.get<double>("nrisk");
   std::vector<double> nevent0 = basehaz.get<double>("nevent");
@@ -1937,14 +1937,14 @@ DataFrameCpp survfit_phregcpp(const int p,
       idn = matchcpp(v, idwc);
     } else throw std::invalid_argument("incorrect type for the id variable in newdata");
   }
-  
+
   // unify right-censoring data with counting process data
   std::vector<double> tstartn(n), tstopn(n);
   if (!has_id) { // right-censored data
     double maxt0 = *std::max_element(time0.begin(), time0.end()) + 1.0;
     std::fill(tstopn.begin(), tstopn.end(), maxt0);
   } else {
-    if (!newdata.containElementNamed(tstart)) 
+    if (!newdata.containElementNamed(tstart))
       throw std::invalid_argument("newdata must contain the tstart variable");
     std::vector<double> tstartn(n);
     if (newdata.int_cols.count(tstart)) {
@@ -1960,7 +1960,7 @@ DataFrameCpp survfit_phregcpp(const int p,
         throw std::invalid_argument("tstart must be nonnegative");
     }
 
-    if (!newdata.containElementNamed(tstop)) 
+    if (!newdata.containElementNamed(tstop))
       throw std::invalid_argument("newdata must contain the tstop variable");
     std::vector<double> tstopn(n);
     if (newdata.int_cols.count(tstop)) {
@@ -2013,7 +2013,7 @@ DataFrameCpp survfit_phregcpp(const int p,
   subset_in_place(tstopn, keep);
   if (p > 0) subset_in_place_flatmatrix(zn, keep);
   n = static_cast<int>(keep.size());
-  
+
   // risk score
   std::vector<double> eta = offsetn;
   for (int j = 0; j < p; ++j) {
@@ -2041,12 +2041,11 @@ DataFrameCpp survfit_phregcpp(const int p,
   idx.push_back(n);
 
   int N = nids*n0; // upper bound on the number of rows in the output
-  std::vector<double> time, nrisk, nevent, ncensor, cumhaz, vcumhaz, secumhaz;
-  std::vector<int> strata, ids;
-  time.reserve(N); nrisk.reserve(N); nevent.reserve(N); ncensor.reserve(N);
-  cumhaz.reserve(N); vcumhaz.reserve(N); secumhaz.reserve(N);
+  std::vector<double> time(N), nrisk(N), nevent(N), ncensor(N);
+  std::vector<double> cumhaz(N), vcumhaz(N), secumhaz(N);
+  std::vector<int> strata(N), ids(N);
   FlatMatrix z(N,p);
-  
+
   // process by id
   int l = 0;
   for (int h=0; h<nids; ++h) {
@@ -2059,10 +2058,11 @@ DataFrameCpp survfit_phregcpp(const int p,
     std::vector<double> tstop1 = subset(tstopn, q1);
     std::vector<double> risk1 = subset(risk, q1);
     FlatMatrix z1 = subset_flatmatrix(zn, q1);
-    
+
     std::vector<double> tstop2(n1 + 1);
+    tstop2[0] = tstart1[0];
     std::memcpy(tstop2.data() + 1, tstop1.data(), n1 * sizeof(double));
-    
+
     // match the stratum in basehaz
     std::vector<int> idx1;
     for (int i = 0; i < n0; ++i) {
@@ -2152,7 +2152,7 @@ DataFrameCpp survfit_phregcpp(const int p,
             }
           }
         }
-        
+
         for (int i=0; i<m1; ++i) {
           int r = l + i;
           secumhaz[r] = std::sqrt(vcumhaz[r]);
@@ -2163,11 +2163,22 @@ DataFrameCpp survfit_phregcpp(const int p,
     }
   }
 
+  std::vector q = seqcpp(0, l - 1);
+  subset_in_place(time, q);
+  subset_in_place(nrisk, q);
+  subset_in_place(nevent, q);
+  subset_in_place(ncensor, q);
+  subset_in_place(cumhaz, q);
+  subset_in_place(secumhaz, q);
+  subset_in_place(strata, q);
+  subset_in_place(ids, q);
+  subset_in_place_flatmatrix(z, q);
+
   std::vector<double> surv(l);
   for (int i = 0; i < l; ++i) {
     surv[i] = std::exp(-cumhaz[i]);
   }
-
+  
   DataFrameCpp result;
   result.push_back(std::move(time), "time");
   result.push_back(std::move(nrisk), "nrisk");
@@ -2175,7 +2186,7 @@ DataFrameCpp survfit_phregcpp(const int p,
   result.push_back(std::move(ncensor), "ncensor");
   result.push_back(std::move(cumhaz), "cumhaz");
   result.push_back(surv, "surv");
-
+  
   if (sefit) {
     std::vector<double> sesurv(l);
     for (int i = 0; i < l; ++i) {
@@ -2199,8 +2210,9 @@ DataFrameCpp survfit_phregcpp(const int p,
   for (int j=0; j<p; ++j) {
     std::string zj = covariates[j];
     std::vector<double> u(l);
+    const int off = j * l;
     for (int i=0; i<l; ++i) {
-      u[i] = z(i,j);
+      u[i] = z.data[off + i];
     }
     result.push_back(u, zj);
   }
@@ -2243,6 +2255,36 @@ DataFrameCpp survfit_phregcpp(const int p,
 
   return result;
 }
+
+
+// [[Rcpp::export]]
+Rcpp::DataFrame survfit_phregRcpp(const int p,
+                                  const std::vector<double>& beta,
+                                  const Rcpp::NumericMatrix& vbeta,
+                                  const Rcpp::DataFrame& basehaz,
+                                  const Rcpp::DataFrame& newdata,
+                                  const std::vector<std::string>& covariates,
+                                  const std::vector<std::string>& stratum,
+                                  const std::string& offset,
+                                  const std::string& id,
+                                  const std::string& tstart,
+                                  const std::string& tstop,
+                                  const bool sefit,
+                                  const std::string& conftype,
+                                  const double conflev) {
+  
+  FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
+  DataFrameCpp basehcpp = convertRDataFrameToCpp(basehaz);
+  DataFrameCpp newdfcpp = convertRDataFrameToCpp(newdata);
+  
+  DataFrameCpp cpp_result = survfit_phregcpp(
+    p, beta, vbetacpp, basehcpp, newdfcpp, covariates, stratum, 
+    offset, id, tstart, tstop, sefit, conftype, conflev);
+  
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
+}
+
 // 
 // // schoenfeld residuals
 // List f_ressch(int p, const NumericVector& par, void *ex) {

@@ -345,12 +345,12 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
   if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = df, 
+    data = data, 
     stratum = stratum, 
     time = time, 
     time2 = time2, 
     event = event, 
-    covariates = varnames,
+    covariates = covariates,
     weight = weight, 
     offset = offset, 
     id = id, 
