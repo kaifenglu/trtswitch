@@ -3,7 +3,7 @@
 #include <RcppThread.h>      // RcppThread::Rcerr
 #include <Rcpp.h>
 
-#include "logistic_regression.h"
+#include "survival_analysis.h"
 #include "utilities.h"      // boost_pnorm, boost_plogis, etc.
 #include "dataframe_list.h"  // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
 #include "thread_utils.h"    // push_thread_warning / drain_thread_warnings_to_R
@@ -1578,9 +1578,9 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       int nr; // number of rows in the score residual matrix
       if (!has_id) { // no clustering, just weight the score residuals
         for (int j = 0; j < p; ++j) {
-          const int coloff = j * n1;
+          const int off = j * n1;
           for (int i = 0; i < n1; ++i) {
-            ressco.data[coloff + i] *= weightn[i];
+            ressco.data[off + i] *= weightn[i];
           }
         }
         nr = n1;
@@ -1602,15 +1602,15 @@ ListCpp liferegcpp(const DataFrameCpp& data,
         
         FlatMatrix ressco1(nids, p); // score residuals summed by id
         for (int j = 0; j < p; ++j) {
-          const int coloff = j * n1;
-          const int coloff1 = j * nids;
+          const int off = j * n1;
+          const int off1 = j * nids;
           for (int i = 0; i < nids; ++i) {
             double sum = 0.0;
             for (int k = idx[i]; k < idx[i+1]; ++k) {
               int row = order[k];
-              sum  += weightn[row] * ressco.data[coloff + row];
+              sum  += weightn[row] * ressco.data[off + row];
             }
-            ressco1.data[coloff1 + i] = sum;
+            ressco1.data[off1 + i] = sum;
           }
         }
         

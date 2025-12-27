@@ -6,6 +6,7 @@
 struct DataFrameCpp; 
 struct ListCpp; 
 
+std::vector<double> fsurvci(double surv, double sesurv, std::string& ct, double z);
 
 DataFrameCpp survQuantilecpp(const std::vector<double>& time,
                              const std::vector<int>& event,

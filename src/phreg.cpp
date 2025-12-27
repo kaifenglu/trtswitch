@@ -3,7 +3,7 @@
 #include <RcppThread.h>      // RcppThread::Rcerr
 #include <Rcpp.h>
 
-#include "logistic_regression.h"
+#include "survival_analysis.h"
 #include "utilities.h"      // boost_pnorm, boost_plogis, etc.
 #include "dataframe_list.h"  // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
 #include "thread_utils.h"    // push_thread_warning / drain_thread_warnings_to_R
@@ -1222,7 +1222,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
   // linear predictors
   std::vector<double> linear_predictors(n);
   
-  double zcrit = boost_qnorm(1.0 -alpha / 2.0);
+  double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   double xcrit = zcrit * zcrit;
   
   
@@ -1425,9 +1425,9 @@ ListCpp phregcpp(const DataFrameCpp& data,
         int nr; // number of rows in the score residual matrix
         if (!has_id) {
           for (int j = 0; j < p; ++j) {
-            const int coloff = j * n;
+            const int off = j * n;
             for (int i = 0; i < n; ++i) {
-              ressco.data[coloff + i] *= weightna[i];
+              ressco.data[off + i] *= weightna[i];
             }
           }
           nr = n;
@@ -1450,14 +1450,14 @@ ListCpp phregcpp(const DataFrameCpp& data,
           
           FlatMatrix ressco1(nids,p);
           for (int j = 0; j < p; ++j) {
-            const int coloff = j * nids;
+            const int off = j * nids;
             for (int i = 0; i < nids; ++i) {
               double sum = 0.0;
               for (int k = idx[i]; k < idx[i+1]; ++k) {
                 int row = order[k];
                 sum  += weightna[row] * ressco(row,j);
               }
-              ressco1.data[coloff + i] = sum;
+              ressco1.data[off + i] = sum;
             }
           }
           
@@ -1761,7 +1761,7 @@ Rcpp::List phregRcpp(const Rcpp::DataFrame& data,
 }
 
 
-
+// survival function estimation based on Cox model
 DataFrameCpp survfit_phregcpp(const int p,
                               const std::vector<double>& beta,
                               const FlatMatrix& vbeta,
@@ -1780,217 +1780,257 @@ DataFrameCpp survfit_phregcpp(const int p,
   int n0 = basehaz.nrows();
   int n = newdata.nrows();
   int nvar = static_cast<int>(covariates.size());
-
+  
   std::string ct = conftype;
   std::for_each(ct.begin(), ct.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
 
-  if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" ||
+  if (!(ct=="none" || ct=="plain" || ct=="log" || ct=="log-log" || 
       ct=="logit" || ct=="arcsin")) {
-    stop("conftype must be none, plain, log, log-log, logit, or arcsin");
+    throw std::invalid_argument("conftype must be none, plain, log, log-log, logit, or arcsin");
   }
 
-  if (conflev <= 0 || conflev >= 1) {
-    stop("conflev must lie between 0 and 1");
+  if (conflev <= 0.0 || conflev >= 1.0) {
+    throw std::invalid_argument("conflev must lie between 0 and 1");
   }
 
   double zcrit = boost_qnorm((1.0 + conflev) / 2.0);
 
-  IntegerVector stratumn0(n0);
-  DataFrame u_stratum0;
-  IntegerVector nlevels;
-  List lookups;
+  std::vector<int> stratumn0(n0);
+  DataFrameCpp u_stratum0;
+  std::vector<int> nlevels;
+  ListCpp& lookups;
   int p_stratum = static_cast<int>(stratum.size());
-  if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-    stratumn0.fill(0);
-  } else {
-    List out = bygroup(basehaz, stratum);
-    stratumn0 = out["index"];
-    u_stratum0 = DataFrame(out["lookup"]);
-    nlevels = out["nlevels"];
-    lookups = out["lookups"];
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(basehaz, stratum);
+    stratumn0 = out.get<std::vector<int>>("index");
+    u_stratum0 = out.get<DataFrameCpp>("lookup");
+    nlevels = out.get<std::vector<int>>("nlevels");
+    lookups = out.get_list("lookups_per_variable");
   }
 
-  bool nullmodel = (p == 0 || (nvar == 1 &&
-                    (covariates[0] == "" || covariates[0] == "none")));
+  bool nullmodel = (p == 0 || (nvar == 1 && covariates[0] == ""));
 
   if (!nullmodel && nvar != p) {
-    stop("incorrect number of covariates for the Cox model");
+    throw std::invalid_argument("incorrect number of covariates for the Cox model");
   }
 
-  NumericMatrix zn(n,p);
-  for (int j=0; j<p; ++j) {
-    String zj = covariates[j];
-    if (!hasVariable(newdata, zj)) {
-      stop("newdata must contain the variables in covariates");
-    }
-    NumericVector u = newdata[zj];
-    for (int i=0; i<n; ++i) {
-      zn(i,j) = u[i];
+  FlatMatrix zn(n,p);
+  for (int j = 0; j < p; ++j) {
+    const std::string& zj = covariates[j];
+    if (!newdata.containElementNamed(zj)) 
+      throw std::invalid_argument("newdata must contain the variables in covariates");
+    if (newdata.bool_cols.count(zj)) {
+      const std::vector<unsigned char>& vb = newdata.get<unsigned char>(zj);
+      int off = j * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
+    } else if (newdata.int_cols.count(zj)) {
+      const std::vector<int>& vi = newdata.get<int>(zj);
+      int off = j * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
+    } else if (newdata.numeric_cols.count(zj)) {
+      const std::vector<double>& vd = newdata.get<double>(zj);
+      int off = j * n;
+      for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
+    } else {
+      throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
   }
 
   bool has_stratum;
-  IntegerVector stratumn(n);
+  std::vector<int> stratumn(n);
   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
     has_stratum = false;
-    stratumn.fill(0);
   } else {
     has_stratum = true;
     // match stratum in newdata to stratum in basehaz
-    int orep = u_stratum0.nrow();
-    for (int i=0; i<p_stratum; ++i) {
+    int orep = u_stratum0.nrows();
+    for (int i = 0; i < p_stratum; ++i) {
       orep /= nlevels[i];
-      std::string s = as<std::string>(stratum[i]);
-      IntegerVector idx;
-      SEXP col = newdata[s];
-      SEXPTYPE col_type = TYPEOF(col);
-      if (col_type == LGLSXP || col_type == INTSXP) {
-        IntegerVector v = col;
-        IntegerVector w = lookups[i];
-        idx = match(v, w) - 1;
-      } else if (col_type == REALSXP) {
-        NumericVector v = col;
-        NumericVector w = lookups[i];
-        idx = match(v, w) - 1;
-      } else if (col_type == STRSXP) {
-        StringVector v = col;
-        StringVector w = lookups[i];
-        idx = match(v, w) - 1;
+      std::string s = stratum[i];
+      std::vector<int> idx;
+      
+      if (newdata.bool_cols.count(s) || newdata.int_cols.count(s)) {
+        std::vector<int> v;
+        std::vector<int> w;
+        if (newdata.bool_cols.count(s)) {
+          auto vb = newdata.get<unsigned char>(s);
+          auto wb = lookups.get<std::vector<unsigned char>>(s);
+          v.resize(n);
+          w.resize(n);
+          for (int j = 0; j < n; ++j) {
+            v[j] = vb[j] ? 1 : 0;
+            w[j] = wb[j] ? 1 : 0;
+          }
+        } else {
+          v = newdata.get<int>(s);
+          w = lookups.get<std::vector<int>>(s);
+        }
+        idx = matchcpp(v, w);
+      } else if (newdata.numeric_cols.count(s)) {
+        auto v = newdata.get<double>(s);
+        auto w = lookups.get<std::vector<double>>(s);
+        idx = matchcpp(v, w);
+      } else if (newdata.string_cols.count(s)) {
+        auto v = newdata.get<std::string>(s);
+        auto w = lookups.get<std::vector<std::string>>(s);
+        idx = matchcpp(v, w);
       } else {
-        stop("Unsupported type for stratum variable: " + s);
+        throw std::invalid_argument("Unsupported type for stratum variable: " + s);
       }
-
-      stratumn = stratumn + idx * orep;
+      
+      for (int person = 0; person < n; ++person) {
+        stratumn[person] += idx[person] * orep; 
+      }
     }
   }
-
-  bool has_offset = hasVariable(newdata, offset);
-  NumericVector offsetn(n);
-  if (has_offset) {
-    NumericVector offsetnz = newdata[offset];
-    offsetn = clone(offsetnz);
+  
+  std::vector<double> offsetn(n, 0.0);
+  if (!offset.empty() && newdata.containElementNamed(offset)) {
+    if (newdata.int_cols.count(offset)) {
+      const std::vector<int>& vi = newdata.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+    } else if (newdata.numeric_cols.count(offset)) {
+      offsetn = newdata.get<double>(offset);
+    } else {
+      throw std::invalid_argument("offset variable must be integer or numeric");
+    }
   }
-
-  NumericVector time0 = basehaz["time"];
-  NumericVector nrisk0 = basehaz["nrisk"];
-  NumericVector nevent0 = basehaz["nevent"];
-  NumericVector ncensor0 = basehaz["ncensor"];
-  NumericVector haz0 = basehaz["haz"];
-  NumericVector vhaz0 = basehaz["varhaz"];
-  NumericMatrix ghaz0(n0,p);
-  for (int j=0; j<p; ++j) {
+  
+  std::vector<double> time0 = basehaz.get<double>("time");
+  std::vector<double> nrisk0 = basehaz.get<double>("nrisk");
+  std::vector<double> nevent0 = basehaz.get<double>("nevent");
+  std::vector<double> ncensor0 = basehaz.get<double>("ncensor");
+  std::vector<double> haz0 = basehaz.get<double>("haz");
+  std::vector<double> vhaz0 = basehaz.get<double>("varhaz");
+  FlatMatrix ghaz0(n0,p);
+  for (int j = 0; j < p; ++j) {
     std::string col_name = "gradhaz";
     if (p>1) col_name += "." + std::to_string(j+1);
-    NumericVector u = basehaz[col_name];
-    ghaz0(_,j) = u;
+    std::vector<double> u = basehaz.get<double>(col_name);
+    for (int i = 0; i < n0; ++i) {
+      ghaz0(i,j) = u[i];
+    }
   }
 
   // create the numeric id variable
-  bool has_id = hasVariable(newdata, id);
-  IntegerVector idn(n);
-  IntegerVector idwi;
-  NumericVector idwn;
-  StringVector idwc;
+  bool has_id = !id.empty() && newdata.containElementNamed(id);
+  std::vector<int> idn(n);
+  std::vector<int> idwi;
+  std::vector<double> idwn;
+  std::vector<std::string> idwc;
   if (!has_id) {
-    idn = seq(0,n-1);
+    idn = seqcpp(0, n-1);
   } else { // input data has the counting process style of input
-    SEXP col = newdata[id];
-    SEXPTYPE col_type = TYPEOF(col);
-    if (col_type == INTSXP) {
-      IntegerVector idv = col;
-      idwi = unique(idv);
-      idwi.sort();
-      idn = match(idv, idwi) - 1;
-    } else if (col_type == REALSXP) {
-      NumericVector idv = col;
-      idwn = unique(idv);
-      idwn.sort();
-      idn = match(idv, idwn) - 1;
-    } else if (col_type == STRSXP) {
-      StringVector idv = col;
-      idwc = unique(idv);
-      idwc.sort();
-      idn = match(idv, idwc) - 1;
-    } else {
-      stop("incorrect type for the id variable in newdata");
-    }
+    if (newdata.int_cols.count(id)) {
+      auto v = newdata.get<int>(id);
+      idwi = unique_sorted(v);
+      idn = matchcpp(v, idwi);
+    } else if (newdata.numeric_cols.count(id)) {
+      auto v = newdata.get<double>(id);
+      idwn = unique_sorted(v);
+      idn = matchcpp(v, idwn);
+    } else if (newdata.string_cols.count(id)) {
+      auto v = newdata.get<std::string>(id);
+      idwc = unique_sorted(v);
+      idn = matchcpp(v, idwc);
+    } else throw std::invalid_argument("incorrect type for the id variable in newdata");
   }
-
+  
   // unify right-censoring data with counting process data
-  NumericVector tstartn(n), tstopn(n);
+  std::vector<double> tstartn(n), tstopn(n);
   if (!has_id) { // right-censored data
-    tstartn.fill(0.0);
-    double maxt0 = max(time0) + 1.0;
-    tstopn.fill(maxt0);
+    double maxt0 = *std::max_element(time0.begin(), time0.end()) + 1.0;
+    std::fill(tstopn.begin(), tstopn.end(), maxt0);
   } else {
-    bool has_tstart = hasVariable(newdata, tstart);
-    if (!has_tstart) stop("newdata must contain the tstart variable");
-    NumericVector tstartnz = newdata[tstart];
-    tstartn = clone(tstartnz);
-    if (is_true(any(tstartn < 0))) {
-      stop("tstart must be nonnegative for each observation");
+    if (!newdata.containElementNamed(tstart)) 
+      throw std::invalid_argument("newdata must contain the tstart variable");
+    std::vector<double> tstartn(n);
+    if (newdata.int_cols.count(tstart)) {
+      const std::vector<int>& vi = newdata.get<int>(tstart);
+      for (int i = 0; i < n; ++i) tstartn[i] = static_cast<double>(vi[i]);
+    } else if (newdata.numeric_cols.count(tstart)) {
+      tstartn = newdata.get<double>(tstart);
+    } else {
+      throw std::invalid_argument("tstart variable must be integer or numeric");
+    }
+    for (int i = 0; i < n; ++i) {
+      if (!std::isnan(tstartn[i]) && tstartn[i] < 0.0)
+        throw std::invalid_argument("tstart must be nonnegative");
     }
 
-    bool has_tstop = hasVariable(newdata, tstop);
-    if (!has_tstop) stop("newdata must contain the tstop variable");
-    NumericVector tstopnz = newdata[tstop];
-    tstopn = clone(tstopnz);
-    if (is_true(any(tstopn <= tstartn))) {
-      stop("tstop must be greater than tstart for each observation");
+    if (!newdata.containElementNamed(tstop)) 
+      throw std::invalid_argument("newdata must contain the tstop variable");
+    std::vector<double> tstopn(n);
+    if (newdata.int_cols.count(tstop)) {
+      const std::vector<int>& vi = newdata.get<int>(tstop);
+      for (int i = 0; i < n; ++i) tstopn[i] = static_cast<double>(vi[i]);
+    } else if (newdata.numeric_cols.count(tstop)) {
+      tstopn = newdata.get<double>(tstop);
+    } else {
+      throw std::invalid_argument("tstop variable must be integer or numeric");
+    }
+    for (int i = 0; i < n; ++i) {
+      if (!std::isnan(tstartn[i]) && !std::isnan(tstopn[i]) && tstopn[i] <= tstartn[i])
+        throw std::invalid_argument("tstop must be greater than tstart");
     }
   }
 
   // order data by id and tstop, assuming consecutive intervals
-  IntegerVector order = seq(0, n-1);
+  std::vector<int> order = seqcpp(0, n-1);
   std::sort(order.begin(), order.end(), [&](int i, int j) {
     if (idn[i] != idn[j]) return idn[i] < idn[j];
     return tstopn[i] < tstopn[j];
   });
 
-  idn = idn[order];
-  stratumn = stratumn[order];
-  tstartn = tstartn[order];
-  tstopn = tstopn[order];
-  offsetn = offsetn[order];
-  if (p > 0) zn = subset_matrix_by_row(zn, order);
+  subset_in_place(idn, order);
+  subset_in_place(stratumn, order);
+  subset_in_place(tstartn, order);
+  subset_in_place(tstopn, order);
+  subset_in_place(offsetn, order);
+  if (p > 0) subset_in_place_flatmatrix(zn, order);
 
   // exclude observations with missing values
-  LogicalVector sub(n,1);
+  std::vector<unsigned char> sub(n,1);
   for (int i=0; i<n; ++i) {
-    if (stratumn[i] == NA_INTEGER || idn[i] == NA_INTEGER ||
+    if (stratumn[i] == INT_MIN || idn[i] == INT_MIN ||
         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
         std::isnan(offsetn[i])) {
-      sub[i] = 0;
+      sub[i] = 0; continue;
     }
     for (int j=0; j<p; ++j) {
-      if (std::isnan(zn(i,j))) sub[i] = 0;
+      if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
     }
   }
 
-  order = which(sub);
-  stratumn = stratumn[order];
-  offsetn = offsetn[order];
-  idn = idn[order];
-  tstartn = tstartn[order];
-  tstopn = tstopn[order];
-  if (p > 0) zn = subset_matrix_by_row(zn, order);
-  n = sum(sub);
-  if (n == 0) stop("no observations left after removing missing values");
-
+  std::vector<int> keep = which(sub);
+  if (keep.empty()) throw std::invalid_argument("no observations without missing values");
+  subset_in_place(stratumn, keep);
+  subset_in_place(offsetn, keep);
+  subset_in_place(idn, keep);
+  subset_in_place(tstartn, keep);
+  subset_in_place(tstopn, keep);
+  if (p > 0) subset_in_place_flatmatrix(zn, keep);
+  n = static_cast<int>(keep.size());
+  
   // risk score
-  NumericVector risk(n);
-  for (int i=0; i<n; ++i) {
-    double val = offsetn[i];
-    for (int j=0; j<p; ++j) {
-      val += beta[j]*zn(i,j);
+  std::vector<double> eta = offsetn;
+  for (int j = 0; j < p; ++j) {
+    double b = beta[j];
+    if (b == 0.0) continue;
+    const int off = j * n;
+    for (int i = 0; i < n; ++i) {
+      eta[i] += b * zn.data[off + i];
     }
-    risk[i] = std::exp(val);
+  }
+  std::vector<double> risk(n);
+  for (int i = 0; i < n; ++i) {
+    risk[i] = std::exp(eta[i]);
   }
 
   // count number of observations for each id
-  IntegerVector idx(1,0);
+  std::vector<int> idx(1,0);
   for (int i=1; i<n; ++i) {
     if (idn[i] != idn[i-1]) {
       idx.push_back(i);
@@ -2001,49 +2041,56 @@ DataFrameCpp survfit_phregcpp(const int p,
   idx.push_back(n);
 
   int N = nids*n0; // upper bound on the number of rows in the output
-  NumericVector time(N);
-  NumericVector nrisk(N), nevent(N), ncensor(N);
-  NumericVector cumhaz(N), vcumhaz(N), secumhaz(N);
-  IntegerVector strata(N);
-  NumericMatrix z(N,p);
-  IntegerVector ids(N);
-
+  std::vector<double> time, nrisk, nevent, ncensor, cumhaz, vcumhaz, secumhaz;
+  std::vector<int> strata, ids;
+  time.reserve(N); nrisk.reserve(N); nevent.reserve(N); ncensor.reserve(N);
+  cumhaz.reserve(N); vcumhaz.reserve(N); secumhaz.reserve(N);
+  FlatMatrix z(N,p);
+  
   // process by id
   int l = 0;
   for (int h=0; h<nids; ++h) {
-    IntegerVector q1 = Range(idx[h], idx[h+1]-1);
+    std::vector<int> q1 = seqcpp(idx[h], idx[h+1] - 1);
     int n1 = static_cast<int>(q1.size());
 
-    IntegerVector id2 = idn[q1];
-    IntegerVector stratum2 = stratumn[q1];
-    NumericVector tstart2 = tstartn[q1];
-    NumericVector tstop2 = tstopn[q1];
-    NumericVector risk2 = risk[q1];
-    NumericMatrix z2 = subset_matrix_by_row(zn, q1);
-    tstop2.push_front(tstart2[0]);
-
+    std::vector<int> id1 = subset(idn, q1);
+    std::vector<int> stratum1 = subset(stratumn, q1);
+    std::vector<double> tstart1 = subset(tstartn, q1);
+    std::vector<double> tstop1 = subset(tstopn, q1);
+    std::vector<double> risk1 = subset(risk, q1);
+    FlatMatrix z1 = subset_flatmatrix(zn, q1);
+    
+    std::vector<double> tstop2(n1 + 1);
+    std::memcpy(tstop2.data() + 1, tstop1.data(), n1 * sizeof(double));
+    
     // match the stratum in basehaz
-    IntegerVector idx1 = which(stratumn0 == stratum2[0]);
-    NumericVector time01 = time0[idx1];
+    std::vector<int> idx1;
+    for (int i = 0; i < n0; ++i) {
+      if (stratumn0[i] == stratum1[0]) idx1.push_back(i);
+    }
+    std::vector<double> time01 = subset(time0, idx1);
 
     // left-open and right-closed intervals containing the event time
-    IntegerVector idx2 = findInterval3(time01, tstop2, 0, 0, 1);
-    IntegerVector sub = which((idx2 >= 1) & (idx2 <= n1));
+    std::vector<int> idx2 = findInterval3(time01, tstop2, 0, 0, 1);
+    std::vector<int> sub;
+    for (int i = 0; i < static_cast<int>(idx2.size()); ++i) {
+      if (idx2[i] >= 1 && idx2[i] <= n1) sub.push_back(i);
+    }
     int m1 = sub.size();
 
     if (m1 != 0) {
-      IntegerVector idx3 = idx1[sub];
-      NumericVector time1 = time0[idx3];
-      NumericVector nrisk1 = nrisk0[idx3];
-      NumericVector nevent1 = nevent0[idx3];
-      NumericVector ncensor1 = ncensor0[idx3];
-      NumericVector haz1 = haz0[idx3];
+      std::vector<int> idx3 = subset(idx1, sub);
+      std::vector<double> time1 = subset(time0, idx3);
+      std::vector<double> nrisk1 = subset(nrisk0, idx3);
+      std::vector<double> nevent1 = subset(nevent0, idx3);
+      std::vector<double> ncensor1 = subset(ncensor0, idx3);
+      std::vector<double> haz1 = subset(haz0, idx3);
 
-      IntegerVector idx4 = idx2[sub];
-      idx4 = idx4 - 1; // change to 0-1 indexing
+      std::vector<int> idx4 = subset(idx2, sub);
+      for (int i = 0; i < m1; ++i) idx4[i] -= 1; // change to 0-1 indexing
 
       // cumulative hazards
-      for (int i=0; i<m1; ++i) {
+      for (int i = 0; i < m1; ++i) {
         int r = l + i;
         time[r] = time1[i];
         nrisk[r] = nrisk1[i];
@@ -2051,36 +2098,36 @@ DataFrameCpp survfit_phregcpp(const int p,
         ncensor[r] = ncensor1[i];
 
         int k = idx4[i];
-        ids[r] = id2[k];
-        strata[r] = stratum2[k];
-        for (int j=0; j<p; ++j) {
-          z(r,j) = z2(k,j);
+        ids[r] = id1[k];
+        strata[r] = stratum1[k];
+        for (int j = 0; j < p; ++j) {
+          z(r,j) = z1(k,j);
         }
 
         if (i==0) {
-          cumhaz[r] = haz1[i]*risk2[k];
+          cumhaz[r] = haz1[i] * risk1[k];
         } else {
-          cumhaz[r] = cumhaz[r-1] + haz1[i]*risk2[k];
+          cumhaz[r] = cumhaz[r-1] + haz1[i] * risk1[k];
         }
       }
 
       if (sefit) {
-        NumericVector vhaz1 = vhaz0[idx3];
-        NumericMatrix ghaz1(m1,p);
+        std::vector<double> vhaz1 = subset(vhaz0, idx3);
+        FlatMatrix ghaz1(m1,p);
         for (int j=0; j<p; ++j) {
           for (int i=0; i<m1; ++i) {
             ghaz1(i,j) = ghaz0(idx3[i],j);
           }
         }
 
-        NumericMatrix a(m1,p);
+        FlatMatrix a(m1,p);
         for (int j=0; j<p; ++j) {
           for (int i=0; i<m1; ++i) {
             int k = idx4[i];
             if (i==0) {
-              a(i,j) = (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
+              a(i,j) = (haz1[i] * z1(k,j) - ghaz1(i,j)) * risk1[k];
             } else {
-              a(i,j) = a(i-1,j) + (haz1[i]*z2(k,j) - ghaz1(i,j))*risk2[k];
+              a(i,j) = a(i-1,j) + (haz1[i] * z1(k,j) - ghaz1(i,j)) * risk1[k];
             }
           }
         }
@@ -2090,20 +2137,24 @@ DataFrameCpp survfit_phregcpp(const int p,
           int r = l + i;
           int k = idx4[i];
           if (i==0) {
-            vcumhaz[r] = vhaz1[i]*risk2[k]*risk2[k];
+            vcumhaz[r] = vhaz1[i] * risk1[k] * risk1[k];
           } else {
-            vcumhaz[r] = vcumhaz[r-1] + vhaz1[i]*risk2[k]*risk2[k];
+            vcumhaz[r] = vcumhaz[r-1] + vhaz1[i] * risk1[k] * risk1[k];
           }
         }
 
         // add the second component of variance
-        for (int i=0; i<m1; ++i) {
-          int r = l + i;
+        for (int k=0; k<p; ++k) {
           for (int j=0; j<p; ++j) {
-            for (int k=0; k<p; ++k) {
-              vcumhaz[r] += a(i,j)*vbeta(j,k)*a(i,k);
+            for (int i=0; i<m1; ++i) {
+              int r = l + i;
+              vcumhaz[r] += a(i,j) * vbeta(j,k) * a(i,k);
             }
           }
+        }
+        
+        for (int i=0; i<m1; ++i) {
+          int r = l + i;
           secumhaz[r] = std::sqrt(vcumhaz[r]);
         }
       }
@@ -2112,81 +2163,81 @@ DataFrameCpp survfit_phregcpp(const int p,
     }
   }
 
-  IntegerVector sub2 = Range(0,l-1);
-  time = time[sub2];
-  nrisk = nrisk[sub2];
-  nevent = nevent[sub2];
-  ncensor = ncensor[sub2];
-  cumhaz = cumhaz[sub2];
-  secumhaz = secumhaz[sub2];
-  strata = strata[sub2];
-  z = subset_matrix_by_row(z, sub2);
-  ids = ids[sub2];
+  std::vector<double> surv(l);
+  for (int i = 0; i < l; ++i) {
+    surv[i] = std::exp(-cumhaz[i]);
+  }
 
-  NumericVector surv = std::exp(-cumhaz);
-
-  DataFrame result = DataFrame::create(
-    _["time"] = time,
-    _["nrisk"] = nrisk,
-    _["nevent"] = nevent,
-    _["ncensor"] = ncensor,
-    _["cumhaz"] = cumhaz,
-    _["surv"] = surv);
+  DataFrameCpp result;
+  result.push_back(std::move(time), "time");
+  result.push_back(std::move(nrisk), "nrisk");
+  result.push_back(std::move(nevent), "nevent");
+  result.push_back(std::move(ncensor), "ncensor");
+  result.push_back(std::move(cumhaz), "cumhaz");
+  result.push_back(surv, "surv");
 
   if (sefit) {
-    NumericVector sesurv = surv*secumhaz;
+    std::vector<double> sesurv(l);
+    for (int i = 0; i < l; ++i) {
+      sesurv[i] = surv[i] * secumhaz[i];
+    }
 
-    NumericVector lower(l), upper(l);
-    for (int i=0; i<l; ++i) {
-      NumericVector ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
+    std::vector<double> lower(l), upper(l);
+    for (int i = 0; i < l; ++i) {
+      std::vector<double> ci = fsurvci(surv[i], sesurv[i], ct, zcrit);
       lower[i] = ci[0];
       upper[i] = ci[1];
     }
 
-    result.push_back(sesurv, "sesurv");
-    result.push_back(lower, "lower");
-    result.push_back(upper, "upper");
+    result.push_back(std::move(sesurv), "sesurv");
+    result.push_back(std::move(lower), "lower");
+    result.push_back(std::move(upper), "upper");
     result.push_back(conflev, "conflev");
     result.push_back(ct, "conftype");
   }
 
   for (int j=0; j<p; ++j) {
-    NumericVector u = z(_,j);
-    String zj = covariates[j];
+    std::string zj = covariates[j];
+    std::vector<double> u(l);
+    for (int i=0; i<l; ++i) {
+      u[i] = z(i,j);
+    }
     result.push_back(u, zj);
   }
 
   if (has_stratum) {
     for (int i=0; i<p_stratum; ++i) {
-      std::string s = as<std::string>(stratum[i]);
-      SEXP col = u_stratum0[s];
-      SEXPTYPE col_type = TYPEOF(col);
-      if (col_type == INTSXP) {
-        IntegerVector v = col;
-        result.push_back(v[strata], s);
-      } else if (col_type == REALSXP) {
-        NumericVector v = col;
-        result.push_back(v[strata], s);
-      } else if (col_type == STRSXP) {
-        StringVector v = col;
-        result.push_back(v[strata], s);
+      std::string s = stratum[i];
+      if (u_stratum0.int_cols.count(s)) {
+        auto v = u_stratum0.get<int>(s);
+        subset_in_place(v, strata);
+        result.push_back(std::move(v), s);
+      } else if (u_stratum0.numeric_cols.count(s)) {
+        auto v = u_stratum0.get<double>(s);
+        subset_in_place(v, strata);
+        result.push_back(std::move(v), s);
+      } else if (u_stratum0.string_cols.count(s)) {
+        auto v = u_stratum0.get<std::string>(s);
+        subset_in_place(v, strata);
+        result.push_back(std::move(v), s);
       } else {
-        stop("Unsupported type for stratum variable: " + s);
+        throw std::invalid_argument("Unsupported type for stratum variable: " + s);
       }
     }
   }
 
   if (has_id) {
-    SEXP col = newdata[id];
-    SEXPTYPE col_type = TYPEOF(col);
-    if (col_type == INTSXP) {
-      result.push_back(idwi[ids], id);
-    } else if (col_type == REALSXP) {
-      result.push_back(idwn[ids], id);
-    } else if (col_type == STRSXP) {
-      result.push_back(idwc[ids], id);
+    if (newdata.int_cols.count(id)) {
+      auto v = subset(idwi, ids);
+      result.push_back(std::move(v), id);
+    } else if (newdata.numeric_cols.count(id)) {
+      auto v = subset(idwn, ids);
+      result.push_back(std::move(v), id);
+    } else if (newdata.string_cols.count(id)) {
+      auto v = subset(idwc, ids);
+      result.push_back(std::move(v), id);
     } else {
-      stop("incorrect type for the id variable in newdata");
+      throw std::invalid_argument("incorrect type for the id variable in newdata");
     }
   }
 

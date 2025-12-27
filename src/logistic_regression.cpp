@@ -894,9 +894,9 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       std::vector<double> freqr;
       if (!has_id) {
         for (int j = 0; j < p; ++j) {
-          const int coloff = j * n;    // start of column j
+          const int off = j * n;    // start of column j
           for (int i = 0; i < n; ++i) {
-            ressco.data[coloff + i] *= weightn[i];
+            ressco.data[off + i] *= weightn[i];
           }
         }
         
@@ -923,15 +923,15 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         
         FlatMatrix ressco1(nids, p);
         for (int j = 0; j < p; ++j) {
-          const int coloff = j * n;           // start of ressco(:,j)
-          const int coloff1 = j * nids;       // start of ressco1(:,j)
+          const int off = j * n;           // start of ressco(:,j)
+          const int off1 = j * nids;       // start of ressco1(:,j)
           for (int i = 0; i < nids; ++i) {
             double sum = 0.0;
             for (int k = idx[i]; k < idx[i+1]; ++k) {
               int row = order[k];
-              sum += weightn[row] * ressco.data[coloff + row];
+              sum += weightn[row] * ressco.data[off + row];
             }
-            ressco1.data[coloff1 + i] = sum;
+            ressco1.data[off1 + i] = sum;
           }
         }
         
