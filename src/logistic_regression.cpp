@@ -129,10 +129,10 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   }
   
   // 3) compute information matrix (lower triangle) using c2 as per-observation weight
-  for (int i = 0; i < p; ++i) {
+  for (int j = 0; j < p; ++j) {
+    const double* zj = zptr + j * n;
+    for (int i = j; i < p; ++i) {
     const double* zi = zptr + i * n;
-    for (int j = 0; j <= i; ++j) {
-      const double* zj = zptr + j * n;
       double sum = 0.0;
       for (int k = 0; k < n; ++k) {
         sum += c2[k] * zi[k] * zj[k];
@@ -142,8 +142,8 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   }
   
   // 4) fill upper triangle as before (keep symmetric)
-  for (int i = 0; i + 1 < p; ++i) {
-    for (int j = i + 1; j < p; ++j) {
+  for (int j = 1; j < p; ++j) {
+    for (int i = 0; i < j; ++i) {
       imat(i, j) = imat(j, i);
     }
   }
@@ -167,10 +167,10 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     FlatMatrix xwx(p, p); // data initially zeroed by constructor
     
     // compute lower triangle (i >= j) using column-major access
-    for (int i = 0; i < p; ++i) {
+    for (int j = 0; j < p; ++j) {
+      const double* zj = zptr + j * n;      // Z(:, j)
+      for (int i = j; i < p; ++i) {
       const double* zi = zptr + i * n;        // Z(:, i)
-      for (int j = 0; j <= i; ++j) {
-        const double* zj = zptr + j * n;      // Z(:, j)
         double sum = 0.0;
         // inner loop reads zi[k] and zj[k] contiguously
         for (int k = 0; k < n; ++k) {
@@ -181,8 +181,8 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     }
     
     // fill upper triangle of xwx
-    for (int i = 0; i + 1 < p; ++i) {
-      for (int j = i + 1; j < p; ++j) {
+    for (int j = 1; j < p; ++j) {
+      for (int i = 0; i < j; ++i) {
         xwx(i, j) = xwx(j, i);
       }
     }
@@ -351,8 +351,8 @@ ListCpp logisregloop(int p, const std::vector<double>& par, void *ex,
   
   for (int i = 0; i < ncolfit; ++i) u1[i] = u[colfit[i]];
   
-  for (int i = 0; i < ncolfit; ++i)
-    for (int j = 0; j < ncolfit; ++j)
+  for (int j = 0; j < ncolfit; ++j)
+    for (int i = 0; i < ncolfit; ++i)
       imat1(i,j) = imat(colfit[i], colfit[j]);
   
   cholesky2(imat1, ncolfit);
@@ -386,8 +386,8 @@ ListCpp logisregloop(int p, const std::vector<double>& par, void *ex,
     
     for (int i = 0; i < ncolfit; ++i) u1[i] = u[colfit[i]];
     
-    for (int i = 0; i < ncolfit; ++i)
-      for (int j = 0; j < ncolfit; ++j)
+    for (int j = 0; j < ncolfit; ++j)
+      for (int i = 0; i < ncolfit; ++i)
         imat1(i, j) = imat(colfit[i], colfit[j]);
     
     cholesky2(imat1, ncolfit);
@@ -403,8 +403,8 @@ ListCpp logisregloop(int p, const std::vector<double>& par, void *ex,
   // final variance assembly
   imat = der.get<FlatMatrix>("imat");
   
-  for (int i = 0; i < ncolfit; ++i)
-    for (int j = 0; j < ncolfit; ++j)
+  for (int j = 0; j < ncolfit; ++j)
+    for (int i = 0; i < ncolfit; ++i)
       imat1(i, j) = imat(colfit[i], colfit[j]);
   
   FlatMatrix var1 = invsympd(imat1, ncolfit);
@@ -882,7 +882,6 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       break;
     }
     
-    
     niter = out.get<int>("iter");
     fail = out.get<bool>("fail");
     
@@ -919,7 +918,6 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         
         int nids = static_cast<int>(idx.size());
         idx.push_back(n);
-        
         
         FlatMatrix ressco1(nids, p);
         for (int j = 0; j < p; ++j) {

@@ -106,13 +106,13 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
       c1 = wt * eu;
       for (int j = 0; j < nvar; ++j) {
         double zj = z(j);
-        for (int i = j; i < nvar; ++i) {
+        for (int i = 0; i <= j; ++i) {
           imat(i, j) += c1 * z(i) * zj;
         }
       }
       if (dist_code == 2) { // weibull
         double c2 = wt * (eu * u - (1.0 - eu));
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u;
       }
       break;
@@ -130,12 +130,12 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         // information: beta-beta
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += wt * z(i) * zj;
           }
         }
         double c2 = wt * 2.0 * u;
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u;
         break;
       }
@@ -155,11 +155,11 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
                           1.0 - 2.0 * boost_plogis(u, 0.0, 1.0, 0));
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u;
         break;
       }
@@ -194,7 +194,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * (tmp * tmp + (d1 * (1.0 - e_u1) - d2 * (1.0 - e_u2)) / den);
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
@@ -203,7 +203,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
           double du1 = d1 * (1.0 + (1.0 - e_u1) * u1);
           double du2 = d2 * (1.0 + (1.0 - e_u2) * u2);
           double c2 = wt * (tmp * term +  (du1 - du2) / den);
-          for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+          for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
           imat(k, k) += wt * (term * term + (du1 * u1 - du2 * u2) / den);
         }
         break;
@@ -236,7 +236,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * ( tmp * tmp - term );
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
@@ -244,7 +244,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         double du1 = d1 * (1.0 - u1 * u1);
         double du2 = d2 * (1.0 - u2 * u2);
         double c2 = wt * ( tmp * term + (du1 - du2) / den );
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += wt * ( term * term + (du1 * u1 - du2 * u2) / den );
         break;
       }
@@ -276,7 +276,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * ( tmp * tmp + (d1 * (2.0 * q1 - 1.0) - d2 * (2.0 * q2 - 1.0)) / den );
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
@@ -284,7 +284,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         double du1 = d1 * (1.0 + (2.0 * q1 - 1.0) * u1);
         double du2 = d2 * (1.0 + (2.0 * q2 - 1.0) * u2);
         double c2 = wt * ( tmp * term + (du1 - du2) / den );
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += wt * ( term * term + (du1 * u1 - du2 * u2) / den );
         break;
       }
@@ -312,7 +312,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * ( tmp * tmp - d2 * (1.0 - e_u2) / den );
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
@@ -320,7 +320,7 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         if (dist_code == 2) {
           double du2 = d2 * (1.0 + (1.0 - e_u2) * u2);
           double c2 = wt * ( tmp * term - du2 / den );
-          for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+          for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
           imat(k, k) += c2 * u2;
         }
         break;
@@ -345,14 +345,14 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * ( tmp * tmp - term );
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
         
         double du2 = d2 * (1.0 - u2 * u2);
         double c2 = wt * ( tmp * term - du2 / den );
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u2;
         break;
       }
@@ -375,13 +375,13 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * d2;
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
         
         double c2 = wt * (d2 * u2 - q2);
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u2;
         break;
       }
@@ -401,14 +401,14 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
         
         if (dist_code == 2) {
           double c2 = wt * e_u1 * (1.0 + u1);
-          for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+          for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
           imat(k, k) += c2 * u1;
         }
         break;
@@ -431,13 +431,13 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * ( tmp * tmp - term );
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
         
         double c2 = wt * ( tmp * term + tmp * (1.0 - u1 * u1) );
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u1;
         break;
       }
@@ -458,13 +458,13 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
         c1 = wt * d1;
         for (int j = 0; j < nvar; ++j) {
           double zj = z(j);
-          for (int i = j; i < nvar; ++i) {
+          for (int i = 0; i <= j; ++i) {
             imat(i, j) += c1 * z(i) * zj;
           }
         }
         
         double c2 = wt * (1.0 - q1 + d1 * u1);
-        for (int j = 0; j < nvar; ++j) imat(k, j) += c2 * z(j);
+        for (int j = 0; j < nvar; ++j) imat(j, k) += c2 * z(j);
         imat(k, k) += c2 * u1;
         break;
       }
@@ -477,8 +477,8 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   } // person loop
   
   // mirror lower triangle to upper triangle (imat is symmetric) 
-  for (int i = 0; i < p - 1; ++i) 
-    for (int j = i + 1; j < p; ++j) 
+  for (int j = 0; j < p - 1; ++j) 
+    for (int i = j + 1; i < p; ++i) 
       imat(i, j) = imat(j, i);
   
   // Build result 
@@ -872,8 +872,8 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   for (int i = 0; i < ncolfit; ++i) u1[i] = u[colfit[i]];
   
   // fill imat1 from imat using colfit indices
-  for (int i = 0; i < ncolfit; ++i) {
-    for (int j = 0; j < ncolfit; ++j) {
+  for (int j = 0; j < ncolfit; ++j) {
+    for (int i = 0; i < ncolfit; ++i) {
       imat1(i, j) = imat(colfit[i], colfit[j]);
     }
   }
@@ -881,8 +881,8 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   // --- first step: solve system using imat1 (cholesky) or fallback to jj1 ---
   if (cholesky2(imat1, ncolfit) < 0) {
     jj = f_jj_1(p, beta, &para); // substitute information matrix
-    for (int i = 0; i < ncolfit; ++i)
-      for (int j = 0; j < ncolfit; ++j)
+    for (int j = 0; j < ncolfit; ++j)
+      for (int i = 0; i < ncolfit; ++i)
         jj1(i, j) = jj(colfit[i], colfit[j]);
     cholesky2(jj1, ncolfit);
     chsolve2(jj1, ncolfit, u1);
@@ -929,14 +929,14 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
     // extract relevant components for solving
     for (int i = 0; i < ncolfit; ++i) u1[i] = u[colfit[i]];
     
-    for (int i = 0; i < ncolfit; ++i)
-      for (int j = 0; j < ncolfit; ++j)
+    for (int j = 0; j < ncolfit; ++j)
+      for (int i = 0; i < ncolfit; ++i)
         imat1(i, j) = imat(colfit[i], colfit[j]);
     
     if (cholesky2(imat1, ncolfit) < 0) {
       jj = f_jj_1(p, beta, &para);
-      for (int i = 0; i < ncolfit; ++i)
-        for (int j = 0; j < ncolfit; ++j)
+      for (int j = 0; j < ncolfit; ++j)
+        for (int i = 0; i < ncolfit; ++i)
           jj1(i, j) = jj(colfit[i], colfit[j]);
       cholesky2(jj1, ncolfit);
       chsolve2(jj1, ncolfit, u1);
@@ -962,34 +962,34 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   FlatMatrix jmat = imat; // copy
   
   // adjust the top-left nvar x nvar block
-  for (int i = 0; i < nvar; ++i) {
-    for (int j = 0; j <= i; ++j) {
+  for (int j = 0; j < nvar; ++j) {
+    for (int i = j; i < nvar; ++i) {
       imat(i, j) = jmat(0,0) * mu[i] * mu[j]
-      + jmat(0,j) * mu[i] * sigma[j]
+      + jmat(j,0) * mu[i] * sigma[j]
       + jmat(i,0) * mu[j] * sigma[i]
       + jmat(i,j) * sigma[i] * sigma[j];
-      if (i != j) imat(j, i) = imat(i, j); // symmetric
+      if (i != j) imat(j, i) = imat(i, j); // symmetric 
     }
   }
-  
+
   // adjust remaining rows/cols that involve shape/scale parameters
-  for (int i = nvar; i < p; ++i) {
-    for (int j = 0; j < nvar; ++j) {
-      imat(i, j) = jmat(i,0) * mu[j] + jmat(i,j) * sigma[j];
-      imat(j, i) = imat(i, j); // symmetric
+  for (int j = 0; j < nvar; ++j) {
+    for (int i = nvar; i < p; ++i) {
+      imat(i,j) = jmat(i,0) * mu[j] + jmat(i,j) * sigma[j];
+      imat(j,i) = imat(i, j); // symmetric
     }
   }
   
   // compute variance matrix for the fitted parameters (subset colfit)
-  for (int i = 0; i < ncolfit; ++i)
-    for (int j = 0; j < ncolfit; ++j)
+  for (int j = 0; j < ncolfit; ++j)
+    for (int i = 0; i < ncolfit; ++i)
       imat1(i, j) = imat(colfit[i], colfit[j]);
   
   FlatMatrix var1 = invsympd(imat1, ncolfit); // inverse of submatrix
   FlatMatrix var(p, p); // zero-initialized
   // place var1 into the appropriate locations in the full variance matrix
-  for (int i = 0; i < ncolfit; ++i)
-    for (int j = 0; j < ncolfit; ++j)
+  for (int j = 0; j < ncolfit; ++j)
+    for (int i = 0; i < ncolfit; ++i)
       var(colfit[i], colfit[j]) = var1(i, j);
   
   // Build and return result as ListCpp
@@ -1451,7 +1451,8 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     }
     
     // parameter estimates and standard errors for the null model
-    aftparams param = {dist_code, stratumn, tstart, tstop, status, weightn, offsetn, zn, nstrata};
+    aftparams param = {dist_code, stratumn, tstart, tstop, status, 
+                       weightn, offsetn, zn, nstrata};
     ListCpp outint = liferegloop(p, bint0, &param, maxiter, eps, colfit0, ncolfit0);
     
     std::vector<double> bint = outint.get<std::vector<double>>("coef");
