@@ -303,6 +303,20 @@ void ListCpp::push_back(IntMatrix&& im, const std::string& name) {
   names_.push_back(name);
 }
 
+// FlatArray overloads
+void ListCpp::push_back(const FlatArray& fa, const std::string& name) {
+  if (containsElementNamed(name))
+    throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, fa);
+  names_.push_back(name);
+}
+void ListCpp::push_back(FlatArray&& fa, const std::string& name) {
+  if (containsElementNamed(name))
+    throw std::runtime_error("Element '" + name + "' already exists.");
+  data.emplace(name, std::move(fa));
+  names_.push_back(name);
+}
+
 // DataFrameCpp overloads
 void ListCpp::push_back(const DataFrameCpp& df, const std::string& name) {
   if (containsElementNamed(name)) 
@@ -315,65 +329,6 @@ void ListCpp::push_back(DataFrameCpp&& df, const std::string& name) {
     throw std::runtime_error("Element '" + name + "' already exists.");
   data.emplace(name, std::move(df));
   names_.push_back(name);
-}
-
-// Push front variants
-void ListCpp::push_front(const ListCpp& l, const std::string& name) {
-  push_front(std::make_shared<ListCpp>(l), name);
-}
-void ListCpp::push_front(ListCpp&& l, const std::string& name) {
-  push_front(std::make_shared<ListCpp>(std::move(l)), name);
-}
-void ListCpp::push_front(const ListPtr& p, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, p);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(ListPtr&& p, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(p));
-  names_.insert(names_.begin(), name);
-}
-
-void ListCpp::push_front(const FlatMatrix& fm, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, fm);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(FlatMatrix&& fm, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(fm));
-  names_.insert(names_.begin(), name);
-}
-
-void ListCpp::push_front(const IntMatrix& im, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, im);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(IntMatrix&& im, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, std::move(im));
-  names_.insert(names_.begin(), name);
-}
-
-void ListCpp::push_front(const DataFrameCpp& df, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Element '" + name + "' already exists.");
-  data.emplace(name, df);
-  names_.insert(names_.begin(), name);
-}
-void ListCpp::push_front(DataFrameCpp&& df, const std::string& name) {
-  if (containsElementNamed(name)) 
-    throw std::runtime_error("Column '" + name + "' already exists.");
-  data.emplace(name, std::move(df));
-  names_.insert(names_.begin(), name);
 }
 
 void ListCpp::erase(const std::string& name) {
@@ -683,6 +638,81 @@ FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_i
   return out;
 }
 
+// In-place subset for FlatArray: keep only rows specified by row_idx (in that order).
+void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx) {
+  int old_nrow = fa.nrow;
+  int ncol = fa.ncol;
+  int nslice = fa.nslice;
+  int new_nrow = row_idx.size();
+  
+  if (old_nrow == 0 || ncol == 0 || nslice == 0) {
+    // nothing to do: ensure array becomes empty if row_idx is empty
+    fa.data.clear();
+    fa.nrow = new_nrow;
+    fa.ncol = ncol;
+    fa.nslice = nslice;
+    return;
+  }
+  
+  validate_row_idx(old_nrow, row_idx);
+  
+  if (new_nrow == old_nrow) {
+    bool identity = true;
+    for (int i = 0; i < new_nrow; ++i) {
+      if (row_idx[i] != i) { identity = false; break; }
+    }
+    if (identity) return;
+  }
+  
+  std::vector<double> newdata;
+  newdata.resize(static_cast<std::size_t>(new_nrow) * ncol * nslice);
+  
+  // layout: slice outermost, then column, then row
+  for (int s = 0; s < nslice; ++s) {
+    int off_old_slice = s * (old_nrow * ncol);
+    int off_new_slice = s * (new_nrow * ncol);
+    for (int c = 0; c < ncol; ++c) {
+      int off_old = off_old_slice + c * old_nrow;
+      int off_new = off_new_slice + c * new_nrow;
+      for (int r = 0; r < new_nrow; ++r) {
+        newdata[off_new + r] = fa.data[off_old + row_idx[r]];
+      }
+    }
+  }
+  
+  fa.data = std::move(newdata);
+  fa.nrow = new_nrow;
+  // fa.ncol and fa.nslice remain unchanged
+}
+
+// Non-mutating subset for FlatArray: return a new FlatArray with only the rows in row_idx
+FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx) {
+  int old_nrow = fa.nrow;
+  int ncol = fa.ncol;
+  int nslice = fa.nslice;
+  int new_nrow = row_idx.size();
+  
+  if (old_nrow == 0 || ncol == 0 || nslice == 0 || new_nrow == 0) {
+    return FlatArray(new_nrow, ncol, nslice);
+  }
+  
+  validate_row_idx(old_nrow, row_idx);
+  
+  FlatArray out(new_nrow, ncol, nslice);
+  for (int s = 0; s < nslice; ++s) {
+    int off_old_slice = s * (old_nrow * ncol);
+    int off_new_slice = s * (new_nrow * ncol);
+    for (int c = 0; c < ncol; ++c) {
+      int off_old = off_old_slice + c * old_nrow;
+      int off_new = off_new_slice + c * new_nrow;
+      for (int r = 0; r < new_nrow; ++r) {
+        out.data[off_new + r] = fa.data[off_old + row_idx[r]];
+      }
+    }
+  }
+  return out;
+}
+
 // Row-wise concatenation: both matrices must have same number of columns.
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   // trivial cases
@@ -833,6 +863,15 @@ struct RcppVisitor {
     return M;
   }
   
+  Rcpp::RObject operator()(const FlatArray& fa) const {
+    if (fa.nrow == 0 || fa.ncol == 0 || fa.nslice == 0) return R_NilValue;
+    Rcpp::NumericVector vec(static_cast<R_xlen_t>(fa.data.size()));
+    std::memcpy(REAL(vec), fa.data.data(), fa.data.size() * sizeof(double));
+    Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(fa.nrow, fa.ncol, fa.nslice);
+    vec.attr("dim") = dims;
+    return vec;
+  }
+  
   Rcpp::RObject operator()(const DataFrameCpp& df) const {
     return convertDataFrameCppToR(df);
   }
@@ -924,9 +963,23 @@ static bool convert_r_object_to_listcpp_variant(
   }
   if (Rcpp::is<Rcpp::NumericVector>(obj)) {
     Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(obj);
-    std::vector<double> v = Rcpp::as<std::vector<double>>(nv);
-    target.push_back(std::move(v), name);
-    return true;
+    // Check for 'dim' attribute
+    Rcpp::IntegerVector dim = nv.attr("dim");
+    if (dim.size() == 3) {
+      int nr = dim[0];
+      int nc = dim[1];
+      int ns = dim[2];
+      std::vector<double> v = Rcpp::as<std::vector<double>>(nv);
+      FlatArray fa(std::move(v), nr, nc, ns);
+      target.push_back(std::move(fa), name);
+      return true;
+    }
+    // fall through to treat as plain numeric vector (1D)
+    {
+      std::vector<double> v = Rcpp::as<std::vector<double>>(nv);
+      target.push_back(std::move(v), name);
+      return true;
+    }
   }
   if (Rcpp::is<Rcpp::IntegerVector>(obj)) {
     Rcpp::IntegerVector iv = Rcpp::as<Rcpp::IntegerVector>(obj);

@@ -434,6 +434,7 @@ struct ListCpp {
     std::vector<std::string>,
     FlatMatrix,
     IntMatrix,
+    FlatArray,
     DataFrameCpp,
     ListPtr,                            // pointer to nested ListCpp
     std::vector<DataFrameCpp>,
@@ -462,12 +463,15 @@ struct ListCpp {
     void push_back(const ListPtr& p, const std::string& name);
     void push_back(ListPtr&& p, const std::string& name);
     
-    // Convenience overloads for FlatMatrix / IntMatrix / DataFrameCpp
+    // Convenience overloads for FlatMatrix / IntMatrix / FlatArray / DataFrameCpp
     void push_back(const FlatMatrix& fm, const std::string& name);
     void push_back(FlatMatrix&& fm, const std::string& name);
      
     void push_back(const IntMatrix& im, const std::string& name);
     void push_back(IntMatrix&& im, const std::string& name);
+
+    void push_back(const FlatArray& fa, const std::string& name);
+    void push_back(FlatArray&& fa, const std::string& name);
     
     void push_back(const DataFrameCpp& df, const std::string& name);
     void push_back(DataFrameCpp&& df, const std::string& name);
@@ -480,20 +484,6 @@ struct ListCpp {
       data.emplace(name, std::move(value));
       names_.insert(names_.begin(), name);
     }
-    
-    void push_front(const ListCpp& l, const std::string& name);
-    void push_front(ListCpp&& l, const std::string& name);
-    void push_front(const ListPtr& p, const std::string& name);
-    void push_front(ListPtr&& p, const std::string& name);
-    
-    void push_front(const FlatMatrix& fm, const std::string& name);
-    void push_front(FlatMatrix&& fm, const std::string& name);
-    
-    void push_front(const IntMatrix& im, const std::string& name);
-    void push_front(IntMatrix&& im, const std::string& name);
-    
-    void push_front(const DataFrameCpp& df, const std::string& name);
-    void push_front(DataFrameCpp&& df, const std::string& name);
     
     void erase(const std::string& name);
     
@@ -527,6 +517,8 @@ DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& ro
 std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx);
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
+void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
+FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx);
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
 
 
@@ -554,6 +546,14 @@ template <> inline SEXP wrap(const IntMatrix& im) {
   Rcpp::IntegerMatrix M(im.nrow, im.ncol);
   std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
   return Rcpp::wrap(M);
+}
+template <> inline SEXP wrap(const FlatArray& fa) {
+  if (fa.nrow == 0 || fa.ncol == 0 || fa.nslice == 0) return R_NilValue;
+  Rcpp::NumericVector vec(static_cast<R_xlen_t>(fa.data.size()));
+  std::memcpy(REAL(vec), fa.data.data(), fa.data.size() * sizeof(double));
+  Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(fa.nrow, fa.ncol, fa.nslice);
+  vec.attr("dim") = dims;
+  return Rcpp::wrap(vec);
 }
 } // namespace Rcpp
 

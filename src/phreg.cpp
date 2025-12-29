@@ -3096,7 +3096,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
   }
   
   FlatMatrix u(nused,p);         // score vector for each individual
-  FlatMatrix imat(nused,p*p);    // information matrix for each individual
+  FlatArray imat(nused,p,p);    // information matrix for each individual
   std::vector<double> a(p);      // s1(beta,k,t)
   std::vector<double> a2(p);     // sum of w*exp(zbeta)*z for the deaths
   FlatMatrix cmat(p,p);          // s2(beta,k,t)
@@ -3208,7 +3208,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
           for (int i = j; i < p; ++i) {
             cmat(i,j) += cmat2(i,j);
             for (int human = person1; human < person; ++human) {
-              if (event[human] == 1) imat(human,j*p+i) = weight[human] *
+              if (event[human] == 1) imat(human,i,j) = weight[human] *
                 (cmat(i,j) - xbar[i] * a[j]) / denom;
             }
           }
@@ -3231,7 +3231,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
             for (int i = j; i < p; ++i) {
               cmat(i,j) += cmat2(i,j) / ndead;
               for (int human = person1; human < person; ++human) {
-                if (event[human] == 1) imat(human,j*p+i) += weight[human]/ndead *
+                if (event[human] == 1) imat(human,i,j) += weight[human]/ndead *
                   (cmat(i,j) - xbar[i] * a[j]) / denom;
               }
             }
@@ -3257,7 +3257,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
   for (int j = 1; j < p; ++j)
     for (int i = 0; i < j; ++i)
       for (int person = 0; person < nused; ++person)
-        imat(person,j*p+i) = imat(person,i*p+j);
+        imat(person,i,j) = imat(person,j,i);
   
   ListCpp result;
   result.push_back(u, "score_i");
@@ -3266,525 +3266,509 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 }
 
 
-// // assess proportional hazards assumption via score process
-// ListCpp assess_phregcpp(const int p,
-//                         const std::vector<double>& beta,
-//                         const FlatMatrix& vbeta,
-//                         const DataFrameCpp& data,
-//                         const std::vector<std::string>& stratum ,
-//                         const std::string& time,
-//                         const std::string& time2,
-//                         const std::string& event,
-//                         const std::vector<std::string>& covariates,
-//                         const std::string& weight,
-//                         const std::string& offset,
-//                         const std::string& ties,
-//                         const int resample,
-//                         const std::uint32_t seed) {
-//   
-//   std::mt19937_64 rng(seed);  // choose generator and seed
-//   std::normal_distribution<double> dist(0.0, 1.0);
-// 
-//   if (p <= 0) {
-//     throw std::invalid_argument(
-//         "covariates must be present to test proportional hazards");
-//   }
-//   
-//   int n = data.nrows();
-// 
-//   std::vector<int> stratumn(n);
-//   int p_stratum = static_cast<int>(stratum.size());
-//   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
-//     ListCpp out = bygroup(data, stratum);
-//     stratumn = out.get<std::vector<int>>("index");
-//   }
-// 
-//   // --- time / time2 existence and checks ---
-//   if (!data.containElementNamed(time)) 
-//     throw std::invalid_argument("data must contain the time variable");
-//   std::vector<double> timen(n);
-//   if (data.int_cols.count(time)) {
-//     const std::vector<int>& vi = data.get<int>(time);
-//     for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
-//   } else if (data.numeric_cols.count(time)) {
-//     timen = data.get<double>(time);
-//   } else {
-//     throw std::invalid_argument("time variable must be integer or numeric");
-//   }
-//   for (int i = 0; i < n; ++i) {
-//     if (!std::isnan(timen[i]) && timen[i] < 0.0)
-//       throw std::invalid_argument("time must be nonnegative");
-//   }
-//   
-//   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
-//   std::vector<double> time2n(n);
-//   if (has_time2) {
-//     if (data.int_cols.count(time2)) {
-//       const std::vector<int>& vi = data.get<int>(time2);
-//       for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
-//     } else if (data.numeric_cols.count(time2)) {
-//       time2n = data.get<double>(time2);
-//     } else {
-//       throw std::invalid_argument("time2 variable must be integer or numeric");
-//     }    
-//     for (int i = 0; i < n; ++i) {
-//       if (!std::isnan(timen[i]) && !std::isnan(time2n[i]) && time2n[i] <= timen[i])
-//         throw std::invalid_argument("time2 must be greater than time");
-//     }
-//   }
-//   
-//   // --- event variable ---
-//   bool has_event = !event.empty() && data.containElementNamed(event);
-//   if (!has_time2 && !has_event) {
-//     throw std::invalid_argument(
-//         "data must contain the event variable for right censored data"); 
-//   }
-//   std::vector<double> eventn(n);
-//   if (has_event) {
-//     if (data.bool_cols.count(event)) {
-//       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-//       for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
-//     } else if (data.int_cols.count(event)) {
-//       const std::vector<int>& vi = data.get<int>(event);
-//       for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
-//     } else if (data.numeric_cols.count(event)) {
-//       eventn = data.get<double>(event);
-//     } else {
-//       throw std::invalid_argument("event variable must be bool, integer or numeric");
-//     }
-//     for (double val : eventn) if (val != 0 && val != 1)
-//       throw std::invalid_argument("event must be 1 or 0 for each observation");
-//   }
-//   
-//   // --- build design matrix zn (n x p) column-major FlatMatrix ---
-//   FlatMatrix zn(n, p);
-//   if (p > 0) {
-//     for (int j = 0; j < p; ++j) {
-//       const std::string& zj = covariates[j];
-//       if (!data.containElementNamed(zj)) 
-//         throw std::invalid_argument("data must contain the variables in covariates");
-//       if (data.bool_cols.count(zj)) {
-//         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-//         int off = j * n;
-//         for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
-//       } else if (data.int_cols.count(zj)) {
-//         const std::vector<int>& vi = data.get<int>(zj);
-//         int off = j * n;
-//         for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
-//       } else if (data.numeric_cols.count(zj)) {
-//         const std::vector<double>& vd = data.get<double>(zj);
-//         int off = j * n;
-//         for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
-//       } else {
-//         throw std::invalid_argument("covariates must be bool, integer or numeric");
-//       }
-//     }
-//   }
-//   
-//   // --- weight and offset ---
-//   std::vector<double> weightn(n, 1.0);
-//   if (!weight.empty() && data.containElementNamed(weight)) {
-//     if (data.int_cols.count(weight)) {
-//       const std::vector<int>& vi = data.get<int>(weight);
-//       for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
-//     } else if (data.numeric_cols.count(weight)) {
-//       weightn = data.get<double>(weight);
-//     } else {
-//       throw std::invalid_argument("weight variable must be integer or numeric");
-//     }
-//     for (double w : weightn) if (std::isnan(w) || w <= 0.0) 
-//       throw std::invalid_argument("weight must be greater than 0");
-//   }
-//   
-//   std::vector<double> offsetn(n, 0.0);
-//   if (!offset.empty() && data.containElementNamed(offset)) {
-//     if (data.int_cols.count(offset)) {
-//       const std::vector<int>& vi = data.get<int>(offset);
-//       for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
-//     } else if (data.numeric_cols.count(offset)) {
-//       offsetn = data.get<double>(offset);
-//     } else {
-//       throw std::invalid_argument("offset variable must be integer or numeric");
-//     }
-//   }
-//   
-//   std::string meth = ties;
-//   std::for_each(meth.begin(), meth.end(), [](char & c) {
-//     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-//   });
-// 
-//   int method = meth == "efron" ? 1 : 0;
-// 
-//   // unify right censored data with counting process data
-//   std::vector<double> tstartn(n), tstopn(n);
-//   if (!has_time2) {
-//     tstopn = timen;
-//   } else {
-//     tstartn = timen;
-//     tstopn = time2n;
-//   }
-// 
-//   // exclude observations with missing values
-//   std::vector<unsigned char> sub(n,1);
-//   for (int i=0; i<n; ++i) {
-//     if (stratumn[i] == INT_MIN || 
-//         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-//         std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
-//         std::isnan(offsetn[i])) {
-//       sub[i] = 0; continue;
-//     }
-//     for (int j = 0; j < p; ++j) {
-//       if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
-//     }
-//   }
-//   std::vector<int> keep = which(sub);
-//   if (keep.empty()) 
-//     throw std::invalid_argument("no observations without missing values");
-//   
-//   subset_in_place(stratumn, keep);
-//   subset_in_place(tstartn, keep);
-//   subset_in_place(tstopn, keep);
-//   subset_in_place(eventn, keep);
-//   subset_in_place(weightn, keep);
-//   subset_in_place(offsetn, keep);
-//   if (p > 0) subset_in_place_flatmatrix(zn, keep);
-//   n = keep.size();
-//   
-//   // sort by stratum
-//   std::vector<int> order0 = seqcpp(0, n-1);
-//   std::sort(order0.begin(), order0.end(), [&](int i, int j) {
-//     return stratumn[i] < stratumn[j];
-//   });
-//   
-//   std::vector<int> stratum1z = subset(stratumn, order0);
-//   std::vector<double> tstart1z = subset(tstartn, order0);
-//   std::vector<double> tstop1z = subset(tstopn, order0);
-//   std::vector<double> event1z = subset(eventn, order0);
-// 
-//   // locate the first observation within each stratum
-//   std::vector<int> istratum(1,0);
-//   for (int i=1; i<n; ++i) {
-//     if (stratum1z[i] != stratum1z[i-1]) {
-//       istratum.push_back(i);
-//     }
-//   }
-//   int nstrata = static_cast<int>(istratum.size());
-//   istratum.push_back(n);
-//   
-//   // ignore subjects not at risk for any event time
-//   std::vector<int> ignore1z(n);
-//   for (int i = 0; i < nstrata; ++i) {
-//     std::vector<int> q0 = seqcpp(istratum[i], istratum[i+1] - 1);
-//     std::vector<double> tstart0 = subset(tstart1z, q0);
-//     std::vector<double> tstop0 = subset(tstop1z, q0);
-//     std::vector<double> event0 = subset(event1z, q0);
-//     int n0 = static_cast<int>(q0.size());
-//     
-//     // unique event times
-//     std::vector<double> etime;
-//     etime.reserve(n0);
-//     for (int j = 0; j < n0; ++j) {
-//       if (event0[j] == 1) etime.push_back(tstop0[j]);
-//     }
-//     etime = unique_sorted(etime);
-//     
-//     std::vector<int> index1 = findInterval3(tstart0, etime);
-//     std::vector<int> index2 = findInterval3(tstop0, etime);
-//     for (int j = istratum[i]; j < istratum[i+1]; ++j) {
-//       int j0 = j - istratum[i];
-//       if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
-//         ignore1z[j] = 1;
-//       } else {
-//         ignore1z[j] = 0;
-//       }
-//     }
-//   }
-//   
-//   std::vector<int> ignoren(n); // back to the original order
-//   for (int i = 0; i < n; ++i) {
-//     ignoren[order0[i]] = ignore1z[i];
-//   }
-//   
-//   int nused = n - std::accumulate(ignoren.begin(), ignoren.end(), 0);
-//   
-//   // sort by stopping time in descending order within each stratum
-//   std::vector<int> order1 = seqcpp(0, n-1);
-//   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
-//     if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
-//     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
-//     if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
-//     return eventn[i] < eventn[j];
-//   });
-//   
-//   std::vector<int> stratum1 = subset(stratumn, order1);
-//   std::vector<double> tstart1 = subset(tstartn, order1);
-//   std::vector<double> tstop1 = subset(tstopn, order1);
-//   std::vector<double> event1 = subset(eventn, order1);
-//   std::vector<double> weight1 = subset(weightn, order1);
-//   std::vector<double> offset1 = subset(offsetn, order1);
-//   std::vector<int> ignore1 = subset(ignoren, order1);
-//   FlatMatrix z1;
-//   if (p > 0) z1 = subset_flatmatrix(zn, order1);
-//   
-//   // sort by starting time in descending order within each stratum
-//   std::vector<int> order10 = seqcpp(0, n-1);
-//   std::sort(order10.begin(), order10.end(), [&](int i, int j) {
-//     if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
-//     if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
-//     return tstart1[i] > tstart1[j];
-//   });
-//   
-//   coxparams param = {nused, stratum1, tstart1, tstop1, event1,
-//                      weight1, offset1, z1, order10, method};
-//   
-//   ListCpp out = f_der_i_2(p, beta, &param);
-//   FlatMatrix score_i = out.get<FlatMatrix>("score_i");
-//   FlatMatrix imat_i = out.get<FlatMatrix>("imat_i");
-// 
-//   // order data by ascending tstop
-//   std::vector<int> order2 = seqcpp(0, n-1);
-//   std::sort(order2.begin(), order2.end(), [&](int i, int j) {
-//     return tstop1[i] < tstop1[j];
-//   });
-// 
-//   std::vector<double> tstop2 = subset(tstop1, order2);
-//   std::vector<double> event2 = subset(event1, order2);
-//   FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
-//   FlatMatrix imat_i2 = subset_flatmatrix(imat_i, order2);
-// 
-//   // only consider event times
-//   std::vector<int> q; 
-//   q.reserve(n);
-//   for (int i=0; i<n; ++i) if (event2[i] == 1) q.push_back(i);
-//   
-//   std::vector<double> tstop3 = subset(tstop2, q);
-//   FlatMatrix score_i3 = subset_flatmatrix(score_i2, q);
-//   FlatMatrix imat_i3 = subset_flatmatrix(imat_i2, q);
-//   int nq = static_cast<int>(q.size());
-// 
-//   // identify unique event times
-//   std::vector<double> t = unique_sorted(tstop3);
-// 
-//   int nt = static_cast<int>(t.size());
-//   FlatMatrix score_i4(nt, p);
-//   FlatMatrix imat_i4(nt, p*p);
-// 
-//   std::vector<double> tstop4(nq+1);
-//   tstop4[0] = -1.0;
-//   std::memcpy(tstop4.data() + 1, tstop3.data(), nq * sizeof(double));
-//   
-//   // sums over unique event times
-//   for (int j=0; j<p; ++j) {
-//     int h = -1;
-//     for (int i=1; i<=nq; ++i) {
-//       if (tstop4[i] != tstop4[i-1]) ++h;
-//       score_i4(h,j) += score_i3(i-1,j);
-//     }
-//   }
-//   
-//   for (int k=0; k<p; ++k) {
-//     for (int j=0; j<p; ++j) {
-//       int h = -1;
-//       for (int i=1; i<=nq; ++i) {
-//         if (tstop4[i] != tstop4[i-1]) ++h;
-//         imat_i4(h,k*p+j) += imat_i3(i-1,k*p+j);
-//       }
-//     }
-//   }
-//   
-//   // cumulative sums of score and information processes
-//   for (int j=0; j<p; ++j) {
-//     for (int i=1; i<nt; ++i) {
-//       score_i4(i,j) += score_i4(i-1,j);
-//     }
-//   }
-//   
-//   for (int k=0; k<p; ++k) {
-//     for (int j=0; j<p; ++j) {
-//       for (int i=1; i<nt; ++i) {
-//         imat_i4(i,k*p+j) += imat_i4(i-1,k*p+j);
-//       }
-//     }
-//   }
-// 
-//   // standardize the score processes
-//   for (int i=0; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
-//       score_i4(i,j) *= std::sqrt(vbeta(j,j));
-//     }
-//   }
-// 
-//   // resampling to approximate the null distribution
-//   std::vector<std::vector<double>> G_vec(resample);
-//   for (int r=0; r<resample; ++r) {
-//     std::vector<double> G(nq);
-//     for (int i=0; i<nq; ++i) {
-//       G[i] = dist(rng);
-//     }
-//     G_vec[r] = G;
-//   }
-// 
-//   // sum(u*G)
-//   std::vector<std::vector<double>> U_vec(resample);
-//   for (int r=0; r<resample; ++r) {
-//     std::vector<double> U(p);
-//     std::vector<double> G = G_vec[r];
-//     for (int j=0; j<p; ++j) {
-//       for (int i=0; i<nq; ++i) {
-//         U[j] += score_i3(i,j)*G[i];
-//       }
-//     }
-//     U_vec[r] = U;
-//   }
-// 
-//   // sum(I(X <= t)*U*G)
-//   std::vector<FlatMatrix> score_i_vec(resample);
-//   for (int r=0; r<resample; ++r) {
-//     FlatMatrix score_i4(nt, p);
-//     std::vector<double> G = G_vec[r];
-// 
-//     // sums of unique event times
-//     for (int j=0; j<p; ++j) {
-//       int h = -1;
-//       for (int i=1; i<=nq; ++i) {
-//         if (tstop4[i] != tstop4[i-1]) ++h;
-//         score_i4(h,j) += score_i3(i-1,j)*G[i-1];
-//       }
-//     }
-//     
-//     // cumulative sums of score processes
-//     for (int j=0; j<p; ++j) {
-//       for (int i=1; i<nt; ++i) {
-//         score_i4(i,j) += score_i4(i-1,j);
-//       }
-//     }
-// 
-//     score_i_vec[r] = score_i4;
-//   }
-// 
-//   // piece together the result
-//   std::vector<FlatMatrix> score_i_vec_2(resample);
-//   for (int r=0; r<resample; ++r) {
-//     FlatMatrix score_i4 = score_i_vec[r];
-//     FlatMatrix score_i4_2(nt, p);
-//     std::vector<double> U = U_vec[r];
-//     
-//     std::vector<double> vU = mat_vec_mult(vbeta, U);
-//     
-//     FlatMatrix ivU(nt, p);
-//     for (int k=0; k<p; ++k) {
-//       for (int j=0; j<p; ++j) {
-//         for (int i=0; i<nt; ++i) {
-//           ivU(i,j) += imat_i4(i,k*p+j)*vU[k];
-//         }
-//       }
-//     }
-//     
-//     for (int j=0; j<p; ++j) {
-//       for (int i=0; i<nt; ++i) {
-//         score_i4_2(i,j) = score_i4(i,j) - ivU(i,j);
-//       }
-//     }
-//     score_i_vec_2[r] = score_i4_2;
-//   }
-// 
-//   // standardize the resampled score processes
-//   for (int r=0; r<resample; ++r) {
-//     FlatMatrix score_i4 = score_i_vec_2[r];
-//     for (int j=0; j<p; ++j) {
-//       for (int i=0; i<nt; ++i) {
-//         score_i4(i,j) *= std::sqrt(vbeta(j,j));
-//       }
-//     }
-//     score_i_vec_2[r] = score_i4;
-//   }
-// 
-//   // calculate individual p-values for proportional hazards assumption test
-//   std::vector<double> p_values(p+1);
-//   std::vector<double> maxabs(p+1);
-//   for (int j=0; j<p; ++j) {
-//     std::vector<double> obs(nt);
-//     for (int i=0; i<nt; ++i) {
-//       obs[i] = std::fabs(score_i4(i,j));
-//     }
-//     double tobs = *std::max_element(obs.begin(), obs.end());
-//     maxabs[j] = tobs;
-// 
-//     double count = 0;
-//     for (int r=0; r<resample; ++r) {
-//       FlatMatrix score_i4 = score_i_vec_2[r];
-//       std::vector<double> sim(nt);
-//       for (int i=0; i<nt; ++i) {
-//         sim[i] = std::fabs(score_i4(i,j));
-//       }
-//       double tsim = *std::max_element(sim.begin(), sim.end());
-//       if (tsim >= tobs) ++count;
-//     }
-//     p_values[j] = count / resample;
-//   }
-// 
-//   // p-value for the global test
-//   std::vector<double> obs(nt);
-//   for (int j=0; j<p; ++j) {
-//     for (int i=0; i<nt; ++i) {
-//       obs[i] += std::fabs(score_i4(i,j));
-//     }
-//   }
-//   double tobs = *std::max_element(obs.begin(), obs.end());
-// 
-//   double count = 0;
-//   for (int r=0; r<resample; ++r) {
-//     FlatMatrix score_i4 = score_i_vec_2[r];
-//     std::vector<double> sim(nt);
-//     for (int j=0; j<p; ++j) {
-//       for (int i=0; i<nt; ++i) {
-//         sim[i] += std::fabs(score_i4(i,j));
-//       }
-//     }
-//     double tsim = *std::max_element(sim.begin(), sim.end());
-//     if (tsim >= tobs) ++count;
-//   }
-//   p_values[p] = count / resample;
-// 
-//   maxabs[p] = tobs;
-//   
-//   ListCpp result;
-//   result.push_back(t, "time");
-//   result.push_back(score_i4, "score_t");
-//   result.push_back(score_i_vec_2, "score_t_vec");
-//   result.push_back(maxabs, "max_abs_value");
-//   result.push_back(p_values, "p_value");
-//   return result;
-// }
-// 
-// 
-// // [[Rcpp::export]]
-// Rcpp::List assess_phregRcpp(const int p,
-//                             const std::vector<double>& beta,
-//                             const Rcpp::NumericMatrix& vbeta,
-//                             const Rcpp::DataFrame& data,
-//                             const std::vector<std::string>& stratum ,
-//                             const std::string& time,
-//                             const std::string& time2,
-//                             const std::string& event,
-//                             const std::vector<std::string>& covariates,
-//                             const std::string& weight,
-//                             const std::string& offset,
-//                             const std::string& ties,
-//                             const int resample,
-//                             const std::uint32_t seed) {
-//   
-//   
-//   FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
-//   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-//   
-//   ListCpp cpp_result = assess_phregcpp(
-//     p, beta, vbetacpp, dfcpp, stratum, time, time2, event, 
-//     covariates, weight, offset, ties, resample, seed);
-//   
-//   thread_utils::drain_thread_warnings_to_R();
-//   return Rcpp::wrap(cpp_result);
-// }
+// assess proportional hazards assumption via score process
+ListCpp assess_phregcpp(const int p,
+                        const std::vector<double>& beta,
+                        const FlatMatrix& vbeta,
+                        const DataFrameCpp& data,
+                        const std::vector<std::string>& stratum ,
+                        const std::string& time,
+                        const std::string& time2,
+                        const std::string& event,
+                        const std::vector<std::string>& covariates,
+                        const std::string& weight,
+                        const std::string& offset,
+                        const std::string& ties,
+                        const int resample,
+                        const int seed) {
+
+  std::mt19937_64 rng(seed);  // choose generator and seed
+  std::normal_distribution<double> dist(0.0, 1.0);
+
+  if (p <= 0) {
+    throw std::invalid_argument(
+        "covariates must be present to test proportional hazards");
+  }
+
+  int n = data.nrows();
+
+  std::vector<int> stratumn(n);
+  int p_stratum = static_cast<int>(stratum.size());
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    stratumn = out.get<std::vector<int>>("index");
+  }
+
+  // --- time / time2 existence and checks ---
+  if (!data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
+  for (int i = 0; i < n; ++i) {
+    if (!std::isnan(timen[i]) && timen[i] < 0.0)
+      throw std::invalid_argument("time must be nonnegative");
+  }
+
+  bool has_time2 = !time2.empty() && data.containElementNamed(time2);
+  std::vector<double> time2n(n);
+  if (has_time2) {
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }
+    for (int i = 0; i < n; ++i) {
+      if (!std::isnan(timen[i]) && !std::isnan(time2n[i]) && time2n[i] <= timen[i])
+        throw std::invalid_argument("time2 must be greater than time");
+    }
+  }
+
+  // --- event variable ---
+  bool has_event = !event.empty() && data.containElementNamed(event);
+  if (!has_time2 && !has_event) {
+    throw std::invalid_argument(
+        "data must contain the event variable for right censored data");
+  }
+  std::vector<double> eventn(n);
+  if (has_event) {
+    if (data.bool_cols.count(event)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(event)) {
+      const std::vector<int>& vi = data.get<int>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(event)) {
+      eventn = data.get<double>(event);
+    } else {
+      throw std::invalid_argument("event variable must be bool, integer or numeric");
+    }
+    for (double val : eventn) if (val != 0 && val != 1)
+      throw std::invalid_argument("event must be 1 or 0 for each observation");
+  }
+
+  // --- build design matrix zn (n x p) column-major FlatMatrix ---
+  FlatMatrix zn(n, p);
+  if (p > 0) {
+    for (int j = 0; j < p; ++j) {
+      const std::string& zj = covariates[j];
+      if (!data.containElementNamed(zj))
+        throw std::invalid_argument("data must contain the variables in covariates");
+      if (data.bool_cols.count(zj)) {
+        const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
+      } else if (data.int_cols.count(zj)) {
+        const std::vector<int>& vi = data.get<int>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
+      } else if (data.numeric_cols.count(zj)) {
+        const std::vector<double>& vd = data.get<double>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
+      } else {
+        throw std::invalid_argument("covariates must be bool, integer or numeric");
+      }
+    }
+  }
+
+  // --- weight and offset ---
+  std::vector<double> weightn(n, 1.0);
+  if (!weight.empty() && data.containElementNamed(weight)) {
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
+    for (double w : weightn) if (std::isnan(w) || w <= 0.0)
+      throw std::invalid_argument("weight must be greater than 0");
+  }
+
+  std::vector<double> offsetn(n, 0.0);
+  if (!offset.empty() && data.containElementNamed(offset)) {
+    if (data.int_cols.count(offset)) {
+      const std::vector<int>& vi = data.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(offset)) {
+      offsetn = data.get<double>(offset);
+    } else {
+      throw std::invalid_argument("offset variable must be integer or numeric");
+    }
+  }
+
+  std::string meth = ties;
+  std::for_each(meth.begin(), meth.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+
+  int method = meth == "efron" ? 1 : 0;
+
+  // unify right censored data with counting process data
+  std::vector<double> tstartn(n), tstopn(n);
+  if (!has_time2) {
+    tstopn = timen;
+  } else {
+    tstartn = timen;
+    tstopn = time2n;
+  }
+
+  // exclude observations with missing values
+  std::vector<unsigned char> sub(n,1);
+  for (int i=0; i<n; ++i) {
+    if (stratumn[i] == INT_MIN ||
+        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
+        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
+        std::isnan(offsetn[i])) {
+      sub[i] = 0; continue;
+    }
+    for (int j = 0; j < p; ++j) {
+      if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
+    }
+  }
+  std::vector<int> keep = which(sub);
+  if (keep.empty())
+    throw std::invalid_argument("no observations without missing values");
+
+  subset_in_place(stratumn, keep);
+  subset_in_place(tstartn, keep);
+  subset_in_place(tstopn, keep);
+  subset_in_place(eventn, keep);
+  subset_in_place(weightn, keep);
+  subset_in_place(offsetn, keep);
+  if (p > 0) subset_in_place_flatmatrix(zn, keep);
+  n = keep.size();
+
+  // sort by stratum
+  std::vector<int> order0 = seqcpp(0, n-1);
+  std::sort(order0.begin(), order0.end(), [&](int i, int j) {
+    return stratumn[i] < stratumn[j];
+  });
+
+  std::vector<int> stratum1z = subset(stratumn, order0);
+  std::vector<double> tstart1z = subset(tstartn, order0);
+  std::vector<double> tstop1z = subset(tstopn, order0);
+  std::vector<double> event1z = subset(eventn, order0);
+
+  // locate the first observation within each stratum
+  std::vector<int> istratum(1,0);
+  for (int i=1; i<n; ++i) {
+    if (stratum1z[i] != stratum1z[i-1]) {
+      istratum.push_back(i);
+    }
+  }
+  int nstrata = static_cast<int>(istratum.size());
+  istratum.push_back(n);
+
+  // ignore subjects not at risk for any event time
+  std::vector<int> ignore1z(n);
+  for (int i = 0; i < nstrata; ++i) {
+    std::vector<int> q0 = seqcpp(istratum[i], istratum[i+1] - 1);
+    std::vector<double> tstart0 = subset(tstart1z, q0);
+    std::vector<double> tstop0 = subset(tstop1z, q0);
+    std::vector<double> event0 = subset(event1z, q0);
+    int n0 = static_cast<int>(q0.size());
+
+    // unique event times
+    std::vector<double> etime;
+    etime.reserve(n0);
+    for (int j = 0; j < n0; ++j) {
+      if (event0[j] == 1) etime.push_back(tstop0[j]);
+    }
+    etime = unique_sorted(etime);
+
+    std::vector<int> index1 = findInterval3(tstart0, etime);
+    std::vector<int> index2 = findInterval3(tstop0, etime);
+    for (int j = istratum[i]; j < istratum[i+1]; ++j) {
+      int j0 = j - istratum[i];
+      if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
+        ignore1z[j] = 1;
+      } else {
+        ignore1z[j] = 0;
+      }
+    }
+  }
+
+  std::vector<int> ignoren(n); // back to the original order
+  for (int i = 0; i < n; ++i) {
+    ignoren[order0[i]] = ignore1z[i];
+  }
+
+  int nused = n - std::accumulate(ignoren.begin(), ignoren.end(), 0);
+
+  // sort by stopping time in descending order within each stratum
+  std::vector<int> order1 = seqcpp(0, n-1);
+  std::sort(order1.begin(), order1.end(), [&](int i, int j) {
+    if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
+    if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
+    if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
+    return eventn[i] < eventn[j];
+  });
+
+  std::vector<int> stratum1 = subset(stratumn, order1);
+  std::vector<double> tstart1 = subset(tstartn, order1);
+  std::vector<double> tstop1 = subset(tstopn, order1);
+  std::vector<double> event1 = subset(eventn, order1);
+  std::vector<double> weight1 = subset(weightn, order1);
+  std::vector<double> offset1 = subset(offsetn, order1);
+  std::vector<int> ignore1 = subset(ignoren, order1);
+  FlatMatrix z1;
+  if (p > 0) z1 = subset_flatmatrix(zn, order1);
+
+  // sort by starting time in descending order within each stratum
+  std::vector<int> order10 = seqcpp(0, n-1);
+  std::sort(order10.begin(), order10.end(), [&](int i, int j) {
+    if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
+    if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
+    return tstart1[i] > tstart1[j];
+  });
+
+  coxparams param = {nused, stratum1, tstart1, tstop1, event1,
+                     weight1, offset1, z1, order10, method};
+
+  ListCpp out = f_der_i_2(p, beta, &param);
+  FlatMatrix score_i = out.get<FlatMatrix>("score_i");
+  FlatArray imat_i = out.get<FlatArray>("imat_i");
+
+  // order data by ascending tstop
+  std::vector<int> order2 = seqcpp(0, n-1);
+  std::sort(order2.begin(), order2.end(), [&](int i, int j) {
+    return tstop1[i] < tstop1[j];
+  });
+
+  std::vector<double> tstop2 = subset(tstop1, order2);
+  std::vector<double> event2 = subset(event1, order2);
+  FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
+  FlatArray imat_i2 = subset_flatarray(imat_i, order2);
+
+  // only consider event times
+  std::vector<int> q;
+  q.reserve(n);
+  for (int i=0; i<n; ++i) if (event2[i] == 1) q.push_back(i);
+
+  std::vector<double> tstop3 = subset(tstop2, q);
+  FlatMatrix score_i3 = subset_flatmatrix(score_i2, q);
+  FlatArray imat_i3 = subset_flatarray(imat_i2, q);
+  int d = static_cast<int>(q.size());
+
+  // identify unique event times
+  std::vector<double> t = unique_sorted(tstop3);
+
+  int nt = static_cast<int>(t.size());
+  FlatMatrix score_i4(nt, p);
+  FlatArray imat_i4(nt, p, p);
+
+  std::vector<double> tstop4(d+1);
+  tstop4[0] = -1.0;
+  std::memcpy(tstop4.data() + 1, tstop3.data(), d * sizeof(double));
+
+  // sums over unique event times
+  for (int j=0; j<p; ++j) {
+    int h = -1;
+    for (int i=1; i<=d; ++i) {
+      if (tstop4[i] != tstop4[i-1]) ++h;
+      score_i4(h,j) += score_i3(i-1,j);
+    }
+  }
+
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      int h = -1;
+      for (int i=1; i<=d; ++i) {
+        if (tstop4[i] != tstop4[i-1]) ++h;
+        imat_i4(h,j,k) += imat_i3(i-1,j,k);
+      }
+    }
+  }
+
+  // cumulative sums of score and information processes
+  for (int j=0; j<p; ++j) {
+    for (int i=1; i<nt; ++i) {
+      score_i4(i,j) += score_i4(i-1,j);
+    }
+  }
+
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      for (int i=1; i<nt; ++i) {
+        imat_i4(i,j,k) += imat_i4(i-1,j,k);
+      }
+    }
+  }
+
+  // standardize the score processes
+  for (int i=0; i<nt; ++i) {
+    for (int j=0; j<p; ++j) {
+      score_i4(i,j) *= std::sqrt(vbeta(j,j));
+    }
+  }
+
+  // resampling to approximate the null distribution
+  FlatMatrix G(d, resample);
+  for (int r=0; r<resample; ++r) {
+    for (int i=0; i<d; ++i) {
+      G(i,r) = dist(rng);
+    }
+  }
+
+  // sum(u*G)
+  FlatMatrix U(p, resample);
+  for (int r=0; r<resample; ++r) {
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<d; ++i) {
+        U(j,r) += score_i3(i,j)*G(i,r);
+      }
+    }
+  }
+
+  // sum(I(X <= t)*U*G)
+  FlatArray score_i_vec(nt, p, resample);
+  for (int r=0; r<resample; ++r) {
+    // sums of unique event times
+    for (int j=0; j<p; ++j) {
+      int h = -1;
+      for (int i=1; i<=d; ++i) {
+        if (tstop4[i] != tstop4[i-1]) ++h;
+        score_i_vec(h,j,r) += score_i3(i-1,j)*G(i-1,r);
+      }
+    }
+
+    // cumulative sums of score processes
+    for (int j=0; j<p; ++j) {
+      for (int i=1; i<nt; ++i) {
+        score_i_vec(i,j,r) += score_i_vec(i-1,j,r);
+      }
+    }
+  }
+
+  // piece together the result
+  FlatMatrix vU = mat_mat_mult(vbeta, U);
+  FlatArray ivU(nt, p, resample);
+  for (int r=0; r<resample; ++r) {
+    for (int k=0; k<p; ++k) {
+      for (int j=0; j<p; ++j) {
+        for (int i=0; i<nt; ++i) {
+          ivU(i,j,r) += imat_i4(i,j,k)*vU(k,r);
+        }
+      }
+    }
+  }
+  FlatArray score_i_vec_2(nt, p, resample);
+  for (int r=0; r<resample; ++r) {
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<nt; ++i) {
+        score_i_vec_2(i,j,r) = score_i_vec(i,j,r) - ivU(i,j,r);
+      }
+    }
+  }
+
+  // standardize the resampled score processes
+  for (int r=0; r<resample; ++r) {
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<nt; ++i) {
+        score_i_vec_2(i,j,r) *= std::sqrt(vbeta(j,j));
+      }
+    }
+  }
+
+  // calculate individual p-values for proportional hazards assumption test
+  std::vector<double> p_values(p+1);
+  
+  // observed test statistics for each covariate and overall
+  std::vector<double> tobs(p+1);
+  for (int j=0; j<p; ++j) {
+    std::vector<double> obs(nt);
+    for (int i=0; i<nt; ++i) {
+      obs[i] = std::fabs(score_i4(i,j));
+    }
+    tobs[j] = *std::max_element(obs.begin(), obs.end());
+  }
+  
+  std::vector<double> obs(nt);
+  for (int j=0; j<p; ++j) {
+    for (int i=0; i<nt; ++i) {
+      obs[i] += std::fabs(score_i4(i,j));
+    }
+  }
+  tobs[p] = *std::max_element(obs.begin(), obs.end());
+  
+  // count exceedances in resampled test statistics
+  std::vector<double> count(p+1);
+  for (int r=0; r<resample; ++r) {
+    for (int j=0; j<p; ++j) {
+      std::vector<double> sim(nt);
+      for (int i=0; i<nt; ++i) {
+        sim[i] = std::fabs(score_i_vec_2(i,j,r));
+      }
+      double tsim = *std::max_element(sim.begin(), sim.end());
+      if (tsim >= tobs[j]) ++count[j];
+    }
+
+    std::vector<double> sim(nt);
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<nt; ++i) {
+        sim[i] += std::fabs(score_i_vec_2(i,j,r));
+      }
+    }
+    double tsim = *std::max_element(sim.begin(), sim.end());
+    if (tsim >= tobs[p]) ++count[p];
+  }
+  
+  // calculate p-values
+  for (int j=0; j<=p; ++j) {
+    p_values[j] = count[j] / resample;
+  }
+  
+  ListCpp result;
+  result.push_back(t, "time");
+  result.push_back(score_i4, "score_t");
+  result.push_back(score_i_vec_2, "score_t_list");
+  result.push_back(tobs, "max_abs_value");
+  result.push_back(p_values, "p_value");
+  result.push_back(covariates, "covariates");
+  result.push_back(resample, "resample");
+  result.push_back(seed, "seed");
+  return result;
+}
+
+// [[Rcpp::export]]
+Rcpp::List assess_phregRcpp(const int p,
+                            const std::vector<double>& beta,
+                            const Rcpp::NumericMatrix& vbeta,
+                            const Rcpp::DataFrame& data,
+                            const std::vector<std::string>& stratum ,
+                            const std::string& time,
+                            const std::string& time2,
+                            const std::string& event,
+                            const std::vector<std::string>& covariates,
+                            const std::string& weight,
+                            const std::string& offset,
+                            const std::string& ties,
+                            const int resample,
+                            const std::uint32_t seed) {
+
+
+  FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+
+  ListCpp cpp_result = assess_phregcpp(
+    p, beta, vbetacpp, dfcpp, stratum, time, time2, event,
+    covariates, weight, offset, ties, resample, seed);
+
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
+}
 // 
 //  
 // // [[Rcpp::export]]
@@ -4020,7 +4004,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   NumericVector tstop3 = tstop2[q];
 //   NumericMatrix score_i3 = subset_matrix_by_row(score_i2, q);
 //   NumericMatrix imat_i3 = subset_matrix_by_row(imat_i2, q);
-//   int nq = static_cast<int>(q.size());
+//   int d = static_cast<int>(q.size());
 //   
 //   // identify unique event times
 //   NumericVector t = unique(tstop3);
@@ -4033,7 +4017,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   NumericVector tstop3a = clone(tstop3);
 //   tstop3a.push_front(-1.0); // to facilitate the loop
 //   int k = -1;
-//   for (int i=1; i<=nq; ++i) {
+//   for (int i=1; i<=d; ++i) {
 //     if (tstop3a[i] != tstop3a[i-1]) ++k;
 //     
 //     for (int j=0; j<p; ++j) {
@@ -4169,11 +4153,11 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   colnames(sresid) = covariates;
 //   
 //   // repeat the g values according to the number of events
-//   NumericVector g_rep(nq);
+//   NumericVector g_rep(d);
 //   int idx = 0;
 //   for (int i=0; i<nt; ++i) {
 //     int count = 0;
-//     for (int j=0; j<nq; ++j) {
+//     for (int j=0; j<d; ++j) {
 //       if (tstop3[j] == t[i]) {
 //         ++count;
 //       }
@@ -4189,7 +4173,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     Named("x") = g_rep,
 //     Named("time") = tstop3,
 //     Named("y") = sresid,
-//     Named("var") = vbeta*nq,
+//     Named("var") = vbeta*d,
 //     Named("transform") = transform
 //   );
 //   
