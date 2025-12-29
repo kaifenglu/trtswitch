@@ -15,6 +15,7 @@
 #include <stdexcept> // exceptions
 #include <algorithm> // sort, none_of, any_of
 #include <cstring>   // memcpy
+#include <random>
 
 struct coxparams {
   int nused;
@@ -1287,7 +1288,6 @@ ListCpp phregcpp(const DataFrameCpp& data,
   std::vector<double> lb(p), ub(p), prob(p);
   std::vector<std::string> clparm(p);
   
-  
   // baseline hazards data set
   std::vector<int> stratumn1 = unique_sorted(stratumn);
   int nstrata = static_cast<int>(stratumn1.size());
@@ -1326,7 +1326,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
         prob[i] = NaN;
         clparm[i] = "Wald";
       }
-      
+
       for (int j=0; j<p; ++j) {
         for (int i=0; i<p; ++i) {
           vb(i,j) = 0;
@@ -1334,7 +1334,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
         }
       }
     }
-    
+
     // baseline hazard
     if (est_basehaz) {
       dstratum[0] = 0;
@@ -1350,19 +1350,19 @@ ListCpp phregcpp(const DataFrameCpp& data,
         }
       }
     }
-    
+
     // martingale residuals
     if (est_resid) {
       for (int i=0; i<n; ++i) {
         resmart[i] = 0;
       }
     }
-    
+
     // linear predictors
     for (int i=0; i<n; ++i) {
       linear_predictors[i] = offsetn[i];
     }
-    
+
     loglik0 = NaN;
     loglik1 = NaN;
     regloglik0 = NaN;
@@ -1376,12 +1376,12 @@ ListCpp phregcpp(const DataFrameCpp& data,
     std::sort(order0.begin(), order0.end(), [&](int i, int j) {
       return stratumn[i] < stratumn[j];
     });
-    
+
     std::vector<int> stratumnz = subset(stratumn, order0);
     std::vector<double> tstartnz = subset(tstartn, order0);
     std::vector<double> tstopnz = subset(tstopn, order0);
     std::vector<double> eventnz = subset(eventn, order0);
-    
+
     // locate the first observation within each stratum
     std::vector<int> istratum(1,0);
     for (int i=1; i<n; ++i) {
@@ -1389,9 +1389,9 @@ ListCpp phregcpp(const DataFrameCpp& data,
         istratum.push_back(i);
       }
     }
-    
+
     istratum.push_back(n);
-    
+
     // ignore subjects not at risk for any event time
     std::vector<int> ignorenz(n);
     for (int i = 0; i < nstrata; ++i) {
@@ -1400,7 +1400,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       std::vector<double> tstop0 = subset(tstopnz, q0);
       std::vector<double> event0 = subset(eventnz, q0);
       int n0 = static_cast<int>(q0.size());
-      
+
       // unique event times
       std::vector<double> etime;
       etime.reserve(n0);
@@ -1408,7 +1408,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
         if (event0[j] == 1) etime.push_back(tstop0[j]);
       }
       etime = unique_sorted(etime);
-      
+
       std::vector<int> index1 = findInterval3(tstart0, etime);
       std::vector<int> index2 = findInterval3(tstop0, etime);
       for (int j = istratum[i]; j < istratum[i+1]; ++j) {
@@ -1420,14 +1420,14 @@ ListCpp phregcpp(const DataFrameCpp& data,
         }
       }
     }
-    
+
     std::vector<int> ignoren(n); // back to the original order
     for (int i = 0; i < n; ++i) {
       ignoren[order0[i]] = ignorenz[i];
     }
-    
+
     int nused = n - std::accumulate(ignoren.begin(), ignoren.end(), 0);
-    
+
     // sort by stopping time in descending order within each stratum
     std::vector<int> order1 = seqcpp(0, n-1);
     std::sort(order1.begin(), order1.end(), [&](int i, int j) {
@@ -1436,7 +1436,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
       return eventn[i] < eventn[j];
     });
-    
+
     std::vector<int> stratumna = subset(stratumn, order1);
     std::vector<double> tstartna = subset(tstartn, order1);
     std::vector<double> tstopna = subset(tstopn, order1);
@@ -1447,7 +1447,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
     std::vector<int> ignorena = subset(ignoren, order1);
     FlatMatrix zna;
     if (p > 0) zna = subset_flatmatrix(zn, order1);
-    
+
     // sort by starting time in descending order within each stratum
     std::vector<int> orderna = seqcpp(0, n-1);
     std::sort(orderna.begin(), orderna.end(), [&](int i, int j) {
@@ -1455,15 +1455,15 @@ ListCpp phregcpp(const DataFrameCpp& data,
       if (stratumna[i] != stratumna[j]) return stratumna[i] < stratumna[j];
       return tstartna[i] > tstartna[j];
     });
-    
+
     coxparams param = {nused, stratumna, tstartna, tstopna, eventna,
                        weightna, offsetna, zna, orderna, method};
-    
+
     std::vector<double> bint(p);
     ListCpp derint = f_der_2(p, bint, &param, firth);
-    
+
     ListCpp out;
-    
+
     if (p > 0) {
       std::vector<int> colfit = seqcpp(0, p - 1);
       if  (static_cast<int>(init.size()) == p &&
@@ -1473,7 +1473,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       } else {
         out = phregloop(p, bint, &param, maxiter, eps, firth, colfit, p);
       }
-      
+
       niter = out.get<int>("iter");
       fail = out.get<bool>("fail");
       if (fail) {
@@ -1481,18 +1481,18 @@ ListCpp phregcpp(const DataFrameCpp& data,
           "phregloop failed to converge for the full model; "
           "continuing with current results.");
       }
-      
+
       b = out.get<std::vector<double>>("coef");
       vb = out.get<FlatMatrix>("var");
-      
+
       for (int j=0; j<p; ++j) {
         seb[j] = std::sqrt(vb(j,j));
       }
-      
+
       for (int i=0; i<p; ++i) {
         par[i] = covariates[i];
       }
-      
+
       // score statistic
       std::vector<double> scorebint;
       if (firth) scorebint = derint.get<std::vector<double>>("regscore");
@@ -1500,12 +1500,12 @@ ListCpp phregcpp(const DataFrameCpp& data,
       FlatMatrix infobint = derint.get<FlatMatrix>("imat");
       FlatMatrix vbint = invsympd(infobint, p);
       scoretest = quadsym(scorebint, vbint);
-      
-      
+
+
       // robust variance estimates
       if (robust) {
         FlatMatrix ressco = f_ressco_2(p, b, &param);
-        
+
         int nr; // number of rows in the score residual matrix
         if (!has_id) {
           for (int j = 0; j < p; ++j) {
@@ -1520,7 +1520,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
           std::sort(order.begin(), order.end(), [&](int i, int j) {
             return idna[i] < idna[j];
           });
-          
+
           std::vector<int> id1 = subset(idna, order);
           std::vector<int> idx(1,0);
           for (int i=1; i<n; ++i) {
@@ -1528,10 +1528,10 @@ ListCpp phregcpp(const DataFrameCpp& data,
               idx.push_back(i);
             }
           }
-          
+
           int nids = static_cast<int>(idx.size());
           idx.push_back(n);
-          
+
           FlatMatrix ressco1(nids,p);
           for (int j = 0; j < p; ++j) {
             const int off = j * n;
@@ -1545,13 +1545,13 @@ ListCpp phregcpp(const DataFrameCpp& data,
               ressco1.data[off1 + i] = sum;
             }
           }
-          
+
           ressco = std::move(ressco1);  // update the score residuals
           nr = nids;
         }
-        
+
         FlatMatrix D = mat_mat_mult(ressco, vb); // DFBETA
-        
+
         const double* Dptr = D.data_ptr();
         double* rvbptr = rvb.data_ptr();
         for (int j = 0; j < p; ++j) {
@@ -1566,27 +1566,27 @@ ListCpp phregcpp(const DataFrameCpp& data,
             if (j != k) rvbptr[j * p + k] = sum;
           }
         }
-        
+
         for (int i=0; i<p; ++i) {
           rseb[i] = std::sqrt(rvb(i,i));
         }
       }
-      
+
       // profile likelihood confidence interval for regression coefficients
       if (plci) {
         double lmax = out.get<double>("loglik");
         double l0 = lmax - 0.5 * xcrit;
-        
+
         for (int k=0; k<p; ++k) {
           lb[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, -1, l0);
           ub[k] = phregplloop(p, b, &param, maxiter, eps, firth, k, 1, l0);
-          
+
           std::vector<int> colfit1(p-1);
           for (int i = 0, j = 0; i < p; ++i) {
             if (i == k) continue;
             colfit1[j++] = i;
           }
-          
+
           std::vector<double> b0(p);
           ListCpp out0 = phregloop(p, b0, &param, maxiter, eps, firth, colfit1, p-1);
           double lmax0 = out0.get<double>("loglik");
@@ -1607,7 +1607,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
           clparm[k] = "Wald";
         }
       }
-      
+
       if (firth) {
         loglik0 = derint.get<double>("loglik");
         loglik1 = out.get<double>("loglik");
@@ -1628,18 +1628,18 @@ ListCpp phregcpp(const DataFrameCpp& data,
       scoretest = 0.0;
       niter = 0;
     }
-    
+
     // estimate baseline hazard
     if (est_basehaz) {
       // prepare the data for estimating baseline hazards at all time points
-      
+
       // sort by stopping time in descending order within each stratum
       std::vector<int> order2 = seqcpp(0, n-1);
       std::sort(order2.begin(), order2.end(), [&](int i, int j) {
         if (stratumn[i] != stratumn[j]) return stratumn[i] > stratumn[j];
         return tstopn[i] > tstopn[j];
       });
-      
+
       std::vector<int> stratumnb = subset(stratumn, order2);
       std::vector<double> tstartnb = subset(tstartn, order2);
       std::vector<double> tstopnb = subset(tstopn, order2);
@@ -1648,19 +1648,19 @@ ListCpp phregcpp(const DataFrameCpp& data,
       std::vector<double> offsetnb = subset(offsetn, order2);
       FlatMatrix znb;
       if (p > 0) znb = subset_flatmatrix(zn, order2);
-      
+
       // sort by starting time in descending order within each stratum
       std::vector<int> ordernb = seqcpp(0, n-1);
       std::sort(ordernb.begin(), ordernb.end(), [&](int i, int j) {
         if (stratumnb[i] != stratumnb[j]) return stratumnb[i] > stratumnb[j];
         return tstartnb[i] > tstartnb[j];
       });
-      
+
       coxparams paramb = {n, stratumnb, tstartnb, tstopnb, eventnb,
                           weightnb, offsetnb, znb, ordernb, method};
-      
+
       ListCpp basehazn = f_basehaz(p, b, &paramb);
-      
+
       dstratum = basehazn.get<std::vector<int>>("stratum");
       dtime = basehazn.get<std::vector<double>>("time");
       dnrisk = basehazn.get<std::vector<double>>("nrisk");
@@ -1670,7 +1670,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       dvarhaz = basehazn.get<std::vector<double>>("varhaz");
       if (p > 0) dgradhaz = basehazn.get<FlatMatrix>("gradhaz");
     }
-    
+
     // martingale residuals
     if (est_resid) {
       std::vector<double> resid = f_resmart(p, b, &param);
@@ -1678,13 +1678,13 @@ ListCpp phregcpp(const DataFrameCpp& data,
         resmart[order1[i]] = resid[i];
       }
     }
-    
+
     // linear predictors
     for (int i=0; i<n; ++i) {
       linear_predictors[order1[i]] = offsetna[i];
     }
-    
-    
+
+
     if (p > 0) {
       for (int j=0; j<p; ++j) {
         double beta = b[j];
@@ -1695,12 +1695,12 @@ ListCpp phregcpp(const DataFrameCpp& data,
         }
       }
     }
-    
+
     // compute exp(beta)
     for (int i = 0; i < p; ++i) {
       expbeta[i] = std::exp(b[i]);
     }
-    
+
     // compute z statistics
     if (robust) {
       for (int i = 0; i < p; ++i) {
@@ -1720,7 +1720,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       }
     }
   }
-  
+
   // prepare the output data sets
   DataFrameCpp sumstat;
   sumstat.push_back(nobs, "n");
@@ -1734,15 +1734,15 @@ ListCpp phregcpp(const DataFrameCpp& data,
   sumstat.push_back(robust, "robust");
   sumstat.push_back(firth, "firth");
   sumstat.push_back(fail, "fail");
-  
+
   if (p > 0 && firth) {
     sumstat.push_back(regloglik0, "loglik0_unpenalized");
     sumstat.push_back(regloglik1, "loglik1_unpenalized");
   }
-  
+
   ListCpp result;
   result.push_back(sumstat, "sumstat");
-  
+
   if (p > 0) {
     std::vector<double> sebeta = robust ? rseb : seb;
     FlatMatrix vbeta = robust ? rvb : vb;
@@ -1757,15 +1757,15 @@ ListCpp phregcpp(const DataFrameCpp& data,
     parest.push_back(std::move(ub), "upper");
     parest.push_back(std::move(prob), "p");
     parest.push_back(std::move(clparm), "method");
-    
+
     if (robust) {
       parest.push_back(std::move(seb), "sebeta_naive");
       parest.push_back(std::move(vb), "vbeta_naive");
     }
-    
+
     result.push_back(std::move(parest), "parest");
   }
-  
+
   if (est_basehaz) {
     DataFrameCpp basehaz;
     basehaz.push_back(std::move(dtime), "time");
@@ -1774,9 +1774,9 @@ ListCpp phregcpp(const DataFrameCpp& data,
     basehaz.push_back(std::move(dncensor), "ncensor");
     basehaz.push_back(std::move(dhaz), "haz");
     basehaz.push_back(std::move(dvarhaz), "varhaz");
-    
+
     if (p > 0) basehaz.push_back(std::move(dgradhaz), "gradhaz");
-    
+
     if (has_stratum) {
       for (int i = 0; i < p_stratum; ++i) {
         std::string s = stratum[i];
@@ -1797,13 +1797,13 @@ ListCpp phregcpp(const DataFrameCpp& data,
         }
       }
     }
-    
+
     result.push_back(std::move(basehaz), "basehaz");
   }
-  
+
   if (est_resid) result.push_back(std::move(resmart), "residuals");
   result.push_back(std::move(linear_predictors), "linear_predictors");
-  
+
   return result;
 }
 
@@ -2017,7 +2017,8 @@ DataFrameCpp survfit_phregcpp(const int p,
       auto v = newdata.get<std::string>(id);
       idwc = unique_sorted(v);
       idn = matchcpp(v, idwc);
-    } else throw std::invalid_argument("incorrect type for the id variable in newdata");
+    } else throw std::invalid_argument(
+        "incorrect type for the id variable in newdata");
   }
   
   // unify right-censoring data with counting process data
@@ -2433,7 +2434,8 @@ ListCpp f_ressch(int p, const std::vector<double>& par, void *ex) {
     const double dtime = tstop[person];
     
     // process all persons tied at this dtime
-    for (; person < nused && tstop[person] == dtime && strata[person] == istrata; ++person) {
+    for (; person < nused && tstop[person] == dtime && 
+         strata[person] == istrata; ++person) {
       
       const double r = weight[person] * risk[person];
       
@@ -2518,15 +2520,15 @@ ListCpp residuals_phregcpp(const int p,
                            const std::vector<double>& resmart,
                            const DataFrameCpp& data,
                            const std::vector<std::string>& stratum,
-                           const std::string time,
-                           const std::string time2,
-                           const std::string event,
+                           const std::string& time,
+                           const std::string& time2,
+                           const std::string& event,
                            const std::vector<std::string>& covariates,
-                           const std::string weight,
-                           const std::string offset,
-                           const std::string id,
-                           const std::string ties,
-                           const std::string type,
+                           const std::string& weight,
+                           const std::string& offset,
+                           const std::string& id,
+                           const std::string& ties,
+                           const std::string& type,
                            const bool collapse,
                            const bool weighted) {
   
@@ -2581,7 +2583,8 @@ ListCpp residuals_phregcpp(const int p,
   // --- event variable ---
   bool has_event = !event.empty() && data.containElementNamed(event);
   if (!has_time2 && !has_event) {
-    throw std::invalid_argument("data must contain the event variable for right censored data"); 
+    throw std::invalid_argument(
+        "data must contain the event variable for right censored data");
   }
   std::vector<double> eventn(n);
   if (has_event) {
@@ -2670,7 +2673,8 @@ ListCpp residuals_phregcpp(const int p,
       auto v = data.get<std::string>(id);
       auto w = unique_sorted(v);
       idn = matchcpp(v, w);
-    } else throw std::invalid_argument("incorrect type for the id variable in the input data");
+    } else throw std::invalid_argument(
+        "incorrect type for the id variable in the input data");
   }
   
   if (type != "martingale" && type != "deviance" &&
@@ -2709,7 +2713,8 @@ ListCpp residuals_phregcpp(const int p,
   }
   
   std::vector<int> keep = which(sub);
-  if (keep.empty()) throw std::invalid_argument("no observations left after removing missing values");
+  if (keep.empty()) throw std::invalid_argument(
+      "no observations left after removing missing values");
   
   subset_in_place(stratumn, keep);
   subset_in_place(tstartn, keep);
@@ -2727,15 +2732,15 @@ ListCpp residuals_phregcpp(const int p,
     return stratumn[i] < stratumn[j];
   });
   
-  std::vector<int> stratum1z = subset(stratumn, ordern);
-  std::vector<double> tstart1z = subset(tstartn, ordern);
-  std::vector<double> tstop1z = subset(tstopn, ordern);
-  std::vector<double> event1z = subset(eventn, ordern);
+  std::vector<int> stratumnz = subset(stratumn, ordern);
+  std::vector<double> tstartnz = subset(tstartn, ordern);
+  std::vector<double> tstopnz = subset(tstopn, ordern);
+  std::vector<double> eventnz = subset(eventn, ordern);
   
   // locate the first observation within each stratum
   std::vector<int> istratum(1,0);
   for (int i = 1; i < n; ++i) {
-    if (stratum1z[i] != stratum1z[i-1]) {
+    if (stratumnz[i] != stratumnz[i-1]) {
       istratum.push_back(i);
     }
   }
@@ -2746,9 +2751,9 @@ ListCpp residuals_phregcpp(const int p,
   std::vector<int> ignore1z(n, 0);
   for (int i = 0; i < nstrata; ++i) {
     std::vector<int> q0 = seqcpp(istratum[i], istratum[i+1] - 1);
-    std::vector<double> tstart0 = subset(tstart1z, q0);
-    std::vector<double> tstop0 = subset(tstop1z, q0);
-    std::vector<double> event0 = subset(event1z, q0);
+    std::vector<double> tstart0 = subset(tstartnz, q0);
+    std::vector<double> tstop0 = subset(tstopnz, q0);
+    std::vector<double> event0 = subset(eventnz, q0);
     int m = q0.size();
     std::vector<double> etime;
     etime.reserve(m);
@@ -2777,7 +2782,9 @@ ListCpp residuals_phregcpp(const int p,
   std::vector<int> idx(1,0);
   int nids = n;
   if (has_id) {
-    std::sort(order.begin(), order.end(), [&](int i, int j){ return idn[i] < idn[j]; });
+    std::sort(order.begin(), order.end(), [&](int i, int j){ 
+      return idn[i] < idn[j]; 
+    });
     std::vector<int> id1 = subset(idn, order);
     for (int i = 1; i < n; ++i) if (id1[i] != id1[i-1]) idx.push_back(i);
     nids = static_cast<int>(idx.size());
@@ -2886,7 +2893,7 @@ ListCpp residuals_phregcpp(const int p,
         for (int k = 0; k < p; ++k) {
           const int off = k * n;
           const double seb = std::sqrt(vbeta(k,k));
-          for (int i = 0; i < n; ++ i) {
+          for (int i = 0; i < n; ++i) {
             rr.data[off + i] /= seb;
           }
         }
@@ -3028,15 +3035,15 @@ Rcpp::List residuals_phregRcpp(const int p,
                                const std::vector<double>& resmart,
                                const Rcpp::DataFrame& data,
                                const std::vector<std::string>& stratum,
-                               const std::string time,
-                               const std::string time2,
-                               const std::string event,
+                               const std::string& time,
+                               const std::string& time2,
+                               const std::string& event,
                                const std::vector<std::string>& covariates,
-                               const std::string weight,
-                               const std::string offset,
-                               const std::string id,
-                               const std::string ties,
-                               const std::string type,
+                               const std::string& weight,
+                               const std::string& offset,
+                               const std::string& id,
+                               const std::string& ties,
+                               const std::string& type,
                                const bool collapse,
                                const bool weighted) {
   
@@ -3049,7 +3056,6 @@ Rcpp::List residuals_phregRcpp(const int p,
   
   thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
-  
 }
 
 
@@ -3202,7 +3208,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
           for (int i = j; i < p; ++i) {
             cmat(i,j) += cmat2(i,j);
             for (int human = person1; human < person; ++human) {
-              if (event[human] == 1) imat(human, i*p+j) = weight[human] *
+              if (event[human] == 1) imat(human,j*p+i) = weight[human] *
                 (cmat(i,j) - xbar[i] * a[j]) / denom;
             }
           }
@@ -3225,7 +3231,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
             for (int i = j; i < p; ++i) {
               cmat(i,j) += cmat2(i,j) / ndead;
               for (int human = person1; human < person; ++human) {
-                if (event[human] == 1) imat(human,i*p+j) += weight[human]/ndead *
+                if (event[human] == 1) imat(human,j*p+i) += weight[human]/ndead *
                   (cmat(i,j) - xbar[i] * a[j]) / denom;
               }
             }
@@ -3248,10 +3254,10 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
   }
   
   // fill the symmetric elements of the information matrix
-  for (int i = 0; i < p - 1; ++i)
-    for (int j = i+1; j < p; ++j)
+  for (int j = 1; j < p; ++j)
+    for (int i = 0; i < j; ++i)
       for (int person = 0; person < nused; ++person)
-        imat(person,i*p+j) = imat(person,j*p+i);
+        imat(person,j*p+i) = imat(person,i*p+j);
   
   ListCpp result;
   result.push_back(u, "score_i");
@@ -3260,174 +3266,231 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 }
 
 
-// // [[Rcpp::export]]
-// List assess_phregcpp(const int p,
-//                      const NumericVector& beta,
-//                      const NumericMatrix& vbeta,
-//                      DataFrame data,
-//                      const StringVector& stratum = "",
-//                      const std::string time = "time",
-//                      const std::string time2 = "",
-//                      const std::string event = "event",
-//                      const StringVector& covariates = "",
-//                      const std::string weight = "",
-//                      const std::string offset = "",
-//                      const std::string ties = "efron",
-//                      const int resample = 1000,
-//                      const std::uint32_t seed) {
+// // assess proportional hazards assumption via score process
+// ListCpp assess_phregcpp(const int p,
+//                         const std::vector<double>& beta,
+//                         const FlatMatrix& vbeta,
+//                         const DataFrameCpp& data,
+//                         const std::vector<std::string>& stratum ,
+//                         const std::string& time,
+//                         const std::string& time2,
+//                         const std::string& event,
+//                         const std::vector<std::string>& covariates,
+//                         const std::string& weight,
+//                         const std::string& offset,
+//                         const std::string& ties,
+//                         const int resample,
+//                         const std::uint32_t seed) {
 //   
-//   td::mt19937_64 rng(seed);                      // choose generator and seed
+//   std::mt19937_64 rng(seed);  // choose generator and seed
 //   std::normal_distribution<double> dist(0.0, 1.0);
-//   
-//   if (seed != NA_INTEGER) set_seed(seed);
-//   
+// 
 //   if (p <= 0) {
-//     stop("covariates must be present to test proportional hazards");
+//     throw std::invalid_argument(
+//         "covariates must be present to test proportional hazards");
 //   }
 //   
 //   int n = data.nrows();
-//   
-//   IntegerVector stratumn(n);
+// 
+//   std::vector<int> stratumn(n);
 //   int p_stratum = static_cast<int>(stratum.size());
-//   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-//     stratumn.fill(0);
+//   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+//     ListCpp out = bygroup(data, stratum);
+//     stratumn = out.get<std::vector<int>>("index");
+//   }
+// 
+//   // --- time / time2 existence and checks ---
+//   if (!data.containElementNamed(time)) 
+//     throw std::invalid_argument("data must contain the time variable");
+//   std::vector<double> timen(n);
+//   if (data.int_cols.count(time)) {
+//     const std::vector<int>& vi = data.get<int>(time);
+//     for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+//   } else if (data.numeric_cols.count(time)) {
+//     timen = data.get<double>(time);
 //   } else {
-//     List out = bygroup(data, stratum);
-//     stratumn = out["index"];
+//     throw std::invalid_argument("time variable must be integer or numeric");
+//   }
+//   for (int i = 0; i < n; ++i) {
+//     if (!std::isnan(timen[i]) && timen[i] < 0.0)
+//       throw std::invalid_argument("time must be nonnegative");
 //   }
 //   
-//   bool has_time = hasVariable(data, time);
-//   if (!has_time) stop("data must contain the time variable");
-//   NumericVector timenz = data[time];
-//   NumericVector timen = clone(timenz);
-//   if (is_true(any(timen < 0))) {
-//     stop("time must be nonnegative for each observation");
-//   }
-//   
-//   bool has_time2 = hasVariable(data, time2);
-//   NumericVector time2n(n);
+//   bool has_time2 = !time2.empty() && data.containElementNamed(time2);
+//   std::vector<double> time2n(n);
 //   if (has_time2) {
-//     NumericVector time2nz = data[time2];
-//     time2n = clone(time2nz);
-//     if (is_true(any(time2n <= timen))) {
-//       stop("time2 must be greater than time for each observation");
+//     if (data.int_cols.count(time2)) {
+//       const std::vector<int>& vi = data.get<int>(time2);
+//       for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+//     } else if (data.numeric_cols.count(time2)) {
+//       time2n = data.get<double>(time2);
+//     } else {
+//       throw std::invalid_argument("time2 variable must be integer or numeric");
+//     }    
+//     for (int i = 0; i < n; ++i) {
+//       if (!std::isnan(timen[i]) && !std::isnan(time2n[i]) && time2n[i] <= timen[i])
+//         throw std::invalid_argument("time2 must be greater than time");
 //     }
 //   }
 //   
-//   bool has_event = hasVariable(data, event);
-//   if (!has_event) stop("data must contain the event variable");
-//   IntegerVector eventnz = data[event];
-//   IntegerVector eventn = clone(eventnz);
-//   if (is_true(any((eventn != 1) & (eventn != 0)))) {
-//     stop("event must be 1 or 0 for each observation");
+//   // --- event variable ---
+//   bool has_event = !event.empty() && data.containElementNamed(event);
+//   if (!has_time2 && !has_event) {
+//     throw std::invalid_argument(
+//         "data must contain the event variable for right censored data"); 
+//   }
+//   std::vector<double> eventn(n);
+//   if (has_event) {
+//     if (data.bool_cols.count(event)) {
+//       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+//       for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+//     } else if (data.int_cols.count(event)) {
+//       const std::vector<int>& vi = data.get<int>(event);
+//       for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+//     } else if (data.numeric_cols.count(event)) {
+//       eventn = data.get<double>(event);
+//     } else {
+//       throw std::invalid_argument("event variable must be bool, integer or numeric");
+//     }
+//     for (double val : eventn) if (val != 0 && val != 1)
+//       throw std::invalid_argument("event must be 1 or 0 for each observation");
 //   }
 //   
-//   NumericMatrix zn(n,p);
+//   // --- build design matrix zn (n x p) column-major FlatMatrix ---
+//   FlatMatrix zn(n, p);
 //   if (p > 0) {
-//     for (int j=0; j<p; ++j) {
-//       String zj = covariates[j];
-//       if (!hasVariable(data, zj)) {
-//         stop("data must contain the variables in covariates");
-//       }
-//       NumericVector u = data[zj];
-//       for (int i=0; i<n; ++i) {
-//         zn(i,j) = u[i];
+//     for (int j = 0; j < p; ++j) {
+//       const std::string& zj = covariates[j];
+//       if (!data.containElementNamed(zj)) 
+//         throw std::invalid_argument("data must contain the variables in covariates");
+//       if (data.bool_cols.count(zj)) {
+//         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+//         int off = j * n;
+//         for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
+//       } else if (data.int_cols.count(zj)) {
+//         const std::vector<int>& vi = data.get<int>(zj);
+//         int off = j * n;
+//         for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
+//       } else if (data.numeric_cols.count(zj)) {
+//         const std::vector<double>& vd = data.get<double>(zj);
+//         int off = j * n;
+//         for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
+//       } else {
+//         throw std::invalid_argument("covariates must be bool, integer or numeric");
 //       }
 //     }
 //   }
 //   
-//   bool has_weight = hasVariable(data, weight);
-//   NumericVector weightn(n, 1.0);
-//   if (has_weight) {
-//     NumericVector weightnz = data[weight];
-//     weightn = clone(weightnz);
-//     if (is_true(any(weightn <= 0))) {
-//       stop("weight must be greater than 0");
+//   // --- weight and offset ---
+//   std::vector<double> weightn(n, 1.0);
+//   if (!weight.empty() && data.containElementNamed(weight)) {
+//     if (data.int_cols.count(weight)) {
+//       const std::vector<int>& vi = data.get<int>(weight);
+//       for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+//     } else if (data.numeric_cols.count(weight)) {
+//       weightn = data.get<double>(weight);
+//     } else {
+//       throw std::invalid_argument("weight variable must be integer or numeric");
 //     }
+//     for (double w : weightn) if (std::isnan(w) || w <= 0.0) 
+//       throw std::invalid_argument("weight must be greater than 0");
 //   }
 //   
-//   bool has_offset = hasVariable(data, offset);
-//   NumericVector offsetn(n);
-//   if (has_offset) {
-//     NumericVector offsetnz = data[offset];
-//     offsetn = clone(offsetnz);
+//   std::vector<double> offsetn(n, 0.0);
+//   if (!offset.empty() && data.containElementNamed(offset)) {
+//     if (data.int_cols.count(offset)) {
+//       const std::vector<int>& vi = data.get<int>(offset);
+//       for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+//     } else if (data.numeric_cols.count(offset)) {
+//       offsetn = data.get<double>(offset);
+//     } else {
+//       throw std::invalid_argument("offset variable must be integer or numeric");
+//     }
 //   }
 //   
 //   std::string meth = ties;
 //   std::for_each(meth.begin(), meth.end(), [](char & c) {
 //     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 //   });
-//   
+// 
 //   int method = meth == "efron" ? 1 : 0;
-//   
+// 
 //   // unify right censored data with counting process data
-//   NumericVector tstartn(n), tstopn(n);
+//   std::vector<double> tstartn(n), tstopn(n);
 //   if (!has_time2) {
 //     tstopn = timen;
 //   } else {
 //     tstartn = timen;
 //     tstopn = time2n;
 //   }
-//   
+// 
 //   // exclude observations with missing values
-//   LogicalVector sub(n,1);
+//   std::vector<unsigned char> sub(n,1);
 //   for (int i=0; i<n; ++i) {
-//     if (stratumn[i] == NA_INTEGER || std::isnan(tstartn[i]) ||
-//         std::isnan(tstopn[i]) || eventn[i] == NA_INTEGER ||
-//         std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
-//       sub[i] = 0;
+//     if (stratumn[i] == INT_MIN || 
+//         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
+//         std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
+//         std::isnan(offsetn[i])) {
+//       sub[i] = 0; continue;
 //     }
-//     for (int j=0; j<p; ++j) {
-//       if (std::isnan(zn(i,j))) sub[i] = 0;
+//     for (int j = 0; j < p; ++j) {
+//       if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
 //     }
 //   }
+//   std::vector<int> keep = which(sub);
+//   if (keep.empty()) 
+//     throw std::invalid_argument("no observations without missing values");
 //   
-//   IntegerVector order = which(sub);
-//   stratumn = stratumn[order];
-//   tstartn = tstartn[order];
-//   tstopn = tstopn[order];
-//   eventn = eventn[order];
-//   weightn = weightn[order];
-//   offsetn = offsetn[order];
-//   zn = subset_matrix_by_row(zn, order);
-//   n = sum(sub);
-//   if (n == 0) stop("no observations left after removing missing values");
+//   subset_in_place(stratumn, keep);
+//   subset_in_place(tstartn, keep);
+//   subset_in_place(tstopn, keep);
+//   subset_in_place(eventn, keep);
+//   subset_in_place(weightn, keep);
+//   subset_in_place(offsetn, keep);
+//   if (p > 0) subset_in_place_flatmatrix(zn, keep);
+//   n = keep.size();
 //   
 //   // sort by stratum
-//   IntegerVector order0 = seq(0, n-1);
+//   std::vector<int> order0 = seqcpp(0, n-1);
 //   std::sort(order0.begin(), order0.end(), [&](int i, int j) {
 //     return stratumn[i] < stratumn[j];
 //   });
 //   
-//   IntegerVector stratum1z = stratumn[order0];
-//   NumericVector tstart1z = tstartn[order0];
-//   NumericVector tstop1z = tstopn[order0];
-//   IntegerVector event1z = eventn[order0];
-//   
+//   std::vector<int> stratum1z = subset(stratumn, order0);
+//   std::vector<double> tstart1z = subset(tstartn, order0);
+//   std::vector<double> tstop1z = subset(tstopn, order0);
+//   std::vector<double> event1z = subset(eventn, order0);
+// 
 //   // locate the first observation within each stratum
-//   IntegerVector istratum(1,0);
+//   std::vector<int> istratum(1,0);
 //   for (int i=1; i<n; ++i) {
 //     if (stratum1z[i] != stratum1z[i-1]) {
 //       istratum.push_back(i);
 //     }
 //   }
-//   
 //   int nstrata = static_cast<int>(istratum.size());
 //   istratum.push_back(n);
 //   
 //   // ignore subjects not at risk for any event time
-//   IntegerVector ignore1z(n);
-//   for (int i=0; i<nstrata; ++i) {
-//     IntegerVector q0 = Range(istratum[i], istratum[i+1]-1);
-//     NumericVector tstart0 = tstart1z[q0];
-//     NumericVector tstop0 = tstop1z[q0];
-//     IntegerVector event0 = event1z[q0];
-//     NumericVector etime = tstop0[event0==1];
-//     etime = unique(etime);
-//     etime.sort();
-//     IntegerVector index1 = findInterval3(tstart0, etime, 0, 0, 0);
-//     IntegerVector index2 = findInterval3(tstop0, etime, 0, 0, 0);
-//     for (int j=istratum[i]; j<istratum[i+1]; ++j) {
+//   std::vector<int> ignore1z(n);
+//   for (int i = 0; i < nstrata; ++i) {
+//     std::vector<int> q0 = seqcpp(istratum[i], istratum[i+1] - 1);
+//     std::vector<double> tstart0 = subset(tstart1z, q0);
+//     std::vector<double> tstop0 = subset(tstop1z, q0);
+//     std::vector<double> event0 = subset(event1z, q0);
+//     int n0 = static_cast<int>(q0.size());
+//     
+//     // unique event times
+//     std::vector<double> etime;
+//     etime.reserve(n0);
+//     for (int j = 0; j < n0; ++j) {
+//       if (event0[j] == 1) etime.push_back(tstop0[j]);
+//     }
+//     etime = unique_sorted(etime);
+//     
+//     std::vector<int> index1 = findInterval3(tstart0, etime);
+//     std::vector<int> index2 = findInterval3(tstop0, etime);
+//     for (int j = istratum[i]; j < istratum[i+1]; ++j) {
 //       int j0 = j - istratum[i];
 //       if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
 //         ignore1z[j] = 1;
@@ -3437,15 +3500,15 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     }
 //   }
 //   
-//   IntegerVector ignoren(n); // final ignore vector
-//   for (int i=0; i<n; ++i) {
+//   std::vector<int> ignoren(n); // back to the original order
+//   for (int i = 0; i < n; ++i) {
 //     ignoren[order0[i]] = ignore1z[i];
 //   }
 //   
-//   int nused = n - sum(ignoren);
+//   int nused = n - std::accumulate(ignoren.begin(), ignoren.end(), 0);
 //   
 //   // sort by stopping time in descending order within each stratum
-//   IntegerVector order1 = seq(0, n-1);
+//   std::vector<int> order1 = seqcpp(0, n-1);
 //   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
 //     if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
 //     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
@@ -3453,17 +3516,18 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     return eventn[i] < eventn[j];
 //   });
 //   
-//   IntegerVector stratum1 = stratumn[order1];
-//   NumericVector tstart1 = tstartn[order1];
-//   NumericVector tstop1 = tstopn[order1];
-//   IntegerVector event1 = eventn[order1];
-//   NumericVector weight1 = weightn[order1];
-//   NumericVector offset1 = offsetn[order1];
-//   IntegerVector ignore1 = ignoren[order1];
-//   NumericMatrix z1 = subset_matrix_by_row(zn, order1);
+//   std::vector<int> stratum1 = subset(stratumn, order1);
+//   std::vector<double> tstart1 = subset(tstartn, order1);
+//   std::vector<double> tstop1 = subset(tstopn, order1);
+//   std::vector<double> event1 = subset(eventn, order1);
+//   std::vector<double> weight1 = subset(weightn, order1);
+//   std::vector<double> offset1 = subset(offsetn, order1);
+//   std::vector<int> ignore1 = subset(ignoren, order1);
+//   FlatMatrix z1;
+//   if (p > 0) z1 = subset_flatmatrix(zn, order1);
 //   
 //   // sort by starting time in descending order within each stratum
-//   IntegerVector order10 = seq(0, n-1);
+//   std::vector<int> order10 = seqcpp(0, n-1);
 //   std::sort(order10.begin(), order10.end(), [&](int i, int j) {
 //     if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
 //     if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
@@ -3473,204 +3537,256 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   coxparams param = {nused, stratum1, tstart1, tstop1, event1,
 //                      weight1, offset1, z1, order10, method};
 //   
-//   List out = f_der_i_2(p, beta, &param);
-//   NumericMatrix score_i = as<NumericMatrix>(out["score_i"]);
-//   NumericMatrix imat_i = as<NumericMatrix>(out["imat_i"]);
-//   
+//   ListCpp out = f_der_i_2(p, beta, &param);
+//   FlatMatrix score_i = out.get<FlatMatrix>("score_i");
+//   FlatMatrix imat_i = out.get<FlatMatrix>("imat_i");
+// 
 //   // order data by ascending tstop
-//   IntegerVector order2 = seq(0, n-1);
+//   std::vector<int> order2 = seqcpp(0, n-1);
 //   std::sort(order2.begin(), order2.end(), [&](int i, int j) {
 //     return tstop1[i] < tstop1[j];
 //   });
-//   
-//   NumericVector tstop2 = tstop1[order2];
-//   IntegerVector event2 = event1[order2];
-//   NumericMatrix score_i2 = subset_matrix_by_row(score_i, order2);
-//   NumericMatrix imat_i2 = subset_matrix_by_row(imat_i, order2);
-//   
+// 
+//   std::vector<double> tstop2 = subset(tstop1, order2);
+//   std::vector<double> event2 = subset(event1, order2);
+//   FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
+//   FlatMatrix imat_i2 = subset_flatmatrix(imat_i, order2);
+// 
 //   // only consider event times
-//   IntegerVector q = which(event2 == 1);
-//   NumericVector tstop3 = tstop2[q];
-//   NumericMatrix score_i3 = subset_matrix_by_row(score_i2, q);
-//   NumericMatrix imat_i3 = subset_matrix_by_row(imat_i2, q);
+//   std::vector<int> q; 
+//   q.reserve(n);
+//   for (int i=0; i<n; ++i) if (event2[i] == 1) q.push_back(i);
+//   
+//   std::vector<double> tstop3 = subset(tstop2, q);
+//   FlatMatrix score_i3 = subset_flatmatrix(score_i2, q);
+//   FlatMatrix imat_i3 = subset_flatmatrix(imat_i2, q);
 //   int nq = static_cast<int>(q.size());
-//   
+// 
 //   // identify unique event times
-//   NumericVector t = unique(tstop3);
-//   t.sort();
-//   
+//   std::vector<double> t = unique_sorted(tstop3);
+// 
 //   int nt = static_cast<int>(t.size());
-//   NumericMatrix score_i4(nt, p);
-//   NumericMatrix imat_i4(nt, p*p);
+//   FlatMatrix score_i4(nt, p);
+//   FlatMatrix imat_i4(nt, p*p);
+// 
+//   std::vector<double> tstop4(nq+1);
+//   tstop4[0] = -1.0;
+//   std::memcpy(tstop4.data() + 1, tstop3.data(), nq * sizeof(double));
 //   
-//   tstop3.push_front(-1.0); // to facilitate the loop
-//   int k = -1;
-//   for (int i=1; i<=nq; ++i) {
-//     if (tstop3[i] != tstop3[i-1]) k++;
-//     
+//   // sums over unique event times
+//   for (int j=0; j<p; ++j) {
+//     int h = -1;
+//     for (int i=1; i<=nq; ++i) {
+//       if (tstop4[i] != tstop4[i-1]) ++h;
+//       score_i4(h,j) += score_i3(i-1,j);
+//     }
+//   }
+//   
+//   for (int k=0; k<p; ++k) {
 //     for (int j=0; j<p; ++j) {
-//       score_i4(k,j) += score_i3(i-1,j);
-//       for (int l=0; l<p; ++l) {
-//         imat_i4(k,j*p+l) += imat_i3(i-1,j*p+l);
+//       int h = -1;
+//       for (int i=1; i<=nq; ++i) {
+//         if (tstop4[i] != tstop4[i-1]) ++h;
+//         imat_i4(h,k*p+j) += imat_i3(i-1,k*p+j);
 //       }
 //     }
 //   }
 //   
 //   // cumulative sums of score and information processes
-//   for (int i=1; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
+//   for (int j=0; j<p; ++j) {
+//     for (int i=1; i<nt; ++i) {
 //       score_i4(i,j) += score_i4(i-1,j);
-//       for (int l=0; l<p; ++l) {
-//         imat_i4(i,j*p+l) += imat_i4(i-1,j*p+l);
-//       }
 //     }
 //   }
 //   
+//   for (int k=0; k<p; ++k) {
+//     for (int j=0; j<p; ++j) {
+//       for (int i=1; i<nt; ++i) {
+//         imat_i4(i,k*p+j) += imat_i4(i-1,k*p+j);
+//       }
+//     }
+//   }
+// 
 //   // standardize the score processes
 //   for (int i=0; i<nt; ++i) {
 //     for (int j=0; j<p; ++j) {
 //       score_i4(i,j) *= std::sqrt(vbeta(j,j));
 //     }
 //   }
-//   
+// 
 //   // resampling to approximate the null distribution
-//   List G_list(resample);
+//   std::vector<std::vector<double>> G_vec(resample);
 //   for (int r=0; r<resample; ++r) {
-//     NumericVector G(nq);
+//     std::vector<double> G(nq);
 //     for (int i=0; i<nq; ++i) {
 //       G[i] = dist(rng);
 //     }
-//     G_list[r] = G;
+//     G_vec[r] = G;
 //   }
-//   
+// 
 //   // sum(u*G)
-//   List U_list(resample);
+//   std::vector<std::vector<double>> U_vec(resample);
 //   for (int r=0; r<resample; ++r) {
-//     NumericVector U(p);
-//     NumericVector G = G_list[r];
-//     for (int i=0; i<nq; ++i) {
-//       for (int j=0; j<p; ++j) {
+//     std::vector<double> U(p);
+//     std::vector<double> G = G_vec[r];
+//     for (int j=0; j<p; ++j) {
+//       for (int i=0; i<nq; ++i) {
 //         U[j] += score_i3(i,j)*G[i];
 //       }
 //     }
-//     U_list[r] = U;
+//     U_vec[r] = U;
 //   }
-//   
+// 
 //   // sum(I(X <= t)*U*G)
-//   List score_i_list(resample);
+//   std::vector<FlatMatrix> score_i_vec(resample);
 //   for (int r=0; r<resample; ++r) {
-//     NumericMatrix score_i4(nt, p);
-//     NumericVector G = G_list[r];
-//     
-//     int k = -1;
-//     for (int i=1; i<=nq; ++i) {
-//       if (tstop3[i] != tstop3[i-1]) k++;
-//       
-//       for (int j=0; j<p; ++j) {
-//         score_i4(k,j) += score_i3(i-1,j)*G[i-1];
+//     FlatMatrix score_i4(nt, p);
+//     std::vector<double> G = G_vec[r];
+// 
+//     // sums of unique event times
+//     for (int j=0; j<p; ++j) {
+//       int h = -1;
+//       for (int i=1; i<=nq; ++i) {
+//         if (tstop4[i] != tstop4[i-1]) ++h;
+//         score_i4(h,j) += score_i3(i-1,j)*G[i-1];
 //       }
 //     }
 //     
 //     // cumulative sums of score processes
-//     for (int i=1; i<nt; ++i) {
-//       for (int j=0; j<p; ++j) {
+//     for (int j=0; j<p; ++j) {
+//       for (int i=1; i<nt; ++i) {
 //         score_i4(i,j) += score_i4(i-1,j);
 //       }
 //     }
-//     
-//     score_i_list[r] = score_i4;
+// 
+//     score_i_vec[r] = score_i4;
 //   }
-//   
+// 
 //   // piece together the result
-//   List score_i_list_2(resample);
+//   std::vector<FlatMatrix> score_i_vec_2(resample);
 //   for (int r=0; r<resample; ++r) {
-//     NumericMatrix score_i4 = score_i_list[r];
-//     NumericMatrix score_i4_2(nt, p);
-//     NumericVector U = U_list[r];
-//     for (int i=0; i<nt; ++i) {
+//     FlatMatrix score_i4 = score_i_vec[r];
+//     FlatMatrix score_i4_2(nt, p);
+//     std::vector<double> U = U_vec[r];
+//     
+//     std::vector<double> vU = mat_vec_mult(vbeta, U);
+//     
+//     FlatMatrix ivU(nt, p);
+//     for (int k=0; k<p; ++k) {
 //       for (int j=0; j<p; ++j) {
-//         score_i4_2(i,j) = score_i4(i,j);
-//         for (int l=0; l<p; ++l) {
-//           for (int s=0; s<p; ++s) {
-//             score_i4_2(i,j) -= imat_i4(i,j*p+l)*vbeta(l,s)*U[s];
-//           }
+//         for (int i=0; i<nt; ++i) {
+//           ivU(i,j) += imat_i4(i,k*p+j)*vU[k];
 //         }
 //       }
 //     }
-//     score_i_list_2[r] = score_i4_2;
+//     
+//     for (int j=0; j<p; ++j) {
+//       for (int i=0; i<nt; ++i) {
+//         score_i4_2(i,j) = score_i4(i,j) - ivU(i,j);
+//       }
+//     }
+//     score_i_vec_2[r] = score_i4_2;
 //   }
-//   
+// 
 //   // standardize the resampled score processes
 //   for (int r=0; r<resample; ++r) {
-//     NumericMatrix score_i4 = score_i_list_2[r];
-//     for (int i=0; i<nt; ++i) {
-//       for (int j=0; j<p; ++j) {
+//     FlatMatrix score_i4 = score_i_vec_2[r];
+//     for (int j=0; j<p; ++j) {
+//       for (int i=0; i<nt; ++i) {
 //         score_i4(i,j) *= std::sqrt(vbeta(j,j));
 //       }
 //     }
-//     score_i_list_2[r] = score_i4;
+//     score_i_vec_2[r] = score_i4;
 //   }
-//   
+// 
 //   // calculate individual p-values for proportional hazards assumption test
-//   NumericVector p_values(p+1);
-//   NumericVector maxabs(p+1);
+//   std::vector<double> p_values(p+1);
+//   std::vector<double> maxabs(p+1);
 //   for (int j=0; j<p; ++j) {
-//     NumericVector obs(nt);
+//     std::vector<double> obs(nt);
 //     for (int i=0; i<nt; ++i) {
-//       obs[i] = fabs(score_i4(i,j));
+//       obs[i] = std::fabs(score_i4(i,j));
 //     }
-//     double tobs = max(obs);
+//     double tobs = *std::max_element(obs.begin(), obs.end());
 //     maxabs[j] = tobs;
-//     
-//     int count = 0;
+// 
+//     double count = 0;
 //     for (int r=0; r<resample; ++r) {
-//       NumericMatrix score_i4 = score_i_list_2[r];
-//       NumericVector sim(nt);
+//       FlatMatrix score_i4 = score_i_vec_2[r];
+//       std::vector<double> sim(nt);
 //       for (int i=0; i<nt; ++i) {
-//         sim[i] = fabs(score_i4(i,j));
+//         sim[i] = std::fabs(score_i4(i,j));
 //       }
-//       double tsim = max(sim);
-//       if (tsim >= tobs) count++;
+//       double tsim = *std::max_element(sim.begin(), sim.end());
+//       if (tsim >= tobs) ++count;
 //     }
-//     p_values[j] = static_cast<double>(count) / static_cast<double>(resample);
+//     p_values[j] = count / resample;
 //   }
-//   
+// 
 //   // p-value for the global test
-//   NumericVector obs(nt);
-//   for (int i=0; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
-//       obs[i] += fabs(score_i4(i,j));
+//   std::vector<double> obs(nt);
+//   for (int j=0; j<p; ++j) {
+//     for (int i=0; i<nt; ++i) {
+//       obs[i] += std::fabs(score_i4(i,j));
 //     }
 //   }
-//   double tobs = max(obs);
-//   
-//   int count = 0;
+//   double tobs = *std::max_element(obs.begin(), obs.end());
+// 
+//   double count = 0;
 //   for (int r=0; r<resample; ++r) {
-//     NumericMatrix score_i4 = score_i_list_2[r];
-//     NumericVector sim(nt);
-//     for (int i=0; i<nt; ++i) {
-//       for (int j=0; j<p; ++j) {
-//         sim[i] += fabs(score_i4(i,j));
+//     FlatMatrix score_i4 = score_i_vec_2[r];
+//     std::vector<double> sim(nt);
+//     for (int j=0; j<p; ++j) {
+//       for (int i=0; i<nt; ++i) {
+//         sim[i] += std::fabs(score_i4(i,j));
 //       }
 //     }
-//     double tsim = max(sim);
-//     if (tsim >= tobs) count++;
+//     double tsim = *std::max_element(sim.begin(), sim.end());
+//     if (tsim >= tobs) ++count;
 //   }
-//   p_values[p] = static_cast<double>(count) / static_cast<double>(resample);
-//   
+//   p_values[p] = count / resample;
+// 
 //   maxabs[p] = tobs;
-//   List result = List::create(
-//     Named("time") = t,
-//     Named("score_t") = score_i4,
-//     Named("score_t_list") = score_i_list_2,
-//     Named("max_abs_value") = maxabs,
-//     Named("p_value") = p_values
-//   );
 //   
+//   ListCpp result;
+//   result.push_back(t, "time");
+//   result.push_back(score_i4, "score_t");
+//   result.push_back(score_i_vec_2, "score_t_vec");
+//   result.push_back(maxabs, "max_abs_value");
+//   result.push_back(p_values, "p_value");
 //   return result;
 // }
 // 
 // 
+// // [[Rcpp::export]]
+// Rcpp::List assess_phregRcpp(const int p,
+//                             const std::vector<double>& beta,
+//                             const Rcpp::NumericMatrix& vbeta,
+//                             const Rcpp::DataFrame& data,
+//                             const std::vector<std::string>& stratum ,
+//                             const std::string& time,
+//                             const std::string& time2,
+//                             const std::string& event,
+//                             const std::vector<std::string>& covariates,
+//                             const std::string& weight,
+//                             const std::string& offset,
+//                             const std::string& ties,
+//                             const int resample,
+//                             const std::uint32_t seed) {
+//   
+//   
+//   FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
+//   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+//   
+//   ListCpp cpp_result = assess_phregcpp(
+//     p, beta, vbetacpp, dfcpp, stratum, time, time2, event, 
+//     covariates, weight, offset, ties, resample, seed);
+//   
+//   thread_utils::drain_thread_warnings_to_R();
+//   return Rcpp::wrap(cpp_result);
+// }
+// 
+//  
 // // [[Rcpp::export]]
 // List zph_phregcpp(const int p,
 //                   const NumericVector& beta,
@@ -3694,7 +3810,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   int n = data.nrows();
 //   
 //   bool has_stratum;
-//   IntegerVector stratumn(n);
+//   std::vector<int> stratumn(n);
 //   int p_stratum = static_cast<int>(stratum.size());
 //   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
 //     has_stratum = false;
@@ -3725,8 +3841,8 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   
 //   bool has_event = hasVariable(data, event);
 //   if (!has_event) stop("data must contain the event variable");
-//   IntegerVector eventnz = data[event];
-//   IntegerVector eventn = clone(eventnz);
+//   std::vector<int> eventnz = data[event];
+//   std::vector<int> eventn = clone(eventnz);
 //   if (is_true(any((eventn != 1) & (eventn != 0)))) {
 //     stop("event must be 1 or 0 for each observation");
 //   }
@@ -3791,7 +3907,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     }
 //   }
 //   
-//   IntegerVector order = which(sub);
+//   std::vector<int> order = which(sub);
 //   stratumn = stratumn[order];
 //   tstartn = tstartn[order];
 //   tstopn = tstopn[order];
@@ -3803,20 +3919,20 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   if (n == 0) stop("no observations left after removing missing values");
 //   
 //   // sort by stratum
-//   IntegerVector order0 = seq(0, n-1);
+//   std::vector<int> order0 = seq(0, n-1);
 //   std::sort(order0.begin(), order0.end(), [&](int i, int j) {
 //     return stratumn[i] < stratumn[j];
 //   });
 //   
-//   IntegerVector stratum1z = stratumn[order0];
-//   NumericVector tstart1z = tstartn[order0];
-//   NumericVector tstop1z = tstopn[order0];
-//   IntegerVector event1z = eventn[order0];
+//   std::vector<int> stratumnz = stratumn[order0];
+//   NumericVector tstartnz = tstartn[order0];
+//   NumericVector tstopnz = tstopn[order0];
+//   std::vector<int> eventnz = eventn[order0];
 //   
 //   // locate the first observation within each stratum
-//   IntegerVector istratum(1,0);
+//   std::vector<int> istratum(1,0);
 //   for (int i=1; i<n; ++i) {
-//     if (stratum1z[i] != stratum1z[i-1]) {
+//     if (stratumnz[i] != stratumnz[i-1]) {
 //       istratum.push_back(i);
 //     }
 //   }
@@ -3825,17 +3941,17 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   istratum.push_back(n);
 //   
 //   // ignore subjects not at risk for any event time
-//   IntegerVector ignore1z(n);
+//   std::vector<int> ignore1z(n);
 //   for (int i=0; i<nstrata; ++i) {
-//     IntegerVector q0 = Range(istratum[i], istratum[i+1]-1);
-//     NumericVector tstart0 = tstart1z[q0];
-//     NumericVector tstop0 = tstop1z[q0];
-//     IntegerVector event0 = event1z[q0];
+//     std::vector<int> q0 = Range(istratum[i], istratum[i+1]-1);
+//     NumericVector tstart0 = tstartnz[q0];
+//     NumericVector tstop0 = tstopnz[q0];
+//     std::vector<int> event0 = eventnz[q0];
 //     NumericVector etime = tstop0[event0==1];
 //     etime = unique(etime);
 //     etime.sort();
-//     IntegerVector index1 = findInterval3(tstart0, etime, 0, 0, 0);
-//     IntegerVector index2 = findInterval3(tstop0, etime, 0, 0, 0);
+//     std::vector<int> index1 = findInterval3(tstart0, etime, 0, 0, 0);
+//     std::vector<int> index2 = findInterval3(tstop0, etime, 0, 0, 0);
 //     for (int j=istratum[i]; j<istratum[i+1]; ++j) {
 //       int j0 = j - istratum[i];
 //       if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
@@ -3846,7 +3962,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     }
 //   }
 //   
-//   IntegerVector ignoren(n); // final ignore vector
+//   std::vector<int> ignoren(n); // final ignore vector
 //   for (int i=0; i<n; ++i) {
 //     ignoren[order0[i]] = ignore1z[i];
 //   }
@@ -3854,7 +3970,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   int nused = n - sum(ignoren);
 //   
 //   // sort by stopping time in descending order within each stratum
-//   IntegerVector order1 = seq(0, n-1);
+//   std::vector<int> order1 = seq(0, n-1);
 //   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
 //     if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
 //     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
@@ -3862,17 +3978,17 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     return eventn[i] < eventn[j];
 //   });
 //   
-//   IntegerVector stratum1 = stratumn[order1];
+//   std::vector<int> stratum1 = stratumn[order1];
 //   NumericVector tstart1 = tstartn[order1];
 //   NumericVector tstop1 = tstopn[order1];
-//   IntegerVector event1 = eventn[order1];
+//   std::vector<int> event1 = eventn[order1];
 //   NumericVector weight1 = weightn[order1];
 //   NumericVector offset1 = offsetn[order1];
-//   IntegerVector ignore1 = ignoren[order1];
+//   std::vector<int> ignore1 = ignoren[order1];
 //   NumericMatrix z1 = subset_matrix_by_row(zn, order1);
 //   
 //   // sort by starting time in descending order within each stratum
-//   IntegerVector order10 = seq(0, n-1);
+//   std::vector<int> order10 = seq(0, n-1);
 //   std::sort(order10.begin(), order10.end(), [&](int i, int j) {
 //     if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
 //     if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
@@ -3887,20 +4003,20 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   NumericMatrix imat_i = as<NumericMatrix>(out["imat_i"]);
 //   
 //   // order data by ascending tstop
-//   IntegerVector order2 = seq(0, n-1);
+//   std::vector<int> order2 = seq(0, n-1);
 //   std::sort(order2.begin(), order2.end(), [&](int i, int j) {
 //     return tstop1[i] < tstop1[j];
 //   });
 //   
-//   IntegerVector stratum2 = stratum1[order2];
+//   std::vector<int> stratum2 = stratum1[order2];
 //   NumericVector tstop2 = tstop1[order2];
-//   IntegerVector event2 = event1[order2];
+//   std::vector<int> event2 = event1[order2];
 //   NumericMatrix score_i2 = subset_matrix_by_row(score_i, order2);
 //   NumericMatrix imat_i2 = subset_matrix_by_row(imat_i, order2);
 //   
 //   // only consider event times
-//   IntegerVector q = which(event2 == 1);
-//   IntegerVector stratum3 = stratum2[q];
+//   std::vector<int> q = which(event2 == 1);
+//   std::vector<int> stratum3 = stratum2[q];
 //   NumericVector tstop3 = tstop2[q];
 //   NumericMatrix score_i3 = subset_matrix_by_row(score_i2, q);
 //   NumericMatrix imat_i3 = subset_matrix_by_row(imat_i2, q);
@@ -3918,7 +4034,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //   tstop3a.push_front(-1.0); // to facilitate the loop
 //   int k = -1;
 //   for (int i=1; i<=nq; ++i) {
-//     if (tstop3a[i] != tstop3a[i-1]) k++;
+//     if (tstop3a[i] != tstop3a[i-1]) ++k;
 //     
 //     for (int j=0; j<p; ++j) {
 //       score_i4(k,j) += score_i3(i-1,j);
@@ -4059,12 +4175,12 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
 //     int count = 0;
 //     for (int j=0; j<nq; ++j) {
 //       if (tstop3[j] == t[i]) {
-//         count++;
+//         ++count;
 //       }
 //     }
 //     for (int j=0; j<count; ++j) {
 //       g_rep[idx] = g[i];
-//       idx++;
+//       ++idx;
 //     }
 //   }
 //   

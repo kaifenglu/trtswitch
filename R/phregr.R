@@ -295,34 +295,34 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
   
   # call the core fitting function
   fit <- phregRcpp(
-    data = df, 
-    stratum = stratum, 
+    data = df,
+    stratum = stratum,
     time = time,
-    time2 = time2, 
-    event = event, 
+    time2 = time2,
+    event = event,
     covariates = varnames,
-    weight = weight, 
-    offset = offset, 
-    id = id, 
-    ties = ties, 
-    init = init, 
-    robust = robust, 
+    weight = weight,
+    offset = offset,
+    id = id,
+    ties = ties,
+    init = init,
+    robust = robust,
     est_basehaz = est_basehaz,
-    est_resid = est_resid, 
+    est_resid = est_resid,
     firth = firth,
-    plci = plci, 
-    alpha = alpha, 
-    maxiter = maxiter, 
+    plci = plci,
+    alpha = alpha,
+    maxiter = maxiter,
     eps = eps)
-  
+
   # post-process the output
   fit$p <- fit$sumstat$p[1]
-  
+
   if (fit$p > 0) {
     fit$param <- param[-1]
     fit$beta <- fit$parest$beta
     names(fit$beta) <- fit$param
-    
+
     if (fit$p > 1) {
       fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
       if (robust) {
@@ -334,38 +334,38 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
         fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive", drop = FALSE])
       }
     }
-    
+
     dimnames(fit$vbeta) <- list(fit$param, fit$param)
     if (robust) {
       dimnames(fit$vbeta_naive) <- list(fit$param, fit$param)
     }
   }
-  
+
   fit$terms <- t1
   if (fit$p > 0) fit$xlevels <- xlevels
-  
+
   fit$settings <- list(
-    data = data, 
-    stratum = stratum, 
-    time = time, 
-    time2 = time2, 
-    event = event, 
+    data = data,
+    stratum = stratum,
+    time = time,
+    time2 = time2,
+    event = event,
     covariates = covariates,
-    weight = weight, 
-    offset = offset, 
-    id = id, 
+    weight = weight,
+    offset = offset,
+    id = id,
     ties = ties,
-    iniy = init, 
-    robust = robust, 
+    iniy = init,
+    robust = robust,
     est_basehaz = est_basehaz,
-    est_resid = est_resid, 
-    firth = firth, 
+    est_resid = est_resid,
+    firth = firth,
     plci = plci,
-    alpha = alpha, 
-    maxiter = maxiter, 
+    alpha = alpha,
+    maxiter = maxiter,
     eps = eps
   )
-  
+
   class(fit) <- "phregr"
   fit
 }
