@@ -3769,417 +3769,506 @@ Rcpp::List assess_phregRcpp(const int p,
   thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
-// 
-//  
-// // [[Rcpp::export]]
-// List zph_phregcpp(const int p,
-//                   const NumericVector& beta,
-//                   const NumericMatrix& vbeta,
-//                   const NumericVector& resmart,
-//                   DataFrame data,
-//                   const StringVector& stratum = "",
-//                   const std::string time = "time",
-//                   const std::string time2 = "",
-//                   const std::string event = "event",
-//                   const StringVector& covariates = "",
-//                   const std::string weight = "",
-//                   const std::string offset = "",
-//                   const std::string ties = "efron",
-//                   const std::string transform= "km") {
-//   
-//   if (p <= 0) {
-//     stop("covariates must be present to test proportional hazards");
-//   }
-//   
-//   int n = data.nrows();
-//   
-//   bool has_stratum;
-//   std::vector<int> stratumn(n);
-//   int p_stratum = static_cast<int>(stratum.size());
-//   if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-//     has_stratum = false;
-//     stratumn.fill(0);
-//   } else {
-//     has_stratum = true;
-//     List out = bygroup(data, stratum);
-//     stratumn = out["index"];
-//   }
-//   
-//   bool has_time = hasVariable(data, time);
-//   if (!has_time) stop("data must contain the time variable");
-//   NumericVector timenz = data[time];
-//   NumericVector timen = clone(timenz);
-//   if (is_true(any(timen < 0))) {
-//     stop("time must be nonnegative for each observation");
-//   }
-//   
-//   bool has_time2 = hasVariable(data, time2);
-//   NumericVector time2n(n);
-//   if (has_time2) {
-//     NumericVector time2nz = data[time2];
-//     time2n = clone(time2nz);
-//     if (is_true(any(time2n <= timen))) {
-//       stop("time2 must be greater than time for each observation");
-//     }
-//   }
-//   
-//   bool has_event = hasVariable(data, event);
-//   if (!has_event) stop("data must contain the event variable");
-//   std::vector<int> eventnz = data[event];
-//   std::vector<int> eventn = clone(eventnz);
-//   if (is_true(any((eventn != 1) & (eventn != 0)))) {
-//     stop("event must be 1 or 0 for each observation");
-//   }
-//   
-//   NumericMatrix zn(n,p);
-//   if (p > 0) {
-//     for (int j=0; j<p; ++j) {
-//       String zj = covariates[j];
-//       if (!hasVariable(data, zj)) {
-//         stop("data must contain the variables in covariates");
-//       }
-//       NumericVector u = data[zj];
-//       for (int i=0; i<n; ++i) {
-//         zn(i,j) = u[i];
-//       }
-//     }
-//   }
-//   
-//   bool has_weight = hasVariable(data, weight);
-//   NumericVector weightn(n, 1.0);
-//   if (has_weight) {
-//     NumericVector weightnz = data[weight];
-//     weightn = clone(weightnz);
-//     if (is_true(any(weightn <= 0))) {
-//       stop("weight must be greater than 0");
-//     }
-//   }
-//   
-//   bool has_offset = hasVariable(data, offset);
-//   NumericVector offsetn(n);
-//   if (has_offset) {
-//     NumericVector offsetnz = data[offset];
-//     offsetn = clone(offsetnz);
-//   }
-//   
-//   std::string meth = ties;
-//   std::for_each(meth.begin(), meth.end(), [](char & c) {
-//     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-//   });
-//   
-//   int method = meth == "efron" ? 1 : 0;
-//   
-//   // unify right censored data with counting process data
-//   NumericVector tstartn(n), tstopn(n);
-//   if (!has_time2) {
-//     tstopn = timen;
-//   } else {
-//     tstartn = timen;
-//     tstopn = time2n;
-//   }
-//   
-//   // exclude observations with missing values
-//   LogicalVector sub(n,1);
-//   for (int i=0; i<n; ++i) {
-//     if (stratumn[i] == NA_INTEGER || std::isnan(tstartn[i]) ||
-//         std::isnan(tstopn[i]) || eventn[i] == NA_INTEGER ||
-//         std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
-//       sub[i] = 0;
-//     }
-//     for (int j=0; j<p; ++j) {
-//       if (std::isnan(zn(i,j))) sub[i] = 0;
-//     }
-//   }
-//   
-//   std::vector<int> order = which(sub);
-//   stratumn = stratumn[order];
-//   tstartn = tstartn[order];
-//   tstopn = tstopn[order];
-//   eventn = eventn[order];
-//   weightn = weightn[order];
-//   offsetn = offsetn[order];
-//   zn = subset_matrix_by_row(zn, order);
-//   n = sum(sub);
-//   if (n == 0) stop("no observations left after removing missing values");
-//   
-//   // sort by stratum
-//   std::vector<int> order0 = seq(0, n-1);
-//   std::sort(order0.begin(), order0.end(), [&](int i, int j) {
-//     return stratumn[i] < stratumn[j];
-//   });
-//   
-//   std::vector<int> stratumnz = stratumn[order0];
-//   NumericVector tstartnz = tstartn[order0];
-//   NumericVector tstopnz = tstopn[order0];
-//   std::vector<int> eventnz = eventn[order0];
-//   
-//   // locate the first observation within each stratum
-//   std::vector<int> istratum(1,0);
-//   for (int i=1; i<n; ++i) {
-//     if (stratumnz[i] != stratumnz[i-1]) {
-//       istratum.push_back(i);
-//     }
-//   }
-//   
-//   int nstrata = static_cast<int>(istratum.size());
-//   istratum.push_back(n);
-//   
-//   // ignore subjects not at risk for any event time
-//   std::vector<int> ignore1z(n);
-//   for (int i=0; i<nstrata; ++i) {
-//     std::vector<int> q0 = Range(istratum[i], istratum[i+1]-1);
-//     NumericVector tstart0 = tstartnz[q0];
-//     NumericVector tstop0 = tstopnz[q0];
-//     std::vector<int> event0 = eventnz[q0];
-//     NumericVector etime = tstop0[event0==1];
-//     etime = unique(etime);
-//     etime.sort();
-//     std::vector<int> index1 = findInterval3(tstart0, etime, 0, 0, 0);
-//     std::vector<int> index2 = findInterval3(tstop0, etime, 0, 0, 0);
-//     for (int j=istratum[i]; j<istratum[i+1]; ++j) {
-//       int j0 = j - istratum[i];
-//       if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
-//         ignore1z[j] = 1;
-//       } else {
-//         ignore1z[j] = 0;
-//       }
-//     }
-//   }
-//   
-//   std::vector<int> ignoren(n); // final ignore vector
-//   for (int i=0; i<n; ++i) {
-//     ignoren[order0[i]] = ignore1z[i];
-//   }
-//   
-//   int nused = n - sum(ignoren);
-//   
-//   // sort by stopping time in descending order within each stratum
-//   std::vector<int> order1 = seq(0, n-1);
-//   std::sort(order1.begin(), order1.end(), [&](int i, int j) {
-//     if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
-//     if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
-//     if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
-//     return eventn[i] < eventn[j];
-//   });
-//   
-//   std::vector<int> stratum1 = stratumn[order1];
-//   NumericVector tstart1 = tstartn[order1];
-//   NumericVector tstop1 = tstopn[order1];
-//   std::vector<int> event1 = eventn[order1];
-//   NumericVector weight1 = weightn[order1];
-//   NumericVector offset1 = offsetn[order1];
-//   std::vector<int> ignore1 = ignoren[order1];
-//   NumericMatrix z1 = subset_matrix_by_row(zn, order1);
-//   
-//   // sort by starting time in descending order within each stratum
-//   std::vector<int> order10 = seq(0, n-1);
-//   std::sort(order10.begin(), order10.end(), [&](int i, int j) {
-//     if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
-//     if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
-//     return tstart1[i] > tstart1[j];
-//   });
-//   
-//   coxparams param = {nused, stratum1, tstart1, tstop1, event1,
-//                      weight1, offset1, z1, order10, method};
-//   
-//   List out = f_der_i_2(p, beta, &param);
-//   NumericMatrix score_i = as<NumericMatrix>(out["score_i"]);
-//   NumericMatrix imat_i = as<NumericMatrix>(out["imat_i"]);
-//   
-//   // order data by ascending tstop
-//   std::vector<int> order2 = seq(0, n-1);
-//   std::sort(order2.begin(), order2.end(), [&](int i, int j) {
-//     return tstop1[i] < tstop1[j];
-//   });
-//   
-//   std::vector<int> stratum2 = stratum1[order2];
-//   NumericVector tstop2 = tstop1[order2];
-//   std::vector<int> event2 = event1[order2];
-//   NumericMatrix score_i2 = subset_matrix_by_row(score_i, order2);
-//   NumericMatrix imat_i2 = subset_matrix_by_row(imat_i, order2);
-//   
-//   // only consider event times
-//   std::vector<int> q = which(event2 == 1);
-//   std::vector<int> stratum3 = stratum2[q];
-//   NumericVector tstop3 = tstop2[q];
-//   NumericMatrix score_i3 = subset_matrix_by_row(score_i2, q);
-//   NumericMatrix imat_i3 = subset_matrix_by_row(imat_i2, q);
-//   int d = static_cast<int>(q.size());
-//   
-//   // identify unique event times
-//   NumericVector t = unique(tstop3);
-//   t.sort();
-//   
-//   int nt = static_cast<int>(t.size());
-//   NumericMatrix score_i4(nt, p);
-//   NumericMatrix imat_i4(nt, p*p);
-//   
-//   NumericVector tstop3a = clone(tstop3);
-//   tstop3a.push_front(-1.0); // to facilitate the loop
-//   int k = -1;
-//   for (int i=1; i<=d; ++i) {
-//     if (tstop3a[i] != tstop3a[i-1]) ++k;
-//     
-//     for (int j=0; j<p; ++j) {
-//       score_i4(k,j) += score_i3(i-1,j);
-//       for (int l=0; l<p; ++l) {
-//         imat_i4(k,j*p+l) += imat_i3(i-1,j*p+l);
-//       }
-//     }
-//   }
-//   
-//   // transformed time points
-//   NumericVector g(nt);
-//   if (transform == "identity") {
-//     for (int i=0; i<nt; ++i) {
-//       g[i] = t[i];
-//     }
-//   } else if (transform == "log") {
-//     for (int i=0; i<nt; ++i) {
-//       g[i] = std::log(t[i]);
-//     }
-//   } else if (transform == "rank") {
-//     for (int i=0; i<nt; ++i) {
-//       g[i] = static_cast<double>(i+1);
-//     }
-//   } else if (transform == "km") {
-//     DataFrame temp = DataFrame::create(
-//       Named("tstart") = tstart1,
-//       Named("tstop") = tstop1,
-//       Named("event") = event1
-//     );
-//     
-//     DataFrame df_km = kmest(temp, "", "", "tstart", "tstop", "event",
-//                             "", "none", 0.95, false);
-//     
-//     NumericVector surv = df_km["surv"];
-//     surv.push_front(1.0); // for left-continuous step function
-//     for (int i=0; i<nt; ++i) {
-//       g[i] = 1.0 - surv[i];
-//     }
-//   } else {
-//     Function f(transform);
-//     for (int i=0; i<nt; ++i) {
-//       g[i] = as<double>(f(t[i]));
-//     }
-//   }
-//   
-//   // score for theta
-//   NumericVector u_theta(p);
-//   for (int i=0; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
-//       u_theta[j] += score_i4(i,j)*g[i];
-//     }
-//   }
-//   
-//   // covariance between u_theta and u_beta
-//   NumericMatrix imat_theta_beta(p, p);
-//   for (int i=0; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
-//       for (int l=0; l<p; ++l) {
-//         imat_theta_beta(j,l) += imat_i4(i,j*p+l)*g[i];
-//       }
-//     }
-//   }
-//   
-//   // covariance for u_theta
-//   NumericMatrix imat_theta(p, p);
-//   for (int i=0; i<nt; ++i) {
-//     for (int j=0; j<p; ++j) {
-//       for (int l=0; l<p; ++l) {
-//         imat_theta(j,l) += imat_i4(i,j*p+l)*g[i]*g[i];
-//       }
-//     }
-//   }
-//   
-//   // conditional variance for u_theta given u_beta
-//   NumericMatrix vtheta(p, p);
-//   for (int j=0; j<p; ++j) {
-//     for (int l=0; l<p; ++l) {
-//       vtheta(j,l) = imat_theta(j,l);
-//       for (int s=0; s<p; ++s) {
-//         for (int r=0; r<p; ++r) {
-//           vtheta(j,l) -= imat_theta_beta(j,s)*vbeta(s,r)*imat_theta_beta(l,r);
-//         }
-//       }
-//     }
-//   }
-//   
-//   // individual score test for theta = 0
-//   NumericVector score_test(p);
-//   for (int j=0; j<p; ++j) {
-//     score_test[j] = u_theta[j]*u_theta[j]/vtheta(j,j);
-//   }
-//   
-//   // global score test for theta = 0
-//   double score_test_global = 0.0;
-//   NumericMatrix vtheta_inv = invsympd(vtheta, p, 1e-12);
-//   for (int j=0; j<p; ++j) {
-//     for (int l=0; l<p; ++l) {
-//       score_test_global += u_theta[j]*vtheta_inv(j,l)*u_theta[l];
-//     }
-//   }
-//   
-//   score_test.push_back(score_test_global);
-//   NumericVector df(p+1,1.0);
-//   df[p] = p; // degrees of freedom for the global test
-//   
-//   // p-values
-//   NumericVector p_values(p+1);
-//   for (int j=0; j<=p; ++j) {
-//     p_values[j] = 1.0 - boost_pchisq(score_test[j], df[j], true, false);
-//   }
-//   
-//   // assemble the table
-//   NumericMatrix table(p+1,3);
-//   for (int j=0; j<=p; ++j) {
-//     table(j,0) = score_test[j];
-//     table(j,1) = df[j];
-//     table(j,2) = p_values[j];
-//   }
-//   
-//   StringVector covariates_vec(p+1);
-//   for (int j=0; j<p; ++j) covariates_vec[j] = covariates[j];
-//   covariates_vec[p] = "GLOBAL";
-//   rownames(table) = covariates_vec;
-//   colnames(table) = StringVector::create("chisq", "df", "p");
-//   
-//   // obtain scaled schoenfeld residuals
-//   List resid_list = residuals_phregcpp(
-//     p, beta, vbeta, resmart, data, stratum, time, time2, event,
-//     covariates, weight, offset, "", ties, "scaledsch", false, true);
-//   
-//   NumericMatrix sresid = as<NumericMatrix>(resid_list["resid"]);
-//   colnames(sresid) = covariates;
-//   
-//   // repeat the g values according to the number of events
-//   NumericVector g_rep(d);
-//   int idx = 0;
-//   for (int i=0; i<nt; ++i) {
-//     int count = 0;
-//     for (int j=0; j<d; ++j) {
-//       if (tstop3[j] == t[i]) {
-//         ++count;
-//       }
-//     }
-//     for (int j=0; j<count; ++j) {
-//       g_rep[idx] = g[i];
-//       ++idx;
-//     }
-//   }
-//   
-//   List result = List::create(
-//     Named("table") = table,
-//     Named("x") = g_rep,
-//     Named("time") = tstop3,
-//     Named("y") = sresid,
-//     Named("var") = vbeta*d,
-//     Named("transform") = transform
-//   );
-//   
-//   if (has_stratum) {
-//     result.push_back(stratum3, "strata");
-//   }
-//   
-//   return result;
-// }
+
+
+// test proportional hazards assumption via scaled Schoenfeld residuals
+ListCpp zph_phregcpp(int p,
+                     const std::vector<double>& beta,
+                     const FlatMatrix& vbeta,
+                     const std::vector<double>& resmart,
+                     const DataFrameCpp& data,
+                     const std::vector<std::string>& stratum,
+                     const std::string& time,
+                     const std::string& time2,
+                     const std::string& event,
+                     const std::vector<std::string>& covariates,
+                     const std::string& weight,
+                     const std::string& offset,
+                     const std::string& ties,
+                     const std::string& transform) {
+  
+  if (p <= 0) {
+    throw std::invalid_argument(
+        "covariates must be present to test proportional hazards");
+  }
+  
+  int n = data.nrows();
+  
+  bool has_stratum = false;
+  std::vector<int> stratumn(n);
+  DataFrameCpp u_stratum;
+  int p_stratum = stratum.size();
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    has_stratum = true;
+    stratumn = out.get<std::vector<int>>("index");
+    u_stratum = out.get<DataFrameCpp>("lookup");
+  }
+  
+  // --- time / time2 existence and checks ---
+  if (!data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
+  } else {
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
+  for (int i = 0; i < n; ++i) {
+    if (!std::isnan(timen[i]) && timen[i] < 0.0)
+      throw std::invalid_argument("time must be nonnegative");
+  }
+  
+  bool has_time2 = !time2.empty() && data.containElementNamed(time2);
+  std::vector<double> time2n(n);
+  if (has_time2) {
+    if (data.int_cols.count(time2)) {
+      const std::vector<int>& vi = data.get<int>(time2);
+      for (int i = 0; i < n; ++i) time2n[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(time2)) {
+      time2n = data.get<double>(time2);
+    } else {
+      throw std::invalid_argument("time2 variable must be integer or numeric");
+    }
+    for (int i = 0; i < n; ++i) {
+      if (!std::isnan(timen[i]) && !std::isnan(time2n[i]) && time2n[i] <= timen[i])
+        throw std::invalid_argument("time2 must be greater than time");
+    }
+  }
+  
+  // --- event variable ---
+  bool has_event = !event.empty() && data.containElementNamed(event);
+  if (!has_time2 && !has_event) {
+    throw std::invalid_argument(
+        "data must contain the event variable for right censored data");
+  }
+  std::vector<double> eventn(n);
+  if (has_event) {
+    if (data.bool_cols.count(event)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(event)) {
+      const std::vector<int>& vi = data.get<int>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(event)) {
+      eventn = data.get<double>(event);
+    } else {
+      throw std::invalid_argument("event variable must be bool, integer or numeric");
+    }
+    for (double val : eventn) if (val != 0 && val != 1)
+      throw std::invalid_argument("event must be 1 or 0 for each observation");
+  }
+  
+  // --- build design matrix zn (n x p) column-major FlatMatrix ---
+  FlatMatrix zn(n, p);
+  if (p > 0) {
+    for (int j = 0; j < p; ++j) {
+      const std::string& zj = covariates[j];
+      if (!data.containElementNamed(zj))
+        throw std::invalid_argument("data must contain the variables in covariates");
+      if (data.bool_cols.count(zj)) {
+        const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = vb[i] ? 1.0 : 0.0;
+      } else if (data.int_cols.count(zj)) {
+        const std::vector<int>& vi = data.get<int>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = static_cast<double>(vi[i]);
+      } else if (data.numeric_cols.count(zj)) {
+        const std::vector<double>& vd = data.get<double>(zj);
+        int off = j * n;
+        for (int i = 0; i < n; ++i) zn.data[off + i] = vd[i];
+      } else {
+        throw std::invalid_argument("covariates must be bool, integer or numeric");
+      }
+    }
+  }
+  
+  // --- weight and offset ---
+  std::vector<double> weightn(n, 1.0);
+  if (!weight.empty() && data.containElementNamed(weight)) {
+    if (data.int_cols.count(weight)) {
+      const std::vector<int>& vi = data.get<int>(weight);
+      for (int i = 0; i < n; ++i) weightn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(weight)) {
+      weightn = data.get<double>(weight);
+    } else {
+      throw std::invalid_argument("weight variable must be integer or numeric");
+    }
+    for (double w : weightn) if (std::isnan(w) || w <= 0.0)
+      throw std::invalid_argument("weight must be greater than 0");
+  }
+  
+  std::vector<double> offsetn(n, 0.0);
+  if (!offset.empty() && data.containElementNamed(offset)) {
+    if (data.int_cols.count(offset)) {
+      const std::vector<int>& vi = data.get<int>(offset);
+      for (int i = 0; i < n; ++i) offsetn[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(offset)) {
+      offsetn = data.get<double>(offset);
+    } else {
+      throw std::invalid_argument("offset variable must be integer or numeric");
+    }
+  }
+  
+  std::string meth = ties;
+  std::for_each(meth.begin(), meth.end(), [](char & c) {
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  });
+  
+  int method = meth == "efron" ? 1 : 0;
+  
+  // unify right censored data with counting process data
+  std::vector<double> tstartn(n), tstopn(n);
+  if (!has_time2) {
+    tstopn = timen;
+  } else {
+    tstartn = timen;
+    tstopn = time2n;
+  }
+  
+  // exclude observations with missing values
+  std::vector<unsigned char> sub(n,1);
+  for (int i=0; i<n; ++i) {
+    if (stratumn[i] == INT_MIN ||
+        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
+        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
+        std::isnan(offsetn[i])) {
+      sub[i] = 0; continue;
+    }
+    for (int j = 0; j < p; ++j) {
+      if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
+    }
+  }
+  std::vector<int> keep = which(sub);
+  if (keep.empty())
+    throw std::invalid_argument("no observations without missing values");
+  
+  subset_in_place(stratumn, keep);
+  subset_in_place(tstartn, keep);
+  subset_in_place(tstopn, keep);
+  subset_in_place(eventn, keep);
+  subset_in_place(weightn, keep);
+  subset_in_place(offsetn, keep);
+  if (p > 0) subset_in_place_flatmatrix(zn, keep);
+  n = keep.size();
+  
+  // sort by stratum
+  std::vector<int> order0 = seqcpp(0, n-1);
+  std::sort(order0.begin(), order0.end(), [&](int i, int j) {
+    return stratumn[i] < stratumn[j];
+  });
+  
+  std::vector<int> stratum1z = subset(stratumn, order0);
+  std::vector<double> tstart1z = subset(tstartn, order0);
+  std::vector<double> tstop1z = subset(tstopn, order0);
+  std::vector<double> event1z = subset(eventn, order0);
+  
+  // locate the first observation within each stratum
+  std::vector<int> istratum(1,0);
+  for (int i=1; i<n; ++i) {
+    if (stratum1z[i] != stratum1z[i-1]) {
+      istratum.push_back(i);
+    }
+  }
+  int nstrata = static_cast<int>(istratum.size());
+  istratum.push_back(n);
+  
+  // ignore subjects not at risk for any event time
+  std::vector<int> ignore1z(n);
+  for (int i = 0; i < nstrata; ++i) {
+    std::vector<int> q0 = seqcpp(istratum[i], istratum[i+1] - 1);
+    std::vector<double> tstart0 = subset(tstart1z, q0);
+    std::vector<double> tstop0 = subset(tstop1z, q0);
+    std::vector<double> event0 = subset(event1z, q0);
+    int n0 = static_cast<int>(q0.size());
+    
+    // unique event times
+    std::vector<double> etime;
+    etime.reserve(n0);
+    for (int j = 0; j < n0; ++j) {
+      if (event0[j] == 1) etime.push_back(tstop0[j]);
+    }
+    etime = unique_sorted(etime);
+    
+    std::vector<int> index1 = findInterval3(tstart0, etime);
+    std::vector<int> index2 = findInterval3(tstop0, etime);
+    for (int j = istratum[i]; j < istratum[i+1]; ++j) {
+      int j0 = j - istratum[i];
+      if (index1[j0] == index2[j0]) { // no event in (tstart, tstop]
+        ignore1z[j] = 1;
+      } else {
+        ignore1z[j] = 0;
+      }
+    }
+  }
+  
+  std::vector<int> ignoren(n); // back to the original order
+  for (int i = 0; i < n; ++i) {
+    ignoren[order0[i]] = ignore1z[i];
+  }
+  
+  int nused = n - std::accumulate(ignoren.begin(), ignoren.end(), 0);
+  
+  // sort by stopping time in descending order within each stratum
+  std::vector<int> order1 = seqcpp(0, n-1);
+  std::sort(order1.begin(), order1.end(), [&](int i, int j) {
+    if (ignoren[i] != ignoren[j]) return ignoren[i] < ignoren[j];
+    if (stratumn[i] != stratumn[j]) return stratumn[i] < stratumn[j];
+    if (tstopn[i] != tstopn[j]) return tstopn[i] > tstopn[j];
+    return eventn[i] < eventn[j];
+  });
+  
+  std::vector<int> stratum1 = subset(stratumn, order1);
+  std::vector<double> tstart1 = subset(tstartn, order1);
+  std::vector<double> tstop1 = subset(tstopn, order1);
+  std::vector<double> event1 = subset(eventn, order1);
+  std::vector<double> weight1 = subset(weightn, order1);
+  std::vector<double> offset1 = subset(offsetn, order1);
+  std::vector<int> ignore1 = subset(ignoren, order1);
+  FlatMatrix z1;
+  if (p > 0) z1 = subset_flatmatrix(zn, order1);
+  
+  // sort by starting time in descending order within each stratum
+  std::vector<int> order10 = seqcpp(0, n-1);
+  std::sort(order10.begin(), order10.end(), [&](int i, int j) {
+    if (ignore1[i] != ignore1[j]) return ignore1[i] < ignore1[j];
+    if (stratum1[i] != stratum1[j]) return stratum1[i] < stratum1[j];
+    return tstart1[i] > tstart1[j];
+  });
+  
+  coxparams param = {nused, stratum1, tstart1, tstop1, event1,
+                     weight1, offset1, z1, order10, method};
+  
+  ListCpp out = f_der_i_2(p, beta, &param);
+  FlatMatrix score_i = out.get<FlatMatrix>("score_i");
+  FlatArray imat_i = out.get<FlatArray>("imat_i");
+  
+  // order data by ascending tstop
+  std::vector<int> order2 = seqcpp(0, n-1);
+  std::sort(order2.begin(), order2.end(), [&](int i, int j) {
+    return tstop1[i] < tstop1[j];
+  });
+  
+  std::vector<int> stratum2 = subset(stratum1, order2);
+  std::vector<double> tstop2 = subset(tstop1, order2);
+  std::vector<double> event2 = subset(event1, order2);
+  FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
+  FlatArray imat_i2 = subset_flatarray(imat_i, order2);
+  
+  // only consider event times
+  std::vector<int> q;
+  q.reserve(n);
+  for (int i=0; i<n; ++i) if (event2[i] == 1) q.push_back(i);
+  
+  std::vector<int> stratum3 = subset(stratum2, q);
+  std::vector<double> tstop3 = subset(tstop2, q);
+  FlatMatrix score_i3 = subset_flatmatrix(score_i2, q);
+  FlatArray imat_i3 = subset_flatarray(imat_i2, q);
+  int d = static_cast<int>(q.size());
+  
+  // identify unique event times
+  std::vector<double> t = unique_sorted(tstop3);
+  
+  int nt = static_cast<int>(t.size());
+  FlatMatrix score_i4(nt, p);
+  FlatArray imat_i4(nt, p, p);
+  
+  std::vector<double> tstop4(d+1);
+  tstop4[0] = -1.0;
+  std::memcpy(tstop4.data() + 1, tstop3.data(), d * sizeof(double));
+  
+  // sums over unique event times
+  for (int j=0; j<p; ++j) {
+    int h = -1;
+    for (int i=1; i<=d; ++i) {
+      if (tstop4[i] != tstop4[i-1]) ++h;
+      score_i4(h,j) += score_i3(i-1,j);
+    }
+  }
+  
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      int h = -1;
+      for (int i=1; i<=d; ++i) {
+        if (tstop4[i] != tstop4[i-1]) ++h;
+        imat_i4(h,j,k) += imat_i3(i-1,j,k);
+      }
+    }
+  }
+  
+  // transformed time points
+  std::vector<double> g(nt);
+  if (transform == "identity") {
+    for (int i=0; i<nt; ++i) g[i] = t[i];
+  } else if (transform == "log") {
+    for (int i=0; i<nt; ++i) g[i] = std::log(t[i]);
+  } else if (transform == "rank") {
+    for (int i=0; i<nt; ++i) g[i] = static_cast<double>(i+1);
+  } else if (transform == "km") {
+    DataFrameCpp temp;
+    temp.push_back(tstart1, "tstart");
+    temp.push_back(tstop1,  "tstop");
+    temp.push_back(event1,  "event");
+    
+    DataFrameCpp df_km = kmestcpp(temp, {""}, "tstart", "tstop", "event", 
+                                  "", "none", 0.95, false);
+    
+    std::vector<double> surv = df_km.get<double>("surv");
+    surv.insert(surv.begin(), 1.0); // for left-continuous step function
+    for (int i=0; i<nt; ++i) g[i] = 1.0 - surv[i];
+  } else {
+    throw std::invalid_argument("Unsupported transform: " + transform);
+  }
+  
+  // score for theta
+  std::vector<double> u_theta(p);
+  for (int j=0; j<p; ++j) {
+    for (int i=0; i<nt; ++i) {
+      u_theta[j] += score_i4(i,j)*g[i];
+    }
+  }
+  
+  // covariance between u_theta and u_beta
+  FlatMatrix imat_theta_beta(p, p);
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<nt; ++i) {
+        imat_theta_beta(j,k) += imat_i4(i,j,k)*g[i];
+      }
+    }
+  }
+  
+  // covariance for u_theta
+  FlatMatrix imat_theta(p, p);
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      for (int i=0; i<nt; ++i) {
+        imat_theta(j,k) += imat_i4(i,j,k)*g[i]*g[i];
+      }
+    }
+  }
+  
+  // conditional variance for u_theta given u_beta
+  FlatMatrix ivbeta = mat_mat_mult(imat_theta_beta, vbeta);
+  
+  FlatMatrix vtheta(p, p);
+  for (int s=0; s<p; ++s) {
+    for (int k=0; k<p; ++k) {
+      for (int j=0; j<p; ++j) {
+        vtheta(j,k) -= ivbeta(j,s)*imat_theta_beta(k,s);
+      }
+    }
+  }
+  
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      vtheta(j,k) += imat_theta(j,k);
+    }
+  }
+  
+  // individual score test for theta = 0
+  std::vector<double> score_test(p);
+  for (int j=0; j<p; ++j) {
+    score_test[j] = u_theta[j] * u_theta[j] /vtheta(j,j);
+  }
+  
+  // global score test for theta = 0
+  FlatMatrix vtheta_inv = invsympd(vtheta, p);
+  double score_test_global = 0.0;
+  for (int k=0; k<p; ++k) {
+    for (int j=0; j<p; ++j) {
+      score_test_global += u_theta[j]*vtheta_inv(j,k)*u_theta[k];
+    }
+  }
+  
+  FlatMatrix table(p+1,3);
+  for (int j=0; j<p; ++j) {
+    table(j,0) = score_test[j];
+    table(j,1) = 1.0;
+    table(j,2) = 1.0 - boost_pchisq(score_test[j], 1.0);
+  }
+  table(p,0) = score_test_global;
+  table(p,1) = static_cast<double>(p);
+  table(p,2) = 1.0 - boost_pchisq(score_test_global, static_cast<double>(p));
+  
+  // obtain scaled schoenfeld residuals
+  ListCpp resid_list = residuals_phregcpp(
+    p, beta, vbeta, resmart, data, stratum, time, time2, event,
+    covariates, weight, offset, "", ties, "scaledsch", false, true);
+  
+  FlatMatrix sresid = resid_list.get<FlatMatrix>("resid");
+  
+  // repeat the g values according to the number of events
+  std::vector<double> g_rep; 
+  g_rep.reserve(d);
+  for (int i=0; i<nt; ++i) {
+    int count = 0;
+    for (int j=0; j<d; ++j) if (tstop3[j] == t[i]) ++count;
+    for (int k=0; k<count; ++k) g_rep.push_back(g[i]);
+  }
+  FlatMatrix var = vbeta;
+  for (double &x : var.data) x *= static_cast<double>(d);
+  
+  ListCpp result;
+  result.push_back(table, "table");
+  result.push_back(g_rep, "x");
+  result.push_back(tstop3, "time");
+  result.push_back(sresid, "y");
+  result.push_back(var, "var");
+  result.push_back(transform, "transform");
+  
+  if (has_stratum) {
+    for (int i = 0; i < p_stratum; ++i) {
+      std::string s = stratum[i];
+      if (u_stratum.int_cols.count(s)) {
+        auto v = u_stratum.get<int>(s);
+        subset_in_place(v, stratum3);
+        result.push_back(std::move(v), s);
+      } else if (u_stratum.numeric_cols.count(s)) {
+        auto v = u_stratum.get<double>(s);
+        subset_in_place(v, stratum3);
+        result.push_back(std::move(v), s);
+      } else if (u_stratum.string_cols.count(s)) {
+        auto v = u_stratum.get<std::string>(s);
+        subset_in_place(v, stratum3);
+        result.push_back(std::move(v), s);
+      } else {
+        throw std::invalid_argument("unsupported type for stratum variable " + s);
+      }
+    }
+  }
+  
+  return result;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List zph_phregRcpp(int p,
+                         const std::vector<double>& beta,
+                         const Rcpp::NumericMatrix& vbeta,
+                         const std::vector<double>& resmart,
+                         const Rcpp::DataFrame& data,
+                         const std::vector<std::string>& stratum,
+                         const std::string& time,
+                         const std::string& time2,
+                         const std::string& event,
+                         const std::vector<std::string>& covariates,
+                         const std::string& weight,
+                         const std::string& offset,
+                         const std::string& ties,
+                         const std::string& transform) {
+  
+  FlatMatrix vbetacpp = flatmatrix_from_Rmatrix(vbeta);
+  DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
+  
+  ListCpp cpp_result = zph_phregcpp(
+    p, beta, vbetacpp, resmart, dfcpp, stratum, time, time2, event,
+    covariates, weight, offset, ties, transform);
+  
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(cpp_result);
+}
