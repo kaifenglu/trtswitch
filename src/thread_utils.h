@@ -4,8 +4,8 @@
 #include <Rcpp.h>
 #include <RcppThread.h>
 #include <mutex>
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace thread_utils {
 

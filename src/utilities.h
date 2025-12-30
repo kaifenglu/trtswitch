@@ -5,12 +5,19 @@ struct FlatMatrix;
 struct DataFrameCpp;
 struct ListCpp;
 
-#include <vector>
-#include <string>
-#include <functional>
-#include <algorithm>
-#include <stdexcept>
-#include <limits>
+#include <algorithm>   // std::sort, std::unique, std::find, std::copy
+#include <cstddef>     // std::size_t
+#include <functional>  // std::function
+#include <iomanip>     // std::fixed, std::setprecision
+#include <iostream>    // std::ostream, std::cout
+#include <iterator>    // std::back_inserter, std::distance
+#include <limits>      // std::numeric_limits
+#include <sstream>     // std::ostringstream
+#include <stdexcept>   // std::out_of_range
+#include <string>      // std::string
+#include <type_traits> // std::is_convertible
+#include <utility>     // std::declval
+#include <vector>      // std::vector
 
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 

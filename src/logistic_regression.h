@@ -4,8 +4,8 @@
 struct DataFrameCpp; 
 struct ListCpp; 
 
-#include <vector>
 #include <string>
+#include <vector>
 
 ListCpp logisregcpp(const DataFrameCpp& data,
                     const std::string& event = "event",

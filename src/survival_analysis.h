@@ -5,8 +5,8 @@ struct FlatMatrix;
 struct DataFrameCpp;
 struct ListCpp;
 
-#include <vector>
 #include <string>
+#include <vector>
 
 DataFrameCpp survQuantilecpp(const std::vector<double>& time,
                              const std::vector<int>& event,

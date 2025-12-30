@@ -1,16 +1,19 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
-#include <algorithm>
-#include <cstddef>
+#include <algorithm>   // std::fill, std::min
+#include <cstddef>     // std::size_t
 #include <cstring>     // std::memcpy
-#include <stdexcept>
-#include <string>
-#include <type_traits>
-#include <variant>
-#include <vector>
-#include <utility>     // std::move
+#include <iomanip>     // std::fixed, std::setprecision
+#include <ios>         // std::ios
+#include <iostream>    // std::ostream, std::cout
 #include <memory>      // std::shared_ptr
+#include <stdexcept>   // std::runtime_error
+#include <string>      // std::string
+#include <type_traits> // std::is_same_v
+#include <variant>     // std::get, std::variant
+#include <vector>      // std::vector
+#include <utility>     // std::move
 
 #include <Rcpp.h>
 
@@ -39,7 +42,8 @@ struct FlatMatrix {
   }
   
   inline void fill(double v) { std::fill(data.begin(), data.end(), v); }
-  inline bool empty() const noexcept { return data.empty() || nrow == 0 || ncol == 0; }
+  inline bool empty() const noexcept { 
+    return data.empty() || nrow == 0 || ncol == 0; }
   inline std::size_t size() const noexcept { return data.size(); }
   
   // column-major index helper
@@ -113,7 +117,8 @@ struct IntMatrix {
   }
   
   inline void fill(int v) { std::fill(data.begin(), data.end(), v); }
-  inline bool empty() const noexcept { return data.empty() || nrow == 0 || ncol == 0; }
+  inline bool empty() const noexcept { 
+    return data.empty() || nrow == 0 || ncol == 0; }
   inline std::size_t size() const noexcept { return data.size(); }
   
   // column-major index helper
@@ -183,7 +188,8 @@ struct FlatArray {
   // raw pointer access for parallel-friendly use
   inline const double* data_ptr() const noexcept { 
     return data.empty() ? nullptr : data.data(); }
-  inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
+  inline double* data_ptr() noexcept { 
+    return data.empty() ? nullptr : data.data(); }
   
   // pointer to the start of slice s (returns pointer to element (0,0,s))
   inline double* slice_ptr(int s) noexcept {
@@ -262,8 +268,8 @@ struct DataFrameCpp {
   void push_back(bool value, const std::string& name);
   void push_back(const std::string& value, const std::string& name);
   
-  // push_back_flat accepts a column-major flattened buffer containing nrows * p values
-  // will create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
+  // push_back_flat accepts a column-major flattened buffer with nrows*p values
+  // create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
   void push_back_flat(const std::vector<double>& flat_col_major, int nrows, 
                       const std::string& base_name);
   
@@ -529,7 +535,8 @@ void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col,
 void move_int_column(DataFrameCpp& df, std::vector<int>&& col, 
                      const std::string& name);
 void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
-DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx);
+DataFrameCpp subset_dataframe(const DataFrameCpp& df, 
+                              const std::vector<int>& row_idx);
 std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
                                           const std::vector<int>& idx);
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
