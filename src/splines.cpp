@@ -115,7 +115,7 @@ FlatMatrix dersBasisFuns(int i, double u, int p, int n, const std::vector<double
 
 // splineDesigncpp using findSpan + basisFuns + dersBasisFuns (The NURBS Book)
 // - ord = p+1 where p is degree
-// - computes k-th derivatives up to requested order efficiently (no maps / recursion)
+// - computes k-th derivatives up to requested order efficiently
 FlatMatrix splineDesigncpp(
     const std::vector<double>& knots_in,
     const std::vector<double>& x,
@@ -260,7 +260,8 @@ ListCpp bscpp(
     for (double zi : z) 
       if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
         z_no_outside.push_back(zi);
-    for (int k = 0; k < K; ++k) knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
+    for (int k = 0; k < K; ++k) 
+      knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
     knots = std::move(knots1);
   } else {
     for (double kv : knots) if (!std::isfinite(kv)) 
@@ -268,7 +269,7 @@ ListCpp bscpp(
     K = knots.size();
   }
   
-  // If mk_knots && K>0, handle interior knots equalling boundary knots (shove inside)
+  // If mk_knots && K>0, handle interior knots equalling boundary knots- shove inside
   if (mk_knots && K > 0) {
     bool lrEq0 = std::any_of(knots.begin(), knots.end(), 
                              [&](double v){ return v == boundary_knots[0]; });
@@ -286,7 +287,7 @@ ListCpp bscpp(
       } else {
         std::vector<double> knots2;
         for (double kv : knots) if (kv > piv) knots2.push_back(kv);
-        double shift = ( *std::min_element(knots2.begin(), knots2.end()) - piv ) / 8.0;
+        double shift = (*std::min_element(knots2.begin(), knots2.end()) - piv) / 8.0;
         for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] + shift;
       }
       anyWarning = true;
@@ -302,7 +303,7 @@ ListCpp bscpp(
       } else {
         std::vector<double> knots2;
         for (double kv : knots) if (kv < piv) knots2.push_back(kv);
-        double shift = ( piv - *std::max_element(knots2.begin(), knots2.end()) ) / 8.0;
+        double shift = (piv - *std::max_element(knots2.begin(), knots2.end())) / 8.0;
         for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] - shift;
       }
       anyWarning = true;

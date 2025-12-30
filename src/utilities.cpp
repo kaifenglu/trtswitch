@@ -276,7 +276,8 @@ double squantilecpp(const std::function<double(double)>& S, double p, double tol
 
 
 // bygroup: group-by helper that builds lookup tables and combined indices
-ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variables) {
+ListCpp bygroup(const DataFrameCpp& data, 
+                const std::vector<std::string>& variables) {
   int n = data.nrows();
   int p = variables.size();
   ListCpp result;

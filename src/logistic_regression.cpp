@@ -69,7 +69,7 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
     b.assign(n, 0.0);
   }
   
-  // 1) single pass over observations: compute r, loglik, c1, c2 (+ firth temporaries)
+  // 1) single pass over observations: compute r, loglik, c1, c2 + firth temporaries
   for (int person = 0; person < n; ++person) {
     double fw = fwvec[person];
     double y = yv[person];

@@ -12,7 +12,8 @@
 
 // ------------------------- DataFrameCpp members (small) -------------------
 
-void DataFrameCpp::push_back(const std::vector<double>& col, const std::string& name) {
+void DataFrameCpp::push_back(const std::vector<double>& col, 
+                             const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -167,7 +168,8 @@ void DataFrameCpp::push_front(std::vector<double>&& col, const std::string& name
   numeric_cols.emplace(name, std::move(col));
   names_.insert(names_.begin(), name);
 }
-void DataFrameCpp::push_front(const std::vector<int>& col, const std::string& name) {
+void DataFrameCpp::push_front(const std::vector<int>& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -444,7 +446,8 @@ const double* numeric_column_ptr(const DataFrameCpp& df,
 }
 
 // int_column_ptr
-const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept {
+const int* int_column_ptr(const DataFrameCpp& df, 
+                          const std::string& name) noexcept {
   return df.int_col_ptr(name);
 }
 
@@ -499,8 +502,10 @@ DataFrameCpp subset_dataframe(const DataFrameCpp& df,
     for (const auto& nm : df.names()) {
       if (df.numeric_cols.count(nm)) out.push_back(std::vector<double>{}, nm);
       else if (df.int_cols.count(nm)) out.push_back(std::vector<int>{}, nm);
-      else if (df.bool_cols.count(nm)) out.push_back(std::vector<unsigned char>{}, nm);
-      else if (df.string_cols.count(nm)) out.push_back(std::vector<std::string>{}, nm);
+      else if (df.bool_cols.count(nm)) 
+        out.push_back(std::vector<unsigned char>{}, nm);
+      else if (df.string_cols.count(nm)) 
+        out.push_back(std::vector<std::string>{}, nm);
     }
     return out;
   }

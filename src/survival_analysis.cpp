@@ -231,7 +231,8 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
           
         case 4: // logit
           grad[i] = 1.0 / (surv0[i] * (1.0 - surv0[i]));
-          z[i] = (boost_qlogis(surv0[i]) - boost_qlogis(q)) / (grad[i] * sesurv0[i]);
+          z[i] = (boost_qlogis(surv0[i]) - boost_qlogis(q)) / 
+            (grad[i] * sesurv0[i]);
           break;
           
         case 5: // arcsin / asin / asinsqrt
