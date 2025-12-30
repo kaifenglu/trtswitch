@@ -1,22 +1,23 @@
 // [[Rcpp::depends(RcppParallel)]]
-#include <RcppThread.h>      // RcppThread::Rcerr
+#include <RcppThread.h>
 #include <Rcpp.h>
 
 #include "survival_analysis.h"
 #include "utilities.h"
-#include "dataframe_list.h"  // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
-#include "thread_utils.h"    // push_thread_warning / drain_thread_warnings_to_R
+#include "dataframe_list.h"
+#include "thread_utils.h"
 
-#include <vector>
-#include <string>
-#include <numeric>   // iota, inner_product
-#include <cmath>     // isnan, isinf, fabs, NaN, exp, log
-#include <stdexcept> // exceptions
-#include <algorithm> // sort, none_of, any_of
+#include <algorithm> // accumulate, any_of, max_element, min_element, none_of, sort
+#include <cctype>    // isalnum, isalpha, tolower, toupper
+#include <climits>   // INT_MIN
+#include <cmath>     // exp, fabs, isinf, isnan, log, sqrt
 #include <cstring>   // memcpy
-#include <cctype>
-#include <random>
-
+#include <limits>    // numeric_limits
+#include <numeric>   // iota, inner_product
+#include <random>    // mt19937
+#include <stdexcept> // invalid_argument, runtime_error
+#include <string>    // string
+#include <vector>    // vector
 
 // Helper function to compute confidence interval for survival probability
 std::vector<double> fsurvci(double surv, double sesurv, std::string& ct, double z) {

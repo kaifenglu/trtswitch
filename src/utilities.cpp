@@ -1,17 +1,19 @@
 #include "utilities.h"
-#include "dataframe_list.h" // DataFrameCpp, ListCpp
+#include "dataframe_list.h"
 
-#include <cstddef>
-#include <vector>
-#include <string>
-#include <algorithm>   // sort, upper_bound, max_element, etc.
-#include <numeric>     // iota, accumulate, inner_product
-#include <functional>  // std::function
-#include <cmath>       // isnan, isinf, fabs, pow, log, exp, sqrt
-#include <limits>      // numeric_limits
-#include <stdexcept>   // exceptions
-#include <cstring>     // std::memcpy
-#include <memory>
+#include <cstddef>    // size_t
+#include <vector>     // vector
+#include <string>     // string
+#include <algorithm>  // fill, lower_bound, max_element, memmove, 
+// min_element, sort, swap, upper_bound
+#include <numeric>    // accumulate, inner_product, iota 
+#include <functional> // function
+#include <cmath>      // copysign, exp, fabs, isinf, isnan, log, pow, sqrt
+#include <limits>     // numeric_limits
+#include <sstream>    // ostringstream
+#include <stdexcept>  // invalid_argument, runtime_error
+#include <cstring>    // memcpy
+#include <memory>     // make_shared, shared_ptr
 
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/distributions/logistic.hpp>

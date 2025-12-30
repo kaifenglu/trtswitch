@@ -1,18 +1,21 @@
 // [[Rcpp::depends(RcppParallel)]]
-#include <RcppThread.h>      // RcppThread::Rcerr
+#include <RcppThread.h>
 #include <Rcpp.h>
 
 #include "logistic_regression.h"
-#include "utilities.h"      // boost_pnorm, boost_plogis, etc.
-#include "dataframe_list.h"  // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
-#include "thread_utils.h"    // push_thread_warning / drain_thread_warnings_to_R
+#include "utilities.h"
+#include "dataframe_list.h"
+#include "thread_utils.h"
 
-#include <vector>
-#include <string>
-#include <numeric>   // iota, inner_product
-#include <cmath>     // isnan, isinf, fabs, NaN, exp, log
-#include <stdexcept> // exceptions
-#include <algorithm> // sort, none_of, any_of
+#include <algorithm> // any_of, fill, for_each, none_of, sort
+#include <cctype>    // tolower
+#include <climits>   // INT_MIN
+#include <cmath>     // exp, fabs, isinf, isnan, log, pow
+#include <numeric>   // accumulate, inner_product, iota
+#include <stdexcept> // invalid_argument, runtime_error
+#include <string>    // string
+#include <utility>   // move
+#include <vector>    // vector
 
 // structure to hold parameters for logistic regression
 struct logparams {

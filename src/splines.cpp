@@ -1,17 +1,18 @@
-#include <RcppThread.h>      // RcppThread::Rcerr
+#include <RcppThread.h>
 
 #include "splines.h"
-#include "utilities.h"   // quantilecpp, qrcpp, subset
-#include "dataframe_list.h" // FlatMatrix, ListCpp
-#include "thread_utils.h" // push_thread_warning
+#include "utilities.h"
+#include "dataframe_list.h"
+#include "thread_utils.h"
 
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-#include <limits>
-#include <numeric>
-#include <vector>
-#include <string>
+#include <algorithm> // any_of, is_sorted, max_element, min_element, none_of, sort
+#include <cmath>     // isfinite, isnan, pow, sqrt
+#include <stdexcept> // invalid_argument
+#include <limits>    // numeric_limits
+#include <vector>    // vector
+#include <string>    // string, to_string
+#include <utility>   // move, swap
+#include <cstddef>   // size_t
 
 // Helper: indices of non-NaN entries
 static std::vector<int> indices_not_nan(const std::vector<double>& v) {

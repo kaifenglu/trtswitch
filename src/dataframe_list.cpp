@@ -1,12 +1,14 @@
 #include "dataframe_list.h"
 
-#include <cstring>   // std::memcpy
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <stdexcept>
-#include <memory>
-#include <utility>  // std::move
+#include <algorithm> // copy_n, remove, fill, max_element
+#include <cstddef>   // size_t
+#include <cstring>   // memcpy
+#include <memory>    // make_shared, shared_ptr
+#include <stdexcept> // invalid_argument, out_of_range, runtime_error
+#include <string>    // string
+#include <utility>   // move
+#include <variant>   // get_if, variant
+#include <vector>    // vector
 
 #include <Rcpp.h> // ensure Rcpp types available in this TU
 

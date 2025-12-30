@@ -5,11 +5,11 @@
 #include <cstddef>     // std::size_t
 #include <cstring>     // std::memcpy
 #include <iomanip>     // std::fixed, std::setprecision
-#include <ios>         // std::ios
-#include <iostream>    // std::ostream, std::cout
-#include <memory>      // std::shared_ptr
-#include <stdexcept>   // std::runtime_error
-#include <string>      // std::string
+#include <ios>         // std::ios::fmtflags, std::ios::floatfield
+#include <iostream>    // std::cout, std::ostream
+#include <memory>      // std::make_shared, std::shared_ptr
+#include <stdexcept>   // std::invalid_argument, std::out_of_range, std::runtime_error
+#include <string>      // std::string, std::to_string
 #include <type_traits> // std::is_same_v
 #include <variant>     // std::get, std::variant
 #include <vector>      // std::vector
