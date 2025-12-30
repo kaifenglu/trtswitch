@@ -42,14 +42,16 @@ void DataFrameCpp::push_back(std::vector<int>&& col, const std::string& name) {
   names_.push_back(name);
 }
 
-void DataFrameCpp::push_back(const std::vector<unsigned char>& col, const std::string& name) {
+void DataFrameCpp::push_back(const std::vector<unsigned char>& col, 
+                             const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
   bool_cols[name] = col;
   names_.push_back(name);
 }
-void DataFrameCpp::push_back(std::vector<unsigned char>&& col, const std::string& name) {
+void DataFrameCpp::push_back(std::vector<unsigned char>&& col, 
+                             const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -57,14 +59,16 @@ void DataFrameCpp::push_back(std::vector<unsigned char>&& col, const std::string
   names_.push_back(name);
 }
 
-void DataFrameCpp::push_back(const std::vector<std::string>& col, const std::string& name) {
+void DataFrameCpp::push_back(const std::vector<std::string>& col, 
+                             const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
   string_cols[name] = col;
   names_.push_back(name);
 }
-void DataFrameCpp::push_back(std::vector<std::string>&& col, const std::string& name) {
+void DataFrameCpp::push_back(std::vector<std::string>&& col, 
+                             const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -148,7 +152,8 @@ void DataFrameCpp::push_back(FlatMatrix&& fm, const std::string& base_name) {
 }
 
 // Push front variants (vectors)
-void DataFrameCpp::push_front(const std::vector<double>& col, const std::string& name) {
+void DataFrameCpp::push_front(const std::vector<double>& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -176,28 +181,32 @@ void DataFrameCpp::push_front(std::vector<int>&& col, const std::string& name) {
   int_cols.emplace(name, std::move(col));
   names_.insert(names_.begin(), name);
 }
-void DataFrameCpp::push_front(const std::vector<unsigned char>& col, const std::string& name) {
+void DataFrameCpp::push_front(const std::vector<unsigned char>& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
   bool_cols[name] = col;
   names_.insert(names_.begin(), name);
 }
-void DataFrameCpp::push_front(std::vector<unsigned char>&& col, const std::string& name) {
+void DataFrameCpp::push_front(std::vector<unsigned char>&& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
   bool_cols.emplace(name, std::move(col));
   names_.insert(names_.begin(), name);
 }
-void DataFrameCpp::push_front(const std::vector<std::string>& col, const std::string& name) {
+void DataFrameCpp::push_front(const std::vector<std::string>& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
   string_cols[name] = col;
   names_.insert(names_.begin(), name);
 }
-void DataFrameCpp::push_front(std::vector<std::string>&& col, const std::string& name) {
+void DataFrameCpp::push_front(std::vector<std::string>&& col, 
+                              const std::string& name) {
   if (containElementNamed(name)) 
     throw std::runtime_error("Column '" + name + "' already exists.");
   check_row_size(col.size(), name);
@@ -341,7 +350,8 @@ ListCpp& ListCpp::get_list(const std::string& name) {
     throw std::runtime_error("Element with name '" + name + "' not found.");
   auto& var = data.at(name);
   if (auto p = std::get_if<ListPtr>(&var)) {
-    if (!*p) throw std::runtime_error("List pointer is null for element '" + name + "'");
+    if (!*p) throw std::runtime_error(
+        "List pointer is null for element '" + name + "'");
     return **p;
   }
   throw std::runtime_error("Element '" + name + "' is not a ListCpp");
@@ -351,7 +361,8 @@ const ListCpp& ListCpp::get_list(const std::string& name) const {
     throw std::runtime_error("Element with name '" + name + "' not found.");
   const auto& var = data.at(name);
   if (auto p = std::get_if<ListPtr>(&var)) {
-    if (!*p) throw std::runtime_error("List pointer is null for element '" + name + "'");
+    if (!*p) throw std::runtime_error(
+        "List pointer is null for element '" + name + "'");
     return **p;
   }
   throw std::runtime_error("Element '" + name + "' is not a ListCpp");
@@ -364,7 +375,8 @@ DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm,
   DataFrameCpp out;
   if (fm.ncol == 0 || fm.nrow == 0) return out;
   if (!names.empty() && static_cast<int>(names.size()) != fm.ncol) 
-    throw std::invalid_argument("dataframe_from_flatmatrix: names size must equal fm.ncol");
+    throw std::invalid_argument(
+        "dataframe_from_flatmatrix: names size must equal fm.ncol");
   for (int c = 0; c < fm.ncol; ++c) {
     std::vector<double> col(fm.nrow);
     int offset = c * fm.nrow;
@@ -381,7 +393,8 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
   std::vector<std::string> cols;
   if (cols_in.empty()) {
     for (const auto& nm : df.names()) {
-      if (df.numeric_cols.count(nm) || df.int_cols.count(nm) || df.bool_cols.count(nm)) 
+      if (df.numeric_cols.count(nm) || df.int_cols.count(nm) || 
+          df.bool_cols.count(nm)) 
         cols.push_back(nm);
     }
   } else cols = cols_in;
@@ -397,20 +410,23 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
       const std::vector<double>& src = df.numeric_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
         throw std::runtime_error(
-            "flatten_numeric_columns: inconsistent row count for column '" + name + "'");
+            "flatten_numeric_columns: inconsistent row count for column '" + 
+              name + "'");
       std::memcpy(out.data.data() + offset, src.data(), nrow * sizeof(double));
     } else if (df.int_cols.count(name)) {
       const std::vector<int>& src = df.int_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
         throw std::runtime_error(
-            "flatten_numeric_columns: inconsistent row count for column '" + name + "'");
+            "flatten_numeric_columns: inconsistent row count for column '" + 
+              name + "'");
       for (int r = 0; r < nrow; ++r) 
         out.data[offset + r] = static_cast<double>(src[r]);
     } else if (df.bool_cols.count(name)) {
       const std::vector<unsigned char>& src = df.bool_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
         throw std::runtime_error(
-            "flatten_numeric_columns: inconsistent row count for column '" + name + "'");
+            "flatten_numeric_columns: inconsistent row count for column '" + 
+              name + "'");
       for (int r = 0; r < nrow; ++r) 
         out.data[offset + r] = src[r] != 0 ? 1.0 : 0.0;
     } else {
@@ -422,7 +438,8 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
 }
 
 // numeric_column_ptr
-const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept {
+const double* numeric_column_ptr(const DataFrameCpp& df, 
+                                 const std::string& name) noexcept {
   return df.numeric_col_ptr(name);
 }
 
@@ -432,12 +449,14 @@ const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexc
 }
 
 // move_numeric_column
-void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name) {
+void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, 
+                         const std::string& name) {
   df.push_back(std::move(col), name);
 }
 
 // move_int_column
-void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name) {
+void move_int_column(DataFrameCpp& df, std::vector<int>&& col, 
+                     const std::string& name) {
   df.push_back(std::move(col), name);
 }
 
@@ -473,7 +492,8 @@ void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx
   df = std::move(out);
 }
 
-DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx) {
+DataFrameCpp subset_dataframe(const DataFrameCpp& df, 
+                              const std::vector<int>& row_idx) {
   DataFrameCpp out;
   if (row_idx.empty()) {
     for (const auto& nm : df.names()) {
@@ -515,7 +535,8 @@ DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& ro
 
 
 // Split a DataFrameCpp by the starting indices of blocks of rows
-std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx) {
+std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
+                                          const std::vector<int>& idx) {
   int G = idx.size() - 1;
   std::vector<DataFrameCpp> groups(G);
   
@@ -528,7 +549,8 @@ std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vec
         std::vector<double> dest;
         dest.resize(static_cast<std::size_t>(sz));
         if (sz > 0) {
-          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(double));
+          std::memcpy(dest.data(), src.data() + s, 
+                      static_cast<std::size_t>(sz) * sizeof(double));
         }
         groups[g].push_back(std::move(dest), name);
       }
@@ -539,7 +561,8 @@ std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vec
         std::vector<int> dest;
         dest.resize(static_cast<std::size_t>(sz));
         if (sz > 0) {
-          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(int));
+          std::memcpy(dest.data(), src.data() + s, 
+                      static_cast<std::size_t>(sz) * sizeof(int));
         }
         groups[g].push_back(std::move(dest), name);
       }
@@ -550,7 +573,8 @@ std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vec
         std::vector<unsigned char> dest;
         dest.resize(static_cast<std::size_t>(sz));
         if (sz > 0) {
-          std::memcpy(dest.data(), src.data() + s, static_cast<std::size_t>(sz) * sizeof(unsigned char));
+          std::memcpy(dest.data(), src.data() + s, 
+                      static_cast<std::size_t>(sz) * sizeof(unsigned char));
         }
         groups[g].push_back(std::move(dest), name);
       }
@@ -685,7 +709,7 @@ void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx) {
   // fa.ncol and fa.nslice remain unchanged
 }
 
-// Non-mutating subset for FlatArray: return a new FlatArray with only the rows in row_idx
+// Non-mutating subset for FlatArray: return a new FlatArray with rows in row_idx
 FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx) {
   int old_nrow = fa.nrow;
   int ncol = fa.ncol;
@@ -773,13 +797,14 @@ DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
     
     Rcpp::RObject col = r_df[j];
     if (Rcpp::is<Rcpp::NumericVector>(col)) {
-      Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(col); // lightweight wrapper
+      Rcpp::NumericVector nv = Rcpp::as<Rcpp::NumericVector>(col); // wrapper
       R_xlen_t n = nv.size();
       std::vector<double> out;
       out.resize(static_cast<std::size_t>(n));
       if (n > 0) {
         // memcpy from R contiguous memory
-        std::memcpy(out.data(), REAL(nv), static_cast<std::size_t>(n) * sizeof(double));
+        std::memcpy(out.data(), REAL(nv), 
+                    static_cast<std::size_t>(n) * sizeof(double));
       }
       df.push_back(std::move(out), name);
       
@@ -789,7 +814,8 @@ DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
       std::vector<int> out;
       out.resize(static_cast<std::size_t>(n));
       if (n > 0) {
-        std::memcpy(out.data(), INTEGER(iv), static_cast<std::size_t>(n) * sizeof(int));
+        std::memcpy(out.data(), INTEGER(iv), 
+                    static_cast<std::size_t>(n) * sizeof(int));
       }
       df.push_back(std::move(out), name);
     } else if (Rcpp::is<Rcpp::LogicalVector>(col)) {
@@ -867,7 +893,8 @@ struct RcppVisitor {
     if (fa.nrow == 0 || fa.ncol == 0 || fa.nslice == 0) return R_NilValue;
     Rcpp::NumericVector vec(static_cast<R_xlen_t>(fa.data.size()));
     std::memcpy(REAL(vec), fa.data.data(), fa.data.size() * sizeof(double));
-    Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(fa.nrow, fa.ncol, fa.nslice);
+    Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(fa.nrow, fa.ncol, 
+                                                           fa.nslice);
     vec.attr("dim") = dims;
     return vec;
   }
@@ -1023,7 +1050,8 @@ std::shared_ptr<ListCpp> listcpp_from_rlist(const Rcpp::List& rlist) {
     Rcpp::RObject obj = rlist[i];
     bool ok = convert_r_object_to_listcpp_variant(*out, name, obj);
     if (!ok) Rcpp::warning(
-        "listcpp_from_rlist: skipping unsupported element type for name '" + name + "'");
+        "listcpp_from_rlist: skipping unsupported element type for name '" + 
+          name + "'");
   }
   return out;
 }

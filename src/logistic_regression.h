@@ -4,6 +4,9 @@
 struct DataFrameCpp; 
 struct ListCpp; 
 
+#include <vector>
+#include <string>
+
 ListCpp logisregcpp(const DataFrameCpp& data,
                     const std::string& event = "event",
                     const std::vector<std::string>& covariates = {},

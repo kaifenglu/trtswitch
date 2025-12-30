@@ -1,5 +1,4 @@
 // [[Rcpp::depends(RcppParallel)]]
-#include <RcppParallel.h>    // RcppParallel::Worker, parallelFor
 #include <RcppThread.h>      // RcppThread::Rcerr
 #include <Rcpp.h>
 
@@ -15,7 +14,7 @@
 #include <stdexcept> // exceptions
 #include <algorithm> // sort, none_of, any_of
 
-// structure to hold parameters for logistic regression (now using FlatMatrix for design)
+// structure to hold parameters for logistic regression
 struct logparams {
   int n;
   int link_code; // 1: logit, 2: probit, 3: cloglog
@@ -32,7 +31,7 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   const int n = param->n;
   const int link_code = param->link_code;
   const std::vector<double>& yv = param->y;
-  const double* zptr = param->z.data_ptr(); // column-major: column j starts at zptr + j*n
+  const double* zptr = param->z.data_ptr();
   const std::vector<double>& freq = param->freq;
   const std::vector<double>& weight = param->weight;
   std::vector<double> fwvec(n);  // freq * weight per observation
@@ -58,8 +57,8 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   
   // Pre-allocate per-observation temporaries
   std::vector<double> rvec(n); // fitted probabilities
-  std::vector<double> c1(n);   // contribution for score: f*w*(y - r) or variant per link
-  std::vector<double> c2(n);   // contribution for information: f*w*var-like term
+  std::vector<double> c1(n);   // contribution for score
+  std::vector<double> c2(n);   // contribution for information
 
   // firth temporaries
   std::vector<double> pi, d, a, b;
@@ -247,7 +246,7 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
   const int n = param->n;
   const int link_code = param->link_code;
   const std::vector<double>& yv = param->y;
-  const double* zptr = param->z.data_ptr();    // column-major: column j starts at zptr + j*n
+  const double* zptr = param->z.data_ptr();
   
   // compute eta similarly to f_der_0
   std::vector<double> eta = param->offset;
@@ -604,7 +603,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       auto w = unique_sorted(v);
       idn = matchcpp(v, w);
     } else {
-      throw std::invalid_argument("incorrect type for the id variable in the input data");
+      throw std::invalid_argument(
+          "incorrect type for the id variable in the input data");
     }
   }
   
@@ -753,7 +753,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       fail = out.get<bool>("fail");
       if (fail) {
         thread_utils::push_thread_warning(
-          "logisregloop failed to converge for the full model; continuing with current results.");
+          "logisregloop failed to converge for the full model; "
+          "continuing with current results.");
       }
       
       b = out.get<std::vector<double>>("coef");
@@ -764,7 +765,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         std::vector<double> lp = offsetn;  // linear predictor excluding intercept
         
         // pointers into data for fastest access
-        const double* zptr = zn.data_ptr(); // column-major: column j starts at zptr + j*n
+        const double* zptr = zn.data_ptr();
         double* lpptr = lp.data();
         
         for (int col = 1; col < p; ++col) {   // skip intercept column 0
@@ -779,7 +780,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         
         logparams param0 = {n, link_code, eventn, zn, freqn, weightn, lp};
         std::vector<double> bint00(1, bint0[0]);
-        ListCpp outint0 = logisregloop(1, bint00, &param0, maxiter, eps, 0, colfit0, 1);
+        ListCpp outint0 = logisregloop(1, bint00, &param0, maxiter, 
+                                       eps, 0, colfit0, 1);
         double a = outint0.get<std::vector<double>>("coef")[0];
         double va = outint0.get<FlatMatrix>("var")(0,0);
         
@@ -800,14 +802,15 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         } else {
           int p1 = p - 1;                  // length of der and of the submatrix
           const double* derp = der.data();
-          double* vbptr = vb.data_ptr();    // column-major: column c starts at vbptr[c*p]
+          double* vbptr = vb.data_ptr();    // column-major
           
           // accumulator for vb(1..p-1,0): indexed 0..p1-1 corresponds to rows 1..p-1
           std::vector<double> col0(p1, 0.0);
           
           // Compute col0 = M * der, where M = vb[1..p-1, 1..p-1]
-          // columns of M correspond to vb columns 1..p-1; for column j (0..p1-1) start at
-          // src = vbptr + (j+1)*nrows and element M(row = r+1, col = j+1) is src[r+1].
+          // columns of M correspond to vb columns 1..p-1; 
+          // for column j (0..p1-1) start at
+          // src = vbptr + (j+1)*nrows and element M(row = r+1, col = j+1) is src[r+1]
           for (int j = 0; j < p1; ++j) {
             double dj = derp[j];
             if (dj == 0.0) continue;                   // skip zero coeffs
@@ -987,7 +990,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           }
           
           std::vector<double> b0(p);
-          ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, firth, colfit1, p-1);
+          ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, 
+                                      firth, colfit1, p-1);
           double lmax0 = out0.get<double>("loglik");
           prob[k] = boost_pchisq(-2*(lmax0 - lmax), 1, 0);
           clparm[k] = "PL";
@@ -1017,7 +1021,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           }
           
           std::vector<double> b0(p);
-          ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, firth, colfit1, p-1);
+          ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, 
+                                      firth, colfit1, p-1);
           double lmax0 = out0.get<double>("loglik");
           prob[k] = boost_pchisq(-2*(lmax0 - lmax), 1, 0);
           clparm[k] = "PL";

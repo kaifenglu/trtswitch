@@ -29,9 +29,11 @@ double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
 
 double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
-  if (p < 0.0 || p > 1.0) throw std::invalid_argument("Probability must be between 0 and 1.");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument(
+      "Probability must be between 0 and 1.");
   boost::math::normal_distribution<> dist(mean, sd);
-  return lower_tail ? boost::math::quantile(dist, p) : boost::math::quantile(dist, 1.0 - p);
+  return lower_tail ? boost::math::quantile(dist, p) : 
+    boost::math::quantile(dist, 1.0 - p);
 }
 
 double boost_dnorm(double x, double mean, double sd) {
@@ -49,9 +51,11 @@ double boost_plogis(double q, double location, double scale, bool lower_tail) {
 
 double boost_qlogis(double p, double location, double scale, bool lower_tail) {
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
-  if (p < 0.0 || p > 1.0) throw std::invalid_argument("Probability must be between 0 and 1.");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument(
+      "Probability must be between 0 and 1.");
   boost::math::logistic_distribution<> dist(location, scale);
-  return lower_tail ? boost::math::quantile(dist, p) : boost::math::quantile(dist, 1.0 - p);
+  return lower_tail ? boost::math::quantile(dist, p) : 
+    boost::math::quantile(dist, 1.0 - p);
 }
 
 double boost_dlogis(double x, double location, double scale) {
@@ -71,7 +75,8 @@ double boost_pextreme(double q, double location, double scale, bool lower_tail) 
 
 double boost_qextreme(double p, double location, double scale, bool lower_tail) {
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
-  if (p < 0.0 || p > 1.0) throw std::invalid_argument("Probability must be between 0 and 1.");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument(
+      "Probability must be between 0 and 1.");
   boost::math::extreme_value_distribution<> dist(location, scale);
   return lower_tail? -boost::math::quantile(complement(dist, p)) : 
     -boost::math::quantile(complement(dist, 1.0 - p));
@@ -96,9 +101,11 @@ double boost_pchisq(double q, double df, bool lower_tail) {
 
 double boost_qchisq(double p, double df, bool lower_tail) {
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
-  if (p < 0.0 || p > 1.0) throw std::invalid_argument("Probability must be between 0 and 1.");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument(
+      "Probability must be between 0 and 1.");
   boost::math::chi_squared_distribution<> dist(df);
-  return lower_tail ? boost::math::quantile(dist, p) : boost::math::quantile(dist, 1.0 - p);
+  return lower_tail ? boost::math::quantile(dist, p) : 
+    boost::math::quantile(dist, 1.0 - p);
 }
 
 // --------------------------- Small utilities --------------------------------
@@ -158,7 +165,8 @@ std::vector<int> findInterval3(const std::vector<double>& x,
 // --------------------------- Root finders -----------------------------------
 
 static const double EPS = 3.0e-8;
-inline double SIGN(double a, double b) { return (b >= 0.0 ? std::fabs(a) : -std::fabs(a)); }
+inline double SIGN(double a, double b) { 
+  return (b >= 0.0 ? std::fabs(a) : -std::fabs(a)); }
 
 double brent(const std::function<double(double)>& f, 
              double x1, double x2, double tol, int maxiter) {
@@ -446,7 +454,8 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
 std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>& x) {
   int m = A.nrow;
   int p = A.ncol;
-  if (static_cast<int>(x.size()) != p) throw std::invalid_argument("Vector size mismatch");
+  if (static_cast<int>(x.size()) != p) 
+    throw std::invalid_argument("Vector size mismatch");
   std::vector<double> result(m, 0.0);
   for (int c = 0; c < p; ++c) {
     double xc = x[c];
@@ -505,7 +514,7 @@ double quadsym(const std::vector<double>& u, const FlatMatrix& v) {
     // off-diagonals i < j. Access column j contiguous for i = 0..j-1
     double s = 0.0;
     for (int i = 0; i < j; ++i) s += col[i] * uptr[i];
-    sum += 2.0 * uptr[j] * s;           // account for symmetric pair (i,j) and (j,i)
+    sum += 2.0 * uptr[j] * s; // account for symmetric pair (i,j) and (j,i)
   }
   return sum;
 }
@@ -691,7 +700,8 @@ std::vector<double> house(const std::vector<double>& x) {
   return v;
 }
 
-void row_house(FlatMatrix& A, int i1, int i2, int j1, int j2, const std::vector<double>& v) {
+void row_house(FlatMatrix& A, int i1, int i2, int j1, int j2, 
+               const std::vector<double>& v) {
   int m_total = A.nrow;
   if (m_total == 0) return;
   int n_total = A.ncol;

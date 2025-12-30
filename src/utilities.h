@@ -1,7 +1,9 @@
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
-#pragma once
+struct FlatMatrix;
+struct DataFrameCpp;
+struct ListCpp;
 
 #include <vector>
 #include <string>
@@ -12,19 +14,23 @@
 
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 
-#include "dataframe_list.h" // FlatMatrix, IntMatrix, DataFrameCpp, ListCpp
-
 // --------------------------- Distribution helpers --------------------------
-double boost_pnorm(double q, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
-double boost_qnorm(double p, double mean = 0.0, double sd = 1.0, bool lower_tail = true);
+double boost_pnorm(double q, double mean = 0.0, double sd = 1.0, 
+                   bool lower_tail = true);
+double boost_qnorm(double p, double mean = 0.0, double sd = 1.0, 
+                   bool lower_tail = true);
 double boost_dnorm(double x, double mean = 0.0, double sd = 1.0);
 
-double boost_plogis(double q, double location = 0.0, double scale = 1.0, bool lower_tail = true);
-double boost_qlogis(double p, double location = 0.0, double scale = 1.0, bool lower_tail = true);
+double boost_plogis(double q, double location = 0.0, double scale = 1.0, 
+                    bool lower_tail = true);
+double boost_qlogis(double p, double location = 0.0, double scale = 1.0, 
+                    bool lower_tail = true);
 double boost_dlogis(double x, double location = 0.0, double scale = 1.0);
 
-double boost_pextreme(double q, double location = 0.0, double scale = 1.0, bool lower_tail = true);
-double boost_qextreme(double p, double location = 0.0, double scale = 1.0, bool lower_tail = true);
+double boost_pextreme(double q, double location = 0.0, double scale = 1.0, 
+                      bool lower_tail = true);
+double boost_qextreme(double p, double location = 0.0, double scale = 1.0, 
+                      bool lower_tail = true);
 double boost_dextreme(double x, double location = 0.0, double scale = 1.0);
 
 double boost_pchisq(double q, double df, bool lower_tail = true);
@@ -65,7 +71,8 @@ void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
   for (int i = 0; i < n; ++i) {
     int index = order[i];
     if (index < 0 || index >= nv) {
-      throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
+      throw std::out_of_range(
+          "Index in 'order' is out of bounds for the source vector.");
     }
     temp_subset[i] = v[index];
   }
@@ -81,7 +88,8 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
   for (int i = 0; i < n; ++i) {
     int index = order[i];
     if (index < 0 || index >= nv) {
-      throw std::out_of_range("Index in 'order' is out of bounds for the source vector.");
+      throw std::out_of_range(
+          "Index in 'order' is out of bounds for the source vector.");
     }
     result[i] = v[index];
   }
@@ -208,7 +216,8 @@ double getpsiend(const std::function<double(double)>& f,
 // Parameters:
 //  - v: vector to print
 //  - label: optional prefix printed before the vector
-//  - precision: if >= 0, sets std::fixed and std::setprecision(precision) for floating values
+//  - precision: if >= 0, sets std::fixed and std::setprecision(precision) 
+//    for floating values
 //  - head: number of leading elements to show when truncated
 //  - tail: number of trailing elements to show when truncated
 //  - sep: separator between elements (default ", ")
@@ -224,8 +233,9 @@ void print_vector(const std::vector<T>& v,
                   bool show_indices = false,
                   bool endline = true) {
   static_assert(
-    std::is_convertible<decltype(std::declval<std::ostream&>() << std::declval<T>()), std::ostream&>::value,
-                                              "Type T must be streamable to std::ostream (operator<<)");
+    std::is_convertible<decltype(
+      std::declval<std::ostream&>() << std::declval<T>()), std::ostream&>::value,
+                   "Type T must be streamable to std::ostream (operator<<)");
   std::ostringstream ss;
   if (!label.empty()) ss << label << ": ";
   

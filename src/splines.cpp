@@ -1,3 +1,5 @@
+#include <RcppThread.h>      // RcppThread::Rcerr
+
 #include "splines.h"
 #include "utilities.h"   // quantilecpp, qrcpp, subset
 #include "dataframe_list.h" // FlatMatrix, ListCpp
@@ -111,7 +113,7 @@ FlatMatrix dersBasisFuns(int i, double u, int p, int n, const std::vector<double
 };
 
 
-// Optimized splineDesigncpp using findSpan + basisFuns + dersBasisFuns (The NURBS Book)
+// splineDesigncpp using findSpan + basisFuns + dersBasisFuns (The NURBS Book)
 // - ord = p+1 where p is degree
 // - computes k-th derivatives up to requested order efficiently (no maps / recursion)
 FlatMatrix splineDesigncpp(
@@ -123,15 +125,18 @@ FlatMatrix splineDesigncpp(
   std::vector<double> knots = knots_in;
   int nk = knots.size();
   if (nk <= 0) throw std::invalid_argument("must have at least 'ord' knots");
-  if (!std::is_sorted(knots.begin(), knots.end())) std::sort(knots.begin(), knots.end());
+  if (!std::is_sorted(knots.begin(), knots.end())) 
+    std::sort(knots.begin(), knots.end());
   
   int nx = x.size();
   int nd = derivs.size();
-  if (nd > nx) throw std::invalid_argument("length of 'derivs' is larger than length of 'x'");
+  if (nd > nx) throw std::invalid_argument(
+      "length of 'derivs' is larger than length of 'x'");
   if (nd < 1) throw std::invalid_argument("empty 'derivs'");
   
   if (ord < 1 || ord > nk) 
-    throw std::invalid_argument("'ord' must be a positive integer, at most the number of knots");
+    throw std::invalid_argument(
+        "'ord' must be a positive integer, at most the number of knots");
   if (nk < 2*ord - 1) throw std::invalid_argument("need at least 2*ord - 1 knots");
   
   int p = ord - 1;              // degree
@@ -234,13 +239,15 @@ ListCpp bscpp(
       boundary_knots = {mn, mx};
     }
   } else {
-    if (boundary_knots.size() != 2) throw std::invalid_argument("boundary_knots must have length 2");
+    if (boundary_knots.size() != 2) 
+      throw std::invalid_argument("boundary_knots must have length 2");
   }
   
   
   // compute K and knots
   std::vector<double> knots = knots_in;
-  bool mk_knots = (df > 0) && (knots.empty() || (knots.size() == 1 && std::isnan(knots[0])));
+  bool mk_knots = (df > 0) && (knots.empty() || 
+                   (knots.size() == 1 && std::isnan(knots[0])));
   int K = 0; // number of inner knots
   if (mk_knots) {
     K = df - ord + (1 - (intercept ? 1 : 0));
@@ -251,11 +258,13 @@ ListCpp bscpp(
     std::vector<double> knots1(K);
     std::vector<double> z_no_outside;
     for (double zi : z) 
-      if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) z_no_outside.push_back(zi);
+      if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
+        z_no_outside.push_back(zi);
     for (int k = 0; k < K; ++k) knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
     knots = std::move(knots1);
   } else {
-    for (double kv : knots) if (!std::isfinite(kv)) throw std::invalid_argument("non-finite knots");
+    for (double kv : knots) if (!std::isfinite(kv)) 
+      throw std::invalid_argument("non-finite knots");
     K = knots.size();
   }
   
@@ -272,7 +281,8 @@ ListCpp bscpp(
       bool aE0 = true;
       for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE0 = false; }
       if (aE0) {
-        thread_utils::push_thread_warning("all interior knots match left boundary knot");
+        thread_utils::push_thread_warning(
+          "all interior knots match left boundary knot");
       } else {
         std::vector<double> knots2;
         for (double kv : knots) if (kv > piv) knots2.push_back(kv);
@@ -287,7 +297,8 @@ ListCpp bscpp(
       bool aE1 = true;
       for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE1 = false; }
       if (aE1) {
-        thread_utils::push_thread_warning("all interior knots match right boundary knot");
+        thread_utils::push_thread_warning(
+          "all interior knots match right boundary knot");
       } else {
         std::vector<double> knots2;
         for (double kv : knots) if (kv < piv) knots2.push_back(kv);
@@ -297,7 +308,8 @@ ListCpp bscpp(
       anyWarning = true;
     }
     if (anyWarning && warn_outside) 
-      thread_utils::push_thread_warning("shoving 'interior' knots matching boundary knots to inside");
+      thread_utils::push_thread_warning(
+        "shoving 'interior' knots matching boundary knots to inside");
   }
   
   // Build full knot vector u with length K + 2*ord
@@ -430,7 +442,7 @@ ListCpp bscpp(
   FlatMatrix basis = make_nan_matrix(m, ncol);
   
   // Fill basis rows for non-NA positions
-  // Column-major copy: for each output column, copy from the corresponding design column
+  // Column-major copy: for each output column, copy from the corresponding column
   for (int j = 0; j < ncol; ++j) {
     double* basis_col_ptr = basis.data_ptr() + j * m;
     const double* design_col_ptr = design.data_ptr() + (j + col_from) * n;
@@ -482,12 +494,14 @@ ListCpp nscpp(
       boundary_knots = {mn, mx};
     }
   } else {
-    if (boundary_knots.size() != 2) throw std::invalid_argument("boundary_knots must have length 2");
+    if (boundary_knots.size() != 2) 
+      throw std::invalid_argument("boundary_knots must have length 2");
   }
   
   // compute K and knots
   std::vector<double> knots = knots_in;
-  bool mk_knots = (df > 0) && (knots.empty() || (knots.size() == 1 && std::isnan(knots[0])));
+  bool mk_knots = (df > 0) && (knots.empty() || 
+                   (knots.size() == 1 && std::isnan(knots[0])));
   int K = 0; // number of interior knots
   if (mk_knots) {
     K = df - 1 - (intercept ? 1 : 0);
@@ -498,11 +512,13 @@ ListCpp nscpp(
     std::vector<double> knots1(K);
     std::vector<double> z_no_outside;
     for (double zi : z) 
-      if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) z_no_outside.push_back(zi);
+      if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
+        z_no_outside.push_back(zi);
     for (int k=0;k<K;++k) knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
     knots = std::move(knots1);
   } else {
-    for (double kv : knots) if (!std::isfinite(kv)) throw std::invalid_argument("non-finite knots");
+    for (double kv : knots) if (!std::isfinite(kv)) 
+      throw std::invalid_argument("non-finite knots");
     K = knots.size();
   }
   
@@ -519,7 +535,8 @@ ListCpp nscpp(
       bool aE0 = true;
       for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE0 = false; }
       if (aE0) {
-        thread_utils::push_thread_warning("all interior knots match left boundary knot");
+        thread_utils::push_thread_warning(
+          "all interior knots match left boundary knot");
       } else {
         std::vector<double> knots2; 
         for (double kv : knots) if (kv > piv) knots2.push_back(kv);
@@ -533,7 +550,8 @@ ListCpp nscpp(
       bool aE1 = true;
       for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE1 = false; }
       if (aE1) {
-        thread_utils::push_thread_warning("all interior knots match right boundary knot");
+        thread_utils::push_thread_warning(
+          "all interior knots match right boundary knot");
       } else {
         std::vector<double> knots2; 
         for (double kv : knots) if (kv < piv) knots2.push_back(kv);
@@ -542,7 +560,8 @@ ListCpp nscpp(
       }
     }
     if (anyWarning) 
-      thread_utils::push_thread_warning("shoving 'interior' knots matching boundary knots to inside");
+      thread_utils::push_thread_warning(
+        "shoving 'interior' knots matching boundary knots to inside");
   }
   
   // Build u for cubic case (ord=4)
@@ -554,7 +573,7 @@ ListCpp nscpp(
   // deriv0
   std::vector<int> deriv0(1,0);
   
-  // compute design for interior points and extrapolants directly using splineDesigncpp
+  // compute design for interior points and extrapolants using splineDesigncpp
   int L = K + 4;
   FlatMatrix design(n, L);
   
@@ -683,7 +702,7 @@ ListCpp nscpp(
   FlatMatrix basis = make_nan_matrix(m, L-2);
   
   // Fill basis rows for non-NA positions
-  // Column-major copy: for each output column, copy from the corresponding design column
+  // Column-major copy: for each output column, copy from the corresponding column
   for (int j = 0; j < L-2; ++j) {
     double* basis_col_ptr = basis.data_ptr() + j * m;
     const double* basis2_col_ptr = basis2.data_ptr() + j * n;

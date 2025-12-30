@@ -1,7 +1,10 @@
 #ifndef __SPLINES__
 #define __SPLINES__
 
-#include "dataframe_list.h" // FlatMatrix, ListCpp, DataFrameCpp
+struct FlatMatrix;
+struct ListCpp; 
+
+#include <vector>
 
 
 // Evaluate B-spline design (or derivatives) at points x.
@@ -15,7 +18,7 @@ FlatMatrix splineDesigncpp(
     const std::vector<double>& knots,
     const std::vector<double>& x,
     int ord = 4,
-    const std::vector<int>& derivs = std::vector<int>{0});
+    const std::vector<int>& derivs = {0});
 
 // Compute B-spline basis.
 // - x: input vector (may contain NaNs represented by std::nan("")). 
@@ -42,7 +45,5 @@ ListCpp nscpp(
     const std::vector<double>& knots = {},
     bool intercept = false,
     const std::vector<double>& boundary_knots = {});
-
-
 
 #endif // __SPLINES__

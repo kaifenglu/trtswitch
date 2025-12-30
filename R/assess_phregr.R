@@ -118,6 +118,8 @@ assess_phregr <- function(object, resample = 1000, seed = 12345) {
                           resample = resample,
                           seed = seed)
   
+  aph$covariates <- object$param
+  
   class(aph) <- "assess_phregr"
   aph
 }

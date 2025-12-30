@@ -55,12 +55,15 @@ struct FlatMatrix {
   }
   
   // raw pointer accessors for parallel-friendly use
-  inline const double* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
+  inline const double* data_ptr() const noexcept { 
+    return data.empty() ? nullptr : data.data(); }
   inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
   
   
-  // Print helper: pretty-print a small view of the matrix to an ostream (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10, int max_cols = 10) const {
+  // Print helper: pretty-print a small view of the matrix to an ostream 
+  // (default std::cout)
+  inline void print(std::ostream& os = std::cout, int max_rows = 10, 
+                    int max_cols = 10) const {
     os << "FlatMatrix: " << nrow << " x " << ncol << "\n";
     if (nrow == 0 || ncol == 0) return;
     const int rows = std::min(nrow, max_rows);
@@ -126,7 +129,8 @@ struct IntMatrix {
   }
   
   // raw pointer accessors for parallel-friendly use
-  inline const int* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
+  inline const int* data_ptr() const noexcept { 
+    return data.empty() ? nullptr : data.data(); }
   inline int* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
 };
 
@@ -143,7 +147,8 @@ struct FlatArray {
   int nslice = 0;
   
   FlatArray() = default;
-  FlatArray(int nr, int nc, int ns) : data(nr * nc * ns), nrow(nr), ncol(nc), nslice(ns) {}
+  FlatArray(int nr, int nc, int ns) : data(nr * nc * ns), nrow(nr), ncol(nc), 
+  nslice(ns) {}
   
   FlatArray(std::vector<double>&& d, int nr, int nc, int ns)
     : data(std::move(d)), nrow(nr), ncol(nc), nslice(ns) {
@@ -157,7 +162,8 @@ struct FlatArray {
   }
   
   inline void fill(double v) { std::fill(data.begin(), data.end(), v); }
-  inline bool empty() const noexcept { return data.empty() || nrow == 0 || ncol == 0 || nslice == 0; }
+  inline bool empty() const noexcept { return data.empty() || nrow == 0 || 
+    ncol == 0 || nslice == 0; }
   inline std::size_t size() const noexcept { return data.size(); }
   
   // index helper: (row, col, slice)
@@ -175,7 +181,8 @@ struct FlatArray {
   }
   
   // raw pointer access for parallel-friendly use
-  inline const double* data_ptr() const noexcept { return data.empty() ? nullptr : data.data(); }
+  inline const double* data_ptr() const noexcept { 
+    return data.empty() ? nullptr : data.data(); }
   inline double* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
   
   // pointer to the start of slice s (returns pointer to element (0,0,s))
@@ -229,7 +236,8 @@ struct DataFrameCpp {
   void check_row_size(std::size_t size, const std::string& name) const {
     std::size_t cur = nrows();
     if (cur > 0 && size != cur) 
-      throw std::runtime_error("Column '" + name + "' has inconsistent number of rows");
+      throw std::runtime_error("Column '" + name + 
+                               "' has inconsistent number of rows");
   }
   
   // Push single column overloads (double)
@@ -353,8 +361,10 @@ struct DataFrameCpp {
   // reserve map buckets (useful to avoid rehashing)
   void reserve_columns(int expected);
   
-  // Print helper for DataFrameCpp: prints basic table view to ostream (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10, bool show_col_types = false) const {
+  // Print helper for DataFrameCpp: prints basic table view to ostream
+  // (default std::cout)
+  inline void print(std::ostream& os = std::cout, int max_rows = 10, 
+                    bool show_col_types = false) const {
     const std::size_t rows = nrows();
     const std::size_t cols = size();
     os << "DataFrameCpp: " << rows << " rows x " << cols << " cols\n";
@@ -379,7 +389,8 @@ struct DataFrameCpp {
     
     if (rows == 0) return;
     
-    const int rmax = static_cast<int>(std::min<std::size_t>(rows, static_cast<std::size_t>(max_rows)));
+    const int rmax = static_cast<int>(std::min<std::size_t>(
+      rows, static_cast<std::size_t>(max_rows)));
     
     for (int r = 0; r < rmax; ++r) {
       for (std::size_t c = 0; c < names_.size(); ++c) {
@@ -506,15 +517,21 @@ struct ListCpp {
     const ListCpp& get_list(const std::string& name) const;
 };
 
-DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, const std::vector<std::string>& names = {});
-FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, const std::vector<std::string>& cols = {});
-const double* numeric_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
+DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, 
+                                       const std::vector<std::string>& names = {});
+FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, 
+                                   const std::vector<std::string>& cols = {});
+const double* numeric_column_ptr(const DataFrameCpp& df, 
+                                 const std::string& name) noexcept;
 const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
-void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, const std::string& name);
-void move_int_column(DataFrameCpp& df, std::vector<int>&& col, const std::string& name);
+void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, 
+                         const std::string& name);
+void move_int_column(DataFrameCpp& df, std::vector<int>&& col, 
+                     const std::string& name);
 void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
 DataFrameCpp subset_dataframe(const DataFrameCpp& df, const std::vector<int>& row_idx);
-std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, const std::vector<int>& idx);
+std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
+                                          const std::vector<int>& idx);
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
 void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
