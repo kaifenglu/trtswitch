@@ -1,4 +1,3 @@
-// [[Rcpp::depends(RcppParallel)]]
 #include <RcppThread.h>
 #include <Rcpp.h>
 
@@ -334,19 +333,19 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
 //'
 //' @export
 // [[Rcpp::export]]
-Rcpp::DataFrame survQuantile(const Rcpp::NumericVector& time,
-                             const Rcpp::NumericVector& event,
-                             const double cilevel = 0.95,
-                             const std::string& transform = "loglog",
-                             const Rcpp::NumericVector& probs = 
-                               Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
+Rcpp::DataFrame survQuantile(
+    const Rcpp::NumericVector& time,
+    const Rcpp::NumericVector& event,
+    const double cilevel = 0.95,
+    const std::string& transform = "loglog",
+    const Rcpp::NumericVector& probs = 
+      Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
   
-  std::vector<double> time_vec = Rcpp::as<std::vector<double>>(time);
-  std::vector<double> event_vec = Rcpp::as<std::vector<double>>(event);
-  std::vector<double> probs_vec = Rcpp::as<std::vector<double>>(probs);
+  std::vector<double> timev = Rcpp::as<std::vector<double>>(time);
+  std::vector<double> eventv = Rcpp::as<std::vector<double>>(event);
+  std::vector<double> probsv = Rcpp::as<std::vector<double>>(probs);
   
-  DataFrameCpp result = survQuantilecpp(time_vec, event_vec, cilevel, 
-                                        transform, probs_vec);
+  DataFrameCpp result = survQuantilecpp(timev, eventv, cilevel, transform, probsv);
   
   return Rcpp::wrap(result);
 }

@@ -1,19 +1,19 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
-#include <algorithm>   // std::fill, std::min
-#include <cstddef>     // std::size_t
-#include <cstring>     // std::memcpy
-#include <iomanip>     // std::fixed, std::setprecision
-#include <ios>         // std::ios::fmtflags, std::ios::floatfield
-#include <iostream>    // std::cout, std::ostream
-#include <memory>      // std::make_shared, std::shared_ptr
-#include <stdexcept>   // std::invalid_argument, std::out_of_range, std::runtime_error
-#include <string>      // std::string, std::to_string
-#include <type_traits> // std::is_same_v
-#include <variant>     // std::get, std::variant
-#include <vector>      // std::vector
-#include <utility>     // std::move
+#include <algorithm>   // fill, min
+#include <cstddef>     // size_t
+#include <cstring>     // memcpy
+#include <iomanip>     // fixed, setprecision
+#include <ios>         // ios::floatfield, ios::fmtflags
+#include <iostream>    // cout, ostream
+#include <memory>      // make_shared, shared_ptr
+#include <stdexcept>   // invalid_argument, out_of_range, runtime_error
+#include <string>      // string, to_string
+#include <type_traits> // is_same_v
+#include <variant>     // get, variant
+#include <vector>      // vector
+#include <utility>     // move
 
 #include <Rcpp.h>
 
@@ -544,7 +544,10 @@ FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_i
 void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
 FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx);
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
-
+std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col);
+std::vector<int> intmatrix_get_column(const IntMatrix& M, int col);
+void flatmatrix_set_column(FlatMatrix& M, int col, const std::vector<double>& src);
+void intmatrix_set_column(IntMatrix& M, int col, const std::vector<int>& src);
 
 // ------------------- Converters between R and C++ types (declarations) ----
 DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df);

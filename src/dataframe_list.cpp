@@ -1,6 +1,6 @@
 #include "dataframe_list.h"
 
-#include <algorithm> // copy_n, remove, fill, max_element
+#include <algorithm> // copy_n, fill, max_element, remove
 #include <cstddef>   // size_t
 #include <cstring>   // memcpy
 #include <memory>    // make_shared, shared_ptr
@@ -785,6 +785,41 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   return out;
 }
 
+std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col) {
+  if (M.nrow == 0 || M.ncol == 0) return {};
+  if (col < 0 || col >= M.ncol) throw std::out_of_range("column index out of range");
+  const double* src = M.data_ptr() + FlatMatrix::idx_col(0, col, M.nrow);
+  std::vector<double> out(static_cast<std::size_t>(M.nrow));
+  std::memcpy(out.data(), src, static_cast<std::size_t>(M.nrow) * sizeof(double));
+  return out;
+}
+
+std::vector<int> intmatrix_get_column(const IntMatrix& M, int col) {
+  if (M.nrow == 0 || M.ncol == 0) return {};
+  if (col < 0 || col >= M.ncol) throw std::out_of_range("column index out of range");
+  const int* src = M.data_ptr() + IntMatrix::idx_col(0, col, M.nrow);
+  std::vector<int> out(static_cast<std::size_t>(M.nrow));
+  std::memcpy(out.data(), src, static_cast<std::size_t>(M.nrow) * sizeof(int));
+  return out;
+}
+
+void flatmatrix_set_column(FlatMatrix& M, int col, const std::vector<double>& src) {
+  if (col < 0 || col >= M.ncol) throw std::out_of_range("col out of range");
+  if (static_cast<int>(src.size()) != M.nrow) 
+    throw std::invalid_argument("src size != M.nrow");
+  const double* src_ptr = src.data();
+  double* dst_ptr = M.data_ptr() + FlatMatrix::idx_col(0, col, M.nrow);
+  std::memcpy(dst_ptr, src_ptr, static_cast<std::size_t>(M.nrow) * sizeof(double));
+}
+
+void intmatrix_set_column(IntMatrix& M, int col, const std::vector<int>& src) {
+  if (col < 0 || col >= M.ncol) throw std::out_of_range("col out of range");
+  if (static_cast<int>(src.size()) != M.nrow) 
+    throw std::invalid_argument("src size != M.nrow");
+  const int* src_ptr = src.data();
+  int* dst_ptr = M.data_ptr() + IntMatrix::idx_col(0, col, M.nrow);
+  std::memcpy(dst_ptr, src_ptr, static_cast<std::size_t>(M.nrow) * sizeof(int));
+}
 
 // -------------------------- Converters implementations ---------------------
 DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df) {
