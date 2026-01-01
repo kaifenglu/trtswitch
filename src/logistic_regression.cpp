@@ -744,7 +744,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     if (p > 1) {
       // parameter estimates and standard errors for the full model
       std::vector<int> colfit = seqcpp(0,p-1);
-      if (static_cast<int>(init.size()) == p && 
+      if (!init.empty() && static_cast<int>(init.size()) == p && 
           std::none_of(init.begin(), init.end(), [](double val){ 
             return std::isnan(val); })) {
         out = logisregloop(p, init, &param, maxiter, eps, firth, colfit, p);

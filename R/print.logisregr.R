@@ -12,9 +12,9 @@
 #'
 #' @export
 print.logisregr <- function(x, ...) {
-  lrchisq = -2*(x$sumstat$loglik0 - x$sumstat$loglik1)
-  degrees = x$sumstat$p - 1
-  pvalue = sapply(1:nrow(x$sumstat), function(i) {
+  lrchisq <- -2*(x$sumstat$loglik0 - x$sumstat$loglik1)
+  degrees <- x$sumstat$p - 1
+  pvalue <- sapply(1:nrow(x$sumstat), function(i) {
     ifelse(degrees[i] > 0,
            pchisq(lrchisq[i], degrees[i], 0, lower.tail = FALSE),
            NA)
@@ -23,19 +23,19 @@ print.logisregr <- function(x, ...) {
                lrchisq = lrchisq, df = degrees, pvalue = pvalue,
                x$sumstat[, c("niter", "link", "firth", "flic")])
   
-  p = x$p
+  p <- x$p
   if (p > 0) {
     if (!x$settings$robust) {
       if (x$settings$plci) {
-        df = data.frame(param = x$param,
-                        coef = x$parest$beta,
-                        expcoef = x$parest$expbeta,
-                        se = x$parest$sebeta,
-                        z = x$parest$z,
-                        lower = x$parest$lower,
-                        upper = x$parest$upper,
-                        p = x$parest$p,
-                        method = x$parest$method)
+        df <- data.frame(param = x$param,
+                         coef = x$parest$beta,
+                         expcoef = x$parest$expbeta,
+                         se = x$parest$sebeta,
+                         z = x$parest$z,
+                         lower = x$parest$lower,
+                         upper = x$parest$upper,
+                         p = x$parest$p,
+                         method = x$parest$method)
         
         colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", "z",
                           paste("lower", 1-x$settings$alpha),
@@ -43,27 +43,27 @@ print.logisregr <- function(x, ...) {
                           "p", "method")
         
       } else {
-        df = data.frame(param = x$param,
-                        coef = x$parest$beta,
-                        expcoef = x$parest$expbeta,
-                        se = x$parest$sebeta,
-                        z = x$parest$z,
-                        p = x$parest$p)
+        df <- data.frame(param = x$param,
+                         coef = x$parest$beta,
+                         expcoef = x$parest$expbeta,
+                         se = x$parest$sebeta,
+                         z = x$parest$z,
+                         p = x$parest$p)
         
         colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", "z", "p")
       }
     } else {
       if (x$settings$plci) {
-        df = data.frame(param = x$param,
-                        coef = x$parest$beta,
-                        expcoef = x$parest$expbeta,
-                        nse = x$parest$sebeta_naive,
-                        se = x$parest$sebeta,
-                        z = x$parest$z,
-                        lower = x$parest$lower,
-                        upper = x$parest$upper,
-                        p = x$parest$p,
-                        method = x$parest$method)
+        df <- data.frame(param = x$param,
+                         coef = x$parest$beta,
+                         expcoef = x$parest$expbeta,
+                         nse = x$parest$sebeta_naive,
+                         se = x$parest$sebeta,
+                         z = x$parest$z,
+                         lower = x$parest$lower,
+                         upper = x$parest$upper,
+                         p = x$parest$p,
+                         method = x$parest$method)
         
         colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", 
                           "robust se", "z", 
@@ -71,13 +71,13 @@ print.logisregr <- function(x, ...) {
                           paste("upper", 1-x$settings$alpha), 
                           "p", "method")
       } else {
-        df = data.frame(param = x$param,
-                        coef = x$parest$beta,
-                        expcoef = x$parest$expbeta,
-                        nse = x$parest$sebeta_naive,
-                        se = x$parest$sebeta,
-                        z = x$parest$z,
-                        p = x$parest$p)
+        df <- data.frame(param = x$param,
+                         coef = x$parest$beta,
+                         expcoef = x$parest$expbeta,
+                         nse = x$parest$sebeta_naive,
+                         se = x$parest$sebeta,
+                         z = x$parest$z,
+                         p = x$parest$p)
         
         colnames(df) <- c("param", "coef", "exp(coef)", "se(coef)", 
                           "robust se", "z", "p")

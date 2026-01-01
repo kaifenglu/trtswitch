@@ -19,14 +19,15 @@
 #include <boost/math/distributions/logistic.hpp>
 #include <boost/math/distributions/extreme_value.hpp>
 #include <boost/math/distributions/chi_squared.hpp>
+#include <boost/math/distributions/students_t.hpp>
 
 // --------------------------- Distribution helpers --------------------------
 
 double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
   boost::math::normal_distribution<> dist(mean, sd);
-  double p = boost::math::cdf(dist, q);
-  return lower_tail ? p : (1.0 - p);
+  if (lower_tail) return boost::math::cdf(dist, q);
+  else return boost::math::cdf(boost::math::complement(dist, q));
 }
 
 double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
@@ -47,8 +48,8 @@ double boost_dnorm(double x, double mean, double sd) {
 double boost_plogis(double q, double location, double scale, bool lower_tail) {
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::logistic_distribution<> dist(location, scale);
-  double p = boost::math::cdf(dist, q);
-  return lower_tail ? p : (1.0 - p);
+  if (lower_tail) return boost::math::cdf(dist, q);
+  else return boost::math::cdf(boost::math::complement(dist, q));
 }
 
 double boost_qlogis(double p, double location, double scale, bool lower_tail) {
@@ -69,10 +70,9 @@ double boost_dlogis(double x, double location, double scale) {
 double boost_pextreme(double q, double location, double scale, bool lower_tail) {
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::extreme_value_distribution<> dist(location, scale);
-  // note: original code used complement and -q; keep semantics consistent 
-  // with complementary log-log link
-  double p = boost::math::cdf(complement(dist, -q));
-  return lower_tail ? p : (1.0 - p);
+  // keep semantics consistent with complementary log-log link
+  if (lower_tail) return boost::math::cdf(complement(dist, 2.0 * location - q));
+  else return boost::math::cdf(dist, 2.0 * location - q);
 }
 
 double boost_qextreme(double p, double location, double scale, bool lower_tail) {
@@ -97,8 +97,8 @@ double boost_pchisq(double q, double df, bool lower_tail) {
     else return lower_tail ? 0.0 : 1.0;
   }
   boost::math::chi_squared_distribution<> dist(df);
-  double p = boost::math::cdf(dist, q);
-  return lower_tail ? p : (1.0 - p);
+  if (lower_tail) return boost::math::cdf(dist, q);
+  else return boost::math::cdf(boost::math::complement(dist, q));
 }
 
 double boost_qchisq(double p, double df, bool lower_tail) {
@@ -106,6 +106,22 @@ double boost_qchisq(double p, double df, bool lower_tail) {
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
   boost::math::chi_squared_distribution<> dist(df);
+  return lower_tail ? boost::math::quantile(dist, p) : 
+    boost::math::quantile(dist, 1.0 - p);
+}
+
+double boost_pt(double q, double df, bool lower_tail) {
+  if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
+  boost::math::students_t_distribution<> dist(df);
+  if (lower_tail) return boost::math::cdf(dist, q);
+  else return boost::math::cdf(boost::math::complement(dist, q));
+}
+
+double boost_qt(double p, double df, bool lower_tail) {
+  if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument(
+      "Probability must be between 0 and 1.");
+  boost::math::students_t_distribution<> dist(df);
   return lower_tail ? boost::math::quantile(dist, p) : 
     boost::math::quantile(dist, 1.0 - p);
 }
@@ -842,7 +858,7 @@ std::vector<int> match3(const std::vector<int>& id1,
 DataFrameCpp untreated(double psi,
                        const std::vector<int>& id,
                        const std::vector<double>& time,
-                       const std::vector<int>& event,
+                       const std::vector<double>& event,
                        const std::vector<int>& treat,
                        const std::vector<double>& rx,
                        const std::vector<double>& censor_time,
@@ -851,7 +867,7 @@ DataFrameCpp untreated(double psi,
   int n = id.size();
   double a = std::exp(psi);
   std::vector<double> u_star(n), t_star(n);
-  std::vector<int> d_star = event;
+  std::vector<double> d_star = event;
   for (int i = 0; i < n; ++i) { 
     u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a); t_star[i] = u_star[i]; }
   if (recensor) {
@@ -885,7 +901,7 @@ DataFrameCpp untreated(double psi,
 DataFrameCpp unswitched(double psi,
                         const std::vector<int>& id,
                         const std::vector<double>& time,
-                        const std::vector<int>& event,
+                        const std::vector<double>& event,
                         const std::vector<int>& treat,
                         const std::vector<double>& rx,
                         const std::vector<double>& censor_time,
@@ -895,7 +911,7 @@ DataFrameCpp unswitched(double psi,
   double a0 = std::exp(psi);
   double a1 = std::exp(-psi);
   std::vector<double> u_star(n), t_star(n);
-  std::vector<int> d_star = event;
+  std::vector<double> d_star = event;
   for (int i = 0; i < n; ++i) {
     if (treat[i] == 0) u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a0);
     else u_star[i] = time[i] * (rx[i] + (1.0 - rx[i]) * a1);

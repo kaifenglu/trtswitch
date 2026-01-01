@@ -762,7 +762,6 @@ Rcpp::DataFrame kmest(const Rcpp::DataFrame& data,
     conftype, conflev, keep_censor
   );
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
 
@@ -1775,10 +1774,8 @@ Rcpp::DataFrame lrtest(const Rcpp::DataFrame data,
     dfcpp, stratumcpp, treat, time, time2, event, weight, 
     weight_readj, rho1, rho2);
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
-
 
 
 // Compute Restricted Mean Survival Time
@@ -3310,27 +3307,12 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   std::vector<double> mu(nvar), sigma(nvar);
   FlatMatrix z2(nsub, nvar);
   
-  // helpers: mean and sample sd
-  auto mean_vec = [&](const double* colptr, int n) -> double {
-    double s = 0.0;
-    for (int i = 0; i < n; ++i) s += colptr[i];
-    return s / static_cast<double>(n);
-  };
-  auto sd_vec = [&](const double* colptr, int n, double m) -> double {
-    double s = 0.0;
-    for (int i = 0; i < n; ++i) {
-      double d = colptr[i] - m;
-      s += d * d;
-    }
-    return std::sqrt(s / static_cast<double>(n - 1));
-  };
-  
   // --- standardize z once --- (work column-by-column using column-major layout)
   for (int c = 0; c < nvar; ++c) {
     const double* colptr = z1.data_ptr() + c * nsub;
     // compute mean and sd
-    double m = mean_vec(colptr, nsub);
-    double s = sd_vec(colptr, nsub, m);
+    double m, s;
+    mean_sd(colptr, nsub, m, s);
     
     // check if column is indicator (only 0 or 1) -> keep m=0, s=1
     bool all_zero_or_one = true;
@@ -3931,24 +3913,9 @@ ListCpp liferegcpp(const DataFrameCpp& data,
       for (int i = 0; i < n1; ++i) y0[i] = std::log(y0[i]);
     }
     
-    // helpers: mean and sample sd
-    auto mean_vec = [&](const double* colptr, int n) -> double {
-      double s = 0.0;
-      for (int i = 0; i < n; ++i) s += colptr[i];
-      return s / static_cast<double>(n);
-    };
-    auto sd_vec = [&](const double* colptr, int n, double m) -> double {
-      double s = 0.0;
-      for (int i = 0; i < n; ++i) {
-        double d = colptr[i] - m;
-        s += d * d;
-      }
-      return std::sqrt(s / static_cast<double>(n - 1));
-    };
-    
-    const double* yptr = y0.data();
-    double int0 = mean_vec(yptr, n1);
-    double logsig0 = std::log(sd_vec(yptr, n1, int0));
+    double int0, sig0;
+    mean_sd(y0.data(), n1, int0, sig0);
+    double logsig0 = std::log(sig0);
     
     std::vector<double> bint0(p);
     int ncolfit0 = (dist_code == 1) ? 1 : (nstrata + 1);
@@ -3975,7 +3942,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     
     if (nvar > 1) {
       std::vector<int> colfit = seqcpp(0, p-1);
-      if (static_cast<int>(init.size()) == p && 
+      if (!init.empty() && static_cast<int>(init.size()) == p && 
           std::none_of(init.begin(), init.end(), [](double val){ 
             return std::isnan(val); })) {
         out = liferegloop(p, init, &param, maxiter, eps, colfit, p);
@@ -6566,7 +6533,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
     
     if (p > 0) {
       std::vector<int> colfit = seqcpp(0, p - 1);
-      if  (static_cast<int>(init.size()) == p &&
+      if  (!init.empty() && static_cast<int>(init.size()) == p &&
            std::none_of(init.begin(), init.end(), [](double val){
              return std::isnan(val); })) {
         out = phregloop(p, init, &param, maxiter, eps, firth, colfit, p);
@@ -7464,7 +7431,6 @@ Rcpp::DataFrame survfit_phregRcpp(const int p,
     p, beta, vbetacpp, basehcpp, newdfcpp, covariates, stratum, 
     offset, id, tstart, tstop, sefit, conftype, conflev);
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
 
@@ -8154,7 +8120,6 @@ Rcpp::List residuals_phregRcpp(const int p,
     p, beta, vbetacpp, resmart, dfcpp, stratum, time, time2, event, 
     covariates, weight, offset, id, ties, type, collapse, weighted);
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
 
@@ -8865,7 +8830,6 @@ Rcpp::List assess_phregRcpp(const int p,
     p, beta, vbetacpp, dfcpp, stratum, time, time2, event,
     covariates, weight, offset, ties, resample, seed);
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }
 
@@ -9368,6 +9332,5 @@ Rcpp::List zph_phregRcpp(int p,
     p, beta, vbetacpp, resmart, dfcpp, stratum, time, time2, event,
     covariates, weight, offset, ties, transform);
   
-  thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(cpp_result);
 }

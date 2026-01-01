@@ -75,9 +75,9 @@
 #'
 #' @export
 residuals_liferegr <- function(
-    object, type=c("response", "martingale", "deviance", "dfbeta", "dfbetas",
-                   "working", "ldcase", "ldresp", "ldshape", "matrix"),
-    collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
+    object, type = c("response", "martingale", "deviance", "dfbeta", "dfbetas",
+                     "working", "ldcase", "ldresp", "ldshape", "matrix"),
+    collapse = FALSE, weighted = (type %in% c("dfbeta", "dfbetas"))) {
   
   if (!inherits(object, "liferegr")) stop("object must be of class 'liferegr'");
   
@@ -120,8 +120,8 @@ residuals_liferegr <- function(
       # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
       mf <- model.frame(fml_cov, data = df, na.action = na.pass)
       mm <- model.matrix(fml_cov, mf)
-      colnames(mm) = make.names(colnames(mm))
-      varnames = colnames(mm)[-1]
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
       missing_cols <- setdiff(varnames, names(df))
       if (length(missing_cols) > 0) {
         for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
@@ -133,7 +133,7 @@ residuals_liferegr <- function(
   
   type <- match.arg(type)
   
-  if (type=='dfbeta' || type=='dfbetas') {
+  if (type == "dfbeta" || type == "dfbetas") {
     if (missing(weighted))
       weighted <- TRUE  # different default for this case
   }
@@ -141,27 +141,27 @@ residuals_liferegr <- function(
   vv <- drop(object$vbeta_naive)
   if (is.null(vv)) vv <- drop(object$vbeta)
   
-  rr = residuals_liferegRcpp(beta = object$beta,
-                             vbeta = vv,
-                             data = df,
-                             stratum = stratum,
-                             time = object$settings$time,
-                             time2 = object$settings$time2,
-                             event = object$settings$event,
-                             covariates = varnames,
-                             weight = weight,
-                             offset = offset,
-                             id = id,
-                             dist = object$settings$dist,
-                             type = type,
-                             collapse = collapse,
-                             weighted = weighted)
+  rr <- residuals_liferegRcpp(beta = object$beta,
+                              vbeta = vv,
+                              data = df,
+                              stratum = stratum,
+                              time = object$settings$time,
+                              time2 = object$settings$time2,
+                              event = object$settings$event,
+                              covariates = varnames,
+                              weight = weight,
+                              offset = offset,
+                              id = id,
+                              dist = object$settings$dist,
+                              type = type,
+                              collapse = collapse,
+                              weighted = weighted)
   
-  if (type=="response" || type=="martingale" || type=="deviance" || 
-      type=="working" || type=="ldcase" || type=="ldresp" || 
-      type=="ldshape") {
+  if (type == "response" || type == "martingale" || type == "deviance" || 
+      type == "working" || type == "ldcase" || type == "ldresp" || 
+      type == "ldshape") {
     rr <- as.numeric(rr)
-  } else if (type=="dfbeta" || type=="dfbetas") {
+  } else if (type == "dfbeta" || type == "dfbetas") {
     colnames(rr) <- object$param
   } else {
     colnames(rr) <- c("g", "dg", "ddg", "ds", "dds", "dsg");

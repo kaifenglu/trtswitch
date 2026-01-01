@@ -232,8 +232,8 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
   }
   
   # select complete cases for the relevant variables
-  elements <- c(stratum, time, time2, event, covariates, weight, offset, id)
-  elements <- unique(elements[elements != "" & elements != "none"])
+  elements <- unique(c(stratum, time, time2, event, covariates, weight, offset, id))
+  elements <- elements[elements != ""]
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
   var_all <- all.vars(fml_all)
   

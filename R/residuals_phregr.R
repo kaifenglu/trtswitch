@@ -68,9 +68,9 @@
 #'
 #' @export
 residuals_phregr <- function(
-    object, type=c("martingale", "deviance", "score", "schoenfeld",
-                   "dfbeta", "dfbetas", "scaledsch"),
-    collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
+    object, type = c("martingale", "deviance", "score", "schoenfeld",
+                     "dfbeta", "dfbetas", "scaledsch"),
+    collapse = FALSE, weighted = (type %in% c("dfbeta", "dfbetas"))) {
   
   if (!inherits(object, "phregr")) stop("object must be of class 'phregr'");
   
@@ -114,8 +114,8 @@ residuals_phregr <- function(
       # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
       mf <- model.frame(fml_cov, data = df, na.action = na.pass)
       mm <- model.matrix(fml_cov, mf)
-      colnames(mm) = make.names(colnames(mm))
-      varnames = colnames(mm)[-1]
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
       missing_cols <- setdiff(varnames, names(df))
       if (length(missing_cols) > 0) {
         for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
@@ -127,7 +127,7 @@ residuals_phregr <- function(
   
   type <- match.arg(type)
   
-  if (type=='dfbeta' || type=='dfbetas') {
+  if (type == "dfbeta" || type == "dfbetas") {
     if (missing(weighted))
       weighted <- TRUE  # different default for this case
   }
@@ -136,41 +136,41 @@ residuals_phregr <- function(
   if (is.null(vv)) vv <- object$vbeta
   
   if (p == 0) { # null Cox model case
-    beta = 0
-    vv = matrix(0,1,1)
+    beta <- 0
+    vv <- matrix(0,1,1)
   }
   
-  temp = residuals_phregRcpp(p = p,
-                             beta = beta,
-                             vbeta = vv,
-                             resmart = object$residuals,
-                             data = df,
-                             stratum = stratum,
-                             time = time,
-                             time2 = object$settings$time2,
-                             event = event,
-                             covariates = varnames,
-                             weight = weight,
-                             offset = offset,
-                             id = id,
-                             ties = object$settings$ties,
-                             type = type, 
-                             collapse = collapse,
-                             weighted = weighted)
+  temp <- residuals_phregRcpp(p = p,
+                              beta = beta,
+                              vbeta = vv,
+                              resmart = object$residuals,
+                              data = df,
+                              stratum = stratum,
+                              time = time,
+                              time2 = object$settings$time2,
+                              event = event,
+                              covariates = varnames,
+                              weight = weight,
+                              offset = offset,
+                              id = id,
+                              ties = object$settings$ties,
+                              type = type, 
+                              collapse = collapse,
+                              weighted = weighted)
   
   if (type == "martingale" || type == "deviance") {
     rr <- temp$resid
   } else {
     if (p == 1) {
-      rr = c(temp$resid)
+      rr <- c(temp$resid)
     } else {
-      rr = temp$resid
+      rr <- temp$resid
     }
     
     if (type == "schoenfeld" || type == "scaledsch") {
-      attr(rr, "time") = temp$time
+      attr(rr, "time") <- temp$time
       if (length(temp) == 3) {
-        attr(rr, "strata") = temp$strata
+        attr(rr, "strata") <- temp$strata
       }
     }
   }

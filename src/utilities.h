@@ -6,6 +6,7 @@ struct DataFrameCpp;
 struct ListCpp;
 
 #include <algorithm>   // copy, find, sort, unique, 
+#include <cmath>
 #include <cstddef>     // size_t
 #include <functional>  // function
 #include <iomanip>     // fixed, setprecision
@@ -43,6 +44,9 @@ double boost_dextreme(double x, double location = 0.0, double scale = 1.0);
 double boost_pchisq(double q, double df, bool lower_tail = true);
 double boost_qchisq(double p, double df, bool lower_tail = true);
 
+double boost_pt(double q, double df, bool lower_tail = true);
+double boost_qt(double p, double df, bool lower_tail = true);
+
 // --------------------------- Small utilities --------------------------------
 inline double sq(double x) noexcept { return x * x; }
 
@@ -58,6 +62,35 @@ std::vector<int> findInterval3(const std::vector<double>& x,
                                bool rightmost_closed = false,
                                bool all_inside = false,
                                bool left_open = false);
+
+// mean and sd using Welford's method
+inline void mean_sd(const double* data, std::size_t n, double &omean, double &osd) {
+  if (n == 0) {
+    omean = std::numeric_limits<double>::quiet_NaN();
+    osd = std::numeric_limits<double>::quiet_NaN();
+    return;
+  }
+  
+  double mean = 0.0;
+  double M2 = 0.0;     // sum of squares of differences
+  double count = 0.0;
+  
+  for (std::size_t i = 0; i < n; ++i) {
+    ++count;
+    double x = data[i];
+    double delta = x - mean;
+    mean += delta / count;
+    double delta2 = x - mean;
+    M2 += delta * delta2;
+  }
+  
+  omean = mean;
+  osd = (count > 1) ? std::sqrt(M2 / (count - 1)) : 0.0;
+}
+
+inline void mean_sd(const double* data, int n, double &omean, double &osd) {
+  mean_sd(data, static_cast<std::size_t>(n), omean, osd);
+}
 
 // --------------------------- Root finders -----------------------------------
 double brent(const std::function<double(double)>& f,
@@ -172,7 +205,7 @@ std::vector<int> match3(const std::vector<int>& id1,
 DataFrameCpp untreated(double psi,
                        const std::vector<int>& id,
                        const std::vector<double>& time,
-                       const std::vector<int>& event,
+                       const std::vector<double>& event,
                        const std::vector<int>& treat,
                        const std::vector<double>& rx,
                        const std::vector<double>& censor_time,
@@ -182,7 +215,7 @@ DataFrameCpp untreated(double psi,
 DataFrameCpp unswitched(double psi,
                         const std::vector<int>& id,
                         const std::vector<double>& time,
-                        const std::vector<int>& event,
+                        const std::vector<double>& event,
                         const std::vector<int>& treat,
                         const std::vector<double>& rx,
                         const std::vector<double>& censor_time,

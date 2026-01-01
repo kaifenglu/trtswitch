@@ -54,14 +54,14 @@ assess_phregr <- function(object, resample = 1000, seed = 12345) {
   
   if (!inherits(object, "phregr")) stop("object must be of class 'phregr'");
   
-  p = object$p
-  df = object$settings$data
-  stratum = object$settings$stratum
-  time = object$settings$time
-  event = object$settings$event
-  covariates = object$settings$covariates
-  weight = object$settings$weight
-  offset = object$settings$offset
+  p <- object$p
+  df <- object$settings$data
+  stratum <- object$settings$stratum
+  time <- object$settings$time
+  event <- object$settings$event
+  covariates <- object$settings$covariates
+  weight <- object$settings$weight
+  offset <- object$settings$offset
   
   elements <- unique(c(stratum, time, event, covariates, weight, offset))
   elements <- elements[elements != ""]
@@ -92,8 +92,8 @@ assess_phregr <- function(object, resample = 1000, seed = 12345) {
       # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
       mf <- model.frame(fml_cov, data = df, na.action = na.pass)
       mm <- model.matrix(fml_cov, mf)
-      colnames(mm) = make.names(colnames(mm))
-      varnames = colnames(mm)[-1]
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
       missing_cols <- setdiff(varnames, names(df))
       if (length(missing_cols) > 0) {
         for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
