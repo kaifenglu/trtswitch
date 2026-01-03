@@ -1,8 +1,8 @@
-#' @title Plot method for rpsftm objects
-#' @description Generate Z-plot and Kaplan-Meier (KM) plot of a 
-#' rpsftm object.
+#' @title Plot method for tsesimp objects
+#' @description Generate box plot for AFT model deviance residuals and 
+#' Kaplan-Meier (KM) plot for potential outcomes of a tsesimp object.
 #'
-#' @param x An object of class \code{rpsftm}.
+#' @param x An object of class \code{tsesimp}.
 #' @param time_unit The time unit used in the input data.
 #'   Options are "day" (default), "week", "month", or "year".
 #' @param show_hr Logical; whether to show hazard ratio on the KM plot.
@@ -10,58 +10,73 @@
 #' @param show_risk Logical; whether to show number at risk table
 #'   below the KM plot. Default is TRUE.
 #' @param ... Ensures that all arguments starting from "..." are named.
-#'
-#' @return A list of two ggplot2 objects, one for Z-plot and the other for 
-#' KM plot.
+#' 
+#' @return A list of two ggplot2 objects, one for box plot and the other 
+#' for KM plot.
 #'
 #' @keywords internal
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
-#' @method plot rpsftm
+#' @method plot tsesimp
 #' @export
-plot.rpsftm <- function(x, time_unit = "day", 
-                        show_hr = TRUE, show_risk = TRUE, ...) {
-  if (!inherits(x, "rpsftm")) {
-    stop("x must be of class 'rpsftm'")
+plot.tsesimp <- function(x, time_unit = "day", 
+                         show_hr = TRUE, show_risk = TRUE, ...) {
+  if (!inherits(x, "tsesimp")) {
+    stop("x must be of class 'tsesimp'")
   }
   
   alpha <- x$settings$alpha
   conflev <- 100*(1 - alpha)
   treat_var <- x$settings$treat
   
-  # --- Z-plot ---
-  linetype <- c("solid", "dashed", "dashed")
-  limits <- range(x$eval_z$Z)
-  yintercept <- c(0, qnorm(alpha/2), qnorm(1-alpha/2))
-  yindex <- yintercept >= limits[1] & yintercept <= limits[2]
-  
-  xintercept <- c(x$psi, x$psi_CI)
-  xindex <- !is.na(xintercept) & xintercept >= x$settings$low_psi & 
-    xintercept <= x$settings$hi_psi
-  
-  p_z <- ggplot2::ggplot(x$eval_z, ggplot2::aes(x = .data$psi, y = .data$Z)) +
-    ggplot2::geom_line() +
-    ggplot2::geom_hline(
-      yintercept = yintercept[yindex], 
-      linetype = linetype[yindex]) + 
-    ggplot2::geom_vline(
-      xintercept = xintercept[xindex], 
-      linetype = linetype[xindex]) + 
-    ggplot2::labs(
-      x = expression(paste("Causal parameter ", psi)), 
-      y = expression(paste("Z-statistic ", Z(psi))),
-      caption = bquote(
-        "Estimate of " * psi == .(sprintf("%.3f", x$psi)) *
-          " (" * .(sprintf("%.0f", conflev)) * "% CI: " *
-          .(sprintf("%.3f", x$psi_CI[1])) * ", " *
-          .(sprintf("%.3f", x$psi_CI[2])) * ")")) + 
-    ggplot2::theme_bw() +
-    ggplot2::theme(plot.caption = ggplot2::element_text(hjust = 0))
-  
-  
-  # --- Kaplan-Meier plot for counterfactual outcomes ---
-  if (!is.null(x$km_outcome) && nrow(x$km_outcome) > 0) {
+  if (!is.null(x$data_outcome) && nrow(x$data_outcome) > 0) {
+    # --- Deviance residuals plot for AFT models ---
+    arm <- x$settings$data[[treat_var]]
+    
+    df_arm <- data.frame(arm = c(x$res_aft[[1]][[treat_var]], 
+                                 x$res_aft[[2]][[treat_var]])) 
+    
+    if (is.factor(arm)) {
+      df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
+    } else if (is.numeric(arm) && all(arm %in% c(0, 1))) {
+      df_arm$arm <- factor(df_arm$arm, levels = c(1, 0),
+                           labels = c("Treatment", "Control"))
+    } else {
+      df_arm$arm <- factor(df_arm$arm)
+    }
+    
+    
+    p_res <- list()
+    K <- if (x$settings$swtrt_control_only) 1 else 2
+    for (k in 1:K) {
+      df1 <- data.frame(swtrt = factor(x$data_aft[[k]]$data$swtrt, 
+                                       levels = c(1, 0), 
+                                       labels = c("Switchers", "Nonswitchers")),
+                        res = x$res_aft[[k]]$res)
+      p_res[[k]] <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$swtrt, y = .data$res)) +
+        ggplot2::geom_boxplot(fill = "#77bd89", color = "#1f6e34", alpha = 0.6) +
+        ggplot2::scale_x_discrete(drop = FALSE) + 
+        ggplot2::labs(x = NULL, y = "Deviance Residuals", title = df_arm$arm[[k]]) +
+        ggplot2::theme_bw()
+    }
+    
+    if (K == 1) {
+      p_res <- p_res[[1]]
+    } else {
+      limits <- range(sapply(p_res, function(p) {
+        ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y.range
+      }))
+      
+      p_res <- lapply(p_res, function(p) {
+        p + ggplot2::coord_cartesian(ylim = limits)
+      })
+      
+      p_res <- cowplot::plot_grid(plotlist = p_res, ncol = 2)
+    }
+    
+    
+    # --- Kaplan-Meier plot for counterfactual outcomes ---
     df <- x$km_outcome
     if (time_unit == "day") {
       df$month <- df$time / 30.4375
@@ -141,8 +156,8 @@ plot.rpsftm <- function(x, time_unit = "day",
         t <- df$month[df$treated == h]
         n <- df$nrisk[df$treated == h]
         
-        idx <- findInterval(xbreaks, t) + 1
-        atrisk <- ifelse(idx <= length(n), n[idx], 0)
+        idx = findInterval(xbreaks, t) + 1
+        atrisk = ifelse(idx <= length(n), n[idx], 0)
         
         df1 <- data.frame(time = xbreaks, atrisk = atrisk)
         df1[[treat_var]] <- df[[treat_var]][df$treated == h][1]
@@ -188,11 +203,11 @@ plot.rpsftm <- function(x, time_unit = "day",
       
       # 3. Combine with plot_grid()
       p_km <- cowplot::plot_grid(aligned[[1]], aligned[[2]], ncol = 1, 
-                                 rel_heights = c(4, 0.6))    
+                                 rel_heights = c(4, 0.6))
     }
     
-    list(p_z = p_z, p_km = p_km)
+    list(p_res = p_res, p_km = p_km)
   } else {
-    p_z
+    stop("No outcome data available to plot.")
   }
 }

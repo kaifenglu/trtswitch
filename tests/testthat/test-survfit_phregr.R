@@ -2,22 +2,22 @@ library(dplyr, warn.conflicts = FALSE)
 library(survival)
 
 testthat::test_that("survfit_phregr: right-censored data", {
-  pbc <- pbc %>% mutate(event = 1*(status == 2))
+  pbc <- pbc %>% mutate(event = 1 * (status == 2))
 
   # fit a Cox model to the original data set
-  fit1 <- phregr(pbc, time="time", event="event",
-                 covariates=c("age", "edema", "log(bili)",
-                              "log(protime)", "log(albumin)"))
+  fit1 <- phregr(pbc, time = "time", event = "event",
+                 covariates = c("age", "edema", "log(bili)",
+                                "log(protime)", "log(albumin)"))
 
   fit2 <- coxph(Surv(time, event) ~ age + edema + log(bili) +
-                  log(protime) + log(albumin), data=pbc)
+                  log(protime) + log(albumin), data = pbc)
 
   # create a data set corresponding to the hypothetical subject
-  temp <- data.frame(age=53, edema=0, bili=2, protime=12, albumin=2)
+  temp <- data.frame(age = 53, edema = 0, bili = 2, protime = 12, albumin = 2)
 
   # obtain the expected survival curve
-  surv1 <- survfit_phregr(fit1, newdata=temp)
-  surv2 <- survfit(fit2, newdata=temp, conf.type="log-log")
+  surv1 <- survfit_phregr(fit1, newdata = temp)
+  surv2 <- survfit(fit2, newdata = temp, conf.type = "log-log")
 
   # extract common variables
   surv1b <- surv1 %>%
@@ -35,24 +35,24 @@ testthat::test_that("survfit_phregr: right-censored data", {
 
 
 testthat::test_that("survfit_phregr: stratified analysis", {
-  pbc <- pbc %>% mutate(event = 1*(status == 2))
+  pbc <- pbc %>% mutate(event = 1 * (status == 2))
 
-  fit1 <- phregr(pbc, time="time", event="event",
-                 covariates=c("age", "log(bili)"), stratum="edema")
+  fit1 <- phregr(pbc, time = "time", event = "event",
+                 covariates = c("age", "log(bili)"), stratum = "edema")
 
   fit2 <- coxph(Surv(time, event) ~ age + log(bili) + strata(edema),
-                data=pbc)
+                data = pbc)
 
   # create a data set corresponding to the hypothetical subject
   # of note, survfit_phregr requests explict stratum info in newdata
   # while survfit.coxph replicates the covariate values for each stratum
-  temp1 <- data.frame(edema=c(0, 0.5, 1)) %>%
-    cross_join(data.frame(age=c(53, 60), bili = c(2,3)))
-  temp2 <- data.frame(age=c(53, 60), bili = c(2,3))
+  temp1 <- data.frame(edema = c(0, 0.5, 1)) %>%
+    cross_join(data.frame(age = c(53, 60), bili = c(2,3)))
+  temp2 <- data.frame(age = c(53, 60), bili = c(2,3))
 
   # obtain the expected survival curve
-  surv1 <- survfit_phregr(fit1, newdata=temp1)
-  surv2 <- survfit(fit2, newdata=temp2, conf.type="log-log")
+  surv1 <- survfit_phregr(fit1, newdata = temp1)
+  surv2 <- survfit(fit2, newdata = temp2, conf.type = "log-log")
 
   # of note, surv1 is one data frame ordered by strata and covariates,
   # in contrast, surv2 has the strata in rows and covariates in columns
@@ -70,13 +70,13 @@ testthat::test_that("survfit_phregr: stratified analysis", {
     tibble(time = surv2$time, nrisk = surv2$n.risk,
            nevent = surv2$n.event, cumhaz = surv2$cumhaz[,1],
            surv = surv2$surv[,1],
-           sesurv = surv2$surv[,1]*surv2$std.chaz[,1],
+           sesurv = surv2$surv[,1] * surv2$std.chaz[,1],
            lower = surv2$lower[,1], upper = surv2$upper[,1],
            edema = strata) %>% bind_cols(surv2$newdata[1,]),
     tibble(time = surv2$time, nrisk = surv2$n.risk,
            nevent = surv2$n.event, cumhaz = surv2$cumhaz[,2],
            surv = surv2$surv[,2],
-           sesurv = surv2$surv[,2]*surv2$std.chaz[,2],
+           sesurv = surv2$surv[,2] * surv2$std.chaz[,2],
            lower = surv2$lower[,2], upper = surv2$upper[,2],
            edema = strata) %>%
       bind_cols(surv2$newdata[2,])) %>%
@@ -93,17 +93,17 @@ testthat::test_that("survfit_phregr: time-dependent covariates", {
     arrange(id, day) %>%
     mutate(tstart = day,
            tstop = ifelse(row_number() != n(), lead(day), futime),
-           event = ifelse(row_number() != n(), 0, 1*(status == 2)))
+           event = ifelse(row_number() != n(), 0, 1 * (status == 2)))
 
   # fit a Cox model to the original data, note the use of robust variance
-  fit1 <- phregr(pbcseq, time="tstart", time2="tstop", event="event",
-                 covariates=c("age", "edema", "log(bili)",
-                              "log(protime)", "log(albumin)"),
-                 id="id", robust=TRUE)
+  fit1 <- phregr(pbcseq, time = "tstart", time2 = "tstop", event = "event",
+                 covariates = c("age", "edema", "log(bili)",
+                                "log(protime)", "log(albumin)"),
+                 id = "id", robust = TRUE)
 
   fit2 <- coxph(Surv(tstart, tstop, event) ~ age + edema + log(bili) +
-                  log(protime) + log(albumin), data=pbcseq,
-                cluster=id, robust=TRUE)
+                  log(protime) + log(albumin), data = pbcseq,
+                cluster = id, robust = TRUE)
 
   # create a data set corresponding to the hypothetical subject with
   # time-dependent covariates
@@ -117,8 +117,8 @@ testthat::test_that("survfit_phregr: time-dependent covariates", {
                      albumin = c( 3.5,  3.5,  3.5,  3.5,  3.5),
                      protime = c(  11,   11,   11,   11,   11))
 
-  surv1 <- survfit_phregr(fit1, newdata=temp)
-  surv2 <- survfit(fit2, newdata=temp, id=id, conf.type="log-log")
+  surv1 <- survfit_phregr(fit1, newdata = temp)
+  surv2 <- survfit(fit2, newdata = temp, id = id, conf.type = "log-log")
 
   surv1b <- surv1 %>%
     select(time, nrisk, nevent, ncensor, cumhaz,
@@ -127,7 +127,7 @@ testthat::test_that("survfit_phregr: time-dependent covariates", {
   surv2b <- data.frame(time = surv2$time, nrisk = surv2$n.risk,
                        nevent = surv2$n.event, ncensor = surv2$n.censor,
                        cumhaz = surv2$cumhaz, surv = surv2$surv,
-                       sesurv = surv2$surv*surv2$std.chaz,
+                       sesurv = surv2$surv * surv2$std.chaz,
                        lower = surv2$lower, upper = surv2$upper)
   
   testthat::expect_equal(surv1b, surv2b)

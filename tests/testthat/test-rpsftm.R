@@ -16,7 +16,7 @@ testthat::test_that("rpsftm: control to active switch", {
   f <- function(psi) {
     data2 <- data1 %>%
       mutate(u_star = xoyrs + (progyrs - xoyrs)*exp(psi),
-             c_star = ifelse(imm==0, pmin(censyrs, censyrs*exp(psi)), 1e10),
+             c_star = ifelse(imm == 0, pmin(censyrs, censyrs*exp(psi)), 1e10),
              t_star = pmin(u_star, c_star),
              d_star = ifelse(c_star < u_star, 0, prog))
     fit_lr <- survdiff(Surv(t_star, d_star) ~ imm, data = data2)

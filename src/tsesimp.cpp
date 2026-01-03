@@ -582,7 +582,6 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   event_summary.push_back(std::move(n_switch), "switch_n");
   event_summary.push_back(std::move(pct_switch), "switch_pct");
   
-  DataFrameCpp lr = lrtestcpp(data, stratum, treat, time, "", event);
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
   int k = -1; // indicate the observed data
@@ -645,8 +644,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     }
                   }
                   
-                  DataFrameCpp data_outcome, km_outcome, lr_outcome;
-                  ListCpp fit_outcome;
+
                   double hrhat = NaN, hrlower = NaN, hrupper = NaN, pvalue = NaN;
                   
                   bool psimissing = false;
@@ -659,7 +657,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                   int K = static_cast<int>(treats.size());
                   for (int h = 0; h < K; ++h) {
                     // post progression data
-                    std::vector<int> l; l.reserve(n);
+                    std::vector<int> l; 
+                    l.reserve(n);
                     for (int i = 0; i < n; ++i) 
                       if (treatb[i] == h && pdb[i] == 1) l.push_back(i);
                     
@@ -702,13 +701,13 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                       psiupper = -beta1[1] + zcrit * sebeta1[1];
                     }
                     
-                    std::vector<double> res;
+                    std::vector<double> res1;
                     if (k == -1) {
                       FlatMatrix vbeta1(q + p2 + 1, q + p2 + 1);
                       FlatMatrix rr = residuals_liferegcpp(
                         beta1, vbeta1, data1, {""}, "pps", "", "event",
                         covariates_aft, "", "", "", dist, "deviance");
-                      res = flatmatrix_get_column(rr, 0);
+                      res1 = flatmatrix_get_column(rr, 0);
                     }
                     
                     // update treatment-specific causal parameter estimates
@@ -760,10 +759,10 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                       data_x->get<DataFrameCpp>("data") = data1;
                       
                       ListPtr& fit_x = fit_aft[h];
-                      fit_x->get<ListCpp>("fit") = fit1;
+                      fit_x->get_list("fit") = fit1;
                       
                       ListPtr& res_x = res_aft[h];
-                      res_x->get<std::vector<double>>("res") = res;
+                      res_x->get<std::vector<double>>("res") = res1;
                     }
                     
                     if (!std::isnan(psihat)) {
@@ -795,6 +794,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     }
                   }
                   
+                  DataFrameCpp data_outcome, km_outcome, lr_outcome;
+                  ListCpp fit_outcome;
                   if (!psimissing) {
                     // Cox model for hypothetical treatment effect estimate
                     data_outcome.push_back(idb, "uid");
@@ -804,7 +805,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     data_outcome.push_back(stratumb, "ustratum");
                     
                     for (int j = 0; j < p; ++j) {
-                      const std::string& zj = covariates[j + 1];
+                      const std::string& zj = covariates[j+1];
                       std::vector<double> u = flatmatrix_get_column(zb, j);
                       data_outcome.push_back(std::move(u), zj);
                     }
@@ -880,20 +881,20 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   DataFrameCpp data_outcome = out.get<DataFrameCpp>("data_outcome");
   DataFrameCpp km_outcome = out.get<DataFrameCpp>("km_outcome");
   DataFrameCpp lr_outcome = out.get<DataFrameCpp>("lr_outcome");
-  DataFrameCpp fit_outcome = out.get<DataFrameCpp>("fit_outcome");
+  ListCpp fit_outcome = out.get_list("fit_outcome");
   double psihat = out.get<double>("psihat");
   double psilower = out.get<double>("psilower");
   double psiupper = out.get<double>("psiupper");
   double psi1hat = out.get<double>("psi1hat");
   double psi1lower = out.get<double>("psi1lower");
   double psi1upper = out.get<double>("psi1upper");
-  std::string psi_CI_type = "AFT model";
   double hrhat = out.get<double>("hrhat");
   double hrlower = out.get<double>("hrlower");
   double hrupper = out.get<double>("hrupper");
   double pvalue = out.get<double>("pvalue");
   bool fail = out.get<bool>("fail");
   bool psimissing = out.get<bool>("psimissing");
+  std::string psi_CI_type = "AFT model";
   
   std::vector<double> hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
   std::vector<unsigned char> fails(n_boot);
@@ -1290,8 +1291,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         fail_boots_data.push_back(std::move(swtrtc), "swtrt");
         fail_boots_data.push_back(std::move(swtrt_timec), "swtrt_time");
         
-        for (int j = 0; j < q + p; ++j) {
-          const std::string& zj = covariates_aft[j + 1];
+        for (int j = 0; j < q + p2; ++j) {
+          const std::string& zj = covariates_aft[j+1];
           std::vector<double> u = flatmatrix_get_column(z_aftc, j);
           fail_boots_data.push_back(std::move(u), zj);
         }

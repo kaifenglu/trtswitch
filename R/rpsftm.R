@@ -284,7 +284,7 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
   
   if (!misscovariates) {
     fml_cov <- as.formula(paste("~", paste(base_cov, collapse = "+")))
-    vnames = rownames(attr(terms(fml_cov), "factors"))
+    vnames <- rownames(attr(terms(fml_cov), "factors"))
     
     # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
     cov_present <- base_cov %in% names(df)
@@ -352,8 +352,7 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
   
   if (is.factor(data[[treat]])) {
     levs <- levels(data[[treat]])
-    items <- c("event_summary", "Sstar", "kmstar", "data_outcome", "km_outcome")
-    for (nm in items) {
+    for (nm in c("event_summary", "Sstar", "kmstar", "data_outcome", "km_outcome")) {
       out[[nm]][[treat]] <- factor(out[[nm]][[treat]], levels = c(1,2), labels = levs)
     }
   }

@@ -27,15 +27,14 @@ plot.ipe <- function(x, time_unit = "day",
   }
   
   alpha <- x$settings$alpha
-  conflev <- 100*(1-alpha)
+  conflev <- 100*(1 - alpha)
   treat_var <- x$settings$treat
   
   if (!is.null(x$data_outcome) && nrow(x$data_outcome) > 0) {
     # --- Deviance residuals plot for AFT models ---
     arm <- x$settings$data[[treat_var]]
     
-    df1 <- data.frame(arm = x$data_aft[[treat_var]], 
-                      res = x$res_aft)
+    df1 <- data.frame(arm = x$data_aft[[treat_var]], res = x$res_aft)
     
     if (is.factor(arm)) {
       df1$arm <- factor(df1$arm, labels = levels(arm))
@@ -47,9 +46,8 @@ plot.ipe <- function(x, time_unit = "day",
     }
     
     
-    p_res <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$arm, 
-                                               y = .data$res)) +
-      ggplot2::geom_boxplot(fill="#77bd89", color="#1f6e34", alpha = 0.6) +
+    p_res <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$arm, y = .data$res)) +
+      ggplot2::geom_boxplot(fill = "#77bd89", color = "#1f6e34", alpha = 0.6) +
       ggplot2::scale_x_discrete(drop = FALSE) + 
       ggplot2::labs(x = NULL, y = "Deviance Residuals") +
       ggplot2::theme_bw()
@@ -78,19 +76,17 @@ plot.ipe <- function(x, time_unit = "day",
       }
     }
     
-    min_surv <- data.table::data.table(df)[
-      , min(get("surv")), by = treat_var][, get("V1")]
+    min_surv <- data.table::data.table(df)[, min(get("surv")), 
+                                           by = treat_var][, get("V1")]
     
-    p_km <- ggplot2::ggplot(df, ggplot2::aes(x = .data$month, 
-                                             y = .data$surv, 
-                                             group = .data[[treat_var]],
-                                             colour = .data[[treat_var]])) +
+    p_km <- ggplot2::ggplot(
+      df, ggplot2::aes(x = .data$month, y = .data$surv, 
+                       group = .data[[treat_var]], colour = .data[[treat_var]])) +
       ggplot2::geom_step() +
       ggplot2::scale_x_continuous(n.breaks = 11) +
       ggplot2::scale_y_continuous(limits = c(0, 1)) +
       ggplot2::labs(
-        x = "Months", 
-        y = "Survival Probability",
+        x = "Months", y = "Survival Probability",
         title = "Kaplan-Meier Curves for Counterfactual Outcomes") + 
       ggplot2::theme_bw() + 
       ggplot2::theme(
@@ -100,11 +96,9 @@ plot.ipe <- function(x, time_unit = "day",
         plot.margin = ggplot2::margin(t = 2, r = 5, b = 0, l = 20))
     
     if (max(min_surv) < 0.5) {
-      p_km <- p_km +
-        ggplot2::theme(legend.position = c(0.7, 0.85))
+      p_km <- p_km + ggplot2::theme(legend.position = c(0.7, 0.85))
     } else{
-      p_km <- p_km +
-        ggplot2::theme(legend.position = c(0.15, 0.25))
+      p_km <- p_km + ggplot2::theme(legend.position = c(0.15, 0.25))
     }
     
     # add hazard ratio to plot
@@ -114,8 +108,7 @@ plot.ipe <- function(x, time_unit = "day",
           ggplot2::annotate(
             "text", x = 0.6*max(df$month), y = 0.7, hjust = 0,
             label = sprintf("HR = %.3f (%.0f%% CI: %.3f, %.3f)", 
-                            x$hr, conflev, 
-                            x$hr_CI[1], x$hr_CI[2]),
+                            x$hr, conflev, x$hr_CI[1], x$hr_CI[2]),
             size = 3.5, color = "black"
           )
       } else {
@@ -123,8 +116,7 @@ plot.ipe <- function(x, time_unit = "day",
           ggplot2::annotate(
             "text", x = 0, y = 0, hjust = 0,
             label = sprintf("HR = %.3f (%.0f%% CI: %.3f, %.3f)", 
-                            x$hr, conflev, 
-                            x$hr_CI[1], x$hr_CI[2]),
+                            x$hr, conflev, x$hr_CI[1], x$hr_CI[2]),
             size = 3.5, color = "black"
           )
       }
@@ -154,16 +146,12 @@ plot.ipe <- function(x, time_unit = "day",
                                      levels = levels(df[[treat_var]]))
       
       # --- Create number at risk plot ---
-      p_risk <- ggplot2::ggplot(df_risk, 
-                                ggplot2::aes(x = .data$time, 
-                                             y = .data[[treat_var]], 
-                                             label = .data$atrisk, 
-                                             colour = .data[[treat_var]])) +
+      p_risk <- ggplot2::ggplot(
+        df_risk, ggplot2::aes(x = .data$time, y = .data[[treat_var]], 
+                              label = .data$atrisk, colour = .data[[treat_var]])) +
         ggplot2::geom_text(size = 3.2, na.rm = TRUE) +
-        ggplot2::scale_x_continuous(
-          breaks = xbreaks, limits = range(xbreaks)) +
-        ggplot2::scale_y_discrete(
-          limits = rev(levels(df_risk[[treat_var]]))) +
+        ggplot2::scale_x_continuous(breaks = xbreaks, limits = range(xbreaks)) +
+        ggplot2::scale_y_discrete(limits = rev(levels(df_risk[[treat_var]]))) +
         ggplot2::coord_cartesian(clip = "off") + 
         ggplot2::theme_minimal() +
         ggplot2::theme(
@@ -175,8 +163,7 @@ plot.ipe <- function(x, time_unit = "day",
           plot.margin = ggplot2::margin(t = 6, r = 5, b = 0, l = 20)) + 
         ggplot2::annotate(
           "text", x = min(xbreaks), y = 3,
-          label = "No. of Subjects at Risk",
-          size = 4, hjust = 0.5)
+          label = "No. of Subjects at Risk", size = 4, hjust = 0.5)
       
       suppressMessages({ 
         p_km <- p_km +

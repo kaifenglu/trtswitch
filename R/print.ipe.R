@@ -13,7 +13,7 @@
 #' @export
 print.ipe <- function(x, ...) {
   pvalue1 <- x$pvalue
-
+  
   if (is.na(pvalue1)) {
     pvalue <- NA
   } else if (pvalue1 > 0.9999) {
@@ -38,17 +38,17 @@ print.ipe <- function(x, ...) {
     pvalue = c(pvalue, "", "")
   )
   
-  j1 = c(1,2,3)
+  j1 <- c(1,2,3)
   df1[j1] <- lapply(df1[j1], formatC, format = "f", digits = 3)
   
   df2 <- t(df1)
   
-  level = paste0(100*(1 - x$settings$alpha), "%")
+  level <- paste0(100*(1 - x$settings$alpha), "%")
   
   colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
   
-  rownames(df2) = c("Causal parameter psi", "Causal survival time ratio", 
-                    "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
+  rownames(df2) <- c("Causal parameter psi", "Causal survival time ratio", 
+                     "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
   
   print(df2, ..., na.print = "" , quote = FALSE )
   

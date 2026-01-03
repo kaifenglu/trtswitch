@@ -6,7 +6,7 @@
 #include "thread_utils.h"
 
 #include <algorithm> // any_of, is_sorted, max_element, min_element, none_of, sort
-#include <cmath>     // isfinite, isnan, pow, sqrt
+#include <cmath>     // isfinite, isnan, pow
 #include <stdexcept> // invalid_argument
 #include <limits>    // numeric_limits
 #include <vector>    // vector
