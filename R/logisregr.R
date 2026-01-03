@@ -200,22 +200,10 @@ logisregr <- function(data, event = "event", covariates = "",
     df <- data
   }
   
-  if (length(event) == 0 || (length(event) == 1 && event[1] == "")) {
-    stop("The event variable must be specified.")
-  } else if (length(event) > 1) {
-    stop("Only one event variable can be specified.")
-  }
-  if (length(freq) > 1) {
-    stop("Only one frequency variable can be specified.")
-  }
-  if (length(weight) > 1) {
-    stop("Only one weight variable can be specified.")
-  }
-  if (length(offset) > 1) {
-    stop("Only one offset variable can be specified.")
-  }
-  if (length(id) > 1) {
-    stop("Only one id variable can be specified.")
+  for (nm in c(event, freq, weight, offset, id)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
+    }
   }
   
   # select complete cases for the relevant variables

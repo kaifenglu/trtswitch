@@ -460,11 +460,11 @@ ListCpp bygroup(const DataFrameCpp& data,
     }
   }
   
-  result.push_back(nlevels, "nlevels");
-  result.push_back(indices, "indices");
-  result.push_back(lookups_per_variable, "lookups_per_variable");
-  result.push_back(combined_index, "index");
-  result.push_back(lookup_df, "lookup");
+  result.push_back(std::move(nlevels), "nlevels");
+  result.push_back(std::move(indices), "indices");
+  result.push_back(std::move(lookups_per_variable), "lookups_per_variable");
+  result.push_back(std::move(combined_index), "index");
+  result.push_back(std::move(lookup_df), "lookup");
   return result;
 }
 
@@ -496,13 +496,14 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B) {
   // Column-major: For each column j in B/C, compute 
   // C[:,j] = sum_{t=0..k-1} A[:,t] * B[t,j]
   for (int j = 0; j < n; ++j) {
-    int coff = j * m;
+    const double* bcol = B.data_ptr() + j * k;
+    double* ccol = C.data_ptr() + j * m;
     for (int t = 0; t < k; ++t) {
-      int aoff = t * m;
-      double scale = B(t, j);
+      const double* acol = A.data_ptr() + t * m;
+      double scale = bcol[t];
       if (scale == 0.0) continue;
       for (int i = 0; i < m; ++i) {
-        C.data[coff + i] += A.data[aoff + i] * scale;
+        ccol[i] += acol[i] * scale;
       }
     }
   }
@@ -579,7 +580,7 @@ void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y) {
   }
   // Backward substitution L^T * x = z
   if (n == 0) return;
-  for (int i = n-1; i >= 0; --i) {
+  for (int i = n - 1; i >= 0; --i) {
     double diag = matrix(i, i);
     if (diag == 0.0) {
       y[i] = 0.0;
@@ -691,11 +692,11 @@ DataFrameCpp survsplit(const std::vector<double>& tstart,
     }
   }
   DataFrameCpp df;
-  df.push_back(row, "row");
-  df.push_back(start, "start");
-  df.push_back(end, "end");
-  df.push_back(censor, "censor");
-  df.push_back(interval, "interval");
+  df.push_back(std::move(row), "row");
+  df.push_back(std::move(start), "start");
+  df.push_back(std::move(end), "end");
+  df.push_back(std::move(censor), "censor");
+  df.push_back(std::move(interval), "interval");
   return df;
 }
 
@@ -733,16 +734,11 @@ void row_house(FlatMatrix& A, int i1, int i2, int j1, int j2,
   double beta = -2.0 / sumsq(v);
   std::vector<double> w(n, 0.0);
   for (int j = 0; j < n; ++j) {
-    int coloff = (j1 + j) * m_total;
+    double* acol = A.data_ptr() + (j1 + j) * m_total;
     double acc = 0.0;
-    for (int i = 0; i < m; ++i) 
-      acc += A.data[coloff + (i1 + i)] * v[i];
+    for (int i = 0; i < m; ++i) acc += acol[i1 + i] * v[i];
     w[j] = acc * beta;
-  }
-  for (int i = 0; i < m; ++i) {
-    for (int j = 0; j < n; ++j) {
-      A(i1 + i, j1 + j) += v[i] * w[j];
-    }
+    for (int i = 0; i < m; ++i) acol[i1 + i] += v[i] * w[j];
   }
 }
 
@@ -752,10 +748,10 @@ ListCpp qrcpp(const FlatMatrix& X, double tol) {
   FlatMatrix A = X;
   std::vector<double> c(n, 0.0);
   for (int j = 0; j < n; ++j) {
-    int off = j * m;
+    double* acol = A.data_ptr() + j * m;
     double s = 0.0;
     for (int i = 0; i < m; ++i) {
-      double v = A.data[off + i];
+      double v = acol[i];
       s += v * v;
     }
     c[j] = s;
@@ -822,11 +818,11 @@ ListCpp qrcpp(const FlatMatrix& X, double tol) {
   }
   
   ListCpp result;
-  result.push_back(A, "qr");
+  result.push_back(std::move(A), "qr");
   result.push_back(r + 1, "rank");
-  result.push_back(piv, "pivot");
-  result.push_back(Qf, "Q");
-  result.push_back(Rf, "R");
+  result.push_back(std::move(piv), "pivot");
+  result.push_back(std::move(Qf), "Q");
+  result.push_back(std::move(Rf), "R");
   return result;
 }
 
@@ -892,8 +888,8 @@ DataFrameCpp untreated(double psi,
   }
   DataFrameCpp df;
   df.push_back(id, "uid");
-  df.push_back(t_star, "t_star");
-  df.push_back(d_star, "d_star");
+  df.push_back(std::move(t_star), "t_star");
+  df.push_back(std::move(d_star), "d_star");
   df.push_back(treat, "treated");
   return df;
 }
@@ -941,8 +937,8 @@ DataFrameCpp unswitched(double psi,
   }
   DataFrameCpp df;
   df.push_back(id, "uid");
-  df.push_back(t_star, "t_star");
-  df.push_back(d_star, "d_star");
+  df.push_back(std::move(t_star), "t_star");
+  df.push_back(std::move(d_star), "d_star");
   df.push_back(treat, "treated");
   return df;
 }
@@ -1038,7 +1034,7 @@ ListCpp getpsiest(double target,
     }
   }
   ListCpp result;
-  result.push_back(roots, "all_roots");
+  result.push_back(std::move(roots), "all_roots");
   result.push_back(root, "selected_root");
   return result;
 }

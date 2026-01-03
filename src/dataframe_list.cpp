@@ -137,9 +137,8 @@ void DataFrameCpp::push_back_flat(const std::vector<double>& flat_col_major,
       if (containElementNamed(col_name)) 
         throw std::runtime_error("Column '" + col_name + "' already exists.");
       std::vector<double> col(nrows);
-      int offset = c * nrows;
-      for (int r = 0; r < nrows; ++r) 
-        col[r] = flat_col_major[offset + r];
+      const double* fcol = flat_col_major.data() + c * nrows;
+      for (int r = 0; r < nrows; ++r) col[r] = fcol[r];
       numeric_cols.emplace(col_name, std::move(col));
       names_.push_back(col_name);
     }
@@ -408,15 +407,14 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
   FlatMatrix out(nrow, ncol);
   for (int c = 0; c < ncol; ++c) {
     const std::string& name = cols[c];
-    int offset = c * nrow;
-    
+    double* outcol = out.data_ptr() + c * nrow;
     if (df.numeric_cols.count(name)) {
       const std::vector<double>& src = df.numeric_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
         throw std::runtime_error(
             "flatten_numeric_columns: inconsistent row count for column '" + 
               name + "'");
-      std::memcpy(out.data.data() + offset, src.data(), nrow * sizeof(double));
+      std::memcpy(outcol, src.data(), nrow * sizeof(double));
     } else if (df.int_cols.count(name)) {
       const std::vector<int>& src = df.int_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
@@ -424,7 +422,7 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
             "flatten_numeric_columns: inconsistent row count for column '" + 
               name + "'");
       for (int r = 0; r < nrow; ++r) 
-        out.data[offset + r] = static_cast<double>(src[r]);
+        outcol[r] = static_cast<double>(src[r]);
     } else if (df.bool_cols.count(name)) {
       const std::vector<unsigned char>& src = df.bool_cols.at(name);
       if (static_cast<int>(src.size()) != nrow) 
@@ -432,7 +430,7 @@ FlatMatrix flatten_numeric_columns(const DataFrameCpp& df,
             "flatten_numeric_columns: inconsistent row count for column '" + 
               name + "'");
       for (int r = 0; r < nrow; ++r) 
-        out.data[offset + r] = src[r] != 0 ? 1.0 : 0.0;
+        outcol[r] = src[r] != 0 ? 1.0 : 0.0;
     } else {
       throw std::runtime_error("flatten_numeric_columns: column '" + name + 
                                "' not found or not numeric/integer/bool");
@@ -636,10 +634,10 @@ void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx)
   newdata.resize(new_nrow * ncol);
   
   for (int c = 0; c < ncol; ++c) {
-    int off_old = c * old_nrow;
-    int off_new = c * new_nrow;
+    const double* fmcol = fm.data.data() + c * old_nrow;
+    double* newcol = newdata.data() + c * new_nrow;
     for (int r = 0; r < new_nrow; ++r) {
-      newdata[off_new + r] = fm.data[off_old + row_idx[r]];
+      newcol[r] = fmcol[row_idx[r]];
     }
   }
   
@@ -660,10 +658,10 @@ FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_i
   
   FlatMatrix out(new_nrow, ncol);
   for (int c = 0; c < ncol; ++c) {
-    int off_old = c * old_nrow;
-    int off_new = c * new_nrow;
+    const double* fmcol = fm.data.data() + c * old_nrow;
+    double* outcol = out.data.data() + c * new_nrow;
     for (int r = 0; r < new_nrow; ++r) {
-      out.data[off_new + r] = fm.data[off_old + row_idx[r]];
+      outcol[r] = fmcol[row_idx[r]];
     }
   }
   return out;
@@ -705,8 +703,10 @@ void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx) {
     for (int c = 0; c < ncol; ++c) {
       int off_old = off_old_slice + c * old_nrow;
       int off_new = off_new_slice + c * new_nrow;
+      const double* facol = fa.data_ptr() + off_old;
+      double* newcol = newdata.data() + off_new;
       for (int r = 0; r < new_nrow; ++r) {
-        newdata[off_new + r] = fa.data[off_old + row_idx[r]];
+        newcol[r] = facol[row_idx[r]];
       }
     }
   }
@@ -736,8 +736,10 @@ FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx)
     for (int c = 0; c < ncol; ++c) {
       int off_old = off_old_slice + c * old_nrow;
       int off_new = off_new_slice + c * new_nrow;
+      const double* facol = fa.data_ptr() + off_old;
+      double* outcol = out.data_ptr() + off_new;
       for (int r = 0; r < new_nrow; ++r) {
-        out.data[off_new + r] = fa.data[off_old + row_idx[r]];
+        outcol[r] = facol[row_idx[r]];
       }
     }
   }

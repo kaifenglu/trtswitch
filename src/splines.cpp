@@ -281,7 +281,10 @@ ListCpp bscpp(
       double piv = boundary_knots[0];
       std::vector<char> sub(K);
       bool aE0 = true;
-      for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE0 = false; }
+      for (int i = 0; i < K; ++i) { 
+        sub[i] = (knots[i] == piv); 
+        if (!sub[i]) aE0 = false; 
+      }
       if (aE0) {
         thread_utils::push_thread_warning(
           "all interior knots match left boundary knot");
@@ -289,7 +292,7 @@ ListCpp bscpp(
         std::vector<double> knots2;
         for (double kv : knots) if (kv > piv) knots2.push_back(kv);
         double shift = (*std::min_element(knots2.begin(), knots2.end()) - piv) / 8.0;
-        for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] + shift;
+        for (int i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] + shift;
       }
       anyWarning = true;
     }
@@ -297,7 +300,10 @@ ListCpp bscpp(
       double piv = boundary_knots[1];
       std::vector<char> sub(K);
       bool aE1 = true;
-      for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE1 = false; }
+      for (int i = 0; i < K; ++i) { 
+        sub[i] = (knots[i] == piv); 
+        if (!sub[i]) aE1 = false; 
+      }
       if (aE1) {
         thread_utils::push_thread_warning(
           "all interior knots match right boundary knot");
@@ -305,7 +311,7 @@ ListCpp bscpp(
         std::vector<double> knots2;
         for (double kv : knots) if (kv < piv) knots2.push_back(kv);
         double shift = (piv - *std::max_element(knots2.begin(), knots2.end())) / 8.0;
-        for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] - shift;
+        for (int i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] - shift;
       }
       anyWarning = true;
     }
@@ -317,9 +323,9 @@ ListCpp bscpp(
   // Build full knot vector u with length K + 2*ord
   int nU = K + 2*ord;
   std::vector<double> u(nU);
-  for (int k=0;k<ord;++k) u[k] = boundary_knots[0];
-  for (int k=ord;k<K+ord;++k) u[k] = knots[k-ord];
-  for (int k=K+ord;k<K+2*ord;++k) u[k] = boundary_knots[1];
+  for (int k = 0; k < ord; ++k) u[k] = boundary_knots[0];
+  for (int k = ord; k < K + ord; ++k) u[k] = knots[k-ord];
+  for (int k = K + ord; k < K + 2 * ord; ++k) u[k] = boundary_knots[1];
   
   // Prepare deriv0 vector
   std::vector<int> deriv0(1, 0);
@@ -330,7 +336,7 @@ ListCpp bscpp(
 
   // Identify outside points
   std::vector<unsigned char> outleft(n, 0), outright(n, 0), outside(n, 0);
-  for (int i=0;i<n;++i) {
+  for (int i = 0; i < n; ++i) {
     outleft[i] = (z[i] < boundary_knots[0]);
     outright[i] = (z[i] > boundary_knots[1]);
     outside[i] = (outleft[i] || outright[i]);
@@ -345,7 +351,7 @@ ListCpp bscpp(
     // construct factorial scaling vector scalef
     std::vector<double> scalef(ord);
     scalef[0] = 1.0;
-    for (int i=1;i<ord;++i) scalef[i] = scalef[i-1] * i;
+    for (int i = 1; i < ord; ++i) scalef[i] = scalef[i-1] * i;
     
     double e = 0.25;
     
@@ -358,23 +364,23 @@ ListCpp bscpp(
       
       FlatMatrix zl(r, ord);
       double* zptr = zl.data_ptr();
-      for (int i=0;i<r;++i) zptr[i] = 1.0;
-      for (int j=1;j<=degree;++j) {
+      for (int i = 0; i < r; ++i) zptr[i] = 1.0;
+      for (int j = 1; j <= degree; ++j) {
         double* zcol = zptr + j * r;
-        for (int i=0;i<r;++i) zcol[i] = std::pow(zol[i] - k_pivot, j);
+        for (int i = 0; i < r; ++i) zcol[i] = std::pow(zol[i] - k_pivot, j);
       }
       
       std::vector<double> kp(ord, k_pivot);
       std::vector<int> derivs(ord);
-      for (int i=0;i<ord;++i) derivs[i] = i;
+      for (int i = 0; i < ord; ++i) derivs[i] = i;
       FlatMatrix tt = splineDesigncpp(u, kp, ord, derivs);
 
-      for (int j=0; j<Lfull; ++j) {
+      for (int j = 0; j < Lfull; ++j) {
         double* design_col = design.data_ptr() + j * n;
-        for (int l=0; l<ord; ++l) {
+        for (int l = 0; l < ord; ++l) {
           const double* zl_col = zl.data_ptr() + l * r;
           double tt_val = tt(l, j) / scalef[l];
-          for (int i=0; i<r; ++i) {
+          for (int i = 0; i < r; ++i) {
             design_col[idx[i]] += zl_col[i] * tt_val;
           }
         }
@@ -390,23 +396,23 @@ ListCpp bscpp(
       
       FlatMatrix zr(r, ord);
       double* zptr = zr.data_ptr();
-      for (int i=0;i<r;++i) zptr[i] = 1.0;
-      for (int j=1;j<=degree;++j) {
+      for (int i = 0; i < r; ++i) zptr[i] = 1.0;
+      for (int j = 1; j <= degree; ++j) {
         double* zcol = zptr + j * r;
-        for (int i=0;i<r;++i) zcol[i] = std::pow(zor[i] - k_pivot, j);
+        for (int i = 0; i < r; ++i) zcol[i] = std::pow(zor[i] - k_pivot, j);
       }
       
       std::vector<double> kp(ord, k_pivot);
       std::vector<int> derivs(ord);
-      for (int i=0;i<ord;++i) derivs[i] = i;
+      for (int i = 0; i < ord; ++i) derivs[i] = i;
       FlatMatrix tt = splineDesigncpp(u, kp, ord, derivs);
       
-      for (int j=0; j<Lfull; ++j) {
+      for (int j = 0; j < Lfull; ++j) {
         double* design_col = design.data_ptr() + j * n;
-        for (int l=0; l<ord; ++l) {
+        for (int l = 0; l < ord; ++l) {
           const double* zr_col = zr.data_ptr() + l * r;
           double tt_val = tt(l, j) / scalef[l];
-          for (int i=0; i<r; ++i) {
+          for (int i = 0; i < r; ++i) {
             design_col[idx[i]] += zr_col[i] * tt_val;
           }
         }
@@ -415,13 +421,13 @@ ListCpp bscpp(
     
     // Inside values
     std::vector<unsigned char> inside(n);
-    for (int i=0;i<n;++i) inside[i] = !outside[i];
+    for (int i = 0; i < n; ++i) inside[i] = !outside[i];
     if (std::any_of(inside.begin(), inside.end(), [](char v){ return v; })) {
       std::vector<int> idx = which(inside);
       std::vector<double> z_inside = subset(z, idx);
       FlatMatrix v = splineDesigncpp(u, z_inside, ord, deriv0);
       // column-major copy v -> design
-      for (int j=0; j<Lfull; ++j) {
+      for (int j = 0; j < Lfull; ++j) {
         const double* v_col = v.data_ptr() + j * v.nrow;
         double* design_col = design.data_ptr() + j * design.nrow;
         for (int i = 0; i < v.nrow; ++i) {
@@ -516,7 +522,8 @@ ListCpp nscpp(
     for (double zi : z) 
       if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
         z_no_outside.push_back(zi);
-    for (int k=0;k<K;++k) knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
+    for (int k = 0; k < K; ++k) 
+      knots1[k] = quantilecpp(z_no_outside, (k + 1.0)/(K + 1.0));
     knots = std::move(knots1);
   } else {
     for (double kv : knots) if (!std::isfinite(kv)) 
@@ -535,7 +542,10 @@ ListCpp nscpp(
       double piv = boundary_knots[0];
       std::vector<char> sub(K);
       bool aE0 = true;
-      for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE0 = false; }
+      for (int i = 0; i < K; ++i) { 
+        sub[i] = (knots[i] == piv); 
+        if (!sub[i]) aE0 = false; 
+      }
       if (aE0) {
         thread_utils::push_thread_warning(
           "all interior knots match left boundary knot");
@@ -543,14 +553,17 @@ ListCpp nscpp(
         std::vector<double> knots2; 
         for (double kv : knots) if (kv > piv) knots2.push_back(kv);
         double shift = ( *std::min_element(knots2.begin(), knots2.end()) - piv ) / 8.0;
-        for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] + shift;
+        for (int i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] + shift;
       }
     }
     if (lrEq1) {
       double piv = boundary_knots[1];
       std::vector<char> sub(K);
       bool aE1 = true;
-      for (int i=0;i<K;++i) { sub[i] = (knots[i]==piv); if (!sub[i]) aE1 = false; }
+      for (int i = 0; i < K; ++i) { 
+        sub[i] = (knots[i] == piv); 
+        if (!sub[i]) aE1 = false; 
+      }
       if (aE1) {
         thread_utils::push_thread_warning(
           "all interior knots match right boundary knot");
@@ -558,7 +571,7 @@ ListCpp nscpp(
         std::vector<double> knots2; 
         for (double kv : knots) if (kv < piv) knots2.push_back(kv);
         double shift = ( piv - *std::max_element(knots2.begin(), knots2.end()) ) / 8.0;
-        for (int i=0;i<K;++i) if (sub[i]) knots[i] = knots[i] - shift;
+        for (int i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] - shift;
       }
     }
     if (anyWarning) 
@@ -568,9 +581,9 @@ ListCpp nscpp(
   
   // Build u for cubic case (ord=4)
   std::vector<double> u(K + 8);
-  for (int k=0;k<4;++k) u[k] = boundary_knots[0];
-  for (int k=4;k<K+4;++k) u[k] = knots[k-4];
-  for (int k=K+4;k<K+8;++k) u[k] = boundary_knots[1];
+  for (int k = 0; k < 4; ++k) u[k] = boundary_knots[0];
+  for (int k = 4; k < K + 4; ++k) u[k] = knots[k - 4];
+  for (int k = K + 4; k < K + 8; ++k) u[k] = boundary_knots[1];
   
   // deriv0
   std::vector<int> deriv0(1,0);
@@ -581,7 +594,7 @@ ListCpp nscpp(
   
   // Identify outside points (on z)
   std::vector<unsigned char> outleft(n, 0), outright(n, 0), outside(n, 0);
-  for (int i=0;i<n;++i) {
+  for (int i = 0; i < n; ++i) {
     outleft[i] = (z[i] < boundary_knots[0]);
     outright[i] = (z[i] > boundary_knots[1]);
     outside[i] = (outleft[i] || outright[i]);
@@ -597,19 +610,19 @@ ListCpp nscpp(
       int r = zol.size();
       
       FlatMatrix zl(r,2);
-      for (int i=0;i<r;++i) zl(i,0) = 1.0;
-      for (int i=0;i<r;++i) zl(i,1) = zol[i] - k_pivot;
+      for (int i = 0; i < r; ++i) zl(i,0) = 1.0;
+      for (int i = 0; i < r; ++i) zl(i,1) = zol[i] - k_pivot;
       
       std::vector<double> kp(2, k_pivot);
       std::vector<int> derivs = {0, 1};
       FlatMatrix tt = splineDesigncpp(u, kp, 4, derivs);
       
-      for (int j=0; j<L; ++j) {
+      for (int j = 0; j < L; ++j) {
         double* design_col = design.data_ptr() + j * n;
-        for (int l=0; l<2; ++l) {
+        for (int l = 0; l < 2; ++l) {
           const double* zl_col = zl.data_ptr() + l * r;
           double tt_val = tt(l, j);
-          for (int i=0; i<r; ++i) {
+          for (int i = 0; i < r; ++i) {
             design_col[idx[i]] += zl_col[i] * tt_val;
           }
         }
@@ -624,19 +637,19 @@ ListCpp nscpp(
       int r = zor.size();
       
       FlatMatrix zr(r,2);
-      for (int i=0;i<r;++i) zr(i,0) = 1.0;
-      for (int i=0;i<r;++i) zr(i,1) = zor[i] - k_pivot;
+      for (int i = 0; i < r; ++i) zr(i,0) = 1.0;
+      for (int i = 0; i < r; ++i) zr(i,1) = zor[i] - k_pivot;
       
       std::vector<double> kp(2, k_pivot);
       std::vector<int> derivs = {0,1};
       FlatMatrix tt = splineDesigncpp(u, kp, 4, derivs);
       
-      for (int j=0; j<L; ++j) {
+      for (int j = 0; j < L; ++j) {
         double* design_col = design.data_ptr() + j * n;
-        for (int l=0; l<2; ++l) {
+        for (int l = 0; l < 2; ++l) {
           const double* zr_col = zr.data_ptr() + l * r;
           double tt_val = tt(l, j);
-          for (int i=0; i<r; ++i) {
+          for (int i = 0; i < r; ++i) {
             design_col[idx[i]] += zr_col[i] * tt_val;
           }
         }
@@ -645,14 +658,14 @@ ListCpp nscpp(
     
     // Inside values
     std::vector<unsigned char> inside(n);
-    for (int i=0;i<n;++i) inside[i] = !outside[i];
+    for (int i = 0; i < n; ++i) inside[i] = !outside[i];
     if (std::any_of(inside.begin(), inside.end(), [](char v){ return v; })) {
       std::vector<int> idx = which(inside);
       std::vector<double> z_inside = subset(z, idx);
       FlatMatrix v = splineDesigncpp(u, z_inside, 4, deriv0);
       int r = z_inside.size();
       
-      for (int j=0; j<L; ++j) {
+      for (int j = 0; j < L; ++j) {
         double* design_col = design.data_ptr() + j * n;
         const double* v_col = v.data_ptr() + j * r;
         for (int i = 0; i < r; ++i) {
@@ -688,13 +701,13 @@ ListCpp nscpp(
   FlatMatrix Q = qr.get<FlatMatrix>("Q");
   
   L = design.ncol;
-  FlatMatrix basis2(n, L-2);
-  for (int j=0; j<L-2; ++j) {
+  FlatMatrix basis2(n, L - 2);
+  for (int j = 0; j < L - 2; ++j) {
     double* basis2_col = basis2.data_ptr() + j * n;
-    for (int k=0; k<L; ++k) {
+    for (int k = 0; k < L; ++k) {
       const double* design_col = design.data_ptr() + k * n;
       double q_val = Q(k, j + 2);
-      for (int i=0; i<n; ++i) {
+      for (int i = 0; i < n; ++i) {
         basis2_col[i] += design_col[i] * q_val;
       }
     }
@@ -716,7 +729,7 @@ ListCpp nscpp(
   
   // Assemble ListCpp result using push_back(value, name)
   ListCpp out;
-  out.push_back(basis, "basis");
+  out.push_back(std::move(basis), "basis");
   out.push_back(3, "degree"); // cubic
   out.push_back(knots, "knots");
   out.push_back(boundary_knots, "boundary_knots");

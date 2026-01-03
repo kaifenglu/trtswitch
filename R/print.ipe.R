@@ -1,18 +1,17 @@
-#' @title Print method for rpsftm objects
-#' @description Prints the concise information of a rpsftm fit.
+#' @title Print method for ipe objects
+#' @description Prints the concise information of an ipe fit.
 #'
-#' @param x An object of class \code{rpsftm}.
+#' @param x An object of class \code{ipe}.
 #' @param ... Ensures that all arguments starting from "..." are named.
 #'
-#' @return A printout from the fit of a rank-preserving structural failure 
-#' time model.
+#' @return A printout from the fit of an iterative parameter estimation.
 #'
 #' @keywords internal
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @export
-print.rpsftm <- function(x, ...) {
+print.ipe <- function(x, ...) {
   pvalue1 <- x$pvalue
 
   if (is.na(pvalue1)) {
@@ -33,23 +32,23 @@ print.rpsftm <- function(x, ...) {
   cat("\n")
   
   df1 <- data.frame(
-    psi <- c(x$psi, x$psi_CI[1], x$psi_CI[2]),
-    surv_time_ratio <- c(exp(-x$psi), exp(-x$psi_CI[2]), exp(-x$psi_CI[1])),
-    hr <- c(x$hr, x$hr_CI[1], x$hr_CI[2]),
-    pvalue <- c(pvalue, "", "")
+    psi = c(x$psi, x$psi_CI[1], x$psi_CI[2]),
+    surv_time_ratio = c(exp(-x$psi), exp(-x$psi_CI[2]), exp(-x$psi_CI[1])),
+    hr = c(x$hr, x$hr_CI[1], x$hr_CI[2]),
+    pvalue = c(pvalue, "", "")
   )
   
-  j1 <- c(1,2,3)
+  j1 = c(1,2,3)
   df1[j1] <- lapply(df1[j1], formatC, format = "f", digits = 3)
   
   df2 <- t(df1)
   
-  level <- paste0(100*(1 - x$settings$alpha), "%")
+  level = paste0(100*(1 - x$settings$alpha), "%")
   
   colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
   
-  rownames(df2) <- c("Causal parameter psi", "Causal survival time ratio", 
-                     "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
+  rownames(df2) = c("Causal parameter psi", "Causal survival time ratio", 
+                    "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
   
   print(df2, ..., na.print = "" , quote = FALSE )
   

@@ -209,26 +209,10 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
     df <- data
   }
   
-  if (length(time) > 1) {
-    stop("Only one time variable can be specified.")
-  }
-  if (length(time2) > 1) {
-    stop("Only one time2 variable can be specified.")
-  }
-  
-  if (length(event) == 0 || (length(event) == 1 && event[1] == "")) {
-    stop("The event variable must be specified.")
-  } else if (length(event) > 1) {
-    stop("Only one event variable can be specified.")
-  }
-  if (length(weight) > 1) {
-    stop("Only one weight variable can be specified.")
-  }
-  if (length(offset) > 1) {
-    stop("Only one offset variable can be specified.")
-  }
-  if (length(id) > 1) {
-    stop("Only one id variable can be specified.")
+  for (nm in c(time, time2, event, weight, offset, id)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
+    }
   }
   
   # select complete cases for the relevant variables

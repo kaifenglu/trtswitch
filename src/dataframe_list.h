@@ -1,6 +1,10 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
+#include <Rcpp.h>
+
+#include "ska/flat_hash_map.hpp"
+
 #include <algorithm>   // fill, min
 #include <cstddef>     // size_t
 #include <cstring>     // memcpy
@@ -15,9 +19,6 @@
 #include <vector>      // vector
 #include <utility>     // move
 
-#include <Rcpp.h>
-
-#include "ska/flat_hash_map.hpp"
 
 //
 // FlatMatrix: contiguous column-major matrix representation (double)

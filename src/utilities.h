@@ -8,6 +8,7 @@ struct ListCpp;
 #include <algorithm>   // copy, find, sort, unique, 
 #include <cmath>
 #include <cstddef>     // size_t
+#include <cstdint>     // uint64_t
 #include <functional>  // function
 #include <iomanip>     // fixed, setprecision
 #include <iostream>    // cout, ostream
@@ -116,7 +117,7 @@ void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
     }
     temp_subset[i] = v[index];
   }
-  v.assign(temp_subset.begin(), temp_subset.end());
+  v = std::move(temp_subset);
 }
 
 // subset: return a subset of v according to 'order' (indices)
@@ -141,9 +142,15 @@ template <typename T>
 std::vector<T> concat(const std::vector<T>& v1, const std::vector<T>& v2) {
   std::vector<T> result;
   result.reserve(v1.size() + v2.size());
-  std::copy(v1.begin(), v1.end(), std::back_inserter(result));
-  std::copy(v2.begin(), v2.end(), std::back_inserter(result));
+  result.insert(result.end(), v1.begin(), v1.end());
+  result.insert(result.end(), v2.begin(), v2.end());
   return result;
+}
+
+template<typename T>
+void append_copy(std::vector<T>& dst, const std::vector<T>& src) {
+  dst.reserve(dst.size() + src.size());
+  dst.insert(dst.end(), src.begin(), src.end());
 }
 
 // unique_sorted: return sorted unique values
@@ -294,7 +301,12 @@ void print_vector(const std::vector<T>& v,
   ss << "[";
   auto print_elem = [&](std::size_t i) {
     if (show_indices) ss << i << ": ";
-    ss << v[i];
+    if constexpr (std::is_same_v<T, unsigned char> || std::is_same_v<T, std::uint8_t>) {
+      // print unsigned char / uint8_t as integer 0/1 (not as a character)
+      ss << static_cast<int>(v[i]);
+    } else {
+      ss << v[i];
+    }
   };
   
   if (n <= head + tail || head + tail == 0) {

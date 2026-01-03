@@ -19,110 +19,81 @@
 #include <unordered_map>
 #include <vector>
 
-// Helper: estimate test statistic z for given psi in RPSFTM
-double est_psi_rpsftm(
+// Helper: estimate psi for given data in IPE method
+ListCpp est_psi_ipe(
     const double psi,
     const int q,
     const int p,
     const std::vector<int>& idb,
-    const std::vector<int>& stratumb,
     const std::vector<double>& timeb,
     const std::vector<double>& eventb,
     const std::vector<int>& treatb,
     const std::vector<double>& rxb,
     const std::vector<double>& censor_timeb,
-    const std::string& test,
-    const std::vector<std::string>& covariates,
-    const FlatMatrix& zb,
     const std::vector<std::string>& covariates_aft,
     const FlatMatrix& z_aftb,
     const std::string& dist,
     const double treat_modifier,
     const bool recensor,
     const bool autoswitch,
-    const double alpha,
-    const std::string& ties) {
+    const double alpha) {
   
-  double z = NaN;
-  
-  DataFrameCpp Sstar = untreated(
+  DataFrameCpp df = unswitched(
     psi * treat_modifier, idb, timeb, eventb, treatb,
     rxb, censor_timeb, recensor, autoswitch);
   
-  if (test == "logrank") {
-    Sstar.push_back(stratumb, "ustratum");
-    DataFrameCpp lr = lrtestcpp(
-      Sstar, {"ustratum"}, "treated", "t_star", "", "d_star");
-    z = lr.get<double>("logRankZ")[0];
-  } else if (test == "phreg") {
-    Sstar.push_back(stratumb, "ustratum");
-    for (int j = 0; j < p; ++j) {
-      const std::string& zj = covariates[j + 1];
-      std::vector<double> u = flatmatrix_get_column(zb, j);
-      Sstar.push_back(std::move(u), zj);
-    }
-    
-    std::vector<double> init(1, NaN);
-    ListCpp fit = phregcpp(
-      Sstar, {"ustratum"}, "t_star", "", "d_star", covariates, 
-      "", "", "", ties, init, false, false, false, false, false, alpha);
-    
-    DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
-    if (!sumstat.get<unsigned char>("fail")[0]) {
-      DataFrameCpp parest = fit.get<DataFrameCpp>("parest");
-      z = parest.get<double>("z")[0];
-    }
-  } else if (test == "lifereg") {
-    for (int j = 0; j < q + p; ++j) {
-      const std::string& zj = covariates_aft[j + 1];
-      std::vector<double> u = flatmatrix_get_column(z_aftb, j);
-      Sstar.push_back(std::move(u), zj);
-    }
-    
-    std::vector<double> init(1, NaN);
-    ListCpp fit = liferegcpp(
-      Sstar, {""}, "t_star", "", "d_star", covariates_aft, 
-      "", "", "", dist, init, false, false, alpha);
-    
-    DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
-    if (!sumstat.get<unsigned char>("fail")[0]) {
-      DataFrameCpp parest = fit.get<DataFrameCpp>("parest");
-      z = -parest.get<double>("z")[1];
-    }
+  for (int j = 0; j < q + p; ++j) {
+    const std::string& zj = covariates_aft[j + 1];
+    std::vector<double> u = flatmatrix_get_column(z_aftb, j);
+    df.push_back(std::move(u), zj);
   }
   
-  return z;
+  std::vector<double> init(1, NaN);
+  ListCpp fit = liferegcpp(
+    df, {""}, "t_star", "", "d_star", covariates_aft, 
+    "", "", "", dist, init, false, false, alpha);
+  
+  DataFrameCpp sumstat =  fit.get<DataFrameCpp>("sumstat");
+  bool fail = sumstat.get<unsigned char>("fail")[0];
+  
+  DataFrameCpp parest = fit.get<DataFrameCpp>("parest");
+  std::vector<double> beta = parest.get<double>("beta");
+  double psinew = -beta[1] / treat_modifier;
+  
+  ListCpp out;
+  out.push_back(std::move(df), "data_aft");
+  out.push_back(std::move(fit), "fit_aft");
+  out.push_back(psinew, "psinew");
+  out.push_back(fail, "fail");
+  return out;
 }
 
 
 // [[Rcpp::export]]
-Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
-                     const std::string& id,
-                     const std::vector<std::string>& stratum,
-                     const std::string& time,
-                     const std::string& event,
-                     const std::string& treat,
-                     const std::string& rx,
-                     const std::string& censor_time,
-                     const std::vector<std::string>& base_cov,
-                     const std::string& psi_test,
-                     const std::string& aft_dist,
-                     const bool strata_main_effect_only,
-                     const double low_psi,
-                     const double hi_psi,
-                     const int n_eval_z,
-                     const double treat_modifier,
-                     const bool recensor,
-                     const bool admin_recensor_only,
-                     const bool autoswitch,
-                     const bool gridsearch,
-                     const std::string& root_finding,
-                     const double alpha,
-                     const std::string& ties,
-                     const double tol,
-                     const bool boot,
-                     const int n_boot,
-                     const int seed) {
+Rcpp::List ipecpp(const Rcpp::DataFrame& df,
+                  const std::string& id,
+                  const std::vector<std::string>& stratum,
+                  const std::string& time,
+                  const std::string& event,
+                  const std::string& treat,
+                  const std::string& rx,
+                  const std::string& censor_time,
+                  const std::vector<std::string>& base_cov,
+                  const std::string& aft_dist,
+                  const bool strata_main_effect_only,
+                  const double low_psi,
+                  const double hi_psi,
+                  const double treat_modifier,
+                  const bool recensor,
+                  const bool admin_recensor_only,
+                  const bool autoswitch,
+                  const std::string& root_finding,
+                  const double alpha,
+                  const std::string& ties,
+                  const double tol,
+                  const bool boot,
+                  const int n_boot,
+                  const int seed) {
   
   DataFrameCpp data = convertRDataFrameToCpp(df);
   
@@ -171,7 +142,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     idn = matchcpp(v, idwc);
   } else throw std::invalid_argument(
       "incorrect type for the id variable in data");
-
+  
   // --- time existence and checks ---
   if (time.empty() || !data.containElementNamed(time))
     throw std::invalid_argument("data must contain the time variable");
@@ -188,7 +159,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     if (!std::isnan(timen[i]) && timen[i] < 0.0)
       throw std::invalid_argument("time must be nonnegative");
   }
-
+  
   // --- event variable ---
   if (event.empty() || !data.containElementNamed(event)) {
     throw std::invalid_argument("data must contain the event variable");
@@ -210,7 +181,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (std::all_of(eventn.begin(), eventn.end(), [](int x){ return x == 0; })) {
     throw std::invalid_argument("at least 1 event is needed");
   }
-
+  
   // create the numeric treat variable
   if (treat.empty() || !data.containElementNamed(treat))
     throw std::invalid_argument("data must contain the treat variable");
@@ -257,9 +228,9 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         "incorrect type for the treat variable in the input data");
   }
   for (int i = 0; i < n; ++i) {
-   treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
+    treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
   }
-
+  
   // --- rx variable ---
   if (rx.empty() || !data.containElementNamed(rx))
     throw std::invalid_argument("data must contain the rx variable");
@@ -274,7 +245,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   }
   for (double v : rxn) if (v < 0.0 || v > 1.0)
     throw std::invalid_argument("rx must take values between 0 and 1");
-
+  
   // --- censor_time variable ---
   if (censor_time.empty() || !data.containElementNamed(censor_time))
     throw std::invalid_argument("data must contain the censor_time variable");
@@ -296,7 +267,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (!admin_recensor_only) { // use the actual censoring time for dropouts
     for (int i = 0; i < n; ++i) if (eventn[i] == 0) censor_timen[i] = timen[i];
   }
-
+  
   // number of columns corresponding to the strata effects
   int q = 0;
   if (has_stratum) {
@@ -307,7 +278,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       q = nstrata - 1;
     }
   }
-
+  
   // covariates for the AFT model including treat, stratum, and base_cov
   std::vector<std::string> covariates_aft(q + p + 1);
   FlatMatrix z_aftn(n, q + p);
@@ -318,7 +289,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       for (int i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
         int di = d[i] - 1;
-
+        
         if (u_stratum.string_cols.count(s)) {
           auto u = levels.get<std::vector<std::string>>(s);
           for (int j = 0; j < di; ++j) {
@@ -340,7 +311,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             covariates_aft[k + j + 1] = s + std::to_string(u[j]);
           }
         }
-
+        
         for (int j = 0; j < di; ++j) {
           const int* stratan_col = stratan.data_ptr() + i * n;
           double* z_aftcol = z_aftn.data_ptr() + (k + j) * n;
@@ -348,7 +319,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             z_aftcol[r] = stratan_col[r] == j ? 1.0 : 0.0;
           }
         }
-
+        
         k += di;
       }
     } else {
@@ -358,15 +329,15 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         for (; first_k < n; ++first_k) {
           if (stratumn[first_k] == j) break;
         }
-
+        
         covariates_aft[j + 1] = "";
-
+        
         for (int i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
-
+          
           std::vector<int> q = intmatrix_get_column(stratan, i);
           int l = q[first_k];
-
+          
           if (u_stratum.string_cols.count(s)) {
             auto u = levels.get<std::vector<std::string>>(s);
             covariates_aft[j + 1] += s + sanitize(u[l]);
@@ -380,7 +351,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             auto u = levels.get<std::vector<unsigned char>>(s);
             covariates_aft[j + 1] += s + std::to_string(u[l]);
           }
-
+          
           if (i < p_stratum - 1) {
             covariates_aft[j + 1] += ".";
           }
@@ -393,7 +364,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       }
     }
   }
-
+  
   // covariates for the Cox model containing treat and base_cov
   std::vector<std::string> covariates(p + 1);
   FlatMatrix zn(n,p);
@@ -421,18 +392,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
   }
-
-  std::string test = psi_test;
-  std::for_each(test.begin(), test.end(), [](char & c) {
-    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  });
-  if (test == "survdiff" || test == "lifetest" || test == "lrtest" ||
-      test == "log-rank") test = "logrank";
-  else if (test == "coxph") test = "phreg";
-  else if (test == "survreg" || test == "aft") test = "lifereg";
-  if (!(test == "logrank" || test == "phreg" || test == "lifereg"))
-    throw std::invalid_argument("psi_test must be logrank, phreg, or lifereg");
-
+  
   std::string dist = aft_dist;
   std::for_each(dist.begin(), dist.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -442,14 +402,12 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (!(dist == "exponential" || dist == "weibull" || dist == "lognormal" ||
       dist == "loglogistic")) throw std::invalid_argument(
         "aft_dist must be exponential, weibull, lognormal, or loglogistic");
-
+  
   if (low_psi >= hi_psi)
     throw std::invalid_argument("low_psi must be less than hi_psi");
-  if (n_eval_z < 2)
-    throw std::invalid_argument("n_eval_z must be greater than or equal to 2");
   if (treat_modifier <= 0.0)
     throw std::invalid_argument("treat_modifier must be positive");
-
+  
   std::string rooting = root_finding;
   std::for_each(rooting.begin(), rooting.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -458,7 +416,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   else if (rooting.find("bi", 0) == 0) rooting = "bisection";
   if (!(rooting == "brent" || rooting == "bisection"))
     throw std::invalid_argument("root_finding must be brent or bisection");
-
+  
   if (alpha <= 0.0 || alpha >= 0.5)
     throw std::invalid_argument("alpha must lie between 0 and 0.5");
   if (ties != "efron" && ties != "breslow")
@@ -467,7 +425,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     throw std::invalid_argument("tol must be positive");
   if (n_boot < 100)
     throw std::invalid_argument("n_boot must be greater than or equal to 100");
-
+  
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
@@ -481,7 +439,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
     }
   }
-
+  
   std::vector<int> keep = which(sub);
   if (keep.empty())
     throw std::invalid_argument("no observations without missing values");
@@ -495,7 +453,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (p > 0) subset_in_place_flatmatrix(zn, keep);
   if (q + p > 0) subset_in_place_flatmatrix(z_aftn, keep);
   n = static_cast<int>(keep.size());
-
+  
   // summarize number of deaths and switches by treatment arm
   std::vector<int> treat_out = {0, 1};
   std::vector<double> n_total(2);
@@ -509,7 +467,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       ++n_switch[g];
     }
   }
-
+  
   // Compute percentages
   std::vector<double> pct_event(2);
   std::vector<double> pct_switch(2);
@@ -517,7 +475,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     pct_event[g] = 100.0 * n_event[g] / n_total[g];
     pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
   }
-
+  
   // Combine count and percentage
   DataFrameCpp event_summary;
   event_summary.push_back(std::move(treat_out), "treated");
@@ -526,148 +484,62 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   event_summary.push_back(std::move(pct_event), "event_pct");
   event_summary.push_back(std::move(n_switch), "switch_n");
   event_summary.push_back(std::move(pct_switch), "switch_pct");
-
+  
   // ITT analysis log-rank test
   DataFrameCpp lr = lrtestcpp(data, stratum, treat, time, "", event);
   double logRankZ = lr.get<double>("logRankZ")[0];
   double pvalue = lr.get<double>("logRankPValue")[0];
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
-
-  double step_psi = (hi_psi - low_psi) / (n_eval_z - 1);
-  std::vector<double> psi(n_eval_z);
-  for (int i = 0; i < n_eval_z; ++i) {
-    psi[i] = low_psi + i * step_psi;
-  }
   
-
   int k = -1; // indicate the observed data
-  auto f = [&k, n, q, p, test, covariates, covariates_aft, dist, low_psi, 
-            hi_psi, n_eval_z, psi, treat_modifier, recensor, autoswitch, 
-            gridsearch, rooting, alpha, zcrit, ties, tol](
-                const std::vector<int>& idb,
+  auto f = [&k, n, q, p, covariates, covariates_aft, dist, low_psi, hi_psi,
+            treat_modifier, recensor, autoswitch, rooting, alpha, ties, tol](
+                const std::vector<int>& idb, 
                 const std::vector<int>& stratumb,
-                const std::vector<double>& timeb,
+                const std::vector<double>& timeb, 
                 const std::vector<double>& eventb,
-                const std::vector<int>& treatb,
+                const std::vector<int>& treatb, 
                 const std::vector<double>& rxb,
                 const std::vector<double>& censor_timeb,
-                const FlatMatrix& zb,
+                const FlatMatrix& zb, 
                 const FlatMatrix& z_aftb) -> ListCpp {
                   bool fail = false; // whether any model fails to converge
                   std::vector<double> init(1, NaN);
-                  double psihat = NaN, psilower = NaN, psiupper = NaN;
-                  std::vector<double> psihat_vec;
-                  std::string psi_CI_type;
-                  std::vector<double> Z(n_eval_z);
+                  double psihat = NaN;
                   
-                  if (gridsearch) {
-                    for (int i = 0; i < n_eval_z; ++i) {
-                      Z[i] = est_psi_rpsftm(
-                        psi[i], q, p, idb, stratumb, timeb, eventb,
-                        treatb, rxb, censor_timeb, test, covariates, zb,
-                        covariates_aft, z_aftb, dist, treat_modifier,
-                        recensor, autoswitch, alpha, ties);
-                    }
-                    
-                    ListCpp psihat_list = getpsiest(0, psi, Z, 0);
-                    psihat = psihat_list.get<double>("selected_root");
-                    psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
-                    psi_CI_type = "grid search";
-                    
-                    if (k == -1) {
-                      ListCpp psilower_list = getpsiest(zcrit, psi, Z, -1);
-                      psilower = psilower_list.get<double>("selected_root");
-                      ListCpp psiupper_list = getpsiest(-zcrit, psi, Z, 1);
-                      psiupper = psiupper_list.get<double>("selected_root");
-                    }
-                  } else {
-                    double target = 0.0;
-                    auto g = [&target, q, p, idb, stratumb, timeb, eventb, 
-                              treatb, rxb, censor_timeb, test, covariates, 
-                              zb, covariates_aft, z_aftb, dist, 
-                              treat_modifier, recensor, autoswitch, 
-                              alpha, ties](double x) -> double {
-                                double z = est_psi_rpsftm(
-                                  x, q, p, idb, stratumb, timeb, eventb,
-                                  treatb, rxb, censor_timeb, test, covariates, zb,
-                                  covariates_aft, z_aftb, dist, treat_modifier,
-                                  recensor, autoswitch, alpha, ties);
-                                return z - target;
-                              };
-                    
-                    double psilo = getpsiend(g, true, low_psi);
-                    double psihi = getpsiend(g, false, hi_psi);
-                    if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                      if (rooting == "brent") {
-                        psihat = brent(g, psilo, psihi, tol);
-                      } else {
-                        psihat = bisect(g, psilo, psihi, tol);
-                      }
-                    }
-                    psi_CI_type = "root finding";
-                    
-                    if (k == -1) {
-                      target = zcrit;
-                      psilo = getpsiend(g, true, low_psi);
-                      psihi = getpsiend(g, false, hi_psi);
-                      if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat) && g(psihat) < 0) {
-                          if (rooting == "brent") {
-                            psilower = brent(g, psilo, psihat, tol);
-                          } else {
-                            psilower = bisect(g, psilo, psihat, tol);
-                          }
-                        } else {
-                          if (rooting == "brent") {
-                            psilower = brent(g, psilo, psihi, tol);
-                          } else {
-                            psilower = bisect(g, psilo, psihi, tol);
-                          }
-                        }
-                      }
-                      
-                      target = -zcrit;
-                      psilo = getpsiend(g, true, low_psi);
-                      psihi = getpsiend(g, false, hi_psi);
-                      if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat) && g(psihat) > 0) {
-                          if (rooting == "brent") {
-                            psiupper = brent(g, psihat, psihi, tol);
-                          } else {
-                            psiupper = bisect(g, psihat, psihi, tol);
-                          }
-                        } else {
-                          if (rooting == "brent") {
-                            psiupper = brent(g, psilo, psihi, tol);
-                          } else {
-                            psiupper = bisect(g, psilo, psihi, tol);
-                          }
-                        }
-                      }
+                  // estimate psi
+                  auto g = [q, p, idb, timeb, eventb, treatb, rxb, 
+                            censor_timeb, covariates_aft, z_aftb, dist, 
+                            treat_modifier, recensor, autoswitch, 
+                            alpha](double x) -> double {
+                              ListCpp out_aft = est_psi_ipe(
+                                x, q, p, idb, timeb, eventb, treatb, rxb, 
+                                censor_timeb, covariates_aft, z_aftb, dist, 
+                                treat_modifier, recensor, autoswitch, alpha);
+                              if (!out_aft.get<bool>("fail")) {
+                                double psinew = out_aft.get<double>("psinew");
+                                return psinew - x;
+                              } else {
+                                return NaN;
+                              }
+                            };
+                  
+                  double psilo = getpsiend(g, true, low_psi);
+                  double psihi = getpsiend(g, false, hi_psi);
+                  if (!std::isnan(psilo) && !std::isnan(psihi)) {
+                    if (rooting == "brent") {
+                      psihat = brent(g, psilo, psihi, tol);
+                    } else {
+                      psihat = bisect(g, psilo, psihi, tol);
                     }
                   }
                   
-                  DataFrameCpp eval_z, Sstar, kmstar, data_outcome;
+                  // obtain the Kaplan-Meier estimates
+                  DataFrameCpp Sstar, kmstar, data_aft, data_outcome;
                   DataFrameCpp km_outcome, lr_outcome;
-                  ListCpp fit_outcome;
+                  ListCpp fit_aft, fit_outcome;
+                  std::vector<double> res_aft; // deviance residuals
                   double hrhat = NaN;
-                  
-                  if (k == -1) {
-                    if (!gridsearch) {
-                      for (int i = 0; i < n_eval_z; ++i) {
-                        Z[i] = est_psi_rpsftm(
-                          psi[i], q, p, idb, stratumb, timeb, eventb,
-                          treatb, rxb, censor_timeb, test, covariates, zb,
-                          covariates_aft, z_aftb, dist, treat_modifier,
-                          recensor, autoswitch, alpha, ties);
-                      }
-                      
-                      ListCpp psihat_list = getpsiest(0, psi, Z, 0);
-                      psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
-                    }
-                    eval_z.push_back(psi, "psi");
-                    eval_z.push_back(std::move(Z), "Z");
-                  }
                   
                   bool psimissing = std::isnan(psihat);
                   
@@ -688,6 +560,25 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                       kmstar = kmestcpp(
                         Sstar, {"treated"}, "t_star", "", "d_star", 
                         "", "log-log", 1.0 - alpha, true);
+                      
+                      ListCpp out_aft = est_psi_ipe(
+                        psihat, q, p, idb, timeb, eventb, treatb, rxb,
+                        censor_timeb, covariates_aft, z_aftb, dist, 
+                        treat_modifier, recensor, autoswitch, alpha);
+                      
+                      if (out_aft.get<bool>("fail")) fail = true;
+                      
+                      data_aft = out_aft.get<DataFrameCpp>("data_aft");
+                      data_aft.push_back(stratumb, "ustratum");
+                      
+                      fit_aft = out_aft.get_list("fit_aft");
+                      DataFrameCpp parest = fit_aft.get<DataFrameCpp>("parest");
+                      std::vector<double> beta = parest.get<double>("beta");
+                      FlatMatrix vbeta(q + p + 1, q + p + 1);
+                      FlatMatrix rr = residuals_liferegcpp(
+                        beta, vbeta, data_aft, {""}, "t_star", "", "d_star",
+                        covariates_aft, "", "", "", dist, "deviance");
+                      res_aft = flatmatrix_get_column(rr ,0);
                     }
                     
                     // run Cox model to obtain the hazard ratio estimate
@@ -724,18 +615,16 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                   
                   ListCpp out;
                   if (k == -1) {
-                    out.push_back(std::move(eval_z), "eval_z");
                     out.push_back(std::move(Sstar), "Sstar");
                     out.push_back(std::move(kmstar), "kmstar");
+                    out.push_back(std::move(data_aft), "data_aft");
+                    out.push_back(std::move(fit_aft), "fit_aft");
+                    out.push_back(std::move(res_aft), "res_aft");
                     out.push_back(std::move(data_outcome), "data_outcome");
                     out.push_back(std::move(km_outcome), "km_outcome");
                     out.push_back(std::move(lr_outcome), "lr_outcome");
                     out.push_back(std::move(fit_outcome), "fit_outcome");
                     out.push_back(psihat, "psihat");
-                    out.push_back(std::move(psihat_vec), "psihat_vec");
-                    out.push_back(psilower, "psilower");
-                    out.push_back(psiupper, "psiupper");
-                    out.push_back(psi_CI_type, "psi_CI_type");
                     out.push_back(hrhat, "hrhat");
                     out.push_back(fail, "fail");
                     out.push_back(psimissing, "psimissing");
@@ -751,30 +640,32 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   
   ListCpp out = f(idn, stratumn, timen, eventn, treatn, rxn, censor_timen, 
                   zn, z_aftn);
-
-  DataFrameCpp eval_z = out.get<DataFrameCpp>("eval_z");
+  
   DataFrameCpp Sstar = out.get<DataFrameCpp>("Sstar");
   DataFrameCpp kmstar = out.get<DataFrameCpp>("kmstar");
+  DataFrameCpp data_aft = out.get<DataFrameCpp>("data_aft");
+  ListCpp fit_aft = out.get_list("fit_aft");
+  std::vector<double> res_aft = out.get<std::vector<double>>("res_aft");
   DataFrameCpp data_outcome = out.get<DataFrameCpp>("data_outcome");
   DataFrameCpp km_outcome = out.get<DataFrameCpp>("km_outcome");
   DataFrameCpp lr_outcome = out.get<DataFrameCpp>("lr_outcome");
   ListCpp fit_outcome = out.get_list("fit_outcome");
-
+  
   double psihat = out.get<double>("psihat");
-  std::vector<double> psihat_vec = out.get<std::vector<double>>("psihat_vec");
-  double psilower = out.get<double>("psilower");
-  double psiupper = out.get<double>("psiupper");
-  std::string psi_CI_type = out.get<std::string>("psi_CI_type");
+  double sepsi = logRankZ != 0 ? psihat / logRankZ : NaN;
+  double psilower = psihat - zcrit * sepsi;
+  double psiupper = psihat + zcrit * sepsi;
+  std::string psi_CI_type = "log-rank p-value";
   double hrhat = out.get<double>("hrhat");
   bool fail = out.get<bool>("fail");
   bool psimissing = out.get<bool>("psimissing");
-
+  
   double hrlower = NaN, hrupper = NaN;
   std::vector<double> hrhats(n_boot), psihats(n_boot);
   std::vector<unsigned char> fails(n_boot);
   DataFrameCpp fail_boots_data;
   std::string hr_CI_type;
-
+  
   if (!psimissing) {
     // summarize number of deaths by treatment arm in the outcome data
     std::vector<int> treated = data_outcome.get<int>("treated");
@@ -790,7 +681,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     }
     event_summary.push_back(std::move(n_event_out), "event_out_n");
     event_summary.push_back(std::move(pct_event_out), "event_out_pct");
-
+    
     // add back the id, treat, and stratum variables
     std::vector<int> uid = Sstar.get<int>("uid");
     if (data.int_cols.count(id)) {
@@ -800,7 +691,16 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(id)) {
       Sstar.push_front(subset(idwc, uid), id);
     }
-
+    
+    uid = data_aft.get<int>("uid");
+    if (data.int_cols.count(id)) {
+      data_aft.push_front(subset(idwi, uid), id);
+    } else if (data.numeric_cols.count(id)) {
+      data_aft.push_front(subset(idwn, uid), id);
+    } else if (data.string_cols.count(id)) {
+      data_aft.push_front(subset(idwc, uid), id);
+    }
+    
     uid = data_outcome.get<int>("uid");
     if (data.int_cols.count(id)) {
       data_outcome.push_front(subset(idwi, uid), id);
@@ -809,7 +709,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(id)) {
       data_outcome.push_front(subset(idwc, uid), id);
     }
-
+    
     treated = event_summary.get<int>("treated");
     std::vector<int> nottreated(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -821,7 +721,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       event_summary.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = Sstar.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -833,7 +733,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       Sstar.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = kmstar.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -845,7 +745,19 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       kmstar.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
+    treated = data_aft.get<int>("treated");
+    nottreated.resize(treated.size());
+    std::transform(treated.begin(), treated.end(), nottreated.begin(),
+                   [](int value) { return 1 - value; });
+    if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+      data_aft.push_back(subset(treatwi, nottreated), treat);
+    } else if (data.numeric_cols.count(treat)) {
+      data_aft.push_back(subset(treatwn, nottreated), treat);
+    } else if (data.string_cols.count(treat)) {
+      data_aft.push_back(subset(treatwc, nottreated), treat);
+    }
+    
     treated = data_outcome.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -857,7 +769,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       data_outcome.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = km_outcome.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -869,7 +781,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       km_outcome.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     if (has_stratum) {
       std::vector<int> ustratum = Sstar.get<int>("ustratum");
       for (int i = 0; i < p_stratum; ++i) {
@@ -888,7 +800,25 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           Sstar.push_back(subset(v, ustratum), s);
         }
       }
-
+      
+      ustratum = data_aft.get<int>("ustratum");
+      for (int i = 0; i < p_stratum; ++i) {
+        const std::string& s = stratum[i];
+        if (data.bool_cols.count(s)) {
+          auto v = u_stratum.get<unsigned char>(s);
+          data_aft.push_back(subset(v, ustratum), s);
+        } else if (data.int_cols.count(s)) {
+          auto v = u_stratum.get<int>(s);
+          data_aft.push_back(subset(v, ustratum), s);
+        } else if (data.numeric_cols.count(s)) {
+          auto v = u_stratum.get<double>(s);
+          data_aft.push_back(subset(v, ustratum), s);
+        } else if (data.string_cols.count(s)) {
+          auto v = u_stratum.get<std::string>(s);
+          data_aft.push_back(subset(v, ustratum), s);
+        }
+      }
+      
       ustratum = data_outcome.get<int>("ustratum");
       for (int i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
@@ -907,7 +837,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         }
       }
     }
-
+    
     // construct the confidence interval for HR
     if (!boot) { // use log-rank p-value to construct CI for HR if no boot
       double loghr = std::log(hrhat);
@@ -955,7 +885,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         std::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
         for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       }
-      
+
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
       struct BootstrapWorker : public RcppParallel::Worker {
         // references to read-only inputs (no mutation)
@@ -1181,13 +1111,13 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         fail_boots_data.push_back(treatc, "treated");
         fail_boots_data.push_back(std::move(rxc), "rx");
         fail_boots_data.push_back(std::move(censor_timec), "censor_time");
-
+        
         for (int j = 0; j < q + p; ++j) {
           const std::string& zj = covariates_aft[j + 1];
           std::vector<double> u = flatmatrix_get_column(z_aftc, j);
           fail_boots_data.push_back(std::move(u), zj);
         }
-
+        
         if (data.int_cols.count(id)) {
           fail_boots_data.push_back(subset(idwi, idc), id);
         } else if (data.numeric_cols.count(id)) {
@@ -1195,7 +1125,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         } else if (data.string_cols.count(id)) {
           fail_boots_data.push_back(subset(idwc, idc), id);
         }
-
+        
         std::vector<int> nottreatc(treatc.size());
         std::transform(treatc.begin(), treatc.end(), nottreatc.begin(),
                        [](int value) { return 1 - value; });
@@ -1206,7 +1136,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         } else if (data.string_cols.count(treat)) {
           fail_boots_data.push_back(subset(treatwc, nottreatc), treat);
         }
-
+        
         if (has_stratum) {
           for (int i = 0; i < p_stratum; ++i) {
             const std::string& s = stratum[i];
@@ -1226,12 +1156,12 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           }
         }
       }
-    
+      
       // retrieve the bootstrap results      
       fails = worker.fails_out;
       hrhats = worker.hrhats_out;
       psihats = worker.psihats_out;
-
+      
       // obtain bootstrap confidence interval for HR
       double loghr = std::log(hrhat);
       std::vector<int> ok;
@@ -1255,7 +1185,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       hrupper = std::exp(loghr + tcrit * sdloghr);
       hr_CI_type = "bootstrap";
       pvalue = 2.0 * (1.0 - boost_pt(std::fabs(loghr / sdloghr), n_ok - 1));
-
+      
       // obtain bootstrap confidence interval for psi
       std::vector<double> psihats1 = subset(psihats, ok);
       double meanpsi, sdpsi;
@@ -1271,7 +1201,6 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   std::vector<double> psi_CI = {psilower, psiupper};
   std::vector<double> hr_CI = {hrlower, hrupper};
   result.push_back(psihat, "psi");
-  result.push_back(std::move(psihat_vec), "psi_roots");
   result.push_back(std::move(psi_CI), "psi_CI");
   result.push_back(psi_CI_type, "psi_CI_type");
   result.push_back(pvalue, "pvalue");
@@ -1280,16 +1209,18 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   result.push_back(std::move(hr_CI), "hr_CI");
   result.push_back(hr_CI_type, "hr_CI_type");
   result.push_back(std::move(event_summary), "event_summary");
-  result.push_back(std::move(eval_z), "eval_z");
   result.push_back(std::move(Sstar), "Sstar");
   result.push_back(std::move(kmstar), "kmstar");
+  result.push_back(std::move(data_aft), "data_aft");
+  result.push_back(std::move(fit_aft), "fit_aft");
+  result.push_back(std::move(res_aft), "res_aft");
   result.push_back(std::move(data_outcome), "data_outcome");
   result.push_back(std::move(km_outcome), "km_outcome");
   result.push_back(std::move(lr_outcome), "lr_outcome");
   result.push_back(std::move(fit_outcome), "fit_outcome");
   result.push_back(fail, "fail");
   result.push_back(psimissing, "psimissing");
-
+  
   if (boot) {
     result.push_back(std::move(fails), "fail_boots");
     result.push_back(std::move(hrhats), "hr_boots");
@@ -1298,7 +1229,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }
-
+  
   thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(result);
 }
