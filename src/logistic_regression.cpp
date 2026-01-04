@@ -205,7 +205,7 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
       }
     }
     
-    // compute u[r] = f*w*resid*d + 0.5*b*(f*w*a*h0)
+    // compute u[r] = f * w * resid * d + 0.5 * b * (f * w * a * h0)
     std::vector<double> u(n);
     for (int i = 0; i < n; ++i) {
       double fw = fwvec[i];
@@ -666,7 +666,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   // linear predictor and fitted values for all observations
   std::vector<double> linear_predictors(n), fitted_values(n);
   
-  double zcrit = boost_qnorm(1-alpha/2);
+  double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   double xcrit = zcrit * zcrit;
   
   // number of trials and number of events accounting for frequencies
@@ -730,7 +730,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     }
     
     std::vector<double> bint0(p);
-    bint0[0] = boost_qlogis(num/den);
+    bint0[0] = boost_qlogis(num / den);
     
     std::vector<int> colfit0(1);
     logparams param = {n, link_code, eventn, zn, freqn, weightn, offsetn};
@@ -795,7 +795,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         FlatMatrix iflic = derint.get<FlatMatrix>("imat");
         std::vector<double> der(p-1);
         for (int i = 0; i < p - 1; ++i) {
-          der[i] = -iflic(i+1, 0)/iflic(0, 0);
+          der[i] = -iflic(i+1, 0) / iflic(0, 0);
         }
         
         // update variance-covariance matrix via the delta method
@@ -978,7 +978,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     // profile likelihood confidence interval for regression coefficients
     if (plci) {
       double lmax = out.get<double>("loglik");
-      double l0 = lmax - 0.5*xcrit;
+      double l0 = lmax - 0.5 * xcrit;
       
       if (!(firth && flic)) { // PL CI for all parameters
         for (int k = 0; k < p; ++k) {
@@ -995,18 +995,18 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, 
                                       firth, colfit1, p-1);
           double lmax0 = out0.get<double>("loglik");
-          prob[k] = boost_pchisq(-2*(lmax0 - lmax), 1, 0);
+          prob[k] = boost_pchisq(-2.0 * (lmax0 - lmax), 1, 0);
           clparm[k] = "PL";
         }
       } else { // Wald CI for intercept and PL CI for slopes
         if (!robust) {
-          lb[0] = b[0] - zcrit*seb[0];
-          ub[0] = b[0] + zcrit*seb[0];
-          prob[0] = boost_pchisq(pow(b[0]/seb[0], 2), 1, 0);
+          lb[0] = b[0] - zcrit * seb[0];
+          ub[0] = b[0] + zcrit * seb[0];
+          prob[0] = boost_pchisq(sq(b[0] / seb[0]), 1, 0);
         } else {
-          lb[0] = b[0] - zcrit*rseb[0];
-          ub[0] = b[0] + zcrit*rseb[0];
-          prob[0] = boost_pchisq(pow(b[0]/rseb[0], 2), 1, 0);
+          lb[0] = b[0] - zcrit * rseb[0];
+          ub[0] = b[0] + zcrit * rseb[0];
+          prob[0] = boost_pchisq(sq(b[0] / rseb[0]), 1, 0);
         }
         clparm[0] = "Wald";
         
@@ -1026,19 +1026,19 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           ListCpp out0 = logisregloop(p, b0, &param, maxiter, eps, 
                                       firth, colfit1, p-1);
           double lmax0 = out0.get<double>("loglik");
-          prob[k] = boost_pchisq(-2*(lmax0 - lmax), 1, 0);
+          prob[k] = boost_pchisq(-2.0 * (lmax0 - lmax), 1, 0);
           clparm[k] = "PL";
         }
       }
     } else { // Wald confidence interval for all parameters
       for (int k = 0; k < p; ++k) {
         if (!robust) {
-          lb[k] = b[k] - zcrit*seb[k];
-          ub[k] = b[k] + zcrit*seb[k];
+          lb[k] = b[k] - zcrit * seb[k];
+          ub[k] = b[k] + zcrit * seb[k];
           prob[k] = boost_pchisq(sq(b[k] / seb[k]), 1, 0);
         } else {
-          lb[k] = b[k] - zcrit*rseb[k];
-          ub[k] = b[k] + zcrit*rseb[k];
+          lb[k] = b[k] - zcrit * rseb[k];
+          ub[k] = b[k] + zcrit * rseb[k];
           prob[k] = boost_pchisq(sq(b[k] / rseb[k]), 1, 0);
         }
         clparm[k] = "Wald";
@@ -1069,7 +1069,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         if (rseb[i] == 0) {
           z[i] = NaN;
         } else {
-          z[i] = b[i]/rseb[i];
+          z[i] = b[i] / rseb[i];
         }
       }
     } else {
@@ -1077,7 +1077,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
         if (seb[i] == 0) {
           z[i] = NaN;
         } else {
-          z[i] = b[i]/seb[i];
+          z[i] = b[i] / seb[i];
         }
       }
     }

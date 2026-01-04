@@ -535,15 +535,15 @@ void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col,
                          const std::string& name);
 void move_int_column(DataFrameCpp& df, std::vector<int>&& col, 
                      const std::string& name);
-void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx);
-DataFrameCpp subset_dataframe(const DataFrameCpp& df, 
-                              const std::vector<int>& row_idx);
 std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
                                           const std::vector<int>& idx);
-void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
-void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
+void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, int start, int end);
+void subset_in_place_flatmatrix(FlatMatrix& fm, int start, int end);
 FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx);
+void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
+
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
 std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col);
 std::vector<int> intmatrix_get_column(const IntMatrix& M, int col);

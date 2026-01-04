@@ -9,9 +9,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <limits>
-#include <memory>
 #include <random>
 #include <sstream>
 #include <string>
@@ -19,7 +19,6 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
-
 
 // [[Rcpp::export]]
 Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
@@ -388,10 +387,12 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
     }
   }
   
+  int qp2 = q + p2;
+  
   // covariates for the accelerated failure time model for control with pd
   // including swtrt, stratum and base2_cov
-  std::vector<std::string> covariates_aft(q + p2 + 1);
-  FlatMatrix z_aftn(n, q + p2);
+  std::vector<std::string> covariates_aft(qp2 + 1);
+  FlatMatrix z_aftn(n, qp2);
   covariates_aft[0] = "swtrt";
   if (has_stratum) {
     if (strata_main_effect_only) {
@@ -544,7 +545,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   subset_in_place(swtrtn, keep);
   subset_in_place(swtrt_timen, keep);
   if (p > 0) subset_in_place_flatmatrix(zn, keep);
-  if (q + p2 > 0) subset_in_place_flatmatrix(z_aftn, keep);
+  if (qp2 > 0) subset_in_place_flatmatrix(z_aftn, keep);
   n = static_cast<int>(keep.size());
   
   // summarize number of deaths and switches by treatment arm
@@ -584,10 +585,9 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  int k = -1; // indicate the observed data
-  auto f = [&k, data, has_stratum, stratum, p_stratum, u_stratum, 
+  auto f = [data, has_stratum, stratum, p_stratum, u_stratum, 
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
-            n, q, p, p2, covariates, covariates_aft, dist, 
+            n, p, qp2, covariates, covariates_aft, dist, 
             recensor, swtrt_control_only, alpha, zcrit, ties, offset](
                 const std::vector<int>& idb, 
                 const std::vector<int>& stratumb, 
@@ -600,7 +600,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                 const std::vector<double>& swtrtb, 
                 const std::vector<double>& swtrt_timeb, 
                 const FlatMatrix& zb, 
-                const FlatMatrix& z_aftb) -> ListCpp {
+                const FlatMatrix& z_aftb, int k) -> ListCpp {
                   bool fail = false; // whether any model fails to converge
                   std::vector<double> init(1, NaN);
                   
@@ -674,11 +674,12 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     }
                     
                     DataFrameCpp data1;
+                    data1.push_back(id2, "uid");
                     data1.push_back(std::move(time2), "pps");
                     data1.push_back(std::move(event2), "event");
                     data1.push_back(std::move(swtrt2), "swtrt");
                     
-                    for (int j = 0; j < q + p2; ++j) {
+                    for (int j = 0; j < qp2; ++j) {
                       const std::string& zj = covariates_aft[j+1];
                       std::vector<double> u = flatmatrix_get_column(z_aftb, j);
                       data1.push_back(subset(u, l), zj);
@@ -703,7 +704,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     
                     std::vector<double> res1;
                     if (k == -1) {
-                      FlatMatrix vbeta1(q + p2 + 1, q + p2 + 1);
+                      FlatMatrix vbeta1(qp2 + 1, qp2 + 1);
                       FlatMatrix rr = residuals_liferegcpp(
                         beta1, vbeta1, data1, {""}, "pps", "", "event",
                         covariates_aft, "", "", "", dist, "deviance");
@@ -791,8 +792,11 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                       }
                     } else {
                       psimissing = true;
+                      fail = true;
                     }
                   }
+                  
+                  
                   
                   DataFrameCpp data_outcome, km_outcome, lr_outcome;
                   ListCpp fit_outcome;
@@ -862,18 +866,14 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     out.push_back(psi0hat, "psihat");
                     out.push_back(psi1hat, "psi1hat");
                     out.push_back(hrhat, "hrhat");
-                    out.push_back(hrlower, "hrlower");
-                    out.push_back(hrupper, "hrupper");
-                    out.push_back(pvalue, "pvalue");
                     out.push_back(fail, "fail");
-                    out.push_back(psimissing, "psimissing");
                   }
                   
                   return out;
                 };
   
   ListCpp out = f(idn, stratumn, timen, eventn, treatn, censor_timen,
-                  pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn);
+                  pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, -1);
   
   auto data_aft = out.get<std::vector<ListPtr>>("data_aft");
   auto fit_aft = out.get<std::vector<ListPtr>>("fit_aft");
@@ -1010,7 +1010,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
       subset_in_place(swtrtn, order);
       subset_in_place(swtrt_timen, order);
       if (p > 0) subset_in_place_flatmatrix(zn, order);
-      if (q + p2 > 0) subset_in_place_flatmatrix(z_aftn, order);
+      if (qp2 > 0) subset_in_place_flatmatrix(z_aftn, order);
       
       std::vector<int> tsx(1,0); // first observation within each treat/stratum
       for (int i = 1; i < n; ++i) {
@@ -1034,8 +1034,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         // references to read-only inputs (no mutation)
         const int n;
         const int p;
-        const int p2;
-        const int q;
+        const int qp2;
         const int ntss;
         const std::vector<int>& tsx;
         const std::vector<int>& idn;
@@ -1058,7 +1057,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                               const std::vector<int>&, const std::vector<double>&,
                               const std::vector<double>&, const std::vector<double>&, 
                               const std::vector<double>&, const std::vector<double>&, 
-                              const FlatMatrix&, const FlatMatrix&)> f;
+                              const FlatMatrix&, const FlatMatrix&, int)> f;
         
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
@@ -1078,11 +1077,13 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         std::vector<double> pd_timec_local;
         std::vector<double> swtrtc_local;
         std::vector<double> swtrt_timec_local;
-        std::vector<double> z_aftc_local; // store column-major flattened block data
+        // store column-wise z_aftc_local: outer vector length == z_aftn.ncol
+        // each inner vector stores column data across failed boots
+        std::vector<std::vector<double>> z_aftc_local;
         int index1_local = 0; // number of rows stored so far for z_aftc_local
         
         // constructor
-        BootstrapWorker(int n_, int p_, int p2_, int q_, int ntss_,
+        BootstrapWorker(int n_, int p_, int qp2_, int ntss_,
                         const std::vector<int>& tsx_,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
@@ -1102,26 +1103,32 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                         std::vector<double>& hrhats_out_,
                         std::vector<double>& psihats_out_,
                         std::vector<double>& psi1hats_out_) :
-          n(n_), p(p_), p2(p2_), q(q_), ntss(ntss_), tsx(tsx_), idn(idn_), 
+          n(n_), p(p_), qp2(qp2_), ntss(ntss_), tsx(tsx_), idn(idn_), 
           stratumn(stratumn_), timen(timen_), eventn(eventn_), treatn(treatn_), 
           censor_timen(censor_timen_), pdn(pdn_), pd_timen(pd_timen_),
           swtrtn(swtrtn_), swtrt_timen(swtrt_timen_), zn(zn_), z_aftn(z_aftn_),
           seeds(seeds_), f(std::move(f_)),
           fails_out(fails_out_), hrhats_out(hrhats_out_), 
           psihats_out(psihats_out_), psi1hats_out(psi1hats_out_) {
-          // reserve some local space to reduce reallocations; these sizes are heuristic
-          boot_indexc_local.reserve(8);
-          idc_local.reserve(8 * n);
-          stratumc_local.reserve(8 * n);
-          treatc_local.reserve(8 * n);
-          timec_local.reserve(8 * n);
-          eventc_local.reserve(8 * n);
-          censor_timec_local.reserve(8 * n);
-          pdc_local.reserve(8 * n);
-          pd_timec_local.reserve(8 * n);
-          swtrtc_local.reserve(8 * n);
-          swtrt_timec_local.reserve(8 * n);
-          z_aftc_local.reserve(8 * n * (q + p2));
+          // heuristic reservation to reduce reallocations:
+          int ncols_aft = z_aftn.ncol;
+          z_aftc_local.resize(static_cast<std::size_t>(ncols_aft));
+          // reserve some capacity per column. This is a heuristic; adjust if needed.
+          std::size_t per_col_reserve = static_cast<std::size_t>(10 * n);
+          for (int col = 0; col < ncols_aft; ++col) 
+            z_aftc_local[col].reserve(per_col_reserve);
+          // Reserve scalar buffers heuristically (reduce reallocs)
+          boot_indexc_local.reserve(per_col_reserve);
+          idc_local.reserve(per_col_reserve);
+          stratumc_local.reserve(per_col_reserve);
+          treatc_local.reserve(per_col_reserve);
+          timec_local.reserve(per_col_reserve);
+          eventc_local.reserve(per_col_reserve);
+          censor_timec_local.reserve(per_col_reserve);
+          pdc_local.reserve(per_col_reserve);
+          pd_timec_local.reserve(per_col_reserve);
+          swtrtc_local.reserve(per_col_reserve);
+          swtrt_timec_local.reserve(per_col_reserve);
         }
         
         // operator() processes a range of bootstrap iterations [begin, end)
@@ -1130,7 +1137,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
           std::vector<int> idb(n), stratumb(n), treatb(n);
           std::vector<double> timeb(n), eventb(n), censor_timeb(n);
           std::vector<double> pdb(n), pd_timeb(n), swtrtb(n), swtrt_timeb(n);
-          FlatMatrix zb(n, p), z_aftb(n, q + p2);
+          FlatMatrix zb(n, p), z_aftb(n, qp2);
           
           for (std::size_t k = begin; k < end; ++k) {
             // deterministic RNG per-iteration
@@ -1177,39 +1184,40 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
             } // end block sampling
             
             // call the (thread-safe) per-iteration function f
-            ListCpp out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb, 
-                            pdb, pd_timeb, swtrtb, swtrt_timeb, zb, z_aftb);
+            ListCpp out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
+                            pdb, pd_timeb, swtrtb, swtrt_timeb, zb, z_aftb,
+                            static_cast<int>(k));
             
-            // write iteration results into pre-allocated arrays (race-free)
+            // write results
             fails_out[k] = out.get<bool>("fail");
             hrhats_out[k] = out.get<double>("hrhat");
             psihats_out[k] = out.get<double>("psihat");
             psi1hats_out[k] = out.get<double>("psi1hat");
             
-            // if this bootstrap iteration failed, collect the bootstrap data 
-            // into per-worker storage
+            // existing code that collects failure data when fails_out[k] is true...
             if (fails_out[k]) {
-              // record boot index (1-based as in original)
-              for (int i = 0; i < n; ++i) {
-                boot_indexc_local.push_back(k + 1);
-                idc_local.push_back(idb[i]);
-                stratumc_local.push_back(stratumb[i]);
-                timec_local.push_back(timeb[i]);
-                eventc_local.push_back(eventb[i]);
-                treatc_local.push_back(treatb[i]);
-                censor_timec_local.push_back(censor_timeb[i]);
-                pdc_local.push_back(pdb[i]);
-                pd_timec_local.push_back(pd_timeb[i]);
-                swtrtc_local.push_back(swtrtb[i]);
-                swtrt_timec_local.push_back(swtrt_timeb[i]);
+              // collect into boot_indexc_local, idc_local, ... and z_aftc_local
+              append(boot_indexc_local, std::vector<int>(n, static_cast<int>(k + 1)));
+              append(idc_local, idb);
+              append(stratumc_local, stratumb);
+              append(treatc_local, treatb);
+              append(timec_local, timeb);
+              append(eventc_local, eventb);
+              append(censor_timec_local, censor_timeb);
+              append(pdc_local, pdb);
+              append(pd_timec_local, pd_timeb);
+              append(swtrtc_local, swtrtb);
+              append(swtrt_timec_local, swtrt_timeb);
+              
+              int ncols_aft = z_aftb.ncol;
+              for (int col = 0; col < ncols_aft; ++col) {
+                const double* colptr = z_aftb.data_ptr() + col * n;
+                auto &colvec = z_aftc_local[col];
+                std::size_t oldc = colvec.size();
+                colvec.resize(oldc + static_cast<std::size_t>(n));
+                std::memcpy(colvec.data() + oldc, colptr, n * sizeof(double));
               }
-              // append z_aftb block column-major
-              for (int l = 0; l < z_aftb.ncol; ++l) {
-                const double* z_aftbcol = z_aftb.data_ptr() + l * n;
-                for (int i = 0; i < n; ++i) {
-                  z_aftc_local.push_back(z_aftbcol[i]);
-                }
-              }
+              
               index1_local += n;
             }
           } // end for k
@@ -1218,25 +1226,34 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         // join merges other (worker copy) into this instance (called by parallelFor)
         void join(const BootstrapWorker& other) {
           // append other's local vectors into this worker's storage
-          append_copy(boot_indexc_local, other.boot_indexc_local);
-          append_copy(idc_local, other.idc_local);
-          append_copy(stratumc_local, other.stratumc_local);
-          append_copy(treatc_local, other.treatc_local);
-          append_copy(timec_local, other.timec_local);
-          append_copy(eventc_local, other.eventc_local);
-          append_copy(censor_timec_local, other.censor_timec_local);
-          append_copy(pdc_local, other.pdc_local);
-          append_copy(pd_timec_local, other.pd_timec_local);
-          append_copy(swtrtc_local, other.swtrtc_local);
-          append_copy(swtrt_timec_local, other.swtrt_timec_local);
-          append_copy(z_aftc_local, other.z_aftc_local);
+          append(boot_indexc_local, other.boot_indexc_local);
+          append(idc_local, other.idc_local);
+          append(stratumc_local, other.stratumc_local);
+          append(treatc_local, other.treatc_local);
+          append(timec_local, other.timec_local);
+          append(eventc_local, other.eventc_local);
+          append(censor_timec_local, other.censor_timec_local);
+          append(pdc_local, other.pdc_local);
+          append(pd_timec_local, other.pd_timec_local);
+          append(swtrtc_local, other.swtrtc_local);
+          append(swtrt_timec_local, other.swtrt_timec_local);
+          
+          for (std::size_t col = 0; col < z_aftc_local.size(); ++col) {
+            const auto &src = other.z_aftc_local[col];
+            if (src.empty()) continue;
+            std::size_t old = z_aftc_local[col].size();
+            z_aftc_local[col].resize(old + src.size());
+            std::memcpy(z_aftc_local[col].data() + old, src.data(), 
+                        src.size() * sizeof(double));
+          }
+          
           index1_local += other.index1_local;
         }
       }; // end BootstrapWorker
       
       // Instantiate the Worker with references to inputs and outputs
       BootstrapWorker worker(
-          n, p, p2, q, ntss, tsx, idn, stratumn, timen, eventn, treatn, censor_timen,
+          n, p, qp2, ntss, tsx, idn, stratumn, timen, eventn, treatn, censor_timen,
           pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
           std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
@@ -1244,56 +1261,36 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                                 const std::vector<int>&, const std::vector<double>&,
                                 const std::vector<double>&, const std::vector<double>&, 
                                 const std::vector<double>&, const std::vector<double>&, 
-                                const FlatMatrix&, const FlatMatrix&)>(f),
+                                const FlatMatrix&, const FlatMatrix&, int)>(f),
                                 fails, hrhats, psihats, psi1hats
       );
       
       // Run the parallel loop over bootstrap iterations
       RcppParallel::parallelFor(0, n_boot, worker, 1 /*grain size*/);
-      
+
       // After parallelFor returns, worker contains merged per-worker failure data.
       // Move them into the outer-scope vectors used later in the function:
-      std::vector<int> boot_indexc = std::move(worker.boot_indexc_local);
       std::vector<int> idc = std::move(worker.idc_local);
       std::vector<int> stratumc = std::move(worker.stratumc_local);
       std::vector<int> treatc = std::move(worker.treatc_local);
-      std::vector<double> timec = std::move(worker.timec_local);
-      std::vector<double> eventc = std::move(worker.eventc_local);
-      std::vector<double> censor_timec = std::move(worker.censor_timec_local);
-      std::vector<double> pdc = std::move(worker.pdc_local);
-      std::vector<double> pd_timec = std::move(worker.pd_timec_local);
-      std::vector<double> swtrtc = std::move(worker.swtrtc_local);
-      std::vector<double> swtrt_timec = std::move(worker.swtrt_timec_local);
-      FlatMatrix z_aftc(worker.index1_local, q + p2);
-      if (worker.index1_local > 0) {
-        // worker.z_aftc_local is column-major blocks appended; reconstruct z_aftc
-        int stored_rows = worker.index1_local;
-        int ncols = q + p2;
-        int pos = 0;
-        for (int col = 0; col < ncols; ++col) {
-          double* z_aftc_col = z_aftc.data_ptr() + col * stored_rows;
-          for (int row = 0; row < stored_rows; ++row) {
-            z_aftc_col[row] = worker.z_aftc_local[pos++];
-          }
-        }
-      }
       
       // assemble the failed bootstrap data into a DataFrame
-      if (!boot_indexc.empty()) {
-        fail_boots_data.push_back(std::move(boot_indexc), "boot_index");
+      if (worker.index1_local > 0) {
+        fail_boots_data.push_back(std::move(worker.boot_indexc_local), "boot_index");
         fail_boots_data.push_back(idc, "uid");
-        fail_boots_data.push_back(std::move(timec), "time");
-        fail_boots_data.push_back(std::move(eventc), "event");
+        fail_boots_data.push_back(std::move(worker.timec_local), "time");
+        fail_boots_data.push_back(std::move(worker.eventc_local), "event");
         fail_boots_data.push_back(treatc, "treated");
-        fail_boots_data.push_back(std::move(censor_timec), "censor_time");
-        fail_boots_data.push_back(std::move(pdc), "pd");
-        fail_boots_data.push_back(std::move(pd_timec), "pd_time");
-        fail_boots_data.push_back(std::move(swtrtc), "swtrt");
-        fail_boots_data.push_back(std::move(swtrt_timec), "swtrt_time");
+        fail_boots_data.push_back(std::move(worker.censor_timec_local), "censor_time");
+        fail_boots_data.push_back(std::move(worker.pdc_local), "pd");
+        fail_boots_data.push_back(std::move(worker.pd_timec_local), "pd_time");
+        fail_boots_data.push_back(std::move(worker.swtrtc_local), "swtrt");
+        fail_boots_data.push_back(std::move(worker.swtrt_timec_local), "swtrt_time");
         
-        for (int j = 0; j < q + p2; ++j) {
+        int ncols_aft = worker.z_aftc_local.size();
+        for (int j = 0; j < ncols_aft; ++j) {
           const std::string& zj = covariates_aft[j+1];
-          std::vector<double> u = flatmatrix_get_column(z_aftc, j);
+          std::vector<double> u = std::move(worker.z_aftc_local[j]);
           fail_boots_data.push_back(std::move(u), zj);
         }
         
@@ -1359,7 +1356,6 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                      [](double value) { return std::log(value); });
       double meanloghr, sdloghr;
       mean_sd(loghrs.data(), n_ok, meanloghr, sdloghr);
-      
       double tcrit = boost_qt(1.0 - alpha / 2.0, n_ok - 1);
       hrlower = std::exp(loghr - tcrit * sdloghr);
       hrupper = std::exp(loghr + tcrit * sdloghr);
@@ -1414,7 +1410,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   }
   
   if (boot) {
-    result.push_back(std::move(fails), "fail_boots");
+    result.push_back(fails, "fail_boots");
     result.push_back(std::move(hrhats), "hr_boots");
     result.push_back(std::move(psihats), "psi_boots");
     if (!swtrt_control_only) {

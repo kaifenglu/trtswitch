@@ -6,13 +6,14 @@ struct DataFrameCpp;
 struct ListCpp;
 
 #include <algorithm>   // copy, find, sort, unique, 
-#include <cmath>
+#include <cmath>       // sqrt, isnan
 #include <cstddef>     // size_t
 #include <cstdint>     // uint64_t
+#include <cstring>     // memcpy, memmove
 #include <functional>  // function
 #include <iomanip>     // fixed, setprecision
 #include <iostream>    // cout, ostream
-#include <iterator>    // back_inserter, distance
+#include <iterator>    // distance
 #include <limits>      // numeric_limits
 #include <sstream>     // ostringstream
 #include <stdexcept>   // out_of_range
@@ -103,23 +104,6 @@ double bisect(const std::function<double(double)>& f,
 double quantilecpp(const std::vector<double>& x, double p);
 double squantilecpp(const std::function<double(double)>& S, double p, double tol);
 
-// subset_in_place: reorder/keep elements of v according to 'order' (indices)
-template <typename T>
-void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
-  std::vector<T> temp_subset(order.size());
-  int n = order.size();
-  int nv = v.size();
-  for (int i = 0; i < n; ++i) {
-    int index = order[i];
-    if (index < 0 || index >= nv) {
-      throw std::out_of_range(
-          "Index in 'order' is out of bounds for the source vector.");
-    }
-    temp_subset[i] = v[index];
-  }
-  v = std::move(temp_subset);
-}
-
 // subset: return a subset of v according to 'order' (indices)
 template <typename T>
 std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
@@ -137,20 +121,124 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
   return result;
 }
 
+// subset_in_place: reorder/keep elements of v according to 'order' (indices)
+template <typename T>
+void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
+  std::vector<T> temp_subset(order.size());
+  int n = order.size();
+  int nv = v.size();
+  for (int i = 0; i < n; ++i) {
+    int index = order[i];
+    if (index < 0 || index >= nv) {
+      throw std::out_of_range(
+          "Index in 'order' is out of bounds for the source vector.");
+    }
+    temp_subset[i] = v[index];
+  }
+  v = std::move(temp_subset);
+}
+
+// Return a new vector containing elements v[start, end).
+// Preconditions required by you: 0 <= start < end (and end <= v.size()).
+template <typename T>
+std::vector<T> subset(const std::vector<T>& v, int start, int end) {
+  if (start < 0) throw std::out_of_range("subset: start < 0");
+  if (end < 0) throw std::out_of_range("subset: end < 0");
+  const std::size_t vsz = v.size();
+  if (static_cast<std::size_t>(end) > vsz) 
+    throw std::out_of_range("subset: end > v.size()");
+  if (!(start < end)) throw std::invalid_argument("subset: require start < end");
+  
+  const std::size_t s = static_cast<std::size_t>(start);
+  const std::size_t e = static_cast<std::size_t>(end);
+  const std::size_t n = e - s;
+  
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    std::vector<T> out;
+    out.resize(n); // allocate contiguous buffer
+    if (n > 0) {
+      std::memcpy(static_cast<void*>(out.data()),
+                  static_cast<const void*>(v.data() + s),
+                  n * sizeof(T));
+    }
+    return out;
+  } else {
+    // non-trivial types: element-wise copy constructor
+    return std::vector<T>(v.begin() + static_cast<std::ptrdiff_t>(s),
+                          v.begin() + static_cast<std::ptrdiff_t>(e));
+  }
+}
+
+// In-place subset: keep elements [start, end) and discard the rest.
+// Preconditions required by you: 0 <= start < end (and end <= v.size()).
+template <typename T>
+void subset_in_place(std::vector<T>& v, int start, int end) {
+  if (start < 0) throw std::out_of_range("subset_in_place: start < 0");
+  if (end < 0) throw std::out_of_range("subset_in_place: end < 0");
+  const std::size_t vsz = v.size();
+  if (static_cast<std::size_t>(end) > vsz) 
+    throw std::out_of_range("subset_in_place: end > v.size()");
+  if (!(start < end)) 
+    throw std::invalid_argument("subset_in_place: require start < end");
+  
+  const std::size_t s = static_cast<std::size_t>(start);
+  const std::size_t e = static_cast<std::size_t>(end);
+  const std::size_t n = e - s; // number of elements to keep
+  
+  if (s == 0) {
+    // already at beginning; just resize down to requested length
+    v.resize(n);
+    return;
+  }
+  
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    // overlapping move: use memmove (safe for overlapping ranges)
+    std::memmove(static_cast<void*>(v.data()),
+                 static_cast<const void*>(v.data() + s),
+                 n * sizeof(T));
+    v.resize(n);
+  } else {
+    // non-trivial types: use std::move for element-wise move construction
+    std::move(v.begin() + static_cast<std::ptrdiff_t>(s),
+              v.begin() + static_cast<std::ptrdiff_t>(e),
+              v.begin());
+    v.resize(n);
+  }
+}
+
 // concat: concatenate two vectors
 template <typename T>
 std::vector<T> concat(const std::vector<T>& v1, const std::vector<T>& v2) {
   std::vector<T> result;
-  result.reserve(v1.size() + v2.size());
-  result.insert(result.end(), v1.begin(), v1.end());
-  result.insert(result.end(), v2.begin(), v2.end());
+  const std::size_t n1 = v1.size();
+  const std::size_t n2 = v2.size();
+  result.resize(n1 + n2); // allocate once
+  
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    if (n1 > 0) std::memcpy(result.data(), v1.data(), n1 * sizeof(T));
+    if (n2 > 0) std::memcpy(result.data() + n1, v2.data(), n2 * sizeof(T));
+  } else {
+    if (n1 > 0) std::copy(v1.begin(), v1.end(), result.begin());
+    if (n2 > 0) std::copy(v2.begin(), v2.end(), 
+        result.begin() + static_cast<std::ptrdiff_t>(n1));
+  }
   return result;
 }
 
+// Append src to dst using fast block copy when possible.
 template<typename T>
-void append_copy(std::vector<T>& dst, const std::vector<T>& src) {
-  dst.reserve(dst.size() + src.size());
-  dst.insert(dst.end(), src.begin(), src.end());
+void append(std::vector<T>& dst, const std::vector<T>& src) {
+  if (src.empty()) return;
+  
+  const std::size_t old = dst.size();
+  const std::size_t add = src.size();
+  dst.resize(old + add);
+  
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    std::memcpy(dst.data() + old, src.data(), add * sizeof(T));
+  } else {
+    std::copy(src.begin(), src.end(), dst.begin() + static_cast<std::ptrdiff_t>(old));
+  }
 }
 
 // unique_sorted: return sorted unique values
@@ -301,7 +389,8 @@ void print_vector(const std::vector<T>& v,
   ss << "[";
   auto print_elem = [&](std::size_t i) {
     if (show_indices) ss << i << ": ";
-    if constexpr (std::is_same_v<T, unsigned char> || std::is_same_v<T, std::uint8_t>) {
+    if constexpr (std::is_same_v<T, unsigned char> || 
+                  std::is_same_v<T, std::uint8_t>) {
       // print unsigned char / uint8_t as integer 0/1 (not as a character)
       ss << static_cast<int>(v[i]);
     } else {

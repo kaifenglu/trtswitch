@@ -24,6 +24,7 @@
 // --------------------------- Distribution helpers --------------------------
 
 double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
+  if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
   boost::math::normal_distribution<> dist(mean, sd);
   if (lower_tail) return boost::math::cdf(dist, q);
@@ -31,6 +32,7 @@ double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
 }
 
 double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
+  if (std::isnan(p)) return std::numeric_limits<double>::quiet_NaN();
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
@@ -40,12 +42,14 @@ double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
 }
 
 double boost_dnorm(double x, double mean, double sd) {
+  if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
   boost::math::normal_distribution<> dist(mean, sd);
   return boost::math::pdf(dist, x);
 }
 
 double boost_plogis(double q, double location, double scale, bool lower_tail) {
+  if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::logistic_distribution<> dist(location, scale);
   if (lower_tail) return boost::math::cdf(dist, q);
@@ -53,6 +57,7 @@ double boost_plogis(double q, double location, double scale, bool lower_tail) {
 }
 
 double boost_qlogis(double p, double location, double scale, bool lower_tail) {
+  if (std::isnan(p)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
@@ -62,12 +67,14 @@ double boost_qlogis(double p, double location, double scale, bool lower_tail) {
 }
 
 double boost_dlogis(double x, double location, double scale) {
+  if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::logistic_distribution<> dist(location, scale);
   return boost::math::pdf(dist, x);
 }
 
 double boost_pextreme(double q, double location, double scale, bool lower_tail) {
+  if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::extreme_value_distribution<> dist(location, scale);
   // keep semantics consistent with complementary log-log link
@@ -76,6 +83,7 @@ double boost_pextreme(double q, double location, double scale, bool lower_tail) 
 }
 
 double boost_qextreme(double p, double location, double scale, bool lower_tail) {
+  if (std::isnan(p)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
@@ -85,12 +93,14 @@ double boost_qextreme(double p, double location, double scale, bool lower_tail) 
 }
 
 double boost_dextreme(double x, double location, double scale) {
+  if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
   if (scale <= 0) throw std::invalid_argument("Scale must be positive.");
   boost::math::extreme_value_distribution<> dist(location, scale);
   return boost::math::pdf(dist, -x);
 }
 
 double boost_pchisq(double q, double df, bool lower_tail) {
+  if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
   if (std::isinf(q)) {
     if (q > 0.0) return lower_tail ? 1.0 : 0.0;
@@ -102,6 +112,7 @@ double boost_pchisq(double q, double df, bool lower_tail) {
 }
 
 double boost_qchisq(double p, double df, bool lower_tail) {
+  if (std::isnan(p)) return std::numeric_limits<double>::quiet_NaN();
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
@@ -111,6 +122,7 @@ double boost_qchisq(double p, double df, bool lower_tail) {
 }
 
 double boost_pt(double q, double df, bool lower_tail) {
+  if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
   boost::math::students_t_distribution<> dist(df);
   if (lower_tail) return boost::math::cdf(dist, q);
@@ -118,6 +130,7 @@ double boost_pt(double q, double df, bool lower_tail) {
 }
 
 double boost_qt(double p, double df, bool lower_tail) {
+  if (std::isnan(p)) return std::numeric_limits<double>::quiet_NaN();
   if (df <= 0) throw std::invalid_argument("Degrees of freedom must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
@@ -629,7 +642,7 @@ void chinv2(FlatMatrix& matrix, int n) {
 FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler) {
   FlatMatrix v = matrix; // copy
   if (cholesky2(v, n, toler) != 0) {
-    // proceed: cholesky2 returns rank*nonneg; if not PD, chinv2 may not work
+    // proceed: cholesky2 returns rank * nonneg; if not PD, chinv2 may not work
     // still attempt inverse; caller should handle exceptions if needed
   }
   chinv2(v, n);

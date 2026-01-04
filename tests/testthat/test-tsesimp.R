@@ -110,8 +110,8 @@ testthat::test_that("tsesimp: boot", {
                   "pathway.f", "ps", "ttc", "tran"),
     aft_dist = "weibull", alpha = 0.05,
     recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
-    boot = TRUE, n_boot = 100, seed = 12345)
+    boot = TRUE, n_boot = 1000, seed = 0)
   
-  hr2 <- c(0.9125816, 0.5485876, 1.5180896)
-  testthat::expect_equal(hr2, c(fit2$hr, fit2$hr_CI))
+  hr2 <- c(0.9125816, 0.5540115, 1.5032271)
+  testthat::expect_equal(hr2, round(c(fit2$hr, fit2$hr_CI), 7))
 })

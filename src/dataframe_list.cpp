@@ -463,82 +463,6 @@ void move_int_column(DataFrameCpp& df, std::vector<int>&& col,
   df.push_back(std::move(col), name);
 }
 
-// subset_rows
-void subset_in_place_dataframe(DataFrameCpp& df, const std::vector<int>& row_idx) {
-  DataFrameCpp out;
-  int max_index = *std::max_element(row_idx.begin(), row_idx.end());
-  if (max_index >= static_cast<int>(df.nrows())) 
-    throw std::runtime_error("subset_rows: row index out of range");
-  for (const auto& nm : df.names()) {
-    if (df.numeric_cols.count(nm)) {
-      const auto& src = df.numeric_cols.at(nm);
-      std::vector<double> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.int_cols.count(nm)) {
-      const auto& src = df.int_cols.at(nm);
-      std::vector<int> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.bool_cols.count(nm)) {
-      const auto& src = df.bool_cols.at(nm);
-      std::vector<unsigned char> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.string_cols.count(nm)) {
-      const auto& src = df.string_cols.at(nm);
-      std::vector<std::string> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    }
-  }
-  df = std::move(out);
-}
-
-DataFrameCpp subset_dataframe(const DataFrameCpp& df, 
-                              const std::vector<int>& row_idx) {
-  DataFrameCpp out;
-  if (row_idx.empty()) {
-    for (const auto& nm : df.names()) {
-      if (df.numeric_cols.count(nm)) out.push_back(std::vector<double>{}, nm);
-      else if (df.int_cols.count(nm)) out.push_back(std::vector<int>{}, nm);
-      else if (df.bool_cols.count(nm)) 
-        out.push_back(std::vector<unsigned char>{}, nm);
-      else if (df.string_cols.count(nm)) 
-        out.push_back(std::vector<std::string>{}, nm);
-    }
-    return out;
-  }
-  int max_index = *std::max_element(row_idx.begin(), row_idx.end());
-  if (max_index >= static_cast<int>(df.nrows())) 
-    throw std::runtime_error("subset_rows: row index out of range");
-  for (const auto& nm : df.names()) {
-    if (df.numeric_cols.count(nm)) {
-      const auto& src = df.numeric_cols.at(nm);
-      std::vector<double> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.int_cols.count(nm)) {
-      const auto& src = df.int_cols.at(nm);
-      std::vector<int> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.bool_cols.count(nm)) {
-      const auto& src = df.bool_cols.at(nm);
-      std::vector<unsigned char> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    } else if (df.string_cols.count(nm)) {
-      const auto& src = df.string_cols.at(nm);
-      std::vector<std::string> dest; dest.reserve(row_idx.size());
-      for (int idx : row_idx) dest.push_back(src[idx]);
-      out.push_back(std::move(dest), nm);
-    }
-  }
-  return out;
-}
-
-
 // Split a DataFrameCpp by the starting indices of blocks of rows
 std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
                                           const std::vector<int>& idx) {
@@ -608,6 +532,27 @@ static inline void validate_row_idx(int nrows, const std::vector<int>& row_idx) 
   }
 }
 
+// Non-mutating subset: return a new FlatMatrix with only the rows in row_idx
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx) {
+  int old_nrow = fm.nrow;
+  int ncol = fm.ncol;
+  int new_nrow = row_idx.size();
+  if (old_nrow == 0 || ncol == 0 || new_nrow == 0) {
+    return FlatMatrix(new_nrow, ncol);
+  }
+  validate_row_idx(old_nrow, row_idx);
+  
+  FlatMatrix out(new_nrow, ncol);
+  for (int c = 0; c < ncol; ++c) {
+    const double* fmcol = fm.data.data() + c * old_nrow;
+    double* outcol = out.data.data() + c * new_nrow;
+    for (int r = 0; r < new_nrow; ++r) {
+      outcol[r] = fmcol[row_idx[r]];
+    }
+  }
+  return out;
+}
+
 // In-place subset: keep only rows specified by row_idx (in that order).
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx) {
   int old_nrow = fm.nrow;
@@ -646,22 +591,58 @@ void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx)
   // fm.ncol remains unchanged
 }
 
-// Non-mutating subset: return a new FlatMatrix with only the rows in row_idx
-FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx) {
+// Non-mutating subset: return a new FlatMatrix with only rows [start, end)
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, int start, int end) {
   int old_nrow = fm.nrow;
   int ncol = fm.ncol;
-  int new_nrow = row_idx.size();
+  if (start < 0 || end <= start || end > old_nrow)
+    throw std::invalid_argument("subset_flatmatrix: invalid start/end");
+  
+  int new_nrow = end - start;
   if (old_nrow == 0 || ncol == 0 || new_nrow == 0) {
     return FlatMatrix(new_nrow, ncol);
   }
-  validate_row_idx(old_nrow, row_idx);
   
   FlatMatrix out(new_nrow, ncol);
   for (int c = 0; c < ncol; ++c) {
-    const double* fmcol = fm.data.data() + c * old_nrow;
-    double* outcol = out.data.data() + c * new_nrow;
-    for (int r = 0; r < new_nrow; ++r) {
-      outcol[r] = fmcol[row_idx[r]];
+    const double* src = fm.data.data() + static_cast<std::size_t>(c * old_nrow  + start);
+    double* dst = out.data.data() + static_cast<std::size_t>(c * new_nrow);
+    std::memcpy(dst, src, static_cast<std::size_t>(new_nrow) * sizeof(double));
+  }
+  return out;
+}
+
+// In-place subset: keep only rows [start, end) (in that order).
+void subset_in_place_flatmatrix(FlatMatrix& fm, int start, int end) {
+  FlatMatrix tmp = subset_flatmatrix(fm, start, end);
+  fm = std::move(tmp);
+}
+
+// Non-mutating subset for FlatArray: return a new FlatArray with rows in row_idx
+FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx) {
+  int old_nrow = fa.nrow;
+  int ncol = fa.ncol;
+  int nslice = fa.nslice;
+  int new_nrow = row_idx.size();
+  
+  if (old_nrow == 0 || ncol == 0 || nslice == 0 || new_nrow == 0) {
+    return FlatArray(new_nrow, ncol, nslice);
+  }
+  
+  validate_row_idx(old_nrow, row_idx);
+  
+  FlatArray out(new_nrow, ncol, nslice);
+  for (int s = 0; s < nslice; ++s) {
+    int off_old_slice = s * (old_nrow * ncol);
+    int off_new_slice = s * (new_nrow * ncol);
+    for (int c = 0; c < ncol; ++c) {
+      int off_old = off_old_slice + c * old_nrow;
+      int off_new = off_new_slice + c * new_nrow;
+      const double* facol = fa.data_ptr() + off_old;
+      double* outcol = out.data_ptr() + off_new;
+      for (int r = 0; r < new_nrow; ++r) {
+        outcol[r] = facol[row_idx[r]];
+      }
     }
   }
   return out;
@@ -716,36 +697,6 @@ void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx) {
   // fa.ncol and fa.nslice remain unchanged
 }
 
-// Non-mutating subset for FlatArray: return a new FlatArray with rows in row_idx
-FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx) {
-  int old_nrow = fa.nrow;
-  int ncol = fa.ncol;
-  int nslice = fa.nslice;
-  int new_nrow = row_idx.size();
-  
-  if (old_nrow == 0 || ncol == 0 || nslice == 0 || new_nrow == 0) {
-    return FlatArray(new_nrow, ncol, nslice);
-  }
-  
-  validate_row_idx(old_nrow, row_idx);
-  
-  FlatArray out(new_nrow, ncol, nslice);
-  for (int s = 0; s < nslice; ++s) {
-    int off_old_slice = s * (old_nrow * ncol);
-    int off_new_slice = s * (new_nrow * ncol);
-    for (int c = 0; c < ncol; ++c) {
-      int off_old = off_old_slice + c * old_nrow;
-      int off_new = off_new_slice + c * new_nrow;
-      const double* facol = fa.data_ptr() + off_old;
-      double* outcol = out.data_ptr() + off_new;
-      for (int r = 0; r < new_nrow; ++r) {
-        outcol[r] = facol[row_idx[r]];
-      }
-    }
-  }
-  return out;
-}
-
 // Row-wise concatenation: both matrices must have same number of columns.
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   // trivial cases
@@ -755,8 +706,9 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   if (fm2.ncol == 0) return fm1;
   
   if (fm1.ncol != fm2.ncol) 
-    throw std::invalid_argument(
-        "concat_flatmatrix: column counts do not match");
+    throw std::invalid_argument("concat_flatmatrix: column counts do not match");
+  if (fm1.nrow == 0) return fm2;
+  if (fm2.nrow == 0) return fm1;
   
   int ncol = fm1.ncol;
   int nrow1 = fm1.nrow;
@@ -767,10 +719,8 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   // For each column, copy rows from fm1 then fm2 into the destination 
   // column buffer.
   for (int c = 0; c < ncol; ++c) {
-    const double* src1 = fm1.data.empty() ? nullptr : 
-    fm1.data.data() + c * nrow1;
-    const double* src2 = fm2.data.empty() ? nullptr : 
-      fm2.data.data() + c * nrow2;
+    const double* src1 = fm1.data.empty() ? nullptr : fm1.data.data() + c * nrow1;
+    const double* src2 = fm2.data.empty() ? nullptr : fm2.data.data() + c * nrow2;
     double* dst = out.data.data() + c * nrow;
     
     if (src1 && nrow1 > 0) {
@@ -786,6 +736,7 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   }
   return out;
 }
+
 
 std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col) {
   if (M.nrow == 0 || M.ncol == 0) return {};
