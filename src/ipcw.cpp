@@ -256,7 +256,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   for (double val : swtrtn) if (val != 0 && val != 1)
     throw std::invalid_argument("swtrt must be 1 or 0 for each observation");
-
+  
   // --- swtrt_time variable ---
   if (swtrt_time.empty() || !data.containElementNamed(swtrt_time))
     throw std::invalid_argument("data must contain the swtrt_time variable");
@@ -279,7 +279,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       throw std::runtime_error("swtrt_time must be nonnegative when swtrt=1");
     }
   }
-
+  
   // covariates for the Cox model containing treat and base_cov
   std::vector<std::string> covariates(p + 1);
   FlatMatrix zn(n, p);
@@ -519,7 +519,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       treatn.push_back(treatn[l]);
       swtrtn.push_back(swtrtn[l]);
       swtrt_timen.push_back(swtrt_timen[l]);
-
+      
       // change tstop and event for the old observation
       tstopn[l] = swtrt_timen[l];
       eventn[l] = 0;
@@ -807,7 +807,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       if (event1[i] == 1) cut.push_back(tstop1[i]);
                     }
                     cut = unique_sorted(cut);
-                      
+                    
                     // replicate event times within each subject
                     std::vector<int> id2, stratum2, treat2;
                     std::vector<double> tstart2, tstop2, event2, cross2;
@@ -848,7 +848,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::vector<double> cross10 = subset(cross1, 0, end);
                       FlatMatrix z10 = subset_flatmatrix(z1, 0, end);
                       FlatMatrix z_cox_den10 = subset_flatmatrix(z_cox_den1, 0, end);
-
+                      
                       // replicate event times within each subject
                       DataFrameCpp a = survsplitcpp(tstart10, tstop10, cut);
                       std::vector<double> censor = a.get<double>("censor");
@@ -923,7 +923,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::vector<double> cross3 = subset(cross2, start, end);
                       FlatMatrix z_cox_den3 = subset_flatmatrix(z_cox_den2, start, end);
                       int n3 = end - start;
-
+                      
                       // prepare the data for fitting the switching model
                       DataFrameCpp data1;
                       data1.push_back(id3, "uid");
@@ -1095,7 +1095,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::memcpy(w2.data() + start, w3.data(), n3 * sizeof(double));
                       std::memcpy(sw2.data() + start, sw3.data(), n3 * sizeof(double));
                     }
-
+                    
                     // prepare data for the outcome model
                     data_outcome.push_back(std::move(id2), "uid");
                     data_outcome.push_back(std::move(tstart2), "tstart");
@@ -1252,7 +1252,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::vector<int> id3 = subset(id1, start, end);
                       std::vector<double> swtrt3 = subset(swtrt1, start, end);
                       int n3 = end - start;
-
+                      
                       // indices for each subject
                       std::vector<int> idx3(1, 0);
                       for (int i = 1; i < n3; ++i) {
@@ -1567,13 +1567,6 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       idx1[i] = idx[i+1] - 1;
     }
     
-    int maxnobs = idx[1] - idx[0]; // max number of obs for an id
-    for (int i = 1; i < nids; ++i) {
-      int nobs_i = idx[i+1] - idx[i];
-      if (nobs_i > maxnobs) maxnobs = nobs_i;
-    }
-    int N = nids * maxnobs;
-    
     std::vector<int> treat1 = subset(treatn, idx1);
     std::vector<int> stratum1 = subset(stratumn, idx1);
     
@@ -1596,7 +1589,6 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     struct BootstrapWorker : public RcppParallel::Worker {
       // references to read-only inputs (no mutation)
       const int n;
-      const int N;
       const int nids;
       const int ntss;
       const std::vector<int>& idx;
@@ -1627,7 +1619,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       // result references (each iteration writes unique index into these)
       std::vector<unsigned char>& fails_out;
       std::vector<double>& hrhats_out;
-
+      
       // Per-worker storage for failed-boot data (to be merged in join)
       std::vector<int> boot_indexc_local;
       std::vector<int> oidc_local;
@@ -1647,7 +1639,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       int index1_local = 0; // number of rows stored so far for z_lgs_denc_local
       
       // constructor
-      BootstrapWorker(int n_, int N_, int nids_, int ntss_,
+      BootstrapWorker(int n_, int nids_, int ntss_,
                       const std::vector<int>& idx_,
                       const std::vector<int>& tsx_,
                       const std::vector<int>& idn_,
@@ -1667,8 +1659,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       decltype(f) f_,
                       std::vector<unsigned char>& fails_out_,
                       std::vector<double>& hrhats_out_) :
-        n(n_), N(N_), nids(nids_), ntss(ntss_), idx(idx_), tsx(tsx_), 
-        idn(idn_), stratumn(stratumn_), tstartn(tstartn_), tstopn(tstopn_),
+        n(n_), nids(nids_), ntss(ntss_), idx(idx_), tsx(tsx_), idn(idn_), 
+        stratumn(stratumn_), tstartn(tstartn_), tstopn(tstopn_),
         eventn(eventn_), treatn(treatn_), osn(osn_), os_timen(os_timen_),
         swtrtn(swtrtn_), swtrt_timen(swtrt_timen_), zn(zn_),
         z_cox_denn(z_cox_denn_), z_lgs_denn(z_lgs_denn_),
@@ -1699,21 +1691,29 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       // operator() processes a range of bootstrap iterations [begin, end)
       void operator()(std::size_t begin, std::size_t end) {
         // per-worker reusable buffers (avoid reallocation per iteration)
-        std::vector<int> oidb(N), idb(N), stratumb(N), treatb(N);
-        std::vector<double> tstartb(N), tstopb(N), eventb(N);
-        std::vector<double> osb(N), os_timeb(N), swtrtb(N), swtrt_timeb(N);
-        FlatMatrix zb(N, zn.ncol);
-        FlatMatrix z_cox_denb(N, z_cox_denn.ncol);
-        FlatMatrix z_lgs_denb(N, z_lgs_denn.ncol);
+        std::vector<int> oidb, idb, stratumb, treatb;
+        std::vector<double> tstartb, tstopb, eventb, osb, os_timeb;
+        std::vector<double> swtrtb, swtrt_timeb;
+        std::vector<std::vector<double>> zb_cols, z_cox_denb_cols, z_lgs_denb_cols;
+        int c_z = zn.ncol, c_cox = z_cox_denn.ncol, c_lgs = z_lgs_denn.ncol;
+        zb_cols.resize(static_cast<std::size_t>(c_z));
+        z_cox_denb_cols.resize(static_cast<std::size_t>(c_cox));
+        z_lgs_denb_cols.resize(static_cast<std::size_t>(c_lgs));
+        
+        oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); tstartb.reserve(n);
+        tstopb.reserve(n); eventb.reserve(n); treatb.reserve(n); osb.reserve(n);
+        os_timeb.reserve(n); swtrtb.reserve(n); swtrt_timeb.reserve(n);
+        for (int col = 0; col < c_z; ++col) zb_cols[col].reserve(n);
+        for (int col = 0; col < c_cox; ++col) z_cox_denb_cols[col].reserve(n);
+        for (int col = 0; col < c_lgs; ++col) z_lgs_denb_cols[col].reserve(n);
         
         for (std::size_t k = begin; k < end; ++k) {
           // deterministic RNG per-iteration
           std::mt19937_64 rng(seeds[k]);
           
           // sample by treatment/stratum blocks
-          int l = 0; // current length of bootstrap sample
           for (int h = 0; h < ntss; ++h) {
-            int start = tsx[h], end = tsx[h+1];
+            int start = tsx[h], end = tsx[h + 1];
             int len = end - start;
             std::uniform_int_distribution<int> index_dist(0, len - 1);
             for (int r = start; r < end; ++r) {
@@ -1750,27 +1750,16 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
               append(os_timeb, os_timen1);
               append(swtrtb, swtrtn1);
               append(swtrt_timeb, swtrt_timen1);
-              append_flatmatrix(zb, zn1);
-              append_flatmatrix(z_cox_denb, z_cox_denn1);
-              append_flatmatrix(z_lgs_denb, z_lgs_denn1);
-              l += len1;
+              append_flatmatrix(zb_cols, zn1);
+              append_flatmatrix(z_cox_denb_cols, z_cox_denn1);
+              append_flatmatrix(z_lgs_denb_cols, z_lgs_denn1);
             }
           } // end block sampling
           
-          subset_in_place(oidb, 0, l);
-          subset_in_place(idb, 0, l);
-          subset_in_place(stratumb, 0, l);
-          subset_in_place(tstartb, 0, l);
-          subset_in_place(tstopb, 0, l);
-          subset_in_place(eventb, 0, l);
-          subset_in_place(treatb, 0, l);
-          subset_in_place(osb, 0, l);
-          subset_in_place(os_timeb, 0, l);
-          subset_in_place(swtrtb, 0, l);
-          subset_in_place(swtrt_timeb, 0, l);
-          subset_in_place_flatmatrix(zb, 0, l);
-          subset_in_place_flatmatrix(z_cox_denb, 0, l);
-          subset_in_place_flatmatrix(z_lgs_denb, 0, l);
+          // call the (thread-safe) per-iteration function f
+          FlatMatrix zb = cols_to_flatmatrix(zb_cols);
+          FlatMatrix z_cox_denb = cols_to_flatmatrix(z_cox_denb_cols);
+          FlatMatrix z_lgs_denb = cols_to_flatmatrix(z_lgs_denb_cols);
           
           ListCpp out = f(idb, stratumb, tstartb, tstopb, eventb, treatb, os_timeb, 
                           swtrtb, swtrt_timeb, zb, z_cox_denb, z_lgs_denb,
@@ -1779,7 +1768,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
           // write results
           fails_out[k] = out.get<bool>("fail");
           hrhats_out[k] = out.get<double>("hrhat");
-
+          
           // existing code that collects failure data when fails_out[k] is true...
           if (fails_out[k]) {
             // collect into boot_indexc_local, idc_local, ... and z_aftc_local
@@ -1824,7 +1813,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     
     // Instantiate the Worker with references to inputs and outputs
     BootstrapWorker worker(
-        n, N, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn, 
+        n, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn, 
         osn, os_timen, swtrtn, swtrt_timen, zn, z_cox_denn, z_lgs_denn, seeds,
         // bind f into std::function (capture the f we already have)
         std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
@@ -1931,7 +1920,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     hr_CI_type = "bootstrap";
     pvalue = 2.0 * (1.0 - boost_pt(std::fabs(loghr / sdloghr), n_ok - 1));
   }
-
+  
   ListCpp result;
   std::string pvalue_type = boot ? "bootstrap" : "Cox model";
   std::vector<double> hr_CI = {hrlower, hrupper};
