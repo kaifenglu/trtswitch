@@ -279,39 +279,13 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
   if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
   
-  misscovariates <- length(base_cov) == 0 || 
-    (length(base_cov) == 1 && (base_cov[1] == ""))
+  # process covariate specifications
+  res <- process_cov(base_cov, df)
+  df <- res$df
+  vnames <- res$vnames
+  varnames <- res$varnames
   
-  if (!misscovariates) {
-    fml_cov <- as.formula(paste("~", paste(base_cov, collapse = "+")))
-    vnames <- rownames(attr(terms(fml_cov), "factors"))
-    
-    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
-    cov_present <- base_cov %in% names(df)
-    all_numeric <- FALSE
-    if (all(cov_present)) {
-      all_numeric <- all(vapply(df[ base_cov ], is.numeric, logical(1)))
-    }
-    
-    if (all_numeric) {
-      # Build design columns directly from numeric covariates (intercept + columns)
-      # This avoids model.matrix and is valid when covariates are simple numeric columns.
-      varnames <- base_cov
-    } else {
-      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
-      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
-      mm <- model.matrix(fml_cov, mf)
-      colnames(mm) <- make.names(colnames(mm))
-      varnames <- colnames(mm)[-1]
-      missing_cols <- setdiff(varnames, names(df))
-      if (length(missing_cols) > 0) {
-        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
-      }
-    }
-  } else {
-    varnames <- ""
-  }
-  
+  # call the core cpp function
   out <- rpsftmcpp(
     df = df, id = id, stratum = stratum, time = time, 
     event = event, treat = treat, rx = rx, 
@@ -331,7 +305,7 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
     out$data_outcome$uid <- NULL
     out$data_outcome$ustratum <- NULL
     
-    if (!misscovariates) {
+    if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
         for (frame_name in c("Sstar", "data_aft", "data_outcome")) {

@@ -545,6 +545,11 @@ FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx)
 void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
 
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
+void append_flatmatrix(FlatMatrix& fm1, const FlatMatrix& fm2);
+void append_flatmatrix(std::vector<std::vector<double>>& fm1, const FlatMatrix& fm2);
+void append_flatmatrix(std::vector<std::vector<double>>& fm1, 
+                       const std::vector<std::vector<double>>& fm2);
+FlatMatrix cols_to_flatmatrix(const std::vector<std::vector<double>>& cols);
 std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col);
 std::vector<int> intmatrix_get_column(const IntMatrix& M, int col);
 void flatmatrix_set_column(FlatMatrix& M, int col, const std::vector<double>& src);

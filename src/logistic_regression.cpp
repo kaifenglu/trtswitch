@@ -535,20 +535,19 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     const std::string& zj = covariates[j];
     if (!data.containElementNamed(zj)) 
       throw std::invalid_argument("data must contain the variables in covariates");
-    std::vector<double> u(n);
+    double* zn_col = zn.data_ptr() + (j + 1) * n;
     if (data.bool_cols.count(zj)) {
-      const std::vector<unsigned char>& ub = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) u[i] = ub[i] ? 1.0 : 0.0;
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
-      const std::vector<int>& ui = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) u[i] = static_cast<double>(ui[i]);
+      const std::vector<int>& vi = data.get<int>(zj);
+      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
-      u = data.get<double>(zj);
+      const std::vector<double>& vd = data.get<double>(zj);
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
-    double* zcol = zn.data_ptr() + (j + 1) * n;
-    for (int i = 0; i < n; ++i) zcol[i] = u[i];
   }
   
   // freq, weight, offset
@@ -862,9 +861,9 @@ ListCpp logisregcpp(const DataFrameCpp& data,
     for (int i = 0; i < p; ++i) {
       double beta = b[i];
       if (beta == 0.0) continue;
-      const double* zcol = zn.data_ptr() + i * n;
+      const double* zn_col = zn.data_ptr() + i * n;
       for (int r = 0; r < n; ++r) {
-        eta[r] += beta * zcol[r];
+        eta[r] += beta * zn_col[r];
       }
     }
     linear_predictors = eta;

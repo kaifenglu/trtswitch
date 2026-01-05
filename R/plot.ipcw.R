@@ -1,8 +1,8 @@
-#' @title Plot method for tsesimp objects
-#' @description Generate box plot for AFT model deviance residuals and 
-#' Kaplan-Meier (KM) plot for potential outcomes of a tsesimp object.
+#' @title Plot method for ipcw objects
+#' @description Generate histogram of weights and weighted Kaplan-Meier (KM) 
+#' plot for censored outcomes of an ipcw object.
 #'
-#' @param x An object of class \code{tsesimp}.
+#' @param x An object of class \code{ipcw}.
 #' @param time_unit The time unit used in the input data.
 #'   Options are "day" (default), "week", "month", or "year".
 #' @param show_hr Logical; whether to show hazard ratio on the KM plot.
@@ -10,32 +10,33 @@
 #' @param show_risk Logical; whether to show number at risk table
 #'   below the KM plot. Default is TRUE.
 #' @param ... Ensures that all arguments starting from "..." are named.
-#' 
-#' @return A list of two ggplot2 objects, one for box plot and the other 
+#'
+#' @return A list of two ggplot2 objects, one for histogram and the other 
 #' for KM plot.
 #'
 #' @keywords internal
 #'
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
-#' @method plot tsesimp
+#' @method plot ipcw
 #' @export
-plot.tsesimp <- function(x, time_unit = "day", 
-                         show_hr = TRUE, show_risk = TRUE, ...) {
-  if (!inherits(x, "tsesimp")) {
-    stop("x must be of class 'tsesimp'")
+plot.ipcw <- function(x, time_unit = "day",
+                      show_hr = TRUE, show_risk = TRUE, ...) {
+  if (!inherits(x, "ipcw")) {
+    stop("x must be of class 'ipcw'")
   }
   
   alpha <- x$settings$alpha
-  conflev <- 100*(1 - alpha)
+  conflev <- 100*(1-alpha)
   treat_var <- x$settings$treat
   
   if (!is.null(x$data_outcome) && nrow(x$data_outcome) > 0) {
-    # --- Deviance residuals plot for AFT models ---
+    # --- weight plot ---
+    df <- x$data_outcome
     arm <- x$settings$data[[treat_var]]
     
-    df_arm <- data.frame(arm = c(x$res_aft[[1]][[treat_var]], 
-                                 x$res_aft[[2]][[treat_var]])) 
+    df_arm <- data.frame(arm = c(df[[treat_var]][df$treated == 0][1], 
+                                 df[[treat_var]][df$treated == 1][1]))
     
     if (is.factor(arm)) {
       df_arm$arm <- factor(df_arm$arm, labels = levels(arm))
@@ -46,33 +47,40 @@ plot.tsesimp <- function(x, time_unit = "day",
       df_arm$arm <- factor(df_arm$arm)
     }
     
-    
-    p_res <- list()
-    K <- if (x$settings$swtrt_control_only) 1 else 2
-    for (k in 1:K) {
-      df1 <- data.frame(swtrt = factor(x$data_aft[[k]]$data$swtrt, 
-                                       levels = c(1, 0), 
-                                       labels = c("Switchers", "Nonswitchers")),
-                        res = x$res_aft[[k]]$res)
-      p_res[[k]] <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$swtrt, y = .data$res)) +
-        ggplot2::geom_boxplot(fill = "#77bd89", color = "#1f6e34", alpha = 0.6) +
-        ggplot2::scale_x_discrete(drop = FALSE) + 
-        ggplot2::labs(x = NULL, y = "Deviance Residuals", title = df_arm$arm[[k]]) +
-        ggplot2::theme_bw()
-    }
-    
-    if (K == 1) {
-      p_res <- p_res[[1]]
+    if (x$settings$swtrt_control_only) {
+      if (x$settings$stabilized_weights) {
+        p_w <- ggplot2::ggplot(df[df$treated == 0, ], 
+                               ggplot2::aes(x = .data$stabilized_weight)) + 
+          ggplot2::geom_histogram(fill = "#77bd89", color = "#1f6e34", 
+                                  bins = 30, alpha = 0.8) +
+          ggplot2::scale_x_continuous("Stabilized Weights") + 
+          ggplot2::labs(title =  df_arm$arm[[1]]) + 
+          ggplot2::theme_bw()
+      } else {
+        p_w <- ggplot2::ggplot(df[df$treated == 0, ], 
+                               ggplot2::aes(x = .data$unstabilized_weight)) + 
+          ggplot2::geom_histogram(fill = "#77bd89", color = "#1f6e34", 
+                                  bins = 30, alpha = 0.8) +
+          ggplot2::scale_x_continuous("Unstabilized Weights") + 
+          ggplot2::labs(title = df_arm$arm[[1]]) + 
+          ggplot2::theme_bw()
+      }
     } else {
-      limits <- range(sapply(p_res, function(p) {
-        ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y.range
-      }))
-      
-      p_res <- lapply(p_res, function(p) {
-        p + ggplot2::coord_cartesian(ylim = limits)
-      })
-      
-      p_res <- cowplot::plot_grid(plotlist = p_res, ncol = 2)
+      if (x$settings$stabilized_weights) {
+        p_w <- ggplot2::ggplot(df, ggplot2::aes(x = .data$stabilized_weight)) + 
+          ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
+                                  bins = 30, alpha=0.8) + 
+          ggplot2::scale_x_continuous("Stabilized Weights") + 
+          ggplot2::facet_wrap(~ .data[[treat_var]]) + 
+          ggplot2::theme_bw()
+      } else {
+        p_w <- ggplot2::ggplot(df, ggplot2::aes(x = .data$unstabilized_weight)) + 
+          ggplot2::geom_histogram(fill="#77bd89", color="#1f6e34", 
+                                  bins = 30, alpha=0.8) + 
+          ggplot2::scale_x_continuous("Unstabilized Weights") + 
+          ggplot2::facet_wrap(~ .data[[treat_var]]) + 
+          ggplot2::theme_bw()
+      }
     }
     
     
@@ -110,7 +118,7 @@ plot.tsesimp <- function(x, time_unit = "day",
       ggplot2::scale_y_continuous(limits = c(0, 1)) +
       ggplot2::labs(
         x = "Months", y = "Survival Probability",
-        title = "Kaplan-Meier Curves for Counterfactual Outcomes") + 
+        title = "Weighted Kaplan-Meier Curves for Censored Outcomes") + 
       ggplot2::theme_bw() + 
       ggplot2::theme(
         plot.title = ggplot2::element_text(hjust = 0.5),
@@ -203,11 +211,11 @@ plot.tsesimp <- function(x, time_unit = "day",
       
       # 3. Combine with plot_grid()
       p_km <- cowplot::plot_grid(aligned[[1]], aligned[[2]], ncol = 1, 
-                                 rel_heights = c(4, 0.6))
+                                 rel_heights = c(4, 0.6))    
     }
     
-    list(p_res = p_res, p_km = p_km)
+    list(p_w = p_w, p_km = p_km)
   } else {
-    stop("No outcome data available to plot.")
+    stop("No outcome data available for plotting.")
   }
 }

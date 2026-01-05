@@ -66,7 +66,7 @@ double est_psi_rpsftm(
     std::vector<double> init(1, NaN);
     ListCpp fit = phregcpp(
       Sstar, {"ustratum"}, "t_star", "", "d_star", covariates, 
-      "", "", "", ties, init, false, false, false, false, false, alpha);
+      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
     
     DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
     if (!sumstat.get<unsigned char>("fail")[0]) {
@@ -83,7 +83,7 @@ double est_psi_rpsftm(
     std::vector<double> init(1, NaN);
     ListCpp fit = liferegcpp(
       Sstar, {""}, "t_star", "", "d_star", covariates_aft, 
-      "", "", "", dist, init, false, false, alpha);
+      "", "", "", dist, init, 0, 0, alpha);
     
     DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
     if (!sumstat.get<unsigned char>("fail")[0]) {
@@ -344,9 +344,9 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
 
         for (int j = 0; j < di; ++j) {
           const int* stratan_col = stratan.data_ptr() + i * n;
-          double* z_aftcol = z_aftn.data_ptr() + (k + j) * n;
+          double* z_aftn_col = z_aftn.data_ptr() + (k + j) * n;
           for (int r = 0; r < n; ++r) {
-            z_aftcol[r] = stratan_col[r] == j ? 1.0 : 0.0;
+            z_aftn_col[r] = stratan_col[r] == j ? 1.0 : 0.0;
           }
         }
 
@@ -365,8 +365,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         for (int i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
 
-          std::vector<int> q = intmatrix_get_column(stratan, i);
-          int l = q[first_k];
+          std::vector<int> q_col = intmatrix_get_column(stratan, i);
+          int l = q_col[first_k];
 
           if (u_stratum.string_cols.count(s)) {
             auto u = levels.get<std::vector<std::string>>(s);
@@ -387,9 +387,9 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           }
         }
         
-        double* z_aftcol = z_aftn.data_ptr() + j * n;
+        double* z_aftn_col = z_aftn.data_ptr() + j * n;
         for (int r = 0; r < n; ++r) {
-          z_aftcol[r] = stratumn[r] == j ? 1.0 : 0.0;
+          z_aftn_col[r] = stratumn[r] == j ? 1.0 : 0.0;
         }
       }
     }
@@ -397,7 +397,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
 
   // covariates for the Cox model containing treat and base_cov
   std::vector<std::string> covariates(p + 1);
-  FlatMatrix zn(n,p);
+  FlatMatrix zn(n, p);
   covariates[0] = "treated";
   for (int j = 0; j < p; ++j) {
     const std::string& zj = base_cov[j];
@@ -407,17 +407,18 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       throw std::invalid_argument("treat should be excluded from base_cov");
     covariates[j + 1] = zj;
     covariates_aft[q + j + 1] = zj;
-    double* zcol = zn.data_ptr() + j * n;
-    double* z_aftcol = z_aftn.data_ptr() + (q + j) * n;
+    double* zn_col = zn.data_ptr() + j * n;
+    double* z_aftn_col = z_aftn.data_ptr() + (q + j) * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = z_aftcol[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = z_aftcol[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = z_aftcol[i] = vd[i];
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
+      std::memcpy(z_aftn_col, vd.data(), n * sizeof(double));
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
@@ -493,8 +494,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   subset_in_place(treatn, keep);
   subset_in_place(rxn, keep);
   subset_in_place(censor_timen, keep);
-  if (p > 0) subset_in_place_flatmatrix(zn, keep);
-  if (qp > 0) subset_in_place_flatmatrix(z_aftn, keep);
+  subset_in_place_flatmatrix(zn, keep);
+  subset_in_place_flatmatrix(z_aftn, keep);
   n = static_cast<int>(keep.size());
 
   // summarize number of deaths and switches by treatment arm
@@ -687,7 +688,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                       
                       kmstar = kmestcpp(
                         Sstar, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, true);
+                        "", "log-log", 1.0 - alpha, 1);
                     }
                     
                     // run Cox model to obtain the hazard ratio estimate
@@ -706,7 +707,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                     if (k == -1) {
                       km_outcome = kmestcpp(
                         data_outcome, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, true);
+                        "", "log-log", 1.0 - alpha, 1);
                       lr_outcome = lrtestcpp(
                         data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
                     }
@@ -714,7 +715,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                     // fit the outcome model
                     fit_outcome = phregcpp(
                       data_outcome, {"ustratum"}, "t_star", "", "d_star", covariates, 
-                      "", "", "", ties, init, false, false, false, false, false, alpha);
+                      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
                     
                     DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
                     if (sumstat.get<unsigned char>("fail")[0]) fail = true;
@@ -935,8 +936,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       subset_in_place(treatn, order);
       subset_in_place(rxn, order);
       subset_in_place(censor_timen, order);
-      if (p > 0) subset_in_place_flatmatrix(zn, order);
-      if (qp > 0) subset_in_place_flatmatrix(z_aftn, order);
+      subset_in_place_flatmatrix(zn, order);
+      subset_in_place_flatmatrix(z_aftn, order);
       
       std::vector<int> tsx(1,0); // first observation within each treat/stratum
       for (int i = 1; i < n; ++i) {
@@ -950,17 +951,13 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       
       // Before running the parallel loop: pre-generate deterministic seeds
       std::vector<uint64_t> seeds(n_boot);
-      {
-        std::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
-        for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
-      }
+      std::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
+      for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
       struct BootstrapWorker : public RcppParallel::Worker {
         // references to read-only inputs (no mutation)
         const int n;
-        const int p;
-        const int qp;
         const int ntss;
         const std::vector<int>& tsx;
         const std::vector<int>& idn;
@@ -988,6 +985,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         
         // Per-worker storage for failed-boot data (to be merged in join)
         std::vector<int> boot_indexc_local;
+        std::vector<int> oidc_local;
         std::vector<int> idc_local;
         std::vector<int> stratumc_local;
         std::vector<int> treatc_local;
@@ -1001,7 +999,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         int index1_local = 0; // number of rows stored so far for z_aftc_local
         
         // constructor
-        BootstrapWorker(int n_, int p_, int qp_, int ntss_,
+        BootstrapWorker(int n_, int ntss_,
                         const std::vector<int>& tsx_,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
@@ -1017,7 +1015,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                         std::vector<unsigned char>& fails_out_,
                         std::vector<double>& hrhats_out_,
                         std::vector<double>& psihats_out_) :
-          n(n_), p(p_), qp(qp_), ntss(ntss_), tsx(tsx_), idn(idn_), stratumn(stratumn_),
+          n(n_), ntss(ntss_), tsx(tsx_), idn(idn_), stratumn(stratumn_),
           timen(timen_), eventn(eventn_), treatn(treatn_), rxn(rxn_),
           censor_timen(censor_timen_), zn(zn_), z_aftn(z_aftn_),
           seeds(seeds_), f(std::move(f_)),
@@ -1031,6 +1029,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             z_aftc_local[col].reserve(per_col_reserve);
           // Reserve scalar buffers heuristically (reduce reallocs)
           boot_indexc_local.reserve(per_col_reserve);
+          oidc_local.reserve(per_col_reserve);
           idc_local.reserve(per_col_reserve);
           stratumc_local.reserve(per_col_reserve);
           treatc_local.reserve(per_col_reserve);
@@ -1043,9 +1042,9 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         // operator() processes a range of bootstrap iterations [begin, end)
         void operator()(std::size_t begin, std::size_t end) {
           // per-worker reusable buffers (avoid reallocation per iteration)
-          std::vector<int> idb(n), stratumb(n), treatb(n);
+          std::vector<int> oidb(n), idb(n), stratumb(n), treatb(n);
           std::vector<double> timeb(n), eventb(n), rxb(n), censor_timeb(n);
-          FlatMatrix zb(n, p), z_aftb(n, qp);
+          FlatMatrix zb(n, zn.ncol), z_aftb(n, z_aftn.ncol);
           
           for (std::size_t k = begin; k < end; ++k) {
             // deterministic RNG per-iteration
@@ -1061,7 +1060,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
               for (int i = start; i < end; ++i) {
                 int j = start + index_dist(rng);
                 indices[i - start] = j;
-                idb[i] = idn[j];
+                oidb[i] = idn[j];
+                idb[i] = idn[j] + i * n; // make unique ids within bootstrap
                 stratumb[i] = stratumn[j];
                 timeb[i] = timen[j];
                 eventb[i] = eventn[j];
@@ -1071,19 +1071,19 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
               }
               // copy covariates using sampled indices
               for (int l = 0; l < zn.ncol; ++l) {
-                const double* zncol = zn.data_ptr() + l * n;
-                double* zbcol = zb.data_ptr() + l * n;
+                const double* zn_col = zn.data_ptr() + l * n;
+                double* zb_col = zb.data_ptr() + l * n;
                 for (int i = start; i < end; ++i) {
                   int j = indices[i - start];
-                  zbcol[i] = zncol[j];
+                  zb_col[i] = zn_col[j];
                 }
               }
               for (int l = 0; l < z_aftn.ncol; ++l) {
-                const double* z_aftncol = z_aftn.data_ptr() + l * n;
-                double* z_aftbcol = z_aftb.data_ptr() + l * n;
+                const double* z_aftn_col = z_aftn.data_ptr() + l * n;
+                double* z_aftb_col = z_aftb.data_ptr() + l * n;
                 for (int i = start; i < end; ++i) {
                   int j = indices[i - start];
-                  z_aftbcol[i] = z_aftncol[j];
+                  z_aftb_col[i] = z_aftn_col[j];
                 }
               }
             } // end block sampling
@@ -1101,6 +1101,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             // into per-worker storage
             if (fails_out[k]) {
               append(boot_indexc_local, std::vector<int>(n, static_cast<int>(k + 1)));
+              append(oidc_local, oidb);
               append(idc_local, idb);
               append(stratumc_local, stratumb);
               append(treatc_local, treatb);
@@ -1108,16 +1109,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
               append(eventc_local, eventb);
               append(rxc_local, rxb);
               append(censor_timec_local, censor_timeb);
-              
-              int ncols_aft = z_aftb.ncol;
-              for (int col = 0; col < ncols_aft; ++col) {
-                const double* colptr = z_aftb.data_ptr() + col * n;
-                auto &colvec = z_aftc_local[col];
-                std::size_t oldc = colvec.size();
-                colvec.resize(oldc + static_cast<std::size_t>(n));
-                std::memcpy(colvec.data() + oldc, colptr, n * sizeof(double));
-              }
-              
+              append_flatmatrix(z_aftc_local, z_aftb);
               index1_local += n;
             }
           } // end for k
@@ -1127,6 +1119,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         void join(const BootstrapWorker& other) {
           // append other's local vectors into this worker's storage
           append(boot_indexc_local, other.boot_indexc_local);
+          append(oidc_local, other.oidc_local);
           append(idc_local, other.idc_local);
           append(stratumc_local, other.stratumc_local);
           append(treatc_local, other.treatc_local);
@@ -1134,24 +1127,15 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           append(eventc_local, other.eventc_local);
           append(rxc_local, other.rxc_local);
           append(censor_timec_local, other.censor_timec_local);
-          
-          for (std::size_t col = 0; col < z_aftc_local.size(); ++col) {
-            const auto &src = other.z_aftc_local[col];
-            if (src.empty()) continue;
-            std::size_t old = z_aftc_local[col].size();
-            z_aftc_local[col].resize(old + src.size());
-            std::memcpy(z_aftc_local[col].data() + old, src.data(), 
-                        src.size() * sizeof(double));
-          }
-          
+          append_flatmatrix(z_aftc_local, other.z_aftc_local);
           index1_local += other.index1_local;
         }
       }; // end BootstrapWorker
       
       // Instantiate the Worker with references to inputs and outputs
       BootstrapWorker worker(
-          n, p, qp, ntss, tsx, idn, stratumn, timen, eventn, treatn, rxn, censor_timen,
-          zn, z_aftn, seeds,
+          n, ntss, tsx, idn, stratumn, timen, eventn, treatn, rxn, 
+          censor_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
           std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
                                 const std::vector<double>&, const std::vector<double>&,
@@ -1166,14 +1150,14 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       
       // After parallelFor returns, worker contains merged per-worker failure data.
       // Move them into the outer-scope vectors used later in the function:
-      std::vector<int> idc = std::move(worker.idc_local);
+      std::vector<int> oidc = std::move(worker.oidc_local);
       std::vector<int> stratumc = std::move(worker.stratumc_local);
       std::vector<int> treatc = std::move(worker.treatc_local);
 
       // assemble the failed bootstrap data into a DataFrame
       if (worker.index1_local > 0) {
         fail_boots_data.push_back(std::move(worker.boot_indexc_local), "boot_index");
-        fail_boots_data.push_back(idc, "uid");
+        fail_boots_data.push_back(std::move(worker.idc_local), "uid");
         fail_boots_data.push_back(std::move(worker.timec_local), "time");
         fail_boots_data.push_back(std::move(worker.eventc_local), "event");
         fail_boots_data.push_back(treatc, "treated");
@@ -1188,11 +1172,11 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         }
         
         if (data.int_cols.count(id)) {
-          fail_boots_data.push_back(subset(idwi, idc), id);
+          fail_boots_data.push_back(subset(idwi, oidc), id);
         } else if (data.numeric_cols.count(id)) {
-          fail_boots_data.push_back(subset(idwn, idc), id);
+          fail_boots_data.push_back(subset(idwn, oidc), id);
         } else if (data.string_cols.count(id)) {
-          fail_boots_data.push_back(subset(idwc, idc), id);
+          fail_boots_data.push_back(subset(idwc, oidc), id);
         }
 
         std::vector<int> nottreatc(treatc.size());

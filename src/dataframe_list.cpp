@@ -737,6 +737,115 @@ FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2) {
   return out;
 }
 
+// Row-wise append: both matrices must have same number of columns.
+void append_flatmatrix(FlatMatrix& fm1, const FlatMatrix& fm2) {
+  FlatMatrix tmp = concat_flatmatrix(fm1, fm2);
+  fm1 = std::move(tmp);
+}
+
+
+void append_flatmatrix(std::vector<std::vector<double>>& fm1, const FlatMatrix& fm2) {
+  int ncol = fm2.ncol;
+  int nrow2 = fm2.nrow;
+  if (fm1.size() != static_cast<std::size_t>(ncol)) 
+    throw std::invalid_argument(
+        "append_flatmatrix: fm1 column count does not match fm2");
+  
+  // Check that all columns in fm1 have the same number of rows and capture that count.
+  std::size_t nrow1 = 0;
+  if (!fm1.empty()) {
+    nrow1 = fm1[0].size();
+    for (std::size_t c = 1; c < fm1.size(); ++c) {
+      if (fm1[c].size() != nrow1) {
+        throw std::invalid_argument(
+            "append_flatmatrix: fm1 columns have inconsistent row counts");
+      }
+    }
+  }
+  
+  if (nrow2 == 0) return; // nothing to append
+  
+  for (std::size_t c = 0; c < fm1.size(); ++c) {
+    const double* src = fm2.data_ptr() + c * nrow2;
+    auto &dest_col = fm1[c];
+    dest_col.resize(nrow1 + nrow2);
+    std::memcpy(dest_col.data() + nrow1, src, nrow2 * sizeof(double));
+  }
+}
+
+
+void append_flatmatrix(std::vector<std::vector<double>>& fm1, 
+                       const std::vector<std::vector<double>>& fm2) {
+  if (fm2.empty()) return;
+  
+  // If fm1 is empty, just copy fm2 (fast path)
+  if (fm1.empty()) {
+    fm1 = fm2;
+    return;
+  }
+  
+  // Require same number of columns
+  if (fm1.size() != fm2.size()) {
+    throw std::invalid_argument("append_flatmatrix: number of columns must match");
+  }
+  
+  std::size_t ncol = fm1.size();
+  std::size_t nrow1 = fm1[0].size();
+  std::size_t nrow2 = fm2[0].size();
+  
+  for (std::size_t c = 0; c < ncol; ++c) {
+    // Validate column sizes
+    if (fm1[c].size() != nrow1) {
+      throw std::invalid_argument("append_flatmatrix: inconsistent row counts in fm1");
+    }
+    if (fm2[c].size() != nrow2) {
+      throw std::invalid_argument("append_flatmatrix: inconsistent row counts in fm2");
+    }
+    // Append column c
+    auto &dest_col = fm1[c];
+    std::size_t old_size = dest_col.size();
+    dest_col.resize(old_size + nrow2);
+    std::memcpy(dest_col.data() + old_size, fm2[c].data(), nrow2 * sizeof(double));
+  }
+}
+
+
+/*
+ Convert a vector-of-columns into a FlatMatrix (column-major).
+ - 'cols' outer vector: columns
+ - each inner vector: contiguous column values (length = nrow)
+ Throws std::invalid_argument if columns have inconsistent lengths.
+ */
+FlatMatrix cols_to_flatmatrix(const std::vector<std::vector<double>>& cols) {
+  const std::size_t ncol = cols.size();
+  if (ncol == 0) {
+    return FlatMatrix(); // empty
+  }
+  
+  const std::size_t nrow = cols[0].size();
+  // validate sizes
+  for (std::size_t c = 1; c < ncol; ++c) {
+    if (cols[c].size() != nrow) {
+      throw std::invalid_argument("cols_to_flatmatrix: inconsistent column lengths");
+    }
+  }
+  
+  // allocate contiguous column-major buffer: nrow * ncol
+  std::vector<double> data;
+  data.resize(nrow * ncol);
+  
+  // copy each column into its place: column c starts at data + c * nrow
+  const std::size_t bytes_per_col = nrow * sizeof(double);
+  for (std::size_t c = 0; c < ncol; ++c) {
+    if (nrow > 0) {
+      std::memcpy(data.data() + c * nrow, cols[c].data(), bytes_per_col);
+    }
+  }
+  
+  // construct FlatMatrix by moving the data buffer (avoids another copy)
+  return FlatMatrix(std::move(data), static_cast<int>(nrow), static_cast<int>(ncol));
+}
+
 
 std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col) {
   if (M.nrow == 0 || M.ncol == 0) return {};

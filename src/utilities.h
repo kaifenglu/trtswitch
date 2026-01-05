@@ -65,6 +65,21 @@ std::vector<int> findInterval3(const std::vector<double>& x,
                                bool all_inside = false,
                                bool left_open = false);
 
+// mean using Kahan summation for improved numerical stability
+inline double mean_kahan(const std::vector<double>& v) {
+  const std::size_t n = v.size();
+  if (n == 0) return std::numeric_limits<double>::quiet_NaN();
+  double sum = 0.0;
+  double c = 0.0; // compensation
+  for (std::size_t i = 0; i < n; ++i) {
+    double y = v[i] - c;        // corrected addend
+    double t = sum + y;         // provisional sum
+    c = (t - sum) - y;          // new compensation
+    sum = t;
+  }
+  return sum / static_cast<double>(n);
+}
+
 // mean and sd using Welford's method
 inline void mean_sd(const double* data, std::size_t n, double &omean, double &osd) {
   if (n == 0) {
@@ -103,6 +118,10 @@ double bisect(const std::function<double(double)>& f,
 // --------------------------- Quantiles -------------------------------------
 double quantilecpp(const std::vector<double>& x, double p);
 double squantilecpp(const std::function<double(double)>& S, double p, double tol);
+
+
+// in-place truncation of vector
+void truncate_in_place(std::vector<double>& v, bool trunc_upper_only, double trunc);
 
 // subset: return a subset of v according to 'order' (indices)
 template <typename T>
@@ -283,9 +302,9 @@ void chinv2(FlatMatrix& matrix, int n);
 FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = 1e-12);
 
 // Survival helpers
-DataFrameCpp survsplit(const std::vector<double>& tstart,
-                       const std::vector<double>& tstop,
-                       const std::vector<double>& cut);
+DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
+                          const std::vector<double>& tstop,
+                          const std::vector<double>& cut);
 
 // QR and other helpers
 ListCpp qrcpp(const FlatMatrix& X, double tol = 1e-07);

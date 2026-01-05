@@ -2547,9 +2547,9 @@ ListCpp f_der_1(int p, const std::vector<double>& par, void* ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    const double* col = zptr + i * n;
+    const double* zcol = zptr + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * col[r];
+      eta[r] += beta * zcol[r];
     }
   }
   
@@ -3006,9 +3006,9 @@ FlatMatrix f_ressco_1(int p, const std::vector<double>& par, void *ex) {
   for (int i = 0; i < nvar; ++i) {
     double beta = par[i];
     if (beta == 0.0) continue;
-    const double* col = zptr + i * n;
+    const double* zcol = zptr + i * n;
     for (int r = 0; r < n; ++r) {
-      eta[r] += beta * col[r];
+      eta[r] += beta * zcol[r];
     }
   }
   
@@ -3691,16 +3691,16 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     const std::string& zj = covariates[j];
     if (!data.containElementNamed(zj)) 
       throw std::invalid_argument("data must contain the variables in covariates");
-    double* zcol = zn.data_ptr() + (j + 1) * n;
+    double* zn_col = zn.data_ptr() + (j + 1) * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
@@ -4036,9 +4036,9 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     for (int i = 0; i < nvar; ++i) {
       double beta = b[i];
       if (beta == 0.0) continue;
-      const double* zcol = zn.data_ptr() + i * n1;
+      const double* zn_col = zn.data_ptr() + i * n1;
       for (int r = 0; r < n1; ++r) {
-        linear_predictors[q[r]] += beta * zcol[r];
+        linear_predictors[q[r]] += beta * zn_col[r];
       }
     }
     
@@ -4642,16 +4642,16 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     const std::string& zj = covariates[j];
     if (!data.containElementNamed(zj)) 
       throw std::invalid_argument("data must contain the variables in covariates");
-    double* zcol = zn.data_ptr() + (j + 1) * n;
+    double* zn_col = zn.data_ptr() + (j + 1) * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
@@ -4782,8 +4782,8 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   for (int j = 0; j < nvar; ++j) {
     double b = beta[j];
     if (b == 0.0) continue;
-    const double* col = zptr + j * n1;
-    for (int i = 0; i < n1; ++i) eta[i] += b * col[i];
+    const double* zcol = zptr + j * n1;
+    for (int i = 0; i < n1; ++i) eta[i] += b * zcol[i];
   }
   
   // --- compute sigma per observation ---
@@ -5007,9 +5007,9 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
   // --- apply case weights if requested ---
   if (weighted) {
     for (int k = 0; k < K; ++k) {
-      double* col = rrptr + k * n1;
+      double* rrcol = rrptr + k * n1;
       for (int i = 0; i < n1; ++i) {
-        col[i] *= weightn[i];
+        rrcol[i] *= weightn[i];
       }
     }
   }
@@ -6211,16 +6211,16 @@ ListCpp phregcpp(const DataFrameCpp& data,
       const std::string& zj = covariates[j];
       if (!data.containElementNamed(zj)) 
         throw std::invalid_argument("data must contain the variables in covariates");
-      double* zcol = zn.data_ptr() + j * n;
+      double* zn_col = zn.data_ptr() + j * n;
       if (data.bool_cols.count(zj)) {
         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+        for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
       } else if (data.int_cols.count(zj)) {
         const std::vector<int>& vi = data.get<int>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+        for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
       } else if (data.numeric_cols.count(zj)) {
         const std::vector<double>& vd = data.get<double>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+        std::memcpy(zn_col, vd.data(), n * sizeof(double));
       } else {
         throw std::invalid_argument("covariates must be bool, integer or numeric");
       }
@@ -6742,9 +6742,9 @@ ListCpp phregcpp(const DataFrameCpp& data,
       for (int j = 0; j < p; ++j) {
         double beta = b[j];
         if (beta == 0.0) continue;
-        const double* zcol = zna.data_ptr() + j * n;
+        const double* zna_col = zna.data_ptr() + j * n;
         for (int i = 0; i < n; ++i) {
-          linear_predictors[order1[i]] += beta * zcol[i];
+          linear_predictors[order1[i]] += beta * zna_col[i];
         }
       }
     }
@@ -6953,16 +6953,16 @@ DataFrameCpp survfit_phregcpp(const int p,
     if (!newdata.containElementNamed(zj))
       throw std::invalid_argument(
           "newdata must contain the variables in covariates");
-    double* zcol = zn.data_ptr() + j * n;
+    double* zn_col = zn.data_ptr() + j * n;
     if (newdata.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = newdata.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (newdata.int_cols.count(zj)) {
       const std::vector<int>& vi = newdata.get<int>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (newdata.numeric_cols.count(zj)) {
       const std::vector<double>& vd = newdata.get<double>(zj);
-      for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
@@ -7150,9 +7150,9 @@ DataFrameCpp survfit_phregcpp(const int p,
   for (int j = 0; j < p; ++j) {
     double b = beta[j];
     if (b == 0.0) continue;
-    const double* zcol = zn.data_ptr() + j * n;
+    const double* zn_col = zn.data_ptr() + j * n;
     for (int i = 0; i < n; ++i) {
-      eta[i] += b * zcol[i];
+      eta[i] += b * zn_col[i];
     }
   }
   std::vector<double> risk(n);
@@ -7649,16 +7649,16 @@ ListCpp residuals_phregcpp(const int p,
       const std::string& zj = covariates[j];
       if (!data.containElementNamed(zj)) 
         throw std::invalid_argument("data must contain the variables in covariates");
-      double* zcol = zn.data_ptr() + j * n;
+      double* zn_col = zn.data_ptr() + j * n;
       if (data.bool_cols.count(zj)) {
         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+        for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
       } else if (data.int_cols.count(zj)) {
         const std::vector<int>& vi = data.get<int>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+        for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
       } else if (data.numeric_cols.count(zj)) {
         const std::vector<double>& vd = data.get<double>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+        std::memcpy(zn_col, vd.data(), n * sizeof(double));
       } else {
         throw std::invalid_argument("covariates must be bool, integer or numeric");
       }
@@ -8012,9 +8012,9 @@ ListCpp residuals_phregcpp(const int p,
     
     if (weighted) {
       for (int k = 0; k < p; ++k) {
-        double* rcol = rr.data_ptr() + k * ndead;
+        double* rrcol = rr.data_ptr() + k * ndead;
         for (int i = 0; i < ndead; ++i) {
-          rcol[i] *= weightn[i];
+          rrcol[i] *= weightn[i];
         }
       }
     }
@@ -8022,10 +8022,10 @@ ListCpp residuals_phregcpp(const int p,
     if (type == "scaledsch") {
       FlatMatrix rr1 = mat_mat_mult(rr, vbeta);
       for (int k = 0; k < p; ++k) {
-        double* rcol = rr1.data_ptr() + k * ndead;
+        double* rr1_col = rr1.data_ptr() + k * ndead;
         const double b = beta[k];
         for (int i = 0; i < ndead; ++i) {
-          rcol[i] = rcol[i] * ndead + b;
+          rr1_col[i] = rr1_col[i] * ndead + b;
         }
       }
       rr = std::move(rr1);
@@ -8397,16 +8397,16 @@ ListCpp assess_phregcpp(const int p,
       const std::string& zj = covariates[j];
       if (!data.containElementNamed(zj))
         throw std::invalid_argument("data must contain the variables in covariates");
-      double* zcol = zn.data_ptr() + j * n;
+      double* zn_col = zn.data_ptr() + j * n;
       if (data.bool_cols.count(zj)) {
         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+        for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
       } else if (data.int_cols.count(zj)) {
         const std::vector<int>& vi = data.get<int>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+        for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
       } else if (data.numeric_cols.count(zj)) {
         const std::vector<double>& vd = data.get<double>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+        std::memcpy(zn_col, vd.data(), n * sizeof(double));
       } else {
         throw std::invalid_argument("covariates must be bool, integer or numeric");
       }
@@ -8899,16 +8899,16 @@ ListCpp zph_phregcpp(int p,
       const std::string& zj = covariates[j];
       if (!data.containElementNamed(zj))
         throw std::invalid_argument("data must contain the variables in covariates");
-      double* zcol = zn.data_ptr() + j * n;
+      double* zn_col = zn.data_ptr() + j * n;
       if (data.bool_cols.count(zj)) {
         const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vb[i] ? 1.0 : 0.0;
+        for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
       } else if (data.int_cols.count(zj)) {
         const std::vector<int>& vi = data.get<int>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = static_cast<double>(vi[i]);
+        for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
       } else if (data.numeric_cols.count(zj)) {
         const std::vector<double>& vd = data.get<double>(zj);
-        for (int i = 0; i < n; ++i) zcol[i] = vd[i];
+        std::memcpy(zn_col, vd.data(), n * sizeof(double));
       } else {
         throw std::invalid_argument("covariates must be bool, integer or numeric");
       }

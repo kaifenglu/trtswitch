@@ -276,72 +276,18 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
   if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
   
-  misscovariates <- length(base_cov) == 0 || 
-    (length(base_cov) == 1 && (base_cov[1] == ""))
+  # process covariate specifications
+  res1 <- process_cov(base_cov, df)
+  df <- res1$df
+  vnames <- res1$vnames
+  varnames <- res1$varnames
   
-  if (!misscovariates) {
-    fml_cov <- as.formula(paste("~", paste(base_cov, collapse = "+")))
-    vnames <- rownames(attr(terms(fml_cov), "factors"))
-    
-    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
-    cov_present <- base_cov %in% names(df)
-    all_numeric <- FALSE
-    if (all(cov_present)) {
-      all_numeric <- all(vapply(df[ base_cov ], is.numeric, logical(1)))
-    }
-    
-    if (all_numeric) {
-      # Build design columns directly from numeric covariates (intercept + columns)
-      # This avoids model.matrix and is valid when covariates are simple numeric columns.
-      varnames <- base_cov
-    } else {
-      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
-      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
-      mm <- model.matrix(fml_cov, mf)
-      colnames(mm) <- make.names(colnames(mm))
-      varnames <- colnames(mm)[-1]
-      missing_cols <- setdiff(varnames, names(df))
-      if (length(missing_cols) > 0) {
-        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
-      }
-    }
-  } else {
-    varnames <- ""
-  }
+  res2 <- process_cov(base2_cov, df)
+  df <- res2$df
+  vnames2 <- res2$vnames
+  varnames2 <- res2$varnames
   
-  misscovariates2 <- length(base2_cov) == 0 || 
-    (length(base2_cov) == 1 && (base2_cov[1] == ""))
-  
-  if (!misscovariates2) {
-    fml_cov2 <- as.formula(paste("~", paste(base2_cov, collapse = "+")))
-    vnames2 <- rownames(attr(terms(fml_cov2), "factors"))
-    
-    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
-    cov_present2 <- base2_cov %in% names(df)
-    all_numeric2 <- FALSE
-    if (all(cov_present2)) {
-      all_numeric2 <- all(vapply(df[ base2_cov ], is.numeric, logical(1)))
-    }
-    
-    if (all_numeric2) {
-      # Build design columns directly from numeric covariates (intercept + columns)
-      # This avoids model.matrix and is valid when covariates are simple numeric columns.
-      varnames2 <- base2_cov
-    } else {
-      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
-      mf2 <- model.frame(fml_cov2, data = df, na.action = na.pass)
-      mm2 <- model.matrix(fml_cov2, mf2)
-      colnames(mm2) <- make.names(colnames(mm2))
-      varnames2 <- colnames(mm2)[-1]
-      missing_cols2 <- setdiff(varnames2, names(df))
-      if (length(missing_cols2) > 0) {
-        for (vn in missing_cols2) df[[vn]] <- mm2[, vn, drop = TRUE]
-      }
-    }
-  } else {
-    varnames2 <- ""
-  }
-
+  # call the core cpp function
   out <- tsesimpcpp(
     df = df, id = id, stratum = stratum, time = time, 
     event = event, treat = treat, 
@@ -359,7 +305,7 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     out$data_outcome$uid <- NULL
     out$data_outcome$ustratum <- NULL
     
-    if (!misscovariates) {
+    if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
         frame_df <- out$data_outcome
@@ -374,7 +320,7 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
       }
     }
     
-    if (!misscovariates2) {
+    if (length(vnames2) > 0) {
       K = ifelse(swtrt_control_only, 1, 2)
       tem_vars <- c(pd_time, swtrt_time, time)
       add_vars <- c(setdiff(vnames2, varnames2), tem_vars)

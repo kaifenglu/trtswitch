@@ -1,3 +1,5 @@
+#include <Rcpp.h>
+
 #include "utilities.h"
 #include "dataframe_list.h"
 
@@ -304,6 +306,23 @@ double squantilecpp(const std::function<double(double)>& S, double p, double tol
   auto f = [&S, p](double t) -> double { return S(t) - p; };
   return brent(f, lower, upper, tol);
 }
+
+
+// in-place truncation of vector
+void truncate_in_place(std::vector<double>& v, bool trunc_upper_only, double trunc) {
+  if (v.empty()) return;
+  if (trunc < 0.0 || trunc >= 0.5) {
+    throw std::invalid_argument("trunc must lie in [0, 0.5)");
+  }
+  if (trunc_upper_only) {
+    double upper = quantilecpp(v, 1 - trunc);
+    for (double &x : v) if (x > upper) x = upper;
+  } else {
+    double lower = quantilecpp(v, trunc);
+    double upper = quantilecpp(v, 1 - trunc);
+    for (double &x : v) x = std::clamp(x, lower, upper);
+  }
+};
 
 
 // bygroup: group-by helper that builds lookup tables and combined indices
@@ -657,9 +676,9 @@ FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler) {
 
 // -------------------------- Survival helpers --------------------------------
 
-DataFrameCpp survsplit(const std::vector<double>& tstart,
-                       const std::vector<double>& tstop,
-                       const std::vector<double>& cut) {
+DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
+                          const std::vector<double>& tstop,
+                          const std::vector<double>& cut) {
   int n = tstart.size();
   int ncut = cut.size();
   int extra = 0;
@@ -674,7 +693,7 @@ DataFrameCpp survsplit(const std::vector<double>& tstart,
   std::vector<int> interval(n2);
   std::vector<double> start(n2);
   std::vector<double> end(n2);
-  std::vector<int> censor(n2, 0);
+  std::vector<double> censor(n2, 0);
   int k = 0;
   for (int i = 0; i < n; ++i) {
     if (std::isnan(tstart[i]) || std::isnan(tstop[i])) {
@@ -713,6 +732,13 @@ DataFrameCpp survsplit(const std::vector<double>& tstart,
   return df;
 }
 
+// [[Rcpp::export]]
+Rcpp::DataFrame survsplitRcpp(const std::vector<double>& tstart,
+                              const std::vector<double>& tstop,
+                              const std::vector<double>& cut) {
+  DataFrameCpp dfcpp = survsplitcpp(tstart, tstop, cut);
+  return Rcpp::wrap(dfcpp);
+}
 
 // ------------------------- QR and other helpers -----------------------------
 double sumsq(const std::vector<double>& x) {
