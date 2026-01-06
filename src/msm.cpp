@@ -171,15 +171,15 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   if (event.empty() || !data.containElementNamed(event)) {
     throw std::invalid_argument("data must contain the event variable");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -242,15 +242,15 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   if (swtrt.empty() || !data.containElementNamed(swtrt)) {
     throw std::invalid_argument("data must contain the swtrt variable");
   }
-  std::vector<double> swtrtn(n);
+  std::vector<int> swtrtn(n);
   if (data.bool_cols.count(swtrt)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(swtrt)) {
-    const std::vector<int>& vi = data.get<int>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<double>(vi[i]);
+    swtrtn = data.get<int>(swtrt);
   } else if (data.numeric_cols.count(swtrt)) {
-    swtrtn = data.get<double>(swtrt);
+    const std::vector<double>& vd = data.get<double>(swtrt);
+    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("swtrt variable must be bool, integer or numeric");
   }
@@ -418,11 +418,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
     double* z_lgs_denn_col = z_lgs_denn.data_ptr() + (q + j) * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) 
+      for (int i = 0; i < n; ++i)
         z_lgs_denn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) 
+      for (int i = 0; i < n; ++i)
         z_lgs_denn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
@@ -472,10 +472,10 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
-    if (idn[i] == INT_MIN || stratumn[i] == INT_MIN || 
-        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) || 
-        std::isnan(eventn[i]) || treatn[i] == INT_MIN || 
-        std::isnan(swtrtn[i])) {
+    if (idn[i] == INT_MIN || stratumn[i] == INT_MIN ||
+        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
+        eventn[i] == INT_MIN || treatn[i] == INT_MIN ||
+        swtrtn[i] == INT_MIN) {
       sub[i] = 0; continue;
     }
     for (int j = 0; j < q + p2; ++j) {
@@ -498,11 +498,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   subset_in_place_flatmatrix(z_lgs_denn, keep);
   n = static_cast<int>(keep.size());
   
-  // split at treatment switching into two observations if treatment 
+  // split at treatment switching into two observations if treatment
   // switching occurs strictly between tstart and tstop for a subject
   std::vector<unsigned char> tosplit(n);
   for (int i = 0; i < n; ++i) {
-    tosplit[i] = swtrtn[i] == 1 && swtrt_timen[i] > tstartn[i] && 
+    tosplit[i] = swtrtn[i] == 1 && swtrt_timen[i] > tstartn[i] &&
       swtrt_timen[i] < tstopn[i] ? 1 : 0;
   }
   
@@ -570,11 +570,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   }
   
   // create os_time variable
-  std::vector<double> osn(n);
+  std::vector<int> osn(n);
   std::vector<double> os_timen(n);
   for (int i = 0; i < nids; ++i) {
     int k = idx1[i];
-    double ev = eventn[k];
+    int ev = eventn[k];
     double ts = tstopn[k];
     int start = idx[i], end = idx[i+1];
     std::fill(osn.begin() + start, osn.begin() + end, ev);
@@ -589,8 +589,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   
   // subset to one observation per id for event summary
   std::vector<int> treatn1 = subset(treatn, idx1);
-  std::vector<double> eventn1 = subset(eventn, idx1);
-  std::vector<double> swtrtn1 = subset(swtrtn, idx1);
+  std::vector<int> eventn1 = subset(eventn, idx1);
+  std::vector<int> swtrtn1 = subset(swtrtn, idx1);
   
   // summarize number of deaths and switches by treatment arm
   std::vector<int> treat_out = {0, 1};
@@ -620,37 +620,37 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   event_summary.push_back(std::move(pct_event), "event_pct");
   event_summary.push_back(std::move(n_switch), "switch_n");
   event_summary.push_back(std::move(pct_switch), "switch_pct");
-
+  
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  auto f = [data, has_stratum, stratum, p_stratum, u_stratum, 
+  auto f = [data, has_stratum, stratum, p_stratum, u_stratum,
             treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
-            p, p2, q, covariates, numerator, denominator, 
-            covariates_lgs_num, covariates_lgs_den, ns_df, firth, flic, 
-            stabilized_weights, trunc, trunc_upper_only, 
+            p, p2, q, covariates, numerator, denominator,
+            covariates_lgs_num, covariates_lgs_den, ns_df, firth, flic,
+            stabilized_weights, trunc, trunc_upper_only,
             swtrt_control_only, treat_alt_interaction, alpha, zcrit, ties](
-                const std::vector<int>& idb, 
-                const std::vector<int>& stratumb, 
+                const std::vector<int>& idb,
+                const std::vector<int>& stratumb,
                 const std::vector<double>& tstartb,
                 const std::vector<double>& tstopb,
-                const std::vector<double>& eventb, 
-                const std::vector<int>& treatb, 
-                const std::vector<double>& os_timeb, 
-                const std::vector<double>& swtrtb, 
-                const std::vector<double>& swtrt_timeb, 
+                const std::vector<int>& eventb,
+                const std::vector<int>& treatb,
+                const std::vector<double>& os_timeb,
+                const std::vector<int>& swtrtb,
+                const std::vector<double>& swtrt_timeb,
                 const FlatMatrix& zb,
                 const FlatMatrix& z_lgs_denb, int k) -> ListCpp {
-                  // the total number of rows change across bootstrap samples 
-                  // because bootstrap is done at the subject level and 
+                  // the total number of rows change across bootstrap samples
+                  // because bootstrap is done at the subject level and
                   // different subjects generally have different number of rows
                   int n = static_cast<int>(idb.size());
                   bool fail = false; // whether any model fails to converge
                   std::vector<double> init(1, NaN);
-                  std::vector<double> crossb(n);
+                  std::vector<int> crossb(n);
                   
                   int n1;
-                  std::vector<int> id1, stratum1, treat1;
-                  std::vector<double> tstart1, tstop1, swtrt1, swtrt_time1, cross1;
+                  std::vector<int> id1, stratum1, treat1, swtrt1, cross1;
+                  std::vector<double> tstart1, tstop1, swtrt_time1;
                   FlatMatrix z_lgs_den1;
                   if (!swtrt_control_only) {
                     // set up time-dependent switching indicators
@@ -688,7 +688,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     n1 = static_cast<int>(l.size());
                     
                     // set up crossover indicators
-                    cross1 = std::vector<double>(n1);
+                    cross1 = std::vector<int>(n1);
                     for (int i = 0; i < n1; ++i) {
                       if (i == n1 - 1 || id1[i] != id1[i+1]) {
                         if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
@@ -699,7 +699,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                   } else {
                     // set up time-dependent switching indicators for control
                     for (int i = 0; i < n; ++i) {
-                      if (swtrtb[i] == 1 && tstartb[i] >= swtrt_timeb[i] && 
+                      if (swtrtb[i] == 1 && tstartb[i] >= swtrt_timeb[i] &&
                           treatb[i] == 0) {
                         crossb[i] = 1;
                       } else {
@@ -723,13 +723,13 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     std::vector<double> tstart10 = subset(tstartb, l);
                     std::vector<double> tstop10 = subset(tstopb, l);
                     std::vector<int> treat10 = subset(treatb, l);
-                    std::vector<double> swtrt10 = subset(swtrtb, l);
+                    std::vector<int> swtrt10 = subset(swtrtb, l);
                     std::vector<double> swtrt_time10 = subset(swtrt_timeb, l);
                     FlatMatrix z_lgs_den10 = subset_flatmatrix(z_lgs_denb, l);
                     int n10 = static_cast<int>(l.size());
                     
                     // set up crossover indicators for control
-                    std::vector<double> cross10(n10);
+                    std::vector<int> cross10(n10);
                     for (int i = 0; i < n10; ++i) {
                       if (i == n10 - 1 || id10[i] != id10[i+1]) {
                         if (swtrt10[i] == 1 && tstop10[i] >= swtrt_time10[i]) {
@@ -748,13 +748,13 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     std::vector<double> tstart11 = subset(tstartb, start, n);
                     std::vector<double> tstop11 = subset(tstopb, start, n);
                     std::vector<int> treat11 = subset(treatb, start, n);
-                    std::vector<double> swtrt11 = subset(swtrtb, start, n);
+                    std::vector<int> swtrt11 = subset(swtrtb, start, n);
                     std::vector<double> swtrt_time11 = subset(swtrt_timeb, start, n);
                     FlatMatrix z_lgs_den11 = subset_flatmatrix(z_lgs_denb, start, n);
                     int n11 = n - start;
                     
                     // no crossover in active group
-                    std::vector<double> cross11(n11, 0);
+                    std::vector<int> cross11(n11, 0);
                     
                     // combine control and active group data
                     id1 = concat(id10, id11);
@@ -780,7 +780,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                       data_x->push_back(nulldata, "data");
                       fit_x->push_back(nullfit, "fit_den");
                       fit_x->push_back(nullfit, "fit_num");
-                      if (data.bool_cols.count(treat) || 
+                      if (data.bool_cols.count(treat) ||
                           data.int_cols.count(treat)) {
                         data_x->push_back(treatwi[1 - h], treat);
                         fit_x->push_back(treatwi[1 - h], treat);
@@ -825,7 +825,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     std::vector<int> stratum2 = subset(stratum1, start, end);
                     std::vector<double> tstart2 = subset(tstart1, start, end);
                     std::vector<double> tstop2 = subset(tstop1, start, end);
-                    std::vector<double> cross2 = subset(cross1, start, end);
+                    std::vector<int> cross2 = subset(cross1, start, end);
                     FlatMatrix z_lgs_den2 = subset_flatmatrix(z_lgs_den1, start, end);
                     int n2 = end - start;
                     
@@ -846,7 +846,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     
                     // prepare the data for fitting the switching model
                     DataFrameCpp data1;
-                    data1.push_back(std::move(id2), "uid");
+                    data1.push_back(id2, "uid");
                     data1.push_back(std::move(stratum2), "ustratum");
                     data1.push_back(std::move(tstart2), "tstart");
                     data1.push_back(std::move(tstop2), "tstop");
@@ -864,7 +864,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     }
                     
                     ListCpp fit_den = logisregcpp(
-                      data1, "cross", covariates_lgs_den, "", "", "", 
+                      data1, "cross", covariates_lgs_den, "", "", "",
                       "uid", "logit", init, 0, firth, flic, 0, alpha);
                     DataFrameCpp sumstat_den = fit_den.get<DataFrameCpp>("sumstat");
                     if (sumstat_den.get<unsigned char>("fail")[0]) fail = true;
@@ -872,7 +872,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     std::vector<double> h_den = f_den.get<double>("fitted_values");
                     
                     ListCpp fit_num = logisregcpp(
-                      data1, "cross", covariates_lgs_num, "", "", "", 
+                      data1, "cross", covariates_lgs_num, "", "", "",
                       "uid", "logit", init, 0, firth, flic, 0, alpha);
                     DataFrameCpp sumstat_num = fit_num.get<DataFrameCpp>("sumstat");
                     if (sumstat_num.get<unsigned char>("fail")[0]) fail = true;
@@ -918,11 +918,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                       fit_x->get_list("fit_num") = fit_num;
                     }
                     
-                    // convert to probability of observed response 
+                    // convert to probability of observed response
                     std::vector<double> o_den(n2), o_num(n2);
                     for (int i = 0; i < n2; ++i) {
-                      o_den[i] = cross2[i] == 1 ? h_den[i] : 1 - h_den[i];
-                      o_num[i] = cross2[i] == 1 ? h_num[i] : 1 - h_num[i];
+                      o_den[i] = cross2[i] == 1 ? h_den[i] : 1.0 - h_den[i];
+                      o_num[i] = cross2[i] == 1 ? h_num[i] : 1.0 - h_num[i];
                     }
                     
                     // obtain cumulative products within a subject
@@ -936,8 +936,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     
                     // extract data for the treatment arm
                     mid = 0;
-                    for (int i = 0; i < n; ++i) {
-                      if (treatb[i] == 1) break;
+                    for (; mid < n; ++mid) {
+                      if (treatb[mid] == 1) break;
                     }
                     
                     if (h == 0) {
@@ -947,7 +947,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     }
                     
                     std::vector<int> id3 = subset(idb, start, end);
-                    std::vector<double> swtrt3 = subset(swtrtb, start, end);
+                    std::vector<int> swtrt3 = subset(swtrtb, start, end);
                     int n3 = end - start;
                     
                     std::vector<int> idx3(1, 0);
@@ -957,7 +957,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                       }
                     }
                     
-                    std::vector<double> swtrt3u = subset(swtrt3, idx3);
+                    std::vector<int> swtrt3u = subset(swtrt3, idx3);
                     
                     int nids3 = static_cast<int>(idx3.size());
                     idx3.push_back(n3);
@@ -967,28 +967,29 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     
                     int m = 0; // index for id2
                     int v = 0; // index for current unique id2
+                    
                     for (int i = 0; i < nids3; ++i) {
                       int j1 = idx3[i], j2 = idx3[i+1];
                       int r = m - j1 - 1;
-                      int mi = (swtrt3u[i] == 1) ? idx2[v+1] - idx2[v] : 
+                      int mi = (swtrt3u[i] == 1) ? idx2[v+1] - idx2[v] :
                         j2 - j1 - 1;
                       
                       if (swtrt3u[i] == 1) {
                         // cum prod before and at switch
                         int jj = std::min(j1 + mi, j2 - 1);
                         for (int j = j1 + 1; j <= jj; ++j) {
-                          p_den[j] = p_den[j - 1] * o_den[r + j];
-                          p_num[j] = p_num[j - 1] * o_num[r + j];
+                          p_den[j] = p_den[j-1] * o_den[r + j];
+                          p_num[j] = p_num[j-1] * o_num[r + j];
                         }
                         // LOCF after switch
                         for (int j = jj + 1; j < j2; ++j) {
-                          p_den[j] = p_den[j - 1];
-                          p_num[j] = p_num[j - 1];
+                          p_den[j] = p_den[j-1];
+                          p_num[j] = p_num[j-1];
                         }
                       } else {
                         for (int j = j1 + 1; j < j2; ++j) {
-                          p_den[j] = p_den[j - 1] * o_den[r + j];
-                          p_num[j] = p_num[j - 1] * o_num[r + j];
+                          p_den[j] = p_den[j-1] * o_den[r + j];
+                          p_num[j] = p_num[j-1] * o_num[r + j];
                         }
                       }
                       
@@ -1051,7 +1052,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                   data_outcome.push_back(std::move(swb), "stabilized_weight");
                   
                   if (!swtrt_control_only && treat_alt_interaction) {
-                    std::vector<double> treat_cross(n);
+                    std::vector<int> treat_cross(n);
                     for (int i = 0; i < n; ++i) treat_cross[i] = treatb[i] * crossb[i];
                     data_outcome.push_back(std::move(treat_cross), "treated_crossed");
                   }
@@ -1064,7 +1065,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     data_outcome.push_back(std::move(u), zj);
                   }
                   
-                  std::string weight_variable = stabilized_weights ? 
+                  std::string weight_variable = stabilized_weights ?
                   "stabilized_weight" : "unstabilized_weight";
                   
                   DataFrameCpp weight_summary, km_outcome, lr_outcome;
@@ -1088,7 +1089,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     std::vector<int> idc = subset(idb, l);
                     std::vector<double> tstartc = subset(tstartb, l);
                     std::vector<double> tstopc = subset(tstopb, l);
-                    std::vector<double> eventc = subset(eventb, l);
+                    std::vector<int> eventc = subset(eventb, l);
                     std::vector<int> treatc = subset(treatb, l);
                     std::vector<int> stratumc = subset(stratumb, l);
                     std::vector<double> weightc = subset(weightb, l);
@@ -1104,18 +1105,18 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     
                     // generate weighted KM estimate and log-rank test
                     km_outcome = kmestcpp(
-                      data_outcome_trunc, {"treated"}, "tstart", "tstop", 
+                      data_outcome_trunc, {"treated"}, "tstart", "tstop",
                       "event", weight_variable, "log-log", 1.0 - alpha, 1);
                     
                     lr_outcome = lrtestcpp(
-                      data_outcome_trunc, {"ustratum"}, "treated", 
+                      data_outcome_trunc, {"ustratum"}, "treated",
                       "tstart", "tstop", "event", weight_variable);
                   }
                   
                   // fit the outcome model with weights
                   ListCpp fit_outcome = phregcpp(
-                    data_outcome, {"ustratum"}, "tstart", "tstop", "event", 
-                    covariates, weight_variable, "", "uid", ties, init, 
+                    data_outcome, {"ustratum"}, "tstart", "tstop", "event",
+                    covariates, weight_variable, "", "uid", ties, init,
                     1, 0, 0, 0, 0, alpha);
                   
                   DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
@@ -1130,8 +1131,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                     hrlower = std::exp(beta0 - zcrit * sebeta0);
                     hrupper = std::exp(beta0 + zcrit * sebeta0);
                     pvalue = parest.get<double>("p")[0];
-                  } 
-                  
+                  }
                   ListCpp out;
                   if (k == -1) {
                     out.push_back(std::move(data_switch), "data_switch");
@@ -1177,8 +1177,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   
   // summarize number of deaths by treatment arm in the outcome data
   std::vector<int> treated = data_outcome.get<int>("treated");
-  std::vector<double> event_out = data_outcome.get<double>("event");
-  std::vector<double> n_event_out(2); 
+  std::vector<int> event_out = data_outcome.get<int>("event");
+  std::vector<double> n_event_out(2);
   // note: outcome data excludes data after switch
   for (int i = 0; i < static_cast<int>(treated.size()); ++i) {
     int g = treated[i];
@@ -1339,11 +1339,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       const std::vector<int>& stratumn;
       const std::vector<double>& tstartn;
       const std::vector<double>& tstopn;
-      const std::vector<double>& eventn;
+      const std::vector<int>& eventn;
       const std::vector<int>& treatn;
-      const std::vector<double>& osn;
+      const std::vector<int>& osn;
       const std::vector<double>& os_timen;
-      const std::vector<double>& swtrtn;
+      const std::vector<int>& swtrtn;
       const std::vector<double>& swtrt_timen;
       const FlatMatrix& zn;
       const FlatMatrix& z_lgs_denn;
@@ -1353,8 +1353,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       // capture them by reference here so worker can call f(...)
       std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
                             const std::vector<double>&, const std::vector<double>&,
+                            const std::vector<int>&, const std::vector<int>&,
                             const std::vector<double>&, const std::vector<int>&,
-                            const std::vector<double>&, const std::vector<double>&,
                             const std::vector<double>&, const FlatMatrix&,
                             const FlatMatrix&, int)> f;
       
@@ -1369,11 +1369,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       std::vector<int> stratumc_local;
       std::vector<double> tstartc_local;
       std::vector<double> tstopc_local;
-      std::vector<double> eventc_local;
+      std::vector<int> eventc_local;
       std::vector<int> treatc_local;
-      std::vector<double> osc_local;
+      std::vector<int> osc_local;
       std::vector<double> os_timec_local;
-      std::vector<double> swtrtc_local;
+      std::vector<int> swtrtc_local;
       std::vector<double> swtrt_timec_local;
       
       // store column-wise z_lgs_denc_local: outer vector length == z_lgs_denn.ncol
@@ -1390,11 +1390,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                       const std::vector<int>& stratumn_,
                       const std::vector<double>& tstartn_,
                       const std::vector<double>& tstopn_,
-                      const std::vector<double>& eventn_,
+                      const std::vector<int>& eventn_,
                       const std::vector<int>& treatn_,
-                      const std::vector<double>& osn_,
+                      const std::vector<int>& osn_,
                       const std::vector<double>& os_timen_,
-                      const std::vector<double>& swtrtn_,
+                      const std::vector<int>& swtrtn_,
                       const std::vector<double>& swtrt_timen_,
                       const FlatMatrix& zn_,
                       const FlatMatrix& z_lgs_denn_,
@@ -1402,7 +1402,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                       decltype(f) f_,
                       std::vector<unsigned char>& fails_out_,
                       std::vector<double>& hrhats_out_) :
-        n(n_), nids(nids_), ntss(ntss_), idx(idx_), tsx(tsx_), idn(idn_), 
+        n(n_), nids(nids_), ntss(ntss_), idx(idx_), tsx(tsx_), idn(idn_),
         stratumn(stratumn_), tstartn(tstartn_), tstopn(tstopn_),
         eventn(eventn_), treatn(treatn_), osn(osn_), os_timen(os_timen_),
         swtrtn(swtrtn_), swtrt_timen(swtrt_timen_), zn(zn_),
@@ -1415,7 +1415,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
         
         // reserve some capacity per column. This is a heuristic; adjust if needed.
         std::size_t per_col_reserve = 10 * n;
-        for (int col = 0; col < ncols_lgs; ++col) 
+        for (int col = 0; col < ncols_lgs; ++col)
           z_lgs_denc_local[col].reserve(per_col_reserve);
         
         // Reserve scalar buffers heuristically (reduce reallocs)
@@ -1436,9 +1436,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       // operator() processes a range of bootstrap iterations [begin, end)
       void operator()(std::size_t begin, std::size_t end) {
         // per-worker reusable buffers (avoid reallocation per iteration)
-        std::vector<int> oidb, idb, stratumb, treatb;
-        std::vector<double> tstartb, tstopb, eventb, osb, os_timeb;
-        std::vector<double> swtrtb, swtrt_timeb;
+        std::vector<int> oidb, idb, stratumb, eventb, treatb, osb, swtrtb;
+        std::vector<double> tstartb, tstopb, os_timeb, swtrt_timeb;
         std::vector<std::vector<double>> zb_cols, z_lgs_denb_cols;
         int ncols_z = zn.ncol, ncols_lgs = z_lgs_denn.ncol;
         zb_cols.resize(ncols_z); z_lgs_denb_cols.resize(ncols_lgs);
@@ -1479,11 +1478,11 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
               std::vector<int> stratumn1 = subset(stratumn, start1, end1);
               std::vector<double> tstartn1 = subset(tstartn, start1, end1);
               std::vector<double> tstopn1 = subset(tstopn, start1, end1);
-              std::vector<double> eventn1 = subset(eventn, start1, end1);
+              std::vector<int> eventn1 = subset(eventn, start1, end1);
               std::vector<int> treatn1 = subset(treatn, start1, end1);
-              std::vector<double> osn1 = subset(osn, start1, end1);
+              std::vector<int> osn1 = subset(osn, start1, end1);
               std::vector<double> os_timen1 = subset(os_timen, start1, end1);
-              std::vector<double> swtrtn1 = subset(swtrtn, start1, end1);
+              std::vector<int> swtrtn1 = subset(swtrtn, start1, end1);
               std::vector<double> swtrt_timen1 = subset(swtrt_timen, start1, end1);
               FlatMatrix zn1 = subset_flatmatrix(zn, start1, end1);
               FlatMatrix z_lgs_denn1 = subset_flatmatrix(z_lgs_denn, start1, end1);
@@ -1508,7 +1507,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
           FlatMatrix zb = cols_to_flatmatrix(zb_cols);
           FlatMatrix z_lgs_denb = cols_to_flatmatrix(z_lgs_denb_cols);
           
-          ListCpp out = f(idb, stratumb, tstartb, tstopb, eventb, treatb, os_timeb, 
+          ListCpp out = f(idb, stratumb, tstartb, tstopb, eventb, treatb, os_timeb,
                           swtrtb, swtrt_timeb, zb, z_lgs_denb, static_cast<int>(k));
           
           // write results
@@ -1517,7 +1516,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
           
           // existing code that collects failure data when fails_out[k] is true...
           if (fails_out[k]) {
-            int l = static_cast<int>(idb.size()); 
+            int l = static_cast<int>(idb.size());
             append(boot_indexc_local, std::vector<int>(l, k+1));
             append(oidc_local, oidb);
             append(idc_local, idb);
@@ -1558,13 +1557,13 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
     
     // Instantiate the Worker with references to inputs and outputs
     BootstrapWorker worker(
-        n, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn, 
+        n, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn,
         osn, os_timen, swtrtn, swtrt_timen, zn, z_lgs_denn, seeds,
         // bind f into std::function (capture the f we already have)
         std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
                               const std::vector<double>&, const std::vector<double>&,
+                              const std::vector<int>&, const std::vector<int>&,
                               const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<double>&,
                               const std::vector<double>&, const FlatMatrix&,
                               const FlatMatrix&, int)>(f),
                               fails, hrhats
@@ -1637,7 +1636,7 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       }
     }
     
-    // retrieve the bootstrap results      
+    // retrieve the bootstrap results
     fails = worker.fails_out;
     hrhats = worker.hrhats_out;
     
@@ -1685,8 +1684,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   
   if (boot) {
     result.push_back(fails, "fail_boots");
-    result.push_back(std::move(hrhats), "hr_boots"); 
-    if (std::any_of(fails.begin(), fails.end(), [](double x){ return x; })) {
+    result.push_back(std::move(hrhats), "hr_boots");
+    if (std::any_of(fails.begin(), fails.end(), [](bool x){ return x; })) {
       result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }

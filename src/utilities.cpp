@@ -693,7 +693,7 @@ DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
   std::vector<int> interval(n2);
   std::vector<double> start(n2);
   std::vector<double> end(n2);
-  std::vector<double> censor(n2, 0);
+  std::vector<int> censor(n2, 0);
   int k = 0;
   for (int i = 0; i < n; ++i) {
     if (std::isnan(tstart[i]) || std::isnan(tstop[i])) {
@@ -893,7 +893,7 @@ std::vector<int> match3(const std::vector<int>& id1,
 DataFrameCpp untreated(double psi,
                        const std::vector<int>& id,
                        const std::vector<double>& time,
-                       const std::vector<double>& event,
+                       const std::vector<int>& event,
                        const std::vector<int>& treat,
                        const std::vector<double>& rx,
                        const std::vector<double>& censor_time,
@@ -902,7 +902,7 @@ DataFrameCpp untreated(double psi,
   int n = id.size();
   double a = std::exp(psi);
   std::vector<double> u_star(n), t_star(n);
-  std::vector<double> d_star = event;
+  std::vector<int> d_star = event;
   for (int i = 0; i < n; ++i) { 
     u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a); t_star[i] = u_star[i]; }
   if (recensor) {
@@ -936,7 +936,7 @@ DataFrameCpp untreated(double psi,
 DataFrameCpp unswitched(double psi,
                         const std::vector<int>& id,
                         const std::vector<double>& time,
-                        const std::vector<double>& event,
+                        const std::vector<int>& event,
                         const std::vector<int>& treat,
                         const std::vector<double>& rx,
                         const std::vector<double>& censor_time,
@@ -946,7 +946,7 @@ DataFrameCpp unswitched(double psi,
   double a0 = std::exp(psi);
   double a1 = std::exp(-psi);
   std::vector<double> u_star(n), t_star(n);
-  std::vector<double> d_star = event;
+  std::vector<int> d_star = event;
   for (int i = 0; i < n; ++i) {
     if (treat[i] == 0) u_star[i] = time[i] * ((1.0 - rx[i]) + rx[i] * a0);
     else u_star[i] = time[i] * (rx[i] + (1.0 - rx[i]) * a1);

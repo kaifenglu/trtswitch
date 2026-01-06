@@ -118,15 +118,15 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   if (event.empty() || !data.containElementNamed(event)) {
     throw std::invalid_argument("data must contain the event variable");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -211,21 +211,21 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   if (pd.empty() || !data.containElementNamed(pd)) {
     throw std::invalid_argument("data must contain the pd variable");
   }
-  std::vector<double> pdn(n);
+  std::vector<int> pdn(n);
   if (data.bool_cols.count(pd)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(pd);
-    for (int i = 0; i < n; ++i) pdn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) pdn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(pd)) {
-    const std::vector<int>& vi = data.get<int>(pd);
-    for (int i = 0; i < n; ++i) pdn[i] = static_cast<double>(vi[i]);
+    pdn = data.get<int>(pd);
   } else if (data.numeric_cols.count(pd)) {
-    pdn = data.get<double>(pd);
+    const std::vector<double>& vd = data.get<double>(pd);
+    for (int i = 0; i < n; ++i) pdn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("pd variable must be bool, integer or numeric");
   }
-  for (double val : pdn) if (val != 0 && val != 1)
-    throw std::invalid_argument("pd must be 1 or 0 for each observation");
-
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  
   // --- pd_time variable ---
   if (pd_time.empty() || !data.containElementNamed(pd_time))
     throw std::invalid_argument("data must contain the pd_time variable");
@@ -253,15 +253,15 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   if (swtrt.empty() || !data.containElementNamed(swtrt)) {
     throw std::invalid_argument("data must contain the swtrt variable");
   }
-  std::vector<double> swtrtn(n);
+  std::vector<int> swtrtn(n);
   if (data.bool_cols.count(swtrt)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(swtrt)) {
-    const std::vector<int>& vi = data.get<int>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<double>(vi[i]);
+    swtrtn = data.get<int>(swtrt);
   } else if (data.numeric_cols.count(swtrt)) {
-    swtrtn = data.get<double>(swtrt);
+    const std::vector<double>& vd = data.get<double>(swtrt);
+    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("swtrt variable must be bool, integer or numeric");
   }
@@ -521,9 +521,9 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
     if (idn[i] == INT_MIN || stratumn[i] == INT_MIN || 
-        std::isnan(timen[i]) || std::isnan(eventn[i]) || 
+        std::isnan(timen[i]) || eventn[i] == INT_MIN || 
         treatn[i] == INT_MIN || std::isnan(censor_timen[i]) || 
-        std::isnan(pdn[i]) || std::isnan(swtrtn[i])) {
+        pdn[i] == INT_MIN || swtrtn[i] == INT_MIN) {
       sub[i] = 0; continue;
     }
     for (int j = 0; j < p; ++j) {
@@ -592,12 +592,12 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                 const std::vector<int>& idb, 
                 const std::vector<int>& stratumb, 
                 const std::vector<double>& timeb, 
-                const std::vector<double>& eventb, 
+                const std::vector<int>& eventb, 
                 const std::vector<int>& treatb, 
                 const std::vector<double>& censor_timeb, 
-                const std::vector<double>& pdb, 
+                const std::vector<int>& pdb, 
                 const std::vector<double>& pd_timeb, 
-                const std::vector<double>& swtrtb, 
+                const std::vector<int>& swtrtb, 
                 const std::vector<double>& swtrt_timeb, 
                 const FlatMatrix& zb, 
                 const FlatMatrix& z_aftb, int k) -> ListCpp {
@@ -606,7 +606,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                   
                   // time and event adjusted for treatment switching
                   std::vector<double> t_star = timeb;
-                  std::vector<double> d_star = eventb;
+                  std::vector<int> d_star = eventb;
                   
                   double psi0hat = NaN, psi0lower = NaN, psi0upper = NaN;
                   double psi1hat = NaN, psi1lower = NaN, psi1upper = NaN;
@@ -657,8 +657,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                       if (treatb[i] == h && pdb[i] == 1) l.push_back(i);
                     
                     int m = static_cast<int>(l.size());
-                    std::vector<int> id2(m);
-                    std::vector<double> time2(m), event2(m), swtrt2(m);
+                    std::vector<int> id2(m), event2(m), swtrt2(m);
+                    std::vector<double> time2(m);
                     for (int i = 0; i < m; ++i) {
                       int j = l[i];
                       id2[i] = idb[j];
@@ -901,7 +901,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   if (!psimissing) {
     // summarize number of deaths by treatment arm in the outcome data
     std::vector<int> treated = data_outcome.get<int>("treated");
-    std::vector<double> event_out = data_outcome.get<double>("d_star");
+    std::vector<int> event_out = data_outcome.get<int>("d_star");
     std::vector<double> n_event_out(2);
     for (int i = 0; i < n; ++i) {
       int g = treated[i];
@@ -1033,12 +1033,12 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         const std::vector<int>& idn;
         const std::vector<int>& stratumn;
         const std::vector<double>& timen;
-        const std::vector<double>& eventn;
+        const std::vector<int>& eventn;
         const std::vector<int>& treatn;
         const std::vector<double>& censor_timen;
-        const std::vector<double>& pdn;
+        const std::vector<int>& pdn;
         const std::vector<double>& pd_timen;
-        const std::vector<double>& swtrtn;
+        const std::vector<int>& swtrtn;
         const std::vector<double>& swtrt_timen;
         const FlatMatrix& zn;
         const FlatMatrix& z_aftn;
@@ -1046,10 +1046,10 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         // function f and other params that f needs are captured from outer scope
         // capture them by reference here so worker can call f(...)
         std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<double>&,
+                              const std::vector<double>&, const std::vector<int>&,
                               const std::vector<int>&, const std::vector<double>&,
-                              const std::vector<double>&, const std::vector<double>&, 
-                              const std::vector<double>&, const std::vector<double>&, 
+                              const std::vector<int>&, const std::vector<double>&, 
+                              const std::vector<int>&, const std::vector<double>&, 
                               const FlatMatrix&, const FlatMatrix&, int)> f;
         
         // result references (each iteration writes unique index into these)
@@ -1065,11 +1065,11 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         std::vector<int> stratumc_local;
         std::vector<int> treatc_local;
         std::vector<double> timec_local;
-        std::vector<double> eventc_local;
+        std::vector<int> eventc_local;
         std::vector<double> censor_timec_local;
-        std::vector<double> pdc_local;
+        std::vector<int> pdc_local;
         std::vector<double> pd_timec_local;
-        std::vector<double> swtrtc_local;
+        std::vector<int> swtrtc_local;
         std::vector<double> swtrt_timec_local;
         // store column-wise z_aftc_local: outer vector length == z_aftn.ncol
         // each inner vector stores column data across failed boots
@@ -1082,12 +1082,12 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
                         const std::vector<double>& timen_,
-                        const std::vector<double>& eventn_,
+                        const std::vector<int>& eventn_,
                         const std::vector<int>& treatn_,
                         const std::vector<double>& censor_timen_,
-                        const std::vector<double>& pdn_,
+                        const std::vector<int>& pdn_,
                         const std::vector<double>& pd_timen_,
-                        const std::vector<double>& swtrtn_,
+                        const std::vector<int>& swtrtn_,
                         const std::vector<double>& swtrt_timen_,
                         const FlatMatrix& zn_,
                         const FlatMatrix& z_aftn_,
@@ -1129,9 +1129,10 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         // operator() processes a range of bootstrap iterations [begin, end)
         void operator()(std::size_t begin, std::size_t end) {
           // per-worker reusable buffers (avoid reallocation per iteration)
-          std::vector<int> oidb(n), idb(n), stratumb(n), treatb(n);
-          std::vector<double> timeb(n), eventb(n), censor_timeb(n);
-          std::vector<double> pdb(n), pd_timeb(n), swtrtb(n), swtrt_timeb(n);
+          std::vector<int> oidb(n), idb(n), stratumb(n), eventb(n), treatb(n);
+          std::vector<int> pdb(n), swtrtb(n);
+          std::vector<double> timeb(n), censor_timeb(n), pd_timeb(n), 
+            swtrt_timeb(n);
           FlatMatrix zb(n, zn.ncol), z_aftb(n, z_aftn.ncol);
           
           for (std::size_t k = begin; k < end; ++k) {
@@ -1236,10 +1237,10 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
           pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
           std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                                const std::vector<double>&, const std::vector<double>&,
+                                const std::vector<double>&, const std::vector<int>&,
                                 const std::vector<int>&, const std::vector<double>&,
-                                const std::vector<double>&, const std::vector<double>&, 
-                                const std::vector<double>&, const std::vector<double>&, 
+                                const std::vector<int>&, const std::vector<double>&, 
+                                const std::vector<int>&, const std::vector<double>&, 
                                 const FlatMatrix&, const FlatMatrix&, int)>(f),
                                 fails, hrhats, psihats, psi1hats
       );
@@ -1395,7 +1396,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
     if (!swtrt_control_only) {
       result.push_back(std::move(psi1hats), "psi_trt_boots");
     }
-    if (std::any_of(fails.begin(), fails.end(), [](double x){ return x; })) {
+    if (std::any_of(fails.begin(), fails.end(), [](bool x){ return x; })) {
       result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }

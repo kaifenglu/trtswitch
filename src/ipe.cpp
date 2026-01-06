@@ -26,7 +26,7 @@ ListCpp est_psi_ipe(
     const int qp,
     const std::vector<int>& idb,
     const std::vector<double>& timeb,
-    const std::vector<double>& eventb,
+    const std::vector<int>& eventb,
     const std::vector<int>& treatb,
     const std::vector<double>& rxb,
     const std::vector<double>& censor_timeb,
@@ -163,15 +163,15 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   if (event.empty() || !data.containElementNamed(event)) {
     throw std::invalid_argument("data must contain the event variable");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -431,7 +431,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
     if (idn[i] == INT_MIN || stratumn[i] == INT_MIN ||
-        std::isnan(timen[i]) || std::isnan(eventn[i]) ||
+        std::isnan(timen[i]) || eventn[i] == INT_MIN ||
         treatn[i] == INT_MIN || std::isnan(rxn[i]) ||
         std::isnan(censor_timen[i])) {
       sub[i] = 0; continue;
@@ -497,7 +497,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
                 const std::vector<int>& idb, 
                 const std::vector<int>& stratumb,
                 const std::vector<double>& timeb, 
-                const std::vector<double>& eventb,
+                const std::vector<int>& eventb,
                 const std::vector<int>& treatb, 
                 const std::vector<double>& rxb,
                 const std::vector<double>& censor_timeb,
@@ -669,7 +669,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   if (!psimissing) {
     // summarize number of deaths by treatment arm in the outcome data
     std::vector<int> treated = data_outcome.get<int>("treated");
-    std::vector<double> event_out = data_outcome.get<double>("d_star");
+    std::vector<int> event_out = data_outcome.get<int>("d_star");
     std::vector<double> n_event_out(2);
     for (int i = 0; i < n; ++i) {
       int g = treated[i];
@@ -893,7 +893,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
         const std::vector<int>& idn;
         const std::vector<int>& stratumn;
         const std::vector<double>& timen;
-        const std::vector<double>& eventn;
+        const std::vector<int>& eventn;
         const std::vector<int>& treatn;
         const std::vector<double>& rxn;
         const std::vector<double>& censor_timen;
@@ -903,7 +903,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
         // function f and other params that f needs are captured from outer scope
         // capture them by reference here so worker can call f(...)
         std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<double>&,
+                              const std::vector<double>&, const std::vector<int>&,
                               const std::vector<int>&, const std::vector<double>&,
                               const std::vector<double>&, const FlatMatrix&, 
                               const FlatMatrix&, int)> f;
@@ -920,7 +920,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
         std::vector<int> stratumc_local;
         std::vector<int> treatc_local;
         std::vector<double> timec_local;
-        std::vector<double> eventc_local;
+        std::vector<int> eventc_local;
         std::vector<double> rxc_local;
         std::vector<double> censor_timec_local;
         // store column-wise z_aftc_local: outer vector length == z_aftn.ncol
@@ -934,7 +934,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
                         const std::vector<double>& timen_,
-                        const std::vector<double>& eventn_,
+                        const std::vector<int>& eventn_,
                         const std::vector<int>& treatn_,
                         const std::vector<double>& rxn_,
                         const std::vector<double>& censor_timen_,
@@ -972,8 +972,8 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
         // operator() processes a range of bootstrap iterations [begin, end)
         void operator()(std::size_t begin, std::size_t end) {
           // per-worker reusable buffers (avoid reallocation per iteration)
-          std::vector<int> oidb(n), idb(n), stratumb(n), treatb(n);
-          std::vector<double> timeb(n), eventb(n), rxb(n), censor_timeb(n);
+          std::vector<int> oidb(n), idb(n), stratumb(n), treatb(n), eventb(n);
+          std::vector<double> timeb(n), rxb(n), censor_timeb(n);
           FlatMatrix zb(n, zn.ncol), z_aftb(n, z_aftn.ncol);
           
           for (std::size_t k = begin; k < end; ++k) {
@@ -1067,7 +1067,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
           censor_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
           std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                                const std::vector<double>&, const std::vector<double>&,
+                                const std::vector<double>&, const std::vector<int>&,
                                 const std::vector<int>&, const std::vector<double>&,
                                 const std::vector<double>&, const FlatMatrix&, 
                                 const FlatMatrix&, int)>(f),
@@ -1207,7 +1207,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
     result.push_back(fails, "fail_boots");
     result.push_back(std::move(hrhats), "hr_boots");
     result.push_back(std::move(psihats), "psi_boots");
-    if (std::any_of(fails.begin(), fails.end(), [](double x){ return x; })) {
+    if (std::any_of(fails.begin(), fails.end(), [](bool x){ return x; })) {
       result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }

@@ -233,7 +233,7 @@ ListCpp bscpp(
   if (boundary_knots.empty() || 
       (boundary_knots.size() == 1 && std::isnan(boundary_knots[0]))) {
     if (n == 1) {
-      boundary_knots = { z[0]*7.0/8.0, z[0]*9.0/8.0 };
+      boundary_knots = { z[0] * 7.0 / 8.0, z[0] * 9.0 / 8.0 };
     } else {
       double mn = *std::min_element(z.begin(), z.end());
       double mx = *std::max_element(z.begin(), z.end());
@@ -262,7 +262,7 @@ ListCpp bscpp(
       if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
         z_no_outside.push_back(zi);
     for (int k = 0; k < K; ++k) 
-      knots1[k] = quantilecpp(z_no_outside, (k+1.0)/(K+1.0));
+      knots1[k] = quantilecpp(z_no_outside, (k + 1.0)/(K + 1.0));
     knots = std::move(knots1);
   } else {
     for (double kv : knots) if (!std::isfinite(kv)) 
@@ -495,7 +495,7 @@ ListCpp nscpp(
   std::vector<double> boundary_knots = boundary_knots_in;
   if (boundary_knots.empty() || 
       (boundary_knots.size() == 1 && std::isnan(boundary_knots[0]))) {
-    if (n == 1) boundary_knots = { z[0]*7.0/8.0, z[0]*9.0/8.0 };
+    if (n == 1) boundary_knots = { z[0] * 7.0 / 8.0, z[0] * 9.0 / 8.0 };
     else {
       double mn = *std::min_element(z.begin(), z.end());
       double mx = *std::max_element(z.begin(), z.end());

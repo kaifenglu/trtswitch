@@ -316,7 +316,7 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
-  if (p >= 1) {
+  if (length(vnames) > 0) {
     add_vars <- setdiff(vnames, varnames)
     if (length(add_vars) > 0) {
       frame_df <- out$data_outcome

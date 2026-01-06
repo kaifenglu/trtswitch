@@ -20,9 +20,9 @@
 struct logparams {
   int n;
   int link_code; // 1: logit, 2: probit, 3: cloglog
-  std::vector<double> y;
+  std::vector<int> y;
   FlatMatrix z; // n x p column-major
-  std::vector<double> freq;
+  std::vector<int> freq;
   std::vector<double> weight;
   std::vector<double> offset;
 };
@@ -32,9 +32,9 @@ ListCpp f_der_0(int p, const std::vector<double>& par, void *ex, bool firth) {
   logparams *param = (logparams *) ex;
   const int n = param->n;
   const int link_code = param->link_code;
-  const std::vector<double>& yv = param->y;
+  const std::vector<int>& yv = param->y;
   const double* zptr = param->z.data_ptr();
-  const std::vector<double>& freq = param->freq;
+  const std::vector<int>& freq = param->freq;
   const std::vector<double>& weight = param->weight;
   std::vector<double> fwvec(n);  // freq * weight per observation
   for (int i = 0; i < n; ++i) {
@@ -247,7 +247,7 @@ FlatMatrix f_ressco_0(int p, const std::vector<double>& par, void *ex) {
   logparams *param = (logparams *) ex;
   const int n = param->n;
   const int link_code = param->link_code;
-  const std::vector<double>& yv = param->y;
+  const std::vector<int>& yv = param->y;
   const double* zptr = param->z.data_ptr();
   
   // compute eta similarly to f_der_0
@@ -510,15 +510,15 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (event.empty()) throw std::invalid_argument("event variable is not specified");
   if (!data.containElementNamed(event)) 
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -551,13 +551,13 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   }
   
   // freq, weight, offset
-  std::vector<double> freqn(n, 1.0);
+  std::vector<int> freqn(n, 1);
   if (!freq.empty() && data.containElementNamed(freq)) {
     if (data.int_cols.count(freq)) {
-      const auto& freqi = data.get<int>(freq);
-      for (int i = 0; i < n; ++i) freqn[i] = static_cast<double>(freqi[i]);
+      freqn = data.get<int>(freq);
     } else if (data.numeric_cols.count(freq)) {
-      freqn = data.get<double>(freq);
+      const std::vector<double>& vd = data.get<double>(freq);
+      for (int i = 0; i < n; ++i) freqn[i] = static_cast<int>(vd[i]);
     } else throw std::invalid_argument("freq variable must be integer or numeric");
     for (double v : freqn) if (v <= 0) 
       throw std::invalid_argument("freq must be positive integers");
@@ -625,10 +625,10 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   
   // exclude observations with missing values
   std::vector<unsigned char> sub(n, 1);
-  for (int i = 0; i < n; ++i) {
-    if (std::isnan(eventn[i]) ||
-        std::isnan(freqn[i]) || std::isnan(weightn[i]) ||
-        std::isnan(offsetn[i]) || idn[i] == INT_MIN) {
+  for (int i = 0; i < n; ++i) { 
+    if (eventn[i] == INT_MIN || freqn[i] == INT_MIN || 
+        std::isnan(weightn[i]) || std::isnan(offsetn[i]) || 
+        idn[i] == INT_MIN) {
       sub[i] = 0;
       continue;
     }
@@ -648,7 +648,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   if (n == 0) throw std::invalid_argument("no observations without missing values");
   
   // sumstat data set
-  double nobs, nevents;
+  int nobs, nevents;
   double loglik0, loglik1;
   double regloglik0, regloglik1; // regular loglik
   int niter;
@@ -669,8 +669,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   double xcrit = zcrit * zcrit;
   
   // number of trials and number of events accounting for frequencies
-  nobs = std::accumulate(freqn.begin(), freqn.end(), 0.0);
-  nevents = std::inner_product(freqn.begin(), freqn.end(), eventn.begin(), 0.0);
+  nobs = std::accumulate(freqn.begin(), freqn.end(), 0);
+  nevents = std::inner_product(freqn.begin(), freqn.end(), eventn.begin(), 0);
   if (nevents == 0) {
     for (int i = 0; i < p; ++i) {
       par[i] = (i == 0) ? "(Intercept)" : covariates[i-1];
@@ -894,7 +894,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
       FlatMatrix ressco = f_ressco_0(p, b, &param);
       
       int nr; // number of rows in the score residual matrix
-      std::vector<double> freqr;
+      std::vector<int> freqr;
       if (!has_id) {
         for (int j = 0; j < p; ++j) {
           double* rcol = ressco.data_ptr() + j * n;
@@ -937,7 +937,7 @@ ListCpp logisregcpp(const DataFrameCpp& data,
           }
         }
         
-        std::vector<double> freq1(nids); // cluster frequency
+        std::vector<int> freq1(nids); // cluster frequency
         for (int i = 0; i < nids; ++i) {
           freq1[i] = freqn[order[idx[i]]];
         }

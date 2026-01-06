@@ -58,7 +58,7 @@ std::vector<double> fsurvci(double surv, double sesurv, std::string& ct, double 
 
 // Compute survival quantiles and confidence intervals
 DataFrameCpp survQuantilecpp(const std::vector<double>& time,
-                             const std::vector<double>& event,
+                             const std::vector<int>& event,
                              const double cilevel,
                              const std::string& transform,
                              const std::vector<double>& probs) {
@@ -121,7 +121,7 @@ DataFrameCpp survQuantilecpp(const std::vector<double>& time,
   });
   
   std::vector<double> time2(n);
-  std::vector<double> event2(n);
+  std::vector<int> event2(n);
   for (int i = 0; i < n; ++i) {
     time2[i] = time[order[i]];
     event2[i] = event[order[i]];
@@ -344,7 +344,7 @@ Rcpp::DataFrame survQuantile(
       Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
   
   std::vector<double> timev = Rcpp::as<std::vector<double>>(time);
-  std::vector<double> eventv = Rcpp::as<std::vector<double>>(event);
+  std::vector<int> eventv = Rcpp::as<std::vector<int>>(event);
   std::vector<double> probsv = Rcpp::as<std::vector<double>>(probs);
   
   DataFrameCpp result = survQuantilecpp(timev, eventv, cilevel, transform, probsv);
@@ -422,15 +422,15 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -880,15 +880,15 @@ DataFrameCpp kmdiffcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -1394,15 +1394,15 @@ DataFrameCpp lrtestcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
-    const auto& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const auto& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -1812,15 +1812,15 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -1877,7 +1877,7 @@ DataFrameCpp rmestcpp(const DataFrameCpp& data,
     int start = idx1[i], end = idx1[i+1];
     int n2 = end - start;
     std::vector<double> time2 = subset(timen, start, end);
-    std::vector<double> event2 = subset(eventn, start, end);
+    std::vector<int> event2 = subset(eventn, start, end);
     
     double max_time = *std::max_element(time2.begin(), time2.end());
     if (milestone > max_time) {
@@ -2257,15 +2257,15 @@ DataFrameCpp rmdiffcpp(const DataFrameCpp& data,
   
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
-    const std::vector<int>& vi = data.get<int>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+    eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
-    eventn = data.get<double>(event);
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -3665,19 +3665,22 @@ ListCpp liferegcpp(const DataFrameCpp& data,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data"); 
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
+    for (double val : eventn) if (val != 0 && val != 1)
+      throw std::invalid_argument("event must be 1 or 0 for each observation");
+    
     for (double val : eventn) if (val != 0 && val != 1)
       throw std::invalid_argument("event must be 1 or 0 for each observation");
   }
@@ -3784,7 +3787,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
   n = keep.size();
   
   // sumstat data set
-  double nobs, nevents;
+  int nobs, nevents;
   double loglik0, loglik1;
   int niter;
   bool fail;
@@ -4614,16 +4617,16 @@ FlatMatrix residuals_liferegcpp(const std::vector<double>& beta,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
@@ -5076,7 +5079,7 @@ struct coxparams {
   std::vector<int> strata;
   std::vector<double> tstart;
   std::vector<double> tstop;
-  std::vector<double> event;
+  std::vector<int> event;
   std::vector<double> weight;
   std::vector<double> offset;
   FlatMatrix z;
@@ -5095,7 +5098,7 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -5626,7 +5629,7 @@ ListCpp f_basehaz(int p, const std::vector<double>& par, void *ex) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -5817,7 +5820,7 @@ std::vector<double> f_resmart(int p, const std::vector<double>& par, void *ex) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -5940,7 +5943,7 @@ FlatMatrix f_ressco_2(int p, const std::vector<double>& par, void *ex) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -6185,16 +6188,16 @@ ListCpp phregcpp(const DataFrameCpp& data,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data"); 
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
@@ -6301,7 +6304,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
   for (int i = 0; i < n; ++i) {
     if (stratumn[i] == INT_MIN || idn[i] == INT_MIN ||
         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
+        eventn[i] == INT_MIN || std::isnan(weightn[i]) ||
         std::isnan(offsetn[i])) {
       sub[i] = 0;
       continue;
@@ -6360,8 +6363,8 @@ ListCpp phregcpp(const DataFrameCpp& data,
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   double xcrit = zcrit * zcrit;
   
-  double nobs = n;
-  double nevents = std::accumulate(eventn.begin(), eventn.end(), 0.0); 
+  int nobs = n;
+  int nevents = std::accumulate(eventn.begin(), eventn.end(), 0); 
   
   if (nevents == 0) {
     if (p > 0) {
@@ -6431,7 +6434,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
     std::vector<int> stratumnz = subset(stratumn, order0);
     std::vector<double> tstartnz = subset(tstartn, order0);
     std::vector<double> tstopnz = subset(tstopn, order0);
-    std::vector<double> eventnz = subset(eventn, order0);
+    std::vector<int> eventnz = subset(eventn, order0);
     
     // locate the first observation within each stratum
     std::vector<int> istratum(1,0);
@@ -6450,7 +6453,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       int n0 = end - start;
       std::vector<double> tstart0 = subset(tstartnz, start, end);
       std::vector<double> tstop0 = subset(tstopnz, start, end);
-      std::vector<double> event0 = subset(eventnz, start, end);
+      std::vector<int> event0 = subset(eventnz, start, end);
       
       // unique event times
       std::vector<double> etime;
@@ -6491,7 +6494,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
     std::vector<int> stratumna = subset(stratumn, order1);
     std::vector<double> tstartna = subset(tstartn, order1);
     std::vector<double> tstopna = subset(tstopn, order1);
-    std::vector<double> eventna = subset(eventn, order1);
+    std::vector<int> eventna = subset(eventn, order1);
     std::vector<double> weightna = subset(weightn, order1);
     std::vector<double> offsetna = subset(offsetn, order1);
     std::vector<int> idna = subset(idn, order1);
@@ -6694,7 +6697,7 @@ ListCpp phregcpp(const DataFrameCpp& data,
       std::vector<int> stratumnb = subset(stratumn, order2);
       std::vector<double> tstartnb = subset(tstartn, order2);
       std::vector<double> tstopnb = subset(tstopn, order2);
-      std::vector<double> eventnb = subset(eventn, order2);
+      std::vector<int> eventnb = subset(eventn, order2);
       std::vector<double> weightnb = subset(weightn, order2);
       std::vector<double> offsetnb = subset(offsetn, order2);
       FlatMatrix znb;
@@ -7413,7 +7416,7 @@ ListCpp f_ressch(int p, const std::vector<double>& par, void *ex) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -7440,7 +7443,7 @@ ListCpp f_ressch(int p, const std::vector<double>& par, void *ex) {
   }
   
   int nevent = 0;
-  for (int i = 0; i < nused; ++i) if (event[i] != 0.0) ++nevent;
+  for (int i = 0; i < nused; ++i) if (event[i] != 0) ++nevent;
   
   FlatMatrix resid(nevent, p);     // residual matrix
   std::vector<int> index(nevent);  // index of residuals
@@ -7620,16 +7623,16 @@ ListCpp residuals_phregcpp(const int p,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
@@ -7735,7 +7738,7 @@ ListCpp residuals_phregcpp(const int p,
   for (int i = 0; i < n; ++i) {
     if (stratumn[i] == INT_MIN || idn[i] == INT_MIN ||
         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
+        eventn[i] == INT_MIN || std::isnan(weightn[i]) ||
         std::isnan(offsetn[i])) {
       sub[i] = 0; continue;
     }
@@ -7767,7 +7770,7 @@ ListCpp residuals_phregcpp(const int p,
   std::vector<int> stratumnz = subset(stratumn, ordern);
   std::vector<double> tstartnz = subset(tstartn, ordern);
   std::vector<double> tstopnz = subset(tstopn, ordern);
-  std::vector<double> eventnz = subset(eventn, ordern);
+  std::vector<int> eventnz = subset(eventn, ordern);
   
   // locate the first observation within each stratum
   std::vector<int> istratum(1,0);
@@ -7786,7 +7789,7 @@ ListCpp residuals_phregcpp(const int p,
     int m = end - start;
     std::vector<double> tstart0 = subset(tstartnz, start, end);
     std::vector<double> tstop0 = subset(tstopnz, start, end);
-    std::vector<double> event0 = subset(eventnz, start, end);
+    std::vector<int> event0 = subset(eventnz, start, end);
     std::vector<double> etime;
     etime.reserve(m);
     for (int j = 0; j < m; ++j) {
@@ -7845,14 +7848,14 @@ ListCpp residuals_phregcpp(const int p,
   
   if (type == "deviance") {
     std::vector<double> rr = resmart;
-    std::vector<double> status = eventn;
+    std::vector<int> status = eventn;
     int m = n;
     if (weighted) {
       for (int i = 0; i < n; ++i) rr[i] *= weightn[i];
     }
     if (collapse && has_id) {
       std::vector<double> rr1(nids, 0.0);
-      std::vector<double> status1(nids, 0);
+      std::vector<int> status1(nids, 0);
       for (int i = 0; i < nids; ++i) {
         for (int j = idx[i]; j < idx[i+1]; ++j) {
           int k = order[j];
@@ -7888,12 +7891,11 @@ ListCpp residuals_phregcpp(const int p,
     std::vector<int> stratum1 = subset(stratumn, order0);
     std::vector<double> tstart1 = subset(tstartn, order0);
     std::vector<double> tstop1 = subset(tstopn, order0);
-    std::vector<double> event1 = subset(eventn, order0);
+    std::vector<int> event1 = subset(eventn, order0);
     std::vector<double> weight1 = subset(weightn, order0);
     std::vector<double> offset1 = subset(offsetn, order0);
     std::vector<int> ignore1 = subset(ignore, order0);
-    FlatMatrix z1;
-    if (p > 0) z1 = subset_flatmatrix(zn, order0);
+    FlatMatrix z1 = subset_flatmatrix(zn, order0);
     
     // sort by starting time in descending order within each stratum
     std::vector<int> order1 = seqcpp(0, n-1);
@@ -7978,7 +7980,7 @@ ListCpp residuals_phregcpp(const int p,
     std::vector<int> stratum1 = subset(stratumn, order0);
     std::vector<double> tstart1 = subset(tstartn, order0);
     std::vector<double> tstop1 = subset(tstopn, order0);
-    std::vector<double> event1 = subset(eventn, order0);
+    std::vector<int> event1 = subset(eventn, order0);
     std::vector<double> weight1 = subset(weightn, order0);
     std::vector<double> offset1 = subset(offsetn, order0);
     std::vector<int> id1 = subset(idn, order0);
@@ -8098,7 +8100,7 @@ ListCpp f_der_i_2(int p, const std::vector<double>& par, void* ex) {
   const std::vector<int>& strata = param->strata; 
   const std::vector<double>& tstart = param->tstart; 
   const std::vector<double>& tstop = param->tstop; 
-  const std::vector<double>& event = param->event; 
+  const std::vector<int>& event = param->event; 
   const std::vector<double>& weight = param->weight; 
   const std::vector<double>& offset = param->offset; 
   const std::vector<int>& order1 = param->order1;
@@ -8368,16 +8370,16 @@ ListCpp assess_phregcpp(const int p,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
@@ -8454,10 +8456,9 @@ ListCpp assess_phregcpp(const int p,
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
-    if (stratumn[i] == INT_MIN ||
-        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
-        std::isnan(offsetn[i])) {
+    if (stratumn[i] == INT_MIN || std::isnan(tstartn[i]) || 
+        std::isnan(tstopn[i]) || eventn[i] == INT_MIN || 
+        std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
       sub[i] = 0; continue;
     }
     for (int j = 0; j < p; ++j) {
@@ -8486,7 +8487,7 @@ ListCpp assess_phregcpp(const int p,
   std::vector<int> stratum1z = subset(stratumn, order0);
   std::vector<double> tstart1z = subset(tstartn, order0);
   std::vector<double> tstop1z = subset(tstopn, order0);
-  std::vector<double> event1z = subset(eventn, order0);
+  std::vector<int> event1z = subset(eventn, order0);
   
   // locate the first observation within each stratum
   std::vector<int> istratum(1,0);
@@ -8505,7 +8506,7 @@ ListCpp assess_phregcpp(const int p,
     int n0 = end - start;
     std::vector<double> tstart0 = subset(tstart1z, start, end);
     std::vector<double> tstop0 = subset(tstop1z, start, end);
-    std::vector<double> event0 = subset(event1z, start, end);
+    std::vector<int> event0 = subset(event1z, start, end);
     
     // unique event times
     std::vector<double> etime;
@@ -8546,7 +8547,7 @@ ListCpp assess_phregcpp(const int p,
   std::vector<int> stratum1 = subset(stratumn, order1);
   std::vector<double> tstart1 = subset(tstartn, order1);
   std::vector<double> tstop1 = subset(tstopn, order1);
-  std::vector<double> event1 = subset(eventn, order1);
+  std::vector<int> event1 = subset(eventn, order1);
   std::vector<double> weight1 = subset(weightn, order1);
   std::vector<double> offset1 = subset(offsetn, order1);
   std::vector<int> ignore1 = subset(ignoren, order1);
@@ -8575,7 +8576,7 @@ ListCpp assess_phregcpp(const int p,
   });
   
   std::vector<double> tstop2 = subset(tstop1, order2);
-  std::vector<double> event2 = subset(event1, order2);
+  std::vector<int> event2 = subset(event1, order2);
   FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
   FlatArray imat_i2 = subset_flatarray(imat_i, order2);
   
@@ -8870,16 +8871,16 @@ ListCpp zph_phregcpp(int p,
     throw std::invalid_argument(
         "data must contain the event variable for right censored data");
   }
-  std::vector<double> eventn(n);
+  std::vector<int> eventn(n);
   if (has_event) {
     if (data.bool_cols.count(event)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1.0 : 0.0;
+      for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
     } else if (data.int_cols.count(event)) {
-      const std::vector<int>& vi = data.get<int>(event);
-      for (int i = 0; i < n; ++i) eventn[i] = static_cast<double>(vi[i]);
+      eventn = data.get<int>(event);
     } else if (data.numeric_cols.count(event)) {
-      eventn = data.get<double>(event);
+      const std::vector<double>& vd = data.get<double>(event);
+      for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
     } else {
       throw std::invalid_argument("event variable must be bool, integer or numeric");
     }
@@ -8956,10 +8957,9 @@ ListCpp zph_phregcpp(int p,
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
-    if (stratumn[i] == INT_MIN ||
-        std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
-        std::isnan(eventn[i]) || std::isnan(weightn[i]) ||
-        std::isnan(offsetn[i])) {
+    if (stratumn[i] == INT_MIN || std::isnan(tstartn[i]) || 
+        std::isnan(tstopn[i]) || eventn[i] == INT_MIN || 
+        std::isnan(weightn[i]) || std::isnan(offsetn[i])) {
       sub[i] = 0; continue;
     }
     for (int j = 0; j < p; ++j) {
@@ -8988,7 +8988,7 @@ ListCpp zph_phregcpp(int p,
   std::vector<int> stratum1z = subset(stratumn, order0);
   std::vector<double> tstart1z = subset(tstartn, order0);
   std::vector<double> tstop1z = subset(tstopn, order0);
-  std::vector<double> event1z = subset(eventn, order0);
+  std::vector<int> event1z = subset(eventn, order0);
   
   // locate the first observation within each stratum
   std::vector<int> istratum(1,0);
@@ -9007,7 +9007,7 @@ ListCpp zph_phregcpp(int p,
     int n0 = end - start;
     std::vector<double> tstart0 = subset(tstart1z, start, end);
     std::vector<double> tstop0 = subset(tstop1z, start, end);
-    std::vector<double> event0 = subset(event1z, start, end);
+    std::vector<int> event0 = subset(event1z, start, end);
     
     // unique event times
     std::vector<double> etime;
@@ -9048,7 +9048,7 @@ ListCpp zph_phregcpp(int p,
   std::vector<int> stratum1 = subset(stratumn, order1);
   std::vector<double> tstart1 = subset(tstartn, order1);
   std::vector<double> tstop1 = subset(tstopn, order1);
-  std::vector<double> event1 = subset(eventn, order1);
+  std::vector<int> event1 = subset(eventn, order1);
   std::vector<double> weight1 = subset(weightn, order1);
   std::vector<double> offset1 = subset(offsetn, order1);
   std::vector<int> ignore1 = subset(ignoren, order1);
@@ -9078,7 +9078,7 @@ ListCpp zph_phregcpp(int p,
   
   std::vector<int> stratum2 = subset(stratum1, order2);
   std::vector<double> tstop2 = subset(tstop1, order2);
-  std::vector<double> event2 = subset(event1, order2);
+  std::vector<int> event2 = subset(event1, order2);
   FlatMatrix score_i2 = subset_flatmatrix(score_i, order2);
   FlatArray imat_i2 = subset_flatarray(imat_i, order2);
   

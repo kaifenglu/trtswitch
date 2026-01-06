@@ -140,9 +140,9 @@ Rcpp::List tssimcpp(const bool tdxo,
   
   for (int iter = 0; iter < NSim; ++iter) {
     std::vector<int> idx(K), trtrandx(K), tpointx(K);
-    std::vector<double> bprogx(K), Lx(K), Llagx(K), Zx(K), Zlagx(K);
-    std::vector<double> Ax(K), Alagx(K), Alag2x(K), eventx(K);
-    std::vector<double> diedx(K), progressedx(K), xox(K);
+    std::vector<int> bprogx(K), Lx(K), Llagx(K), Zx(K), Zlagx(K);
+    std::vector<int> Ax(K), Alagx(K), Alag2x(K), eventx(K);
+    std::vector<int> diedx(K), progressedx(K), xox(K);
     std::vector<double> tstartx(K), tstopx(K), timeOSx(K), timePDx(K);
     std::vector<double> xotimex(K, NA_REAL), censor_timex(K);
     std::vector<double> arrivalTimex(K);
@@ -169,7 +169,7 @@ Rcpp::List tssimcpp(const bool tdxo,
       // baseline prognostic bprog (Bernoulli)
       double p_bprog = (trtrand == 1) ? p_X_1 : p_X_0;
       std::bernoulli_distribution bern_bprog(p_bprog);
-      double bprog = bern_bprog(rng) ? 1.0 : 0.0;
+      int bprog = bern_bprog(rng) ? 1 : 0;
       
       // event time T from exponential with rate = rate_T * exp(...)
       double rate_this = rate_T * std::exp(beta1 * trtrand + beta2 * bprog);
@@ -183,7 +183,7 @@ Rcpp::List tssimcpp(const bool tdxo,
       int followup = static_cast<int>(std::floor(fu / days));
       
       int tpoint = followup; 
-      double L = 0.0, Llag = 0.0, Z = 0.0, Zlag = 0.0, A = 0.0, Alag = 0.0, Alag2 = 0.0;
+      int L = 0, Llag = 0, Z = 0, Zlag = 0, A = 0, Alag = 0, Alag2 = 0;
       for (int j = 1; j <= followup; ++j) { // j = cycle index
         tpoint = j; 
         double tstart = days * (j - 1);
@@ -199,10 +199,11 @@ Rcpp::List tssimcpp(const bool tdxo,
         std::bernoulli_distribution bernL(probL);
         L = bernL(rng) ? 1 : 0;
         
-        double tstop, event;
+        double tstop;
+        int event;
         if (T <= days * j) { // died in cycle j, complete data for the subject
           tstop = T; event = 1;
-          Z = NaN; A = NaN;
+          Z = INT_MIN; A = INT_MIN;
         } else { // alive at the end of cycle j, continue to the next cycle
           tstop = days * j; event = 0;
           
@@ -218,8 +219,8 @@ Rcpp::List tssimcpp(const bool tdxo,
           
           // generate treatment switching status
           if (Alag == 0) {
-            bool condition_for_switch = ((tdxo == 0 && Z == 1.0 && Zlag == 0.0) ||
-                                         (tdxo == 1 && Z == 1.0)) &&
+            bool condition_for_switch = ((tdxo == 0 && Z == 1 && Zlag == 0) ||
+                                         (tdxo == 1 && Z == 1)) &&
                                          ((coxo == 1 && trtrand == 0) || (coxo == 0));
             if (condition_for_switch) {
               double probA = boost_plogis(alpha0 + alpha1 * L + alpha2 * bprog);
@@ -273,8 +274,8 @@ Rcpp::List tssimcpp(const bool tdxo,
         k = k - tpoint + J; // discard treatment cycles after censoring
         tstopx[k-1] = time; // update the ending time and event indicator
         eventx[k-1] = (T == time) ? 1 : 0;
-        Zx[k-1] = NaN;
-        Ax[k-1] = NaN;
+        Zx[k-1] = INT_MIN;
+        Ax[k-1] = INT_MIN;
       } else { // add one more record 
         J = followup + 1;
         idx[k] = id;
@@ -289,9 +290,9 @@ Rcpp::List tssimcpp(const bool tdxo,
         std::bernoulli_distribution bernL_final(probL_final);
         Lx[k] = bernL_final(rng) ? 1 : 0;
         Llagx[k] = L;
-        Zx[k] = NaN;
+        Zx[k] = INT_MIN;
         Zlagx[k] = Z;
-        Ax[k] = NaN;
+        Ax[k] = INT_MIN;
         Alagx[k] = A;
         Alag2x[k] = Alag;
         eventx[k] = (T == time) ? 1 : 0;
@@ -307,14 +308,14 @@ Rcpp::List tssimcpp(const bool tdxo,
       }
       
       // progression and time to progression (if applicable)
-      double pd = 0;
+      int pd = 0;
       double pd_time = NA_REAL;
       for (int j = k - J; j < k; j++) {
         if (Zx[j] == 1) { pd = 1; pd_time = tstopx[j]; break; }
       }
 
       // switching and time to switching (if applicable)
-      double xo = 0;
+      int xo = 0;
       double xo_time = NaN;
       for (int j = k - J; j < k; j++) {
         if (Ax[j] == 1) { xo = 1; xo_time = tstopx[j]; break; }
