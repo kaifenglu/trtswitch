@@ -1110,16 +1110,11 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   parest.push_back(std::move(sebeta), "sebeta");
   parest.push_back(std::move(z), "z");
   parest.push_back(std::move(expbeta), "expbeta");
-  parest.push_back(std::move(vbeta), "vbeta");
   parest.push_back(std::move(lb), "lower");
   parest.push_back(std::move(ub), "upper");
   parest.push_back(std::move(prob), "p");
   parest.push_back(std::move(clparm), "method");
-  
-  if (robust) {
-    parest.push_back(std::move(seb), "sebeta_naive");
-    parest.push_back(std::move(vb), "vbeta_naive");
-  }
+  if (robust) parest.push_back(std::move(seb), "sebeta_naive");
   
   DataFrameCpp fitted;
   fitted.push_back(std::move(linear_predictors), "linear_predictors");
@@ -1128,6 +1123,8 @@ ListCpp logisregcpp(const DataFrameCpp& data,
   ListCpp result;
   result.push_back(std::move(sumstat), "sumstat");
   result.push_back(std::move(parest), "parest");
+  result.push_back(std::move(vbeta), "vbeta");
+  if (robust) result.push_back(std::move(vb), "vbeta_naive");
   result.push_back(std::move(fitted), "fitted");
   
   return result;

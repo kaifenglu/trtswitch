@@ -698,7 +698,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     
                     std::vector<double> res1;
                     if (k == -1) {
-                      FlatMatrix vbeta1(qp2 + 1, qp2 + 1);
+                      FlatMatrix vbeta1 = fit1.get<FlatMatrix>("vbeta");
                       FlatMatrix rr = residuals_liferegcpp(
                         beta1, vbeta1, data1, {""}, "pps", "", "event",
                         covariates_aft, "", "", "", dist, "deviance");

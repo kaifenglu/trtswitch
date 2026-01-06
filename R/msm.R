@@ -1,11 +1,10 @@
-#' @title Inverse Probability of Censoring Weights (IPCW) for Treatment 
-#' Switching
-#' @description Excludes data after treatment switching and fits a switching 
-#' model to estimate the probability of not switching. The inverse of 
-#' these probabilities (inverse probability of censoring weights) are then 
-#' used as weights in a weighted Cox model to obtain the adjusted hazard 
-#' ratio.
-#'
+#' @title Marginal Structural Model (MSM) for Treatment Switching
+#' @description Excludes data after treatment switching when fitting 
+#' the switching model to estimate the probabilities of not switching and 
+#' then switching. The inverse of these probabilities (inverse probability 
+#' of treatment weights) are then used as weights in a Cox model 
+#' including data after switching to estimate the adjusted hazard ratio.
+#' 
 #' @param data The input data frame that contains the following variables:
 #'
 #'   * \code{id}: The id to identify observations belonging to the same
@@ -53,8 +52,6 @@
 #' @param denominator The names of baseline  (excluding treat) and 
 #'   time-dependent covariates in the input data for the denominator 
 #'   switching model.
-#' @param logistic_switching_model Whether a pooled logistic regression 
-#'   switching model is used.
 #' @param strata_main_effect_only Whether to only include the strata main
 #'   effects in the logistic regression switching model. Defaults to 
 #'   \code{TRUE}, otherwise all possible strata combinations will be 
@@ -77,6 +74,9 @@
 #'   the distribution.
 #' @param swtrt_control_only Whether treatment switching occurred only in
 #'   the control group. The default is \code{TRUE}.
+#' @param treat_alt_interaction Whether to include an interaction between 
+#'   randomized and alternative treatments in the outcome model
+#'   when both randomized arms can switch to alternative treatment.
 #' @param alpha The significance level to calculate confidence intervals. 
 #' @param ties The method for handling ties in the Cox model, either
 #'   "breslow" or "efron" (default).
@@ -90,30 +90,30 @@
 #' @details The hazard ratio and confidence interval under a no-switching 
 #' scenario are obtained as follows:
 #'
-#' * Exclude all observations after treatment switch.
+#' * Exclude observations after treatment switch when fitting the 
+#'   switching model.
 #'
-#' * Define the crossover and event indicators for the last time interval 
+#' * Define crossover indicators for the last time interval 
 #'   of each subject.
 #'
-#' * For time-dependent Cox switching models, replicate unique event times 
-#'   across treatment arms within each subject.
-#'
 #' * Fit the denominator switching model (and numerator model for 
-#'   stabilized weights) to estimate inverse probability of censoring 
-#'   weights. Either a Cox model with time-dependent covariates or 
-#'   a pooled logistic regression model can be used.
+#'   stabilized weights) using a pooled logistic regression model to 
+#'   estimate the inverse probability of treatment weights (IPTWs).
 #'   
-#'     - For the pooled logistic regression model, the probability of 
-#'       remaining uncensored (i.e., not switching) is calculated as 
-#'       \eqn{1 - \hat{p}_{\text{switch}}} 
-#'       and accumulated over time up to the start of each interval.
+#'     - The probability of remaining unswitched is calculated as 
+#'       \eqn{1 - \hat{p}_{\text{switch}}} and multiplied 
+#'       over time before treatment switch.  
 #'       
-#'     - For the time-dependent Cox model, the probability of remaining 
-#'       unswitched is derived from the estimated baseline hazard and 
-#'       predicted risk score up to the end of each interval.
+#'     - At the time of switching, this product is multiplied by the 
+#'       predicted probability of switching.
+#'       
+#'     - After treatment switch, the IPTW remains constant. 
+#'     
+#'     - The inverse of the probability at the start of each interval 
+#'       is used as the interval weight.
 #'
-#' * Fit a weighted Cox model to the outcome survival times (excluding 
-#'   data after switching) to estimate the hazard ratio.
+#' * Fit a weighted Cox model to the outcome survival times, including 
+#'   data after treatment switch, to estimate the hazard ratio.
 #'
 #' * Construct the p-value and confidence interval for the hazard ratio 
 #'   using either robust sandwich variance or bootstrapping. When 
@@ -136,11 +136,11 @@
 #'
 #' * \code{event_summary}: A data frame containing the count and percentage
 #'   of deaths and switches by treatment arm.
-#'
+#'   
 #' * \code{data_switch}: A list of input data for the switching models by 
 #'   treatment group. The variables include \code{id}, \code{stratum}, 
 #'   \code{"tstart"}, \code{"tstop"}, \code{"cross"}, \code{denominator}, 
-#'   \code{swtrt}, and \code{swtrt_time}. For logistic switching models, 
+#'   \code{swtrt}, and \code{swtrt_time}. In addition, 
 #'   \code{stratum} variables are converted to dummy variables, and 
 #'   natural cubic spline basis variables are created for the visit-specific 
 #'   intercepts.
@@ -151,19 +151,22 @@
 #' * \code{data_outcome}: The input data for the outcome Cox model 
 #'   including the inverse probability of censoring weights.
 #'   The variables include \code{id}, \code{stratum}, \code{"tstart"}, 
-#'   \code{"tstop"}, \code{"event"}, \code{"treated"}, 
+#'   \code{"tstop"}, \code{"event"}, \code{"treated"}, \code{"crossed"},
 #'   \code{"unstablized_weight"}, \code{"stabilized_weight"}, 
-#'   \code{base_cov}, and \code{treat}.
-#'   
+#'   \code{base_cov}, and \code{treat}. 
+#'   If \code{treat_alt_interaction} is \code{TRUE}, 
+#'   the data set also includes the \code{"treated_crossed"} variable. 
+#'
 #' * \code{weight_summary}: A data frame summarizing the weights by
 #'   treatment arm.
 #'   
 #' * \code{km_outcome}: The Kaplan-Meier estimates of the survival
 #'   functions for the treatment and control groups based on the
-#'   weighted outcome data.
+#'   weighted outcome data truncated at time of treatment switching.
 #'   
 #' * \code{lr_outcome}: The log-rank test results for the treatment
-#'   effect based on the weighted outcome data.
+#'   effect based on the weighted outcome data truncated at time of 
+#'   treatment switching.
 #'
 #' * \code{fit_outcome}: The fitted outcome Cox model.
 #'
@@ -171,7 +174,7 @@
 #'
 #' * \code{settings}: A list containing the input parameter values.
 #'
-#' * \code{fail_boots}: The indicators for failed bootstrap samples 
+#' * \code{fail_boots}: The indicators for failed bootstrap samples
 #'   if \code{boot} is \code{TRUE}.
 #'
 #' * \code{fail_boots_data}: The data for failed bootstrap samples
@@ -183,18 +186,26 @@
 #' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
 #'
 #' @references
-#' James M. Robins and Dianne M. Finkelstein.
-#' Correcting for noncompliance and dependent censoring in an AIDS clinical
-#' trial with inverse probability of censoring weighted (IPCW) log-rank tests.
-#' Biometrics. 2000;56(3):779-788.
+#' James M. Robins, Miguel Angel Hernan, and Babette Brumback. 
+#' Marginal structural models and causal inference in epidemiology. 
+#' Epidemiology. 2000;11(5):550-560.
+#' 
+#' Miguel Angel Hernan, Babette Brumback, and James M. Robins. 
+#' Marginal structural modesl to estimate the causual effect of zidovudine 
+#' on the survival of HIV-positive men. Epidemiology. 2000;11(5):561-570.
+#' 
+#' Jing Xu, Guohui Liu, and Bingxia Wang. 
+#' Bias and Type I error control in correcting treatment effect for 
+#' treatment switching using marginal structural models in Phase III
+#' oncology trials. 
+#' Journal of Biopharmaceutical Statistics. 2022;32(6):897-914.
 #'
 #' @examples
 #'
-#' # Example 1: pooled logistic regression switching model
 #' library(dplyr)
 #' 
 #' sim1 <- tssim(
-#'   tdxo = TRUE, coxo = TRUE, allocation1 = 1, allocation2 = 1,
+#'   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
 #'   p_X_1 = 0.3, p_X_0 = 0.3, 
 #'   rate_T = 0.002, beta1 = -0.5, beta2 = 0.3, 
 #'   gamma0 = 0.3, gamma1 = -0.9, gamma2 = 0.7, gamma3 = 1.1, gamma4 = -0.8,
@@ -204,48 +215,31 @@
 #'   rate_C = 0.0000855, accrualIntensity = 20/30,
 #'   fixedFollowup = FALSE, plannedTime = 1350, days = 30,
 #'   n = 500, NSim = 100, seed = 314159)
-#'   
-#' fit1 <- ipcw(
+#' 
+#' fit1 <- msm(
 #'   sim1[[1]], id = "id", tstart = "tstart", 
 #'   tstop = "tstop", event = "event", treat = "trtrand", 
 #'   swtrt = "xo", swtrt_time = "xotime", 
 #'   base_cov = "bprog", numerator = "bprog", 
-#'   denominator = c("bprog", "L"),
-#'   logistic_switching_model = TRUE, ns_df = 3,
-#'   swtrt_control_only = TRUE, boot = FALSE)
+#'   denominator = c("bprog", "L"), 
+#'   ns_df = 3, swtrt_control_only = TRUE, boot = FALSE)
 #'   
-#' fit1 
+#' fit1
 #' 
-#' # Example 2: time-dependent covariates Cox switching model
-#' 
-#' fit2 <- ipcw(
-#'   shilong, id = "id", tstart = "tstart", tstop = "tstop", 
-#'   event = "event", treat = "bras.f", swtrt = "co", 
-#'   swtrt_time = "dco", 
-#'   base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c", 
-#'                "pathway.f"),
-#'   numerator = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c", 
-#'                 "pathway.f"),
-#'   denominator = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
-#'                   "pathway.f", "ps", "ttc", "tran"),
-#'   swtrt_control_only = FALSE, boot = FALSE)
-#'
-#' fit2
-#'
 #' @export
-ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
-                 tstop = "tstop", event = "event", treat = "treat",
-                 swtrt = "swtrt", swtrt_time = "swtrt_time",
-                 base_cov = "", numerator = "", denominator = "",
-                 logistic_switching_model = FALSE, 
-                 strata_main_effect_only = TRUE, 
-                 ns_df = 3, firth = FALSE, flic = FALSE, 
-                 stabilized_weights = TRUE, 
-                 trunc = 0, trunc_upper_only = TRUE,
-                 swtrt_control_only = TRUE, 
-                 alpha = 0.05, ties = "efron", 
-                 boot = FALSE, n_boot = 1000, seed = 0,
-                 nthreads = 0) {
+msm <- function(data, id = "id", stratum = "", tstart = "tstart",
+                tstop = "tstop", event = "event", treat = "treat",
+                swtrt = "swtrt", swtrt_time = "swtrt_time",
+                base_cov = "", numerator = "", denominator = "",
+                strata_main_effect_only = TRUE, 
+                ns_df = 3, firth = FALSE, flic = FALSE, 
+                stabilized_weights = TRUE, 
+                trunc = 0, trunc_upper_only = TRUE,
+                swtrt_control_only = TRUE, 
+                treat_alt_interaction = TRUE,
+                alpha = 0.05, ties = "efron", 
+                boot = FALSE, n_boot = 1000, seed = 0,
+                nthreads = 0) {
   
   # validate input
   if (!inherits(data, "data.frame")) {
@@ -279,7 +273,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
   if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
-
+  
   # process covariate specifications
   res1 <- process_cov(base_cov, df)
   df <- res1$df
@@ -297,17 +291,17 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   varnames3  <- res3$varnames
   
   # call the core cpp function
-  out <- ipcwcpp(
+  out <- msmcpp(
     df = df, id = id, stratum = stratum, tstart = tstart,
     tstop = tstop, event = event, treat = treat, 
     swtrt = swtrt, swtrt_time = swtrt_time, 
     base_cov = varnames, numerator = varnames2, denominator = varnames3,
-    logistic_switching_model = logistic_switching_model,
     strata_main_effect_only = strata_main_effect_only,
-    ns_df = ns_df, firth = firth, flic = flic, 
+    ns_df = ns_df, firth = firth, flic = flic,
     stabilized_weights = stabilized_weights, 
     trunc = trunc, trunc_upper_only = trunc_upper_only,
     swtrt_control_only = swtrt_control_only, 
+    treat_alt_interaction = treat_alt_interaction,
     alpha = alpha, ties = ties, 
     boot = boot, n_boot = n_boot, seed = seed)
   
@@ -322,7 +316,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   out$data_outcome$uid <- NULL
   out$data_outcome$ustratum <- NULL
   
-  if (length(vnames) > 0) {
+  if (p >= 1) {
     add_vars <- setdiff(vnames, varnames)
     if (length(add_vars) > 0) {
       frame_df <- out$data_outcome
@@ -363,26 +357,11 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     add_vars <- c(setdiff(vnames3, varnames3), tem_vars)
     avars <- setdiff(add_vars, names(out$data_switch[[1]]$data))
     if (length(avars) > 0) {
-      if (logistic_switching_model) {
-        for (h in 1:K) {
-          frame_df <- out$data_switch[[h]]$data
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out$data_switch[[h]]$data <- frame_df
-        }
-      } else {
-        # replicate event times within each subject
-        cut <- sort(unique(data1$tstop[data1[[event]] == 1]))
-        a1 <- survsplit(data1$tstart, data1$tstop, cut)
-        data2 <- data1[a1$row  + 1, ]
-        data2$tstart = a1$start
-        data2$tstop = a1$end
-        for (h in 1:K) {
-          frame_df <- out$data_switch[[h]]$data
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out$data_switch[[h]]$data <- frame_df
-        }
+      for (h in 1:K) {
+        frame_df <- out$data_switch[[h]]$data
+        idx <- match(frame_df[[id]], df[[id]])
+        for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
+        out$data_switch[[h]]$data <- frame_df
       }
     }
     
@@ -412,20 +391,20 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   }
   
   out$settings <- list(
-    data = data, id = id, stratum = stratum, tstart = tstart, 
+    data = data, id = id, stratum = stratum, tstart = tstart,
     tstop = tstop, event = event, treat = treat, swtrt = swtrt, 
     swtrt_time = swtrt_time, base_cov = base_cov, 
     numerator = numerator, denominator = denominator,
-    logistic_switching_model = logistic_switching_model,
     strata_main_effect_only = strata_main_effect_only,
     ns_df = ns_df, firth = firth, flic = flic,
     stabilized_weights = stabilized_weights, 
     trunc = trunc, trunc_upper_only = trunc_upper_only,
-    swtrt_control_only = swtrt_control_only, 
-    alpha = alpha, ties = ties, boot = boot, 
+    swtrt_control_only = swtrt_control_only,
+    treat_alt_interaction = treat_alt_interaction,
+    alpha = alpha, ties = ties, boot = boot,
     n_boot = n_boot, seed = seed
   )
   
-  class(out) <- "ipcw"
+  class(out) <- "msm"
   out
 }

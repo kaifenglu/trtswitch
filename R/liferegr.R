@@ -118,8 +118,6 @@
 #'
 #'     - \code{expbeta}: The exponentiated parameter estimate.
 #'
-#'     - \code{vbeta}: The covariance matrix for parameter estimates.
-#'
 #'     - \code{lower}: The lower limit of confidence interval.
 #'
 #'     - \code{upper}: The upper limit of confidence interval.
@@ -131,9 +129,6 @@
 #'
 #'     - \code{sebeta_naive}: The naive standard error of parameter estimate
 #'       if robust variance is requested.
-#'
-#'     - \code{vbeta_naive}: The naive covariance matrix for parameter
-#'       estimates if robust variance is requested.
 #'
 #' * \code{linear_predictors}: The vector of linear predictors.
 #'
@@ -301,18 +296,6 @@ liferegr <- function(data, stratum = "", time = "time", time2 = "",
     
     fit$beta <- fit$parest$beta
     names(fit$beta) <- fit$param
-    
-    if (fit$p > 1) {
-      fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, paste0("vbeta_naive.", seq_len(fit$p))])
-      }
-    } else {
-      fit$vbeta <- as.matrix(fit$parest[, "vbeta", drop = FALSE])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive", drop = FALSE])
-      }
-    }
     
     dimnames(fit$vbeta) <- list(fit$param, fit$param)
     if (robust) {

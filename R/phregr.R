@@ -102,8 +102,6 @@
 #'
 #'     - \code{expbeta}: The hazard ratio estimate.
 #'
-#'     - \code{vbeta}: The covariance matrix for parameter estimates.
-#'
 #'     - \code{lower}: The lower limit of confidence interval.
 #'
 #'     - \code{upper}: The upper limit of confidence interval.
@@ -115,9 +113,6 @@
 #'
 #'     - \code{sebeta_naive}: The naive standard error of log hazard ratio
 #'       estimate if robust variance is requested.
-#'
-#'     - \code{vbeta_naive}: The naive covariance matrix for parameter
-#'       estimates if robust variance is requested.
 #'
 #' * \code{basehaz}: The data frame of baseline hazards with the following
 #'   variables (if est_basehaz is TRUE):
@@ -306,18 +301,6 @@ phregr <- function(data, stratum = "", time = "time", time2 = "",
     fit$param <- param[-1]
     fit$beta <- fit$parest$beta
     names(fit$beta) <- fit$param
-
-    if (fit$p > 1) {
-      fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, paste0("vbeta_naive.", seq_len(fit$p))])
-      }
-    } else {
-      fit$vbeta <- as.matrix(fit$parest[, "vbeta", drop = FALSE])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive", drop = FALSE])
-      }
-    }
 
     dimnames(fit$vbeta) <- list(fit$param, fit$param)
     if (robust) {

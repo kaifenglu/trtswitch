@@ -575,7 +575,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
                       fit_aft = out_aft.get_list("fit_aft");
                       DataFrameCpp parest = fit_aft.get<DataFrameCpp>("parest");
                       std::vector<double> beta = parest.get<double>("beta");
-                      FlatMatrix vbeta(qp + 1, qp + 1);
+                      FlatMatrix vbeta = fit_aft.get<FlatMatrix>("vbeta");
                       FlatMatrix rr = residuals_liferegcpp(
                         beta, vbeta, data_aft, {""}, "t_star", "", "d_star",
                         covariates_aft, "", "", "", dist, "deviance");

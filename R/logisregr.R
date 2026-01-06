@@ -112,8 +112,6 @@
 #'
 #'     - \code{expbeta}: The exponentiated parameter estimate.
 #'
-#'     - \code{vbeta}: The covariance matrix for parameter estimates.
-#'
 #'     - \code{lower}: The lower limit of confidence interval.
 #'
 #'     - \code{upper}: The upper limit of confidence interval.
@@ -124,9 +122,6 @@
 #'       p-value.
 #'
 #'     - \code{sebeta_naive}: The naive standard error of parameter estimate.
-#'
-#'     - \code{vbeta_naive}: The naive covariance matrix of parameter
-#'       estimates.
 #'
 #' * \code{fitted}: The data frame with the following variables:
 #'
@@ -236,6 +231,7 @@ logisregr <- function(data, event = "event", covariates = "",
     xlevels <- NULL
   } else {
     fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
+    t1 <- terms(fml_cov)
     
     # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
     cov_present <- covariates %in% names(df)
@@ -249,7 +245,6 @@ logisregr <- function(data, event = "event", covariates = "",
       # This avoids model.matrix and is valid when covariates are simple numeric columns.
       param <- c("(Intercept)", covariates)
       varnames <- covariates
-      t1 <- terms(fml_cov)
       xlevels <- NULL      
     } else {
       # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
@@ -258,7 +253,6 @@ logisregr <- function(data, event = "event", covariates = "",
       param <- colnames(mm)
       colnames(mm) <- make.names(colnames(mm))
       varnames <- colnames(mm)[-1]
-      t1 <- terms(fml_cov)
       xlevels <- mf$xlev
       # copy model-matrix columns into df only if they are missing
       missing_cols <- setdiff(varnames, names(df))
@@ -296,18 +290,6 @@ logisregr <- function(data, event = "event", covariates = "",
     fit$param <- param
     fit$beta <- fit$parest$beta
     names(fit$beta) <- fit$param
-    
-    if (fit$p > 1) {
-      fit$vbeta <- as.matrix(fit$parest[, paste0("vbeta.", seq_len(fit$p))])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, paste0("vbeta_naive.", seq_len(fit$p))])
-      }
-    } else {
-      fit$vbeta <- as.matrix(fit$parest[, "vbeta", drop = FALSE])
-      if (robust) {
-        fit$vbeta_naive <- as.matrix(fit$parest[, "vbeta_naive", drop = FALSE])
-      }
-    }
     
     dimnames(fit$vbeta) <- list(fit$param, fit$param)
     if (robust) {
