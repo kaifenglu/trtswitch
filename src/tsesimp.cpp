@@ -1,566 +1,571 @@
-#include "utilities.h"
+#include <RcppParallel.h>
+#include <RcppThread.h>
+#include <Rcpp.h>
+
 #include "survival_analysis.h"
+#include "utilities.h"
+#include "dataframe_list.h"
+#include "thread_utils.h"
 
-using namespace Rcpp;
-
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <functional>
+#include <limits>
+#include <random>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <unordered_map>
+#include <vector>
 
 // [[Rcpp::export]]
-List tsesimpcpp(const DataFrame data,
-                const std::string id = "id",
-                const StringVector& stratum = "",
-                const std::string time = "time",
-                const std::string event = "event",
-                const std::string treat = "treat",
-                const std::string censor_time = "censor_time",
-                const std::string pd = "pd",
-                const std::string pd_time = "pd_time",
-                const std::string swtrt = "swtrt",
-                const std::string swtrt_time = "swtrt_time",
-                const StringVector& base_cov = "",
-                const StringVector& base2_cov = "",
-                const std::string aft_dist = "weibull",
-                const bool strata_main_effect_only = true,
-                const bool recensor = true,
-                const bool admin_recensor_only = true,
-                const bool swtrt_control_only = true,
-                const double alpha = 0.05,
-                const std::string ties = "efron",
-                const double offset = 1,
-                const bool boot = true,
-                const int n_boot = 1000,
-                const int seed = NA_INTEGER) {
+Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
+                      const std::string& id,
+                      const std::vector<std::string>& stratum,
+                      const std::string& time,
+                      const std::string& event,
+                      const std::string& treat,
+                      const std::string& censor_time,
+                      const std::string& pd,
+                      const std::string& pd_time,
+                      const std::string& swtrt,
+                      const std::string& swtrt_time,
+                      const std::vector<std::string>& base_cov,
+                      const std::vector<std::string>& base2_cov,
+                      const std::string& aft_dist,
+                      const bool strata_main_effect_only,
+                      const bool recensor,
+                      const bool admin_recensor_only,
+                      const bool swtrt_control_only,
+                      const double alpha,
+                      const std::string& ties,
+                      const double offset,
+                      const bool boot,
+                      const int n_boot,
+                      const int seed) {
   
-  int k, n = data.nrow();
+  DataFrameCpp data = convertRDataFrameToCpp(df);
   
+  int n = static_cast<int>(data.nrows());
   int p = static_cast<int>(base_cov.size());
-  if (p == 1 && (base_cov[0] == "" || base_cov[0] == "none")) p = 0;
+  if (p == 1 && base_cov[0] == "") p = 0;
   
   int p2 = static_cast<int>(base2_cov.size());
-  if (p2 == 1 && (base2_cov[0] == "" || base2_cov[0] == "none")) p2 = 0;
+  if (p2 == 1 && base2_cov[0] == "") p2 = 0;
   
+  // process stratification variables
   int p_stratum = static_cast<int>(stratum.size());
-  
-  bool has_stratum;
-  IntegerVector stratumn(n);
-  DataFrame u_stratum;
-  IntegerVector d(p_stratum);
-  IntegerMatrix stratan(n,p_stratum);
-  List levels(p_stratum);
-  if (p_stratum == 1 && (stratum[0] == "" || stratum[0] == "none")) {
-    has_stratum = 0;
-    stratumn.fill(0);
-    d[0] = 1;
-    stratan(_,0) = stratumn;
-    levels[0] = 1;
-  } else {
-    List out = bygroup(data, stratum);
-    has_stratum = 1;
-    stratumn = out["index"];
-    u_stratum = DataFrame(out["lookup"]);
-    d = out["nlevels"];
-    stratan = as<IntegerMatrix>(out["indices"]);
-    levels = out["lookups"];
+  bool has_stratum = false;
+  std::vector<int> stratumn(n);
+  DataFrameCpp u_stratum;
+  std::vector<int> d(p_stratum);
+  IntMatrix stratan(n, p_stratum);
+  ListCpp levels;
+  if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
+    ListCpp out = bygroup(data, stratum);
+    has_stratum = true;
+    stratumn = out.get<std::vector<int>>("index");
+    u_stratum = out.get<DataFrameCpp>("lookup");
+    d = out.get<std::vector<int>>("nlevels");
+    stratan = out.get<IntMatrix>("indices");
+    levels = out.get_list("lookups_per_variable");
   }
-  
-  IntegerVector stratumn_unique = unique(stratumn);
+  std::vector<int> stratumn_unique = unique_sorted(stratumn);
   int nstrata = static_cast<int>(stratumn_unique.size());
   
-  bool has_id = hasVariable(data, id);
-  bool has_time = hasVariable(data, time);
-  bool has_event = hasVariable(data, event);
-  bool has_treat = hasVariable(data, treat);
-  bool has_censor_time = hasVariable(data, censor_time);
-  bool has_pd = hasVariable(data, pd);
-  bool has_pd_time = hasVariable(data, pd_time);
-  bool has_swtrt = hasVariable(data, swtrt);
-  bool has_swtrt_time = hasVariable(data, swtrt_time);
+  // create the numeric id variable
+  if (id.empty() || !data.containElementNamed(id))
+    throw std::invalid_argument("data must contain the id variable");
+  std::vector<int> idn(n);
+  std::vector<int> idwi;
+  std::vector<double> idwn;
+  std::vector<std::string> idwc;
+  if (data.int_cols.count(id)) {
+    auto v = data.get<int>(id);
+    idwi = unique_sorted(v);
+    idn = matchcpp(v, idwi);
+  } else if (data.numeric_cols.count(id)) {
+    auto v = data.get<double>(id);
+    idwn = unique_sorted(v);
+    idn = matchcpp(v, idwn);
+  } else if (data.string_cols.count(id)) {
+    auto v = data.get<std::string>(id);
+    idwc = unique_sorted(v);
+    idn = matchcpp(v, idwc);
+  } else throw std::invalid_argument(
+      "incorrect type for the id variable in data");
   
-  
-  if (!has_id) stop("data must contain the id variable");
-  
-  IntegerVector idn(n);
-  IntegerVector idwi;
-  NumericVector idwn;
-  StringVector idwc;
-  
-  SEXP col_id = data[id];
-  SEXPTYPE type_id = TYPEOF(col_id);
-  
-  if (type_id == INTSXP) {
-    IntegerVector idv = col_id;
-    idwi = unique(idv);
-    idwi.sort();
-    idn = match(idv, idwi) - 1;
-  } else if (type_id == REALSXP) {
-    NumericVector idv = col_id;
-    idwn = unique(idv);
-    idwn.sort();
-    idn = match(idv, idwn) - 1;
-  } else if (type_id == STRSXP) {
-    StringVector idv = col_id;
-    idwc = unique(idv);
-    idwc.sort();
-    idn = match(idv, idwc) - 1;
+  // --- time existence and checks ---
+  if (time.empty() || !data.containElementNamed(time))
+    throw std::invalid_argument("data must contain the time variable");
+  std::vector<double> timen(n);
+  if (data.int_cols.count(time)) {
+    const std::vector<int>& vi = data.get<int>(time);
+    for (int i = 0; i < n; ++i) timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(time)) {
+    timen = data.get<double>(time);
   } else {
-    stop("incorrect type for the id variable in the input data");
+    throw std::invalid_argument("time variable must be integer or numeric");
+  }
+  for (int i = 0; i < n; ++i) {
+    if (!std::isnan(timen[i]) && timen[i] < 0.0)
+      throw std::invalid_argument("time must be nonnegative");
   }
   
-  
-  if (!has_time) stop("data must contain the time variable");
-  
-  SEXP col_time = data[time];
-  SEXPTYPE type_time = TYPEOF(col_time);
-  
-  if (type_time != INTSXP && type_time != REALSXP) {
-    stop("time must take numeric values");
+  // --- event variable ---
+  if (event.empty() || !data.containElementNamed(event)) {
+    throw std::invalid_argument("data must contain the event variable");
   }
-  
-  NumericVector timenz = col_time;
-  NumericVector timen = clone(timenz);
-  if (is_true(any(timen <= 0.0))) {
-    stop("time must be positive");
-  }
-  
-  
-  if (!has_event) stop("data must contain the event variable");
-  
-  SEXP col_event = data[event];
-  SEXPTYPE type_event = TYPEOF(col_event);
-  
-  IntegerVector eventn(n);
-  if (type_event == LGLSXP || type_event == INTSXP) {
-    IntegerVector eventnz = col_event;
-    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
-      stop("event must be 1 or 0 for each subject");
-    } else {
-      eventn = clone(eventnz);
-    }
-  } else if (type_event == REALSXP) {
-    NumericVector eventnz = col_event;
-    if (is_true(any((eventnz != 1) & (eventnz != 0)))) {
-      stop("event must be 1 or 0 for each subject");
-    } else {
-      NumericVector eventnz2 = clone(eventnz);
-      eventn = as<IntegerVector>(eventnz2);
-    }
+  std::vector<int> eventn(n);
+  if (data.bool_cols.count(event)) {
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
+  } else if (data.int_cols.count(event)) {
+    eventn = data.get<int>(event);
+  } else if (data.numeric_cols.count(event)) {
+    const std::vector<double>& vd = data.get<double>(event);
+    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
-    stop("event must take logical, integer, or real values");
+    throw std::invalid_argument("event variable must be bool, integer or numeric");
+  }
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  if (std::all_of(eventn.begin(), eventn.end(), [](int x){ return x == 0; })) {
+    throw std::invalid_argument("at least 1 event is needed");
   }
   
-  if (is_true(all(eventn == 0))) {
-    stop("at least 1 event is needed");
-  }
-  
-  
-  if (!has_treat) stop("data must contain the treat variable");
-  
-  IntegerVector treatn(n);
-  IntegerVector treatwi;
-  NumericVector treatwn;
-  StringVector treatwc;
-  
-  SEXP col_treat = data[treat];
-  SEXPTYPE type_treat = TYPEOF(col_treat);
-  
-  if (type_treat == LGLSXP || type_treat == INTSXP) {
-    IntegerVector treatv = col_treat;
-    treatwi = unique(treatv);
-    
-    if (treatwi.size() != 2) {
-      stop("treat must have two and only two distinct values");
-    }
-    
-    // special handling for 1/0 treatment coding
-    if (is_true(all((treatwi == 0) | (treatwi == 1)))) {
-      treatwi = IntegerVector::create(1,0);
-      treatn = 2 - treatv;
+  // create the numeric treat variable
+  if (treat.empty() || !data.containElementNamed(treat))
+    throw std::invalid_argument("data must contain the treat variable");
+  std::vector<int> treatn(n);
+  std::vector<int> treatwi;
+  std::vector<double> treatwn;
+  std::vector<std::string> treatwc;
+  if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+    std::vector<int> treatv(n);
+    if (data.bool_cols.count(treat)) {
+      const std::vector<unsigned char>& treatvb = data.get<unsigned char>(treat);
+      for (int i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
+    } else treatv = data.get<int>(treat);
+    treatwi = unique_sorted(treatv); // obtain unique treatment values
+    if (treatwi.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwi.begin(), treatwi.end(), [](int v) {
+      return v == 0 || v == 1; })) {
+      treatwi = {1, 0}; // special handling for 1/0 treatment coding
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
     } else {
-      treatwi.sort();
-      treatn = match(treatv, treatwi);
+      treatn = matchcpp(treatv, treatwi, 1);
     }
-  } else if (type_treat == REALSXP) {
-    NumericVector treatv = col_treat;
-    treatwn = unique(treatv);
-    
-    if (treatwn.size() != 2) {
-      stop("treat must have two and only two distinct values");
-    }
-    
-    // special handling for 1/0 treatment coding
-    if (is_true(all((treatwn == 0) | (treatwn == 1)))) {
-      treatwn = NumericVector::create(1,0);
-      treatn = 2 - as<IntegerVector>(treatv);
+  } else if (data.numeric_cols.count(treat)) {
+    const std::vector<double>& treatv = data.get<double>(treat);
+    treatwn = unique_sorted(treatv);
+    if (treatwn.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    if (std::all_of(treatwn.begin(), treatwn.end(), [](double v) {
+      return v == 0.0 || v == 1.0; })) {
+      treatwn = {1.0, 0.0};
+      for (int i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
     } else {
-      treatwn.sort();
-      treatn = match(treatv, treatwn);
+      treatn = matchcpp(treatv, treatwn, 1);
     }
-  } else if (type_treat == STRSXP) {
-    StringVector treatv = col_treat;
-    treatwc = unique(treatv);
-    
-    if (treatwc.size() != 2) {
-      stop("treat must have two and only two distinct values");
-    }
-    
-    treatwc.sort();
-    treatn = match(treatv, treatwc);
+  } else if (data.string_cols.count(treat)) {
+    const std::vector<std::string>& treatv = data.get<std::string>(treat);
+    treatwc = unique_sorted(treatv);
+    if (treatwc.size() != 2)
+      throw std::invalid_argument("treat must have two and only two distinct values");
+    treatn = matchcpp(treatv, treatwc, 1);
   } else {
-    stop("incorrect type for the treat variable in the input data");
+    throw std::invalid_argument(
+        "incorrect type for the treat variable in the input data");
   }
-  
-  treatn = 2 - treatn; // use the 1/0 treatment coding
-  
-  
-  if (!has_censor_time) stop("data must contain the censor_time variable");
-  
-  SEXP col_censor_time = data[censor_time];
-  SEXPTYPE type_censor_time = TYPEOF(col_censor_time);
-  
-  if (type_censor_time != INTSXP && type_censor_time != REALSXP) {
-    stop("censor_time must take numeric values");
+  for (int i = 0; i < n; ++i) {
+    treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
   }
-  
-  NumericVector censor_timenz = col_censor_time;
-  NumericVector censor_timen = clone(censor_timenz);
-  if (is_true(any(censor_timen < timen))) {
-    stop("censor_time must be greater than or equal to time");
-  }
-  
-  if (!admin_recensor_only) {
-    for (int i=0; i<n; ++i) {
-      if (eventn[i] == 0) { // use the actual censoring time for dropouts
-        censor_timen[i] = timen[i];
-      }
-    }
-  }
-  
-  
-  if (!has_pd) stop("data must contain the pd variable"); 
-  
-  SEXP col_pd = data[pd];
-  SEXPTYPE type_pd = TYPEOF(col_pd);
-  
-  IntegerVector pdn(n);
-  if (type_pd == LGLSXP || type_pd == INTSXP) {
-    IntegerVector pdnz = col_pd;
-    if (is_true(any((pdnz != 1) & (pdnz != 0)))) {
-      stop("pd must be 1 or 0 for each subject");
-    } else {
-      pdn = clone(pdnz);
-    }
-  } else if (type_pd == REALSXP) {
-    NumericVector pdnz = col_pd;
-    if (is_true(any((pdnz != 1) & (pdnz != 0)))) {
-      stop("pd must be 1 or 0 for each subject");
-    } else {
-      NumericVector pdnz2 = clone(pdnz);
-      pdn = as<IntegerVector>(pdnz2);
-    }
+
+  // --- censor_time variable ---
+  if (censor_time.empty() || !data.containElementNamed(censor_time))
+    throw std::invalid_argument("data must contain the censor_time variable");
+  std::vector<double> censor_timen(n);
+  if (data.int_cols.count(censor_time)) {
+    const std::vector<int>& vi = data.get<int>(censor_time);
+    for (int i = 0; i < n; ++i) censor_timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(censor_time)) {
+    censor_timen = data.get<double>(censor_time);
   } else {
-    stop("pd must take logical, integer, or real values");
+    throw std::invalid_argument("censor_time variable must be integer or numeric");
+  }
+  for (double v : censor_timen) if (v < 0.0 || std::isnan(v))
+    throw std::invalid_argument("censor_time cannot be missing");
+  for (int i = 0; i < n; ++i) {
+    if (censor_timen[i] < timen[i]) throw std::invalid_argument(
+        "censor_time must be greater than or equal to time");
+  }
+  if (!admin_recensor_only) { // use the actual censoring time for dropouts
+    for (int i = 0; i < n; ++i) if (eventn[i] == 0) censor_timen[i] = timen[i];
   }
   
-  if (!has_pd_time) {
-    stop("data must contain the pd_time variable"); 
+  // --- pd variable ---
+  if (pd.empty() || !data.containElementNamed(pd)) {
+    throw std::invalid_argument("data must contain the pd variable");
+  }
+  std::vector<int> pdn(n);
+  if (data.bool_cols.count(pd)) {
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(pd);
+    for (int i = 0; i < n; ++i) pdn[i] = vb[i] ? 1 : 0;
+  } else if (data.int_cols.count(pd)) {
+    pdn = data.get<int>(pd);
+  } else if (data.numeric_cols.count(pd)) {
+    const std::vector<double>& vd = data.get<double>(pd);
+    for (int i = 0; i < n; ++i) pdn[i] = static_cast<int>(vd[i]);
+  } else {
+    throw std::invalid_argument("pd variable must be bool, integer or numeric");
+  }
+  for (double val : eventn) if (val != 0 && val != 1)
+    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  
+  // --- pd_time variable ---
+  if (pd_time.empty() || !data.containElementNamed(pd_time))
+    throw std::invalid_argument("data must contain the pd_time variable");
+  std::vector<double> pd_timen(n);
+  if (data.int_cols.count(pd_time)) {
+    const std::vector<int>& vi = data.get<int>(pd_time);
+    for (int i = 0; i < n; ++i) pd_timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(pd_time)) {
+    pd_timen = data.get<double>(pd_time);
+  } else {
+    throw std::invalid_argument("pd_time variable must be integer or numeric");
   }
   
-  
-  SEXP col_pd_time = data[pd_time];
-  SEXPTYPE type_pd_time = TYPEOF(col_pd_time);
-  if (type_pd_time != INTSXP && type_pd_time != REALSXP) {
-    stop("pd_time must take numeric values");
-  }
-  
-  NumericVector pd_timenz = col_pd_time;
-  NumericVector pd_timen = clone(pd_timenz);
-  for (int i=0; i<n; ++i) {
+  // check consistency between pd and pd_time
+  for (int i = 0; i < n; ++i) {
     if (pdn[i] == 1 && std::isnan(pd_timen[i])) {
-      stop("pd_time must not be missing when pd=1");
+      throw std::runtime_error("pd_time must not be missing when pd = 1");
     }
     if (pdn[i] == 1 && pd_timen[i] < 0.0) {
-      stop("pd_time must be nonnegative when pd=1");
+      throw std::runtime_error("pd_time must be nonnegative when pd = 1");
     }
   }
   
-  
-  if (!has_swtrt) stop("data must contain the swtrt variable");
-  
-  SEXP col_swtrt = data[swtrt];
-  SEXPTYPE type_swtrt = TYPEOF(col_swtrt);
-  
-  IntegerVector swtrtn(n);
-  if (type_swtrt == LGLSXP || type_swtrt == INTSXP) {
-    IntegerVector swtrtnz = col_swtrt;
-    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
-      stop("swtrt must be 1 or 0 for each subject");
-    } else {
-      swtrtn = clone(swtrtnz);
-    }
-  } else if (type_swtrt == REALSXP) {
-    NumericVector swtrtnz = col_swtrt;
-    if (is_true(any((swtrtnz != 1) & (swtrtnz != 0)))) {
-      stop("swtrt must be 1 or 0 for each subject");
-    } else {
-      NumericVector swtrtnz2 = clone(swtrtnz);
-      swtrtn = as<IntegerVector>(swtrtnz2);
-    }
+  // --- swtrt variable ---
+  if (swtrt.empty() || !data.containElementNamed(swtrt)) {
+    throw std::invalid_argument("data must contain the swtrt variable");
+  }
+  std::vector<int> swtrtn(n);
+  if (data.bool_cols.count(swtrt)) {
+    const std::vector<unsigned char>& vb = data.get<unsigned char>(swtrt);
+    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
+  } else if (data.int_cols.count(swtrt)) {
+    swtrtn = data.get<int>(swtrt);
+  } else if (data.numeric_cols.count(swtrt)) {
+    const std::vector<double>& vd = data.get<double>(swtrt);
+    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
   } else {
-    stop("swtrt must take logical, integer, or real values");
+    throw std::invalid_argument("swtrt variable must be bool, integer or numeric");
   }
+  for (double val : swtrtn) if (val != 0 && val != 1)
+    throw std::invalid_argument("swtrt must be 1 or 0 for each observation");
   
-  
-  if (is_false(any((pdn == 1) & (swtrtn == 1) & (treatn == 0)))) {
-    stop("at least 1 pd and swtrt is needed in the control group");
+  // check that at least 1 pd and swtrt in each group
+  bool found_control = false;
+  for (int i = 0; i < n; ++i) {
+    if (pdn[i] == 1 && swtrtn[i] == 1 && treatn[i] == 0) {
+      found_control = true;
+      break;
+    }
   }
-  
-  if (!swtrt_control_only) {
-    if (is_false(any((pdn == 1) & (swtrtn == 1) & (treatn == 1)))) {
-      stop("at least 1 pd and swtrt is needed in the treatment group");
+  if (!found_control) {
+    throw std::runtime_error(
+        "at least 1 pd and swtrt is needed in the control group");
+  }
+
+  if (!swtrt_control_only)  {
+    bool found_treated = false;
+    for (int i = 0; i < n; ++i) {
+      if (pdn[i] == 1 && swtrtn[i] == 1 && treatn[i] == 1) {
+        found_treated = true;
+        break;
+      }
+    }
+    if (!found_treated) {
+      throw std::runtime_error(
+          "at least 1 pd and swtrt is needed in the treatment group");
     }
   }
   
-  if (!has_swtrt_time) stop("data must contain the swtrt_time variable"); 
-  
-  SEXP col_swtrt_time = data[swtrt_time];
-  SEXPTYPE type_swtrt_time = TYPEOF(col_swtrt_time);
-  if (type_swtrt_time != INTSXP && type_swtrt_time != REALSXP) {
-    stop("swtrt_time must take numeric values");
+  // --- swtrt_time variable ---
+  if (swtrt_time.empty() || !data.containElementNamed(swtrt_time))
+    throw std::invalid_argument("data must contain the swtrt_time variable");
+  std::vector<double> swtrt_timen(n);
+  if (data.int_cols.count(swtrt_time)) {
+    const std::vector<int>& vi = data.get<int>(swtrt_time);
+    for (int i = 0; i < n; ++i) swtrt_timen[i] = static_cast<double>(vi[i]);
+  } else if (data.numeric_cols.count(swtrt_time)) {
+    swtrt_timen = data.get<double>(swtrt_time);
+  } else {
+    throw std::invalid_argument("swtrt_time variable must be integer or numeric");
   }
   
-  NumericVector swtrt_timenz = col_swtrt_time;
-  NumericVector swtrt_timen = clone(swtrt_timenz);
-  for (int i=0; i<n; ++i) {
+  // check consistency between swtrt and swtrt_time
+  for (int i = 0; i < n; ++i) {
     if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
-      stop("swtrt_time must not be missing when swtrt=1");
+      throw std::runtime_error("swtrt_time must not be missing when swtrt=1");
     }
     if (swtrtn[i] == 1 && swtrt_timen[i] < 0.0) {
-      stop("swtrt_time must be nonnegative when swtrt=1");
+      throw std::runtime_error("swtrt_time must be nonnegative when swtrt=1");
     }
     if (swtrtn[i] == 1 && swtrt_timen[i] > timen[i]) {
-      stop("swtrt_time must be less than or equal to time");
+      throw std::runtime_error("swtrt_time must be less than or equal to time");
     }
   }
   
   // if the patient switched before pd, set pd time equal to switch time
-  for (int i=0; i<n; ++i) {
+  for (int i = 0; i < n; ++i) {
     if (pdn[i] == 1 && swtrtn[i] == 1 && swtrt_timen[i] < pd_timen[i]) {
       pd_timen[i] = swtrt_timen[i];
     }
     
     if (pdn[i] == 0 && swtrtn[i] == 1) {
-      pdn[i] = 1; pd_timen[i] = swtrt_timen[i];
+      pdn[i] = 1; 
+      pd_timen[i] = swtrt_timen[i];
     }
   }
   
   // make sure offset is less than or equal to observed time variables
-  for (int i=0; i<n; ++i) {
+  for (int i = 0; i < n; ++i) {
     if (pdn[i] == 1 && pd_timen[i] < offset) {
-      stop("pd_time must be great than or equal to offset");
+      throw std::runtime_error("pd_time must be great than or equal to offset");
     }
     if (swtrtn[i] == 1 && swtrt_timen[i] < offset) {
-      stop("swtrt_time must be great than or equal to offset");
+      throw std::runtime_error("swtrt_time must be great than or equal to offset");
     }
   }
   
-  // ensure pd time < os time
-  for (int i=0; i<n; ++i) {
+  // ensure pd time < os time so that post-progression survival (pps) is positive
+  for (int i = 0; i < n; ++i) {
     if (pdn[i] == 1 && pd_timen[i] == timen[i]) {
       timen[i] = timen[i] + 1.0e-8;
     }
   }
   
   // covariates for the Cox model containing treat and base_cov
-  StringVector covariates(p+1);
-  NumericMatrix zn(n,p);
+  std::vector<std::string> covariates(p + 1);
+  FlatMatrix zn(n, p);
   covariates[0] = "treated";
-  for (int j=0; j<p; ++j) {
-    String zj = base_cov[j];
-    
-    if (!hasVariable(data, zj)) {
-      stop("data must contain the variables in base_cov");
+  for (int j = 0; j < p; ++j) {
+    const std::string& zj = base_cov[j];
+    if (!data.containElementNamed(zj))
+      throw std::invalid_argument("data must contain the variables in base_cov");
+    if (zj == treat)
+      throw std::invalid_argument("treat should be excluded from base_cov");
+    covariates[j + 1] = zj;
+    double* zn_col = zn.data_ptr() + j * n;
+    if (data.bool_cols.count(zj)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(zj)) {
+      const std::vector<int>& vi = data.get<int>(zj);
+      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(zj)) {
+      const std::vector<double>& vd = data.get<double>(zj);
+      std::memcpy(zn_col, vd.data(), n * sizeof(double));
+    } else {
+      throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
-    if (zj == treat) {
-      stop("treat should be excluded from base_cov");
-    }
-    
-    NumericVector u = data[zj];
-    covariates[j+1] = zj;
-    zn(_,j) = u;
   }
   
-  
-  int q; // number of columns corresponding to the strata effects
-  if (strata_main_effect_only) {
-    q = sum(d - 1);
-  } else {
-    q = nstrata - 1;
+  // number of columns corresponding to the strata effects
+  int q = 0;
+  if (has_stratum) {
+    if (strata_main_effect_only) {
+      q = 0;
+      for (int i = 0; i < p_stratum; ++i) q += d[i] - 1;
+    } else {
+      q = nstrata - 1;
+    }
   }
+  
+  int qp2 = q + p2;
   
   // covariates for the accelerated failure time model for control with pd
   // including swtrt, stratum and base2_cov
-  StringVector covariates_aft(q+p2+1);
-  NumericMatrix z_aftn(n,q+p2);
+  std::vector<std::string> covariates_aft(qp2 + 1);
+  FlatMatrix z_aftn(n, qp2);
   covariates_aft[0] = "swtrt";
-  if (strata_main_effect_only) {
-    k = 0;
-    for (int i=0; i<p_stratum; ++i) {
-      SEXP col_level = levels[i];
-      SEXPTYPE type_level = TYPEOF(col_level);
-      
-      int di = d[i]-1;
-      for (int j=0; j<di; ++j) {
-        covariates_aft[k+j+1] = as<std::string>(stratum[i]);
+  if (has_stratum) {
+    if (strata_main_effect_only) {
+      int k = 0;
+      for (int i = 0; i < p_stratum; ++i) {
+        const std::string& s = stratum[i];
+        int di = d[i] - 1;
         
-        if (type_level == STRSXP) {
-          StringVector u = col_level;
-          std::string label = sanitize(as<std::string>(u[j]));
-          covariates_aft[k+j+1] += label;
-        } else if (type_level == REALSXP) {
-          NumericVector u = col_level;
-          covariates_aft[k+j+1] += std::to_string(u[j]);
-        } else if (type_level == INTSXP || type_level == LGLSXP) {
-          IntegerVector u = col_level;
-          covariates_aft[k+j+1] += std::to_string(u[j]);
+        if (u_stratum.string_cols.count(s)) {
+          auto u = levels.get<std::vector<std::string>>(s);
+          for (int j = 0; j < di; ++j) {
+            covariates_aft[k + j + 1] = s + sanitize(u[j]);
+          }
+        } else if (u_stratum.numeric_cols.count(s)) {
+          auto u = levels.get<std::vector<double>>(s);
+          for (int j = 0; j < di; ++j) {
+            covariates_aft[k + j + 1] = s + std::to_string(u[j]);
+          }
+        } else if (u_stratum.int_cols.count(s)) {
+          auto u = levels.get<std::vector<int>>(s);
+          for (int j = 0; j < di; ++j) {
+            covariates_aft[k + j + 1] = s + std::to_string(u[j]);
+          }
+        } else if (u_stratum.bool_cols.count(s)) {
+          auto u = levels.get<std::vector<unsigned char>>(s);
+          for (int j = 0; j < di; ++j) {
+            covariates_aft[k + j + 1] = s + std::to_string(u[j]);
+          }
         }
         
-        z_aftn(_,k+j) = (stratan(_,i) == j);
-      }
-      k += di;
-    }
-  } else {
-    for (int j=0; j<nstrata-1; ++j) {
-      // locate the first observation in the stratum
-      int first_k = 0;
-      for (; first_k<n; ++first_k) {
-        if (stratumn[first_k] == j) break;
-      }
-      covariates_aft[j+1] = "";
-      for (int i=0; i<p_stratum; ++i) {
-        SEXP col_level = levels[i];
-        SEXPTYPE type_level = TYPEOF(col_level);
-        
-        IntegerVector q_col = stratan(_,i);
-        int l = q_col[first_k];
-        
-        covariates_aft[j+1] += as<std::string>(stratum[i]);
-        
-        if (type_level == STRSXP) {
-          StringVector u = col_level;
-          std::string label = sanitize(as<std::string>(u[l]));
-          covariates_aft[j+1] += label;
-        } else if (type_level == REALSXP) {
-          NumericVector u = col_level;
-          covariates_aft[j+1] += std::to_string(u[l]);
-        } else if (type_level == INTSXP || type_level == LGLSXP) {
-          IntegerVector u = col_level;
-          covariates_aft[j+1] += std::to_string(u[l]);
+        for (int j = 0; j < di; ++j) {
+          const int* stratan_col = stratan.data_ptr() + i * n;
+          double* z_aftn_col = z_aftn.data_ptr() + (k + j) * n;
+          for (int r = 0; r < n; ++r) {
+            z_aftn_col[r] = stratan_col[r] == j ? 1.0 : 0.0;
+          }
         }
         
-        if (i < p_stratum-1) {
-          covariates_aft[j+1] += ".";
+        k += di;
+      }
+    } else {
+      for (int j = 0; j < nstrata - 1; ++j) {
+        // locate the first observation in the stratum
+        int first_k = 0;
+        for (; first_k < n; ++first_k) {
+          if (stratumn[first_k] == j) break;
+        }
+        
+        covariates_aft[j + 1] = "";
+        
+        for (int i = 0; i < p_stratum; ++i) {
+          const std::string& s = stratum[i];
+          
+          std::vector<int> q_col = intmatrix_get_column(stratan, i);
+          int l = q_col[first_k];
+          
+          if (u_stratum.string_cols.count(s)) {
+            auto u = levels.get<std::vector<std::string>>(s);
+            covariates_aft[j + 1] += s + sanitize(u[l]);
+          } else if (u_stratum.numeric_cols.count(s)) {
+            auto u = levels.get<std::vector<double>>(s);
+            covariates_aft[j + 1] += s + std::to_string(u[l]);
+          } else if (u_stratum.int_cols.count(s)) {
+            auto u = levels.get<std::vector<int>>(s);
+            covariates_aft[j + 1] += s + std::to_string(u[l]);
+          } else if (u_stratum.bool_cols.count(s)) {
+            auto u = levels.get<std::vector<unsigned char>>(s);
+            covariates_aft[j + 1] += s + std::to_string(u[l]);
+          }
+          
+          if (i < p_stratum - 1) {
+            covariates_aft[j + 1] += ".";
+          }
+        }
+        
+        double* z_aftn_col = z_aftn.data_ptr() + j * n;
+        for (int r = 0; r < n; ++r) {
+          z_aftn_col[r] = stratumn[r] == j ? 1.0 : 0.0;
         }
       }
-      z_aftn(_,j) = (stratumn == j);
     }
   }
   
-  for (int j=0; j<p2; ++j) {
-    String zj = base2_cov[j];
-    
-    if (!hasVariable(data, zj)) {
-      stop("data must contain the variables in base2_cov");
+  for (int j = 0; j < p2; ++j) {
+    const std::string& zj = base2_cov[j];
+    if (!data.containElementNamed(zj))
+      throw std::invalid_argument("data must contain the variables in base2_cov");
+    if (zj == treat)
+      throw std::invalid_argument("treat should be excluded from base2_cov");
+    covariates_aft[q + j + 1] = zj;
+    double* z_aftn_col = z_aftn.data_ptr() + (q + j) * n;
+    if (data.bool_cols.count(zj)) {
+      const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
+      for (int i = 0; i < n; ++i) z_aftn_col[i] = vb[i] ? 1.0 : 0.0;
+    } else if (data.int_cols.count(zj)) {
+      const std::vector<int>& vi = data.get<int>(zj);
+      for (int i = 0; i < n; ++i) z_aftn_col[i] = static_cast<double>(vi[i]);
+    } else if (data.numeric_cols.count(zj)) {
+      const std::vector<double>& vd = data.get<double>(zj);
+      std::memcpy(z_aftn_col, vd.data(), n * sizeof(double));
+    } else {
+      throw std::invalid_argument("base2_cov must be bool, integer or numeric");
     }
-    
-    if (zj == treat) {
-      stop("treat should be excluded from base2_cov");
-    }
-    
-    NumericVector u = data[zj];
-    covariates_aft[q+j+1] = zj;
-    z_aftn(_,q+j) = u;
   }
   
   std::string dist = aft_dist;
   std::for_each(dist.begin(), dist.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   });
+  if (dist == "log-logistic" || dist == "llogistic") dist = "loglogistic";
+  else if  (dist == "log-normal" || dist == "lnormal") dist = "lognormal";
+  if (!(dist == "exponential" || dist == "weibull" || dist == "lognormal" ||
+      dist == "loglogistic")) throw std::invalid_argument(
+        "aft_dist must be exponential, weibull, lognormal, or loglogistic");
   
-  if (dist == "log-logistic" || dist == "llogistic") {
-    dist = "loglogistic";
-  } else if (dist == "log-normal" || dist == "lnormal") {
-    dist = "lognormal";
-  }
-  
-  if (!(dist == "exponential" || dist == "weibull" ||
-      dist == "lognormal" || dist == "loglogistic")) {
-    stop("aft_dist must be exponential, weibull, lognormal, or loglogistic");
-  }
-  
-  if (alpha <= 0.0 || alpha >= 0.5) {
-    stop("alpha must lie between 0 and 0.5");
-  }
-  
-  if (ties != "efron" && ties != "breslow") {
-    stop("ties must be efron or breslow");
-  }
-  
-  if (offset < 0.0) {
-    stop("offset must be nonnegative");
-  }
-  
-  if (n_boot < 100) {
-    stop("n_boot must be greater than or equal to 100");
-  }
-  
+  if (alpha <= 0.0 || alpha >= 0.5)
+    throw std::invalid_argument("alpha must lie between 0 and 0.5");
+  if (ties != "efron" && ties != "breslow")
+    throw std::invalid_argument("ties must be efron or breslow");  
+  if (offset < 0.0) 
+    throw std::invalid_argument("offset must be nonnegative");
+  if (n_boot < 100)
+    throw std::invalid_argument("n_boot must be greater than or equal to 100");
   
   // exclude observations with missing values
-  LogicalVector sub(n,1);
-  for (int i=0; i<n; ++i) {
-    if (idn[i] == NA_INTEGER || stratumn[i] == NA_INTEGER || 
-        std::isnan(timen[i]) || eventn[i] == NA_INTEGER || 
-        treatn[i] == NA_INTEGER || std::isnan(censor_timen[i]) || 
-        pdn[i] == NA_INTEGER || swtrtn[i] == NA_INTEGER) {
-      sub[i] = 0;
+  std::vector<unsigned char> sub(n,1);
+  for (int i = 0; i < n; ++i) {
+    if (idn[i] == INT_MIN || stratumn[i] == INT_MIN || 
+        std::isnan(timen[i]) || eventn[i] == INT_MIN || 
+        treatn[i] == INT_MIN || std::isnan(censor_timen[i]) || 
+        pdn[i] == INT_MIN || swtrtn[i] == INT_MIN) {
+      sub[i] = 0; continue;
     }
-    for (int j=0; j<p; ++j) {
-      if (std::isnan(zn(i,j))) sub[i] = 0;
+    for (int j = 0; j < p; ++j) {
+      if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
     }
   }
   
-  IntegerVector order = which(sub);
-  idn = idn[order];
-  stratumn = stratumn[order];
-  timen = timen[order];
-  eventn = eventn[order];
-  treatn = treatn[order];
-  censor_timen = censor_timen[order];
-  pdn = pdn[order];
-  pd_timen = pd_timen[order];
-  swtrtn = swtrtn[order];
-  swtrt_timen = swtrt_timen[order];
-  if (p > 0) zn = subset_matrix_by_row(zn, order);
-  z_aftn = subset_matrix_by_row(z_aftn, order);
-  n = sum(sub);
-  if (n == 0) stop("no observations left after removing missing values");
+  std::vector<int> keep = which(sub);
+  if (keep.empty())
+    throw std::invalid_argument("no observations without missing values");
+  subset_in_place(idn, keep);
+  subset_in_place(stratumn, keep);
+  subset_in_place(timen, keep);
+  subset_in_place(eventn, keep);
+  subset_in_place(treatn, keep);
+  subset_in_place(censor_timen, keep);
+  subset_in_place(pdn, keep);
+  subset_in_place(pd_timen, keep);
+  subset_in_place(swtrtn, keep);
+  subset_in_place(swtrt_timen, keep);
+  subset_in_place_flatmatrix(zn, keep);
+  subset_in_place_flatmatrix(z_aftn, keep);
+  n = static_cast<int>(keep.size());
   
   // summarize number of deaths and switches by treatment arm
-  IntegerVector treat_out = IntegerVector::create(0, 1);
-  NumericVector n_total(2);
-  NumericVector n_event(2);
-  NumericVector n_pd(2);
-  NumericVector n_switch(2);
+  std::vector<int> treat_out = {0, 1};
+  std::vector<double> n_total(2);
+  std::vector<double> n_event(2);
+  std::vector<double> n_pd(2);
+  std::vector<double> n_switch(2);
   for (int i = 0; i < n; ++i) {
     int g = treatn[i];
-    n_total[g]++;
-    if (eventn[i] == 1) n_event[g]++;
-    if (pdn[i] == 1) n_pd[g]++;
-    if (swtrtn[i] == 1) n_switch[g]++;
+    ++n_total[g];
+    if (eventn[i] == 1) ++n_event[g];
+    if (pdn[i] == 1) ++n_pd[g];
+    if (swtrtn[i] == 1) ++n_switch[g];
   }
   
   // Compute percentages
-  NumericVector pct_event(2);
-  NumericVector pct_pd(2);
-  NumericVector pct_switch(2);
+  std::vector<double> pct_event(2);
+  std::vector<double> pct_pd(2);
+  std::vector<double> pct_switch(2);
   for (int g = 0; g < 2; g++) {
     pct_event[g] = 100.0 * n_event[g] / n_total[g];
     pct_pd[g] = 100.0 * n_pd[g] / n_total[g];
@@ -568,160 +573,136 @@ List tsesimpcpp(const DataFrame data,
   }
   
   // Combine count and percentage
-  List event_summary = List::create(
-    _["treated"] = treat_out,
-    _["n"] = n_total,
-    _["event_n"] = n_event,
-    _["event_pct"] = pct_event,
-    _["pd_n"] = n_pd,
-    _["pd_pct"] = pct_pd,
-    _["switch_n"] = n_switch,
-    _["switch_pct"] = pct_switch
-  );
+  DataFrameCpp event_summary;
+  event_summary.push_back(std::move(treat_out), "treated");
+  event_summary.push_back(n_total, "n");
+  event_summary.push_back(std::move(n_event), "event_n");
+  event_summary.push_back(std::move(pct_event), "event_pct");
+  event_summary.push_back(std::move(n_pd), "pd_n");
+  event_summary.push_back(std::move(pct_pd), "pd_pct");
+  event_summary.push_back(std::move(n_switch), "switch_n");
+  event_summary.push_back(std::move(pct_switch), "switch_pct");
   
-  DataFrame lr = lrtest(data, "", stratum, treat, time, "", event, "", 0,0,0);
-  double logRankPValue = lr["logRankPValue"];
-  double zcrit = R::qnorm(1-alpha/2, 0, 1, 1, 0);
+  double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  k = -1; // indicate the observed data
-  auto f = [&k, has_stratum, stratum, p_stratum, u_stratum, 
-            type_treat, treat, treatwi, treatwn, treatwc, 
-            type_id, id, idwi, idwn, idwc,
-            n, q, p, p2, covariates, covariates_aft, dist, 
+  auto f = [data, has_stratum, stratum, p_stratum, u_stratum, 
+            treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
+            n, p, qp2, covariates, covariates_aft, dist, 
             recensor, swtrt_control_only, alpha, zcrit, ties, offset](
-                IntegerVector& idb, IntegerVector& stratumb, 
-                NumericVector& timeb, IntegerVector& eventb, 
-                IntegerVector& treatb, NumericVector& censor_timeb, 
-                IntegerVector& pdb, NumericVector& pd_timeb, 
-                IntegerVector& swtrtb, NumericVector& swtrt_timeb, 
-                NumericMatrix& zb, NumericMatrix& z_aftb)->List {
+                const std::vector<int>& idb, 
+                const std::vector<int>& stratumb, 
+                const std::vector<double>& timeb, 
+                const std::vector<int>& eventb, 
+                const std::vector<int>& treatb, 
+                const std::vector<double>& censor_timeb, 
+                const std::vector<int>& pdb, 
+                const std::vector<double>& pd_timeb, 
+                const std::vector<int>& swtrtb, 
+                const std::vector<double>& swtrt_timeb, 
+                const FlatMatrix& zb, 
+                const FlatMatrix& z_aftb, int k) -> ListCpp {
                   bool fail = false; // whether any model fails to converge
-                  NumericVector init(1, NA_REAL);
+                  std::vector<double> init(1, NaN);
                   
                   // time and event adjusted for treatment switching
-                  NumericVector t_star = clone(timeb);
-                  IntegerVector d_star = clone(eventb);
+                  std::vector<double> t_star = timeb;
+                  std::vector<int> d_star = eventb;
                   
-                  double psi0hat = NA_REAL;
-                  double psi0lower = NA_REAL, psi0upper = NA_REAL;
-                  double psi1hat = NA_REAL;
-                  double psi1lower = NA_REAL, psi1upper = NA_REAL;
+                  double psi0hat = NaN, psi0lower = NaN, psi0upper = NaN;
+                  double psi1hat = NaN, psi1lower = NaN, psi1upper = NaN;
                   
                   // initialize data_aft and fit_aft
-                  List data_aft(2), fit_aft(2), res_aft(2);
+                  std::vector<ListPtr> data_aft(2), fit_aft(2), res_aft(2);
                   if (k == -1) {
-                    for (int h=0; h<2; ++h) {
-                      List data_x = List::create(
-                        Named("data") = R_NilValue,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (type_treat == LGLSXP ||
-                          type_treat == INTSXP) {
-                        data_x[treat] = treatwi[1-h];
-                      } else if (type_treat == REALSXP) {
-                        data_x[treat] = treatwn[1-h];
-                      } else if (type_treat == STRSXP) {
-                        data_x[treat] = treatwc[1-h];
+                    DataFrameCpp nulldata;
+                    ListCpp nullfit;
+                    std::vector<double> nullres;
+                    for (int h = 0; h < 2; ++h) {
+                      ListPtr data_x = std::make_shared<ListCpp>();
+                      ListPtr fit_x  = std::make_shared<ListCpp>();
+                      ListPtr res_x  = std::make_shared<ListCpp>();
+                      data_x->push_back(nulldata, "data");
+                      fit_x->push_back(nullfit, "fit");
+                      res_x->push_back(nullres, "res");
+                      if (data.bool_cols.count(treat) || 
+                          data.int_cols.count(treat)) {
+                        data_x->push_back(treatwi[1 - h], treat);
+                        fit_x->push_back(treatwi[1 - h], treat);
+                        res_x->push_back(treatwi[1 - h], treat);
+                      } else if (data.numeric_cols.count(treat)) {
+                        data_x->push_back(treatwn[1 - h], treat);
+                        fit_x->push_back(treatwn[1 - h], treat);
+                        res_x->push_back(treatwn[1 - h], treat);
+                      } else if (data.string_cols.count(treat)) {
+                        data_x->push_back(treatwc[1 - h], treat);
+                        fit_x->push_back(treatwc[1 - h], treat);
+                        res_x->push_back(treatwc[1 - h], treat);
                       }
-                      
-                      data_aft[h] = data_x;
-                      
-                      List fit_x = List::create(
-                        Named("fit") = R_NilValue,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (type_treat == LGLSXP ||
-                          type_treat == INTSXP) {
-                        fit_x[treat] = treatwi[1-h];
-                      } else if (type_treat == REALSXP) {
-                        fit_x[treat] = treatwn[1-h];
-                      } else if (type_treat == STRSXP) {
-                        fit_x[treat] = treatwc[1-h];
-                      }
-                      
-                      fit_aft[h] = fit_x;
-                      
-                      List res_x = List::create(
-                        Named("res") = R_NilValue,
-                        Named(treat) = R_NilValue
-                      );
-                      
-                      if (type_treat == LGLSXP ||
-                          type_treat == INTSXP) {
-                        res_x[treat] = treatwi[1-h];
-                      } else if (type_treat == REALSXP) {
-                        res_x[treat] = treatwn[1-h];
-                      } else if (type_treat == STRSXP) {
-                        res_x[treat] = treatwc[1-h];
-                      }
-                      
-                      res_aft[h] = res_x;
+                      data_aft[h] = std::move(data_x);
+                      fit_aft[h]  = std::move(fit_x);
+                      res_aft[h]  = std::move(res_x);
                     }
                   }
                   
-                  List data_outcome;
-                  List fit_outcome;
-                  double hrhat = NA_REAL, hrlower = NA_REAL, 
-                    hrupper = NA_REAL, pvalue = NA_REAL;
-                  List km_outcome, lr_outcome;
                   
                   bool psimissing = false;
                   
-                  // treat arms that include patients who switched treatment
-                  IntegerVector treats(1);
-                  treats[0] = 0;
-                  if (!swtrt_control_only) {
-                    treats.push_back(1);
-                  }
-                  
-                  int K = static_cast<int>(treats.size());
-                  for (int h=0; h<K; ++h) {
+                  // # arms that include patients who switched treatment
+                  int K = swtrt_control_only ? 1 : 2;
+                  for (int h = 0; h < K; ++h) {
                     // post progression data
-                    IntegerVector l = which((treatb == h) & (pdb == 1));
-                    IntegerVector id2 = idb[l];
-                    NumericVector time2 = timeb[l] - pd_timeb[l] + offset;
-                    IntegerVector event2 = eventb[l];
-                    IntegerVector swtrt2 = swtrtb[l];
+                    std::vector<int> l; 
+                    l.reserve(n);
+                    for (int i = 0; i < n; ++i) 
+                      if (treatb[i] == h && pdb[i] == 1) l.push_back(i);
                     
-                    List data1 = List::create(
-                      Named("pps") = time2,
-                      Named("event") = event2,
-                      Named("swtrt") = swtrt2);
-                    
-                    for (int j=0; j<q+p2; ++j) {
-                      String zj = covariates_aft[j+1];
-                      NumericVector u = z_aftb(_,j);
-                      data1.push_back(u[l], zj);
+                    int m = static_cast<int>(l.size());
+                    std::vector<int> id2(m), event2(m), swtrt2(m);
+                    std::vector<double> time2(m);
+                    for (int i = 0; i < m; ++i) {
+                      int j = l[i];
+                      id2[i] = idb[j];
+                      time2[i] = timeb[j] - pd_timeb[j] + offset;
+                      event2[i] = eventb[j];
+                      swtrt2[i] = swtrtb[j];
                     }
                     
-                    List fit1 = liferegcpp(
-                      data1, "", "", "pps", "", "event", 
-                      covariates_aft, "", "", "", dist, init, 
-                      0, 0, alpha, 50, 1.0e-9);
+                    DataFrameCpp data1;
+                    data1.push_back(id2, "uid");
+                    data1.push_back(std::move(time2), "pps");
+                    data1.push_back(std::move(event2), "event");
+                    data1.push_back(std::move(swtrt2), "swtrt");
                     
-                    DataFrame sumstat1 = DataFrame(fit1["sumstat"]);
-                    bool fail1 = sumstat1["fail"];
-                    if (fail1) fail = true;
+                    for (int j = 0; j < qp2; ++j) {
+                      const std::string& zj = covariates_aft[j+1];
+                      std::vector<double> u = flatmatrix_get_column(z_aftb, j);
+                      data1.push_back(subset(u, l), zj);
+                    }
                     
-                    DataFrame parest1 = DataFrame(fit1["parest"]);
-                    NumericVector beta1 = parest1["beta"];
+                    ListCpp fit1 = liferegcpp(
+                      data1, {""}, "pps", "", "event", covariates_aft, 
+                      "", "", "", dist, init, 0, 0, alpha);
+                    
+                    DataFrameCpp sumstat1 = fit1.get<DataFrameCpp>("sumstat");
+                    if (sumstat1.get<unsigned char>("fail")[0]) fail = true;
+                    
+                    DataFrameCpp parest1 = fit1.get<DataFrameCpp>("parest");
+                    std::vector<double> beta1 = parest1.get<double>("beta");
                     double psihat = -beta1[1];
-                    double psilower = NA_REAL, psiupper = NA_REAL;
+                    double psilower = NaN, psiupper = NaN;
                     if (k == -1) {
-                      NumericVector sebeta1 = parest1["sebeta"];
-                      psilower = -beta1[1] - zcrit*sebeta1[1];
-                      psiupper = -beta1[1] + zcrit*sebeta1[1];
+                      std::vector<double> sebeta1 = parest1.get<double>("sebeta");
+                      psilower = -beta1[1] - zcrit * sebeta1[1];
+                      psiupper = -beta1[1] + zcrit * sebeta1[1];
                     }
                     
-                    NumericVector res;
+                    std::vector<double> res1;
                     if (k == -1) {
-                      NumericMatrix vbeta1(q+p2+1, q+p2+1);
-                      NumericMatrix rr = residuals_liferegcpp(
-                        beta1, vbeta1, data1, "", "pps", "", "event",
-                        covariates_aft, "", "", "", dist, "deviance", 0, 0);
-                      res = rr(_,0);
+                      FlatMatrix vbeta1 = fit1.get<FlatMatrix>("vbeta");
+                      FlatMatrix rr = residuals_liferegcpp(
+                        beta1, vbeta1, data1, {""}, "pps", "", "event",
+                        covariates_aft, "", "", "", dist, "deviance");
+                      res1 = flatmatrix_get_column(rr, 0);
                     }
                     
                     // update treatment-specific causal parameter estimates
@@ -741,64 +722,60 @@ List tsesimpcpp(const DataFrame data,
                     
                     // update data_aft, fit_aft, and res_aft
                     if (k == -1) {
-                      IntegerVector stratum2 = stratumb[l];
-                      
+                      std::vector<int> stratum2 = subset(stratumb, l);
                       if (has_stratum) {
-                        for (int i=0; i<p_stratum; ++i) {
-                          std::string s = as<std::string>(stratum[i]);
-                          SEXP col_stratum = u_stratum[s];
-                          SEXPTYPE type_stratum = TYPEOF(col_stratum);
-                          if (type_stratum == INTSXP) {
-                            IntegerVector v = col_stratum;
-                            data1.push_back(v[stratum2], s);
-                          } else if (type_stratum == REALSXP) {
-                            NumericVector v = col_stratum;
-                            data1.push_back(v[stratum2], s);
-                          } else if (type_stratum == STRSXP) {
-                            StringVector v = col_stratum;
-                            data1.push_back(v[stratum2], s);
+                        for (int i = 0; i < p_stratum; ++i) {
+                          const std::string& s = stratum[i];
+                          if (data.bool_cols.count(s)) {
+                            auto v = u_stratum.get<unsigned char>(s);
+                            data1.push_back(subset(v, stratum2), s);
+                          } else if (data.int_cols.count(s)) {
+                            auto v = u_stratum.get<int>(s);
+                            data1.push_back(subset(v, stratum2), s);
+                          } else if (data.numeric_cols.count(s)) {
+                            auto v = u_stratum.get<double>(s);
+                            data1.push_back(subset(v, stratum2), s);
+                          } else if (data.string_cols.count(s)) {
+                            auto v = u_stratum.get<std::string>(s);
+                            data1.push_back(subset(v, stratum2), s);
                           }
                         }
                       }
                       
-                      if (type_id == INTSXP) {
-                        data1.push_front(idwi[id2], id);
-                      } else if (type_id == REALSXP) {
-                        data1.push_front(idwn[id2], id);
-                      } else if (type_id == STRSXP) {
-                        data1.push_front(idwc[id2], id);
+                      if (data.int_cols.count(id)) {
+                        data1.push_front(subset(idwi, id2), id);
+                      } else if (data.numeric_cols.count(id)) {
+                        data1.push_front(subset(idwn, id2), id);
+                      } else if (data.string_cols.count(id)) {
+                        data1.push_front(subset(idwc, id2), id);
                       }
                       
-                      List data_x = data_aft[h];
-                      data_x["data"] = as<DataFrame>(data1);
-                      data_aft[h] = data_x;
+                      ListPtr& data_x = data_aft[h];
+                      data_x->get<DataFrameCpp>("data") = data1;
                       
-                      List fit_x = fit_aft[h];
-                      fit_x["fit"] = fit1;
-                      fit_aft[h] = fit_x;
+                      ListPtr& fit_x = fit_aft[h];
+                      fit_x->get_list("fit") = fit1;
                       
-                      List res_x = res_aft[h];
-                      res_x["res"] = res;
-                      res_aft[h] = res_x;
+                      ListPtr& res_x = res_aft[h];
+                      res_x->get<std::vector<double>>("res") = res1;
                     }
-                    
                     
                     if (!std::isnan(psihat)) {
                       // calculate counter-factual survival times
-                      double a = exp(psihat);
+                      double a = std::exp(psihat);
                       double c0 = std::min(1.0, a);
-                      for (int i=0; i<n; ++i) {
+                      for (int i = 0; i < n; ++i) {
                         if (treatb[i] == h) {
                           double b2, u_star, c_star;
                           if (swtrtb[i] == 1) {
                             b2 = pd_timeb[i] - offset;
-                            u_star = b2 + (timeb[i] - b2)*a;
+                            u_star = b2 + (timeb[i] - b2) * a;
                           } else {
                             u_star = timeb[i];
                           }
                           
                           if (recensor) {
-                            c_star = censor_timeb[i]*c0;
+                            c_star = censor_timeb[i] * c0;
                             t_star[i] = std::min(u_star, c_star);
                             d_star[i] = c_star < u_star ? 0 : eventb[i];
                           } else {
@@ -808,194 +785,196 @@ List tsesimpcpp(const DataFrame data,
                         }
                       }
                     } else {
-                      psimissing = 1;
+                      psimissing = true;
+                      fail = true;
                     }
                   }
                   
                   
+                  DataFrameCpp data_outcome, km_outcome, lr_outcome;
+                  ListCpp fit_outcome;
+                  double hrhat = NaN, hrlower = NaN, hrupper = NaN, pvalue = NaN;
+                  
                   if (!psimissing) {
                     // Cox model for hypothetical treatment effect estimate
-                    data_outcome = List::create(
-                      Named("uid") = idb,
-                      Named("t_star") = t_star,
-                      Named("d_star") = d_star,
-                      Named("treated") = treatb);
-                    
+                    data_outcome.push_back(idb, "uid");
+                    data_outcome.push_back(std::move(t_star), "t_star");
+                    data_outcome.push_back(std::move(d_star), "d_star");
+                    data_outcome.push_back(treatb, "treated");
                     data_outcome.push_back(stratumb, "ustratum");
                     
-                    for (int j=0; j<p; ++j) {
-                      String zj = covariates[j+1];
-                      NumericVector u = zb(_,j);
-                      data_outcome.push_back(u, zj);
+                    for (int j = 0; j < p; ++j) {
+                      const std::string& zj = covariates[j+1];
+                      std::vector<double> u = flatmatrix_get_column(zb, j);
+                      data_outcome.push_back(std::move(u), zj);
                     }
                     
                     // generate KM estimate and log-rank test
                     if (k == -1) {
-                      km_outcome = kmest(
-                        data_outcome, "", "treated", "t_star", "", 
-                        "d_star", "", "log-log", 1-alpha, 1);
+                      km_outcome = kmestcpp(
+                        data_outcome, {"treated"}, "t_star", "", "d_star", 
+                        "", "log-log", 1.0 - alpha, 1);
                       
-                      lr_outcome = lrtest(
-                        data_outcome, "", "ustratum", "treated", "t_star", 
-                        "", "d_star", "", 0, 0, 0);
+                      lr_outcome = lrtestcpp(
+                        data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
                     }
                     
                     // fit the outcome model
                     fit_outcome = phregcpp(
-                      data_outcome, "", "ustratum", "t_star", "", "d_star",
-                      covariates, "", "", "", ties, init, 
-                      0, 0, 0, 0, 0, alpha, 50, 1.0e-9);
+                      data_outcome, {"ustratum"}, "t_star", "", "d_star", covariates, 
+                      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
                     
-                    DataFrame sumstat = DataFrame(fit_outcome["sumstat"]);
-                    bool fail_cox = sumstat["fail"];
-                    if (fail_cox) fail = true;
+                    DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
+                    if (sumstat.get<unsigned char>("fail")[0]) fail = true;
                     
-                    DataFrame parest = DataFrame(fit_outcome["parest"]);
-                    NumericVector beta = parest["beta"];
-                    NumericVector sebeta = parest["sebeta"];
-                    NumericVector pval = parest["p"];
-                    hrhat = exp(beta[0]);
-                    hrlower = exp(beta[0] - zcrit*sebeta[0]);
-                    hrupper = exp(beta[0] + zcrit*sebeta[0]);
-                    pvalue = pval[0];
+                    DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
+                    double beta0 = parest.get<double>("beta")[0];
+                    double sebeta0 = parest.get<double>("sebeta")[0];
+                    hrhat = std::exp(beta0);
+                    if (k == -1) {
+                      hrlower = std::exp(beta0 - zcrit * sebeta0);
+                      hrupper = std::exp(beta0 + zcrit * sebeta0);
+                      pvalue = parest.get<double>("p")[0];
+                    }
                   }
                   
-                  List out;
+                  ListCpp out;
                   if (k == -1) {
-                    out = List::create(
-                      Named("data_aft") = data_aft,
-                      Named("fit_aft") = fit_aft,
-                      Named("res_aft") = res_aft,
-                      Named("data_outcome") = data_outcome,
-                      Named("km_outcome") = km_outcome,
-                      Named("lr_outcome") = lr_outcome,
-                      Named("fit_outcome") = fit_outcome,
-                      Named("psihat") = psi0hat,
-                      Named("psilower") = psi0lower,
-                      Named("psiupper") = psi0upper,
-                      Named("psi1hat") = psi1hat,
-                      Named("psi1lower") = psi1lower,
-                      Named("psi1upper") = psi1upper,
-                      Named("hrhat") = hrhat,
-                      Named("hrlower") = hrlower,
-                      Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue,
-                      Named("fail") = fail,
-                      Named("psimissing") = psimissing);
+                    out.push_back(std::move(data_aft), "data_aft");
+                    out.push_back(std::move(fit_aft), "fit_aft");
+                    out.push_back(std::move(res_aft), "res_aft");
+                    out.push_back(std::move(data_outcome), "data_outcome");
+                    out.push_back(std::move(km_outcome), "km_outcome");
+                    out.push_back(std::move(lr_outcome), "lr_outcome");
+                    out.push_back(std::move(fit_outcome), "fit_outcome");
+                    out.push_back(psi0hat, "psihat");
+                    out.push_back(psi0lower, "psilower");
+                    out.push_back(psi0upper, "psiupper");
+                    out.push_back(psi1hat, "psi1hat");
+                    out.push_back(psi1lower, "psi1lower");
+                    out.push_back(psi1upper, "psi1upper");
+                    out.push_back(hrhat, "hrhat");
+                    out.push_back(hrlower, "hrlower");
+                    out.push_back(hrupper, "hrupper");
+                    out.push_back(pvalue, "pvalue");
+                    out.push_back(fail, "fail");
+                    out.push_back(psimissing, "psimissing");
                   } else {
-                    out = List::create(
-                      Named("psihat") = psi0hat,
-                      Named("psi1hat") = psi1hat,
-                      Named("hrhat") = hrhat,
-                      Named("hrlower") = hrlower,
-                      Named("hrupper") = hrupper,
-                      Named("pvalue") = pvalue,
-                      Named("fail") = fail,
-                      Named("psimissing") = psimissing);
+                    out.push_back(psi0hat, "psihat");
+                    out.push_back(psi1hat, "psi1hat");
+                    out.push_back(hrhat, "hrhat");
+                    out.push_back(fail, "fail");
                   }
                   
                   return out;
                 };
   
-  List out = f(idn, stratumn, timen, eventn, treatn, censor_timen,
-               pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn);
+  ListCpp out = f(idn, stratumn, timen, eventn, treatn, censor_timen,
+                  pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, -1);
   
-  List data_aft = out["data_aft"];
-  List fit_aft = out["fit_aft"];
-  List res_aft = out["res_aft"];
-  List data_outcome = out["data_outcome"];
-  List km_outcome = out["km_outcome"];
-  List lr_outcome = out["lr_outcome"];
-  List fit_outcome = out["fit_outcome"];
+  auto data_aft = out.get<std::vector<ListPtr>>("data_aft");
+  auto fit_aft = out.get<std::vector<ListPtr>>("fit_aft");
+  auto res_aft = out.get<std::vector<ListPtr>>("res_aft");
+  DataFrameCpp data_outcome = out.get<DataFrameCpp>("data_outcome");
+  DataFrameCpp km_outcome = out.get<DataFrameCpp>("km_outcome");
+  DataFrameCpp lr_outcome = out.get<DataFrameCpp>("lr_outcome");
+  ListCpp fit_outcome = out.get_list("fit_outcome");
+  double psihat = out.get<double>("psihat");
+  double psilower = out.get<double>("psilower");
+  double psiupper = out.get<double>("psiupper");
+  double psi1hat = out.get<double>("psi1hat");
+  double psi1lower = out.get<double>("psi1lower");
+  double psi1upper = out.get<double>("psi1upper");
+  double hrhat = out.get<double>("hrhat");
+  double hrlower = out.get<double>("hrlower");
+  double hrupper = out.get<double>("hrupper");
+  double pvalue = out.get<double>("pvalue");
+  bool fail = out.get<bool>("fail");
+  bool psimissing = out.get<bool>("psimissing");
+  std::string psi_CI_type = "AFT model";
   
-  double psihat = out["psihat"];
-  double psilower = out["psilower"];
-  double psiupper = out["psiupper"];
-  double psi1hat = out["psi1hat"];
-  double psi1lower = out["psi1lower"];
-  double psi1upper = out["psi1upper"];
-  String psi_CI_type = "AFT model";
-  double hrhat = out["hrhat"];
-  double hrlower = out["hrlower"];
-  double hrupper = out["hrupper"];
-  double pvalue = out["pvalue"];
-  bool fail = out["fail"];
-  bool psimissing = out["psimissing"];
-  
-  NumericVector hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
-  LogicalVector fails(n_boot);
-  DataFrame fail_boots_data;
-  String hr_CI_type;
+  std::vector<double> hrhats(n_boot), psihats(n_boot), psi1hats(n_boot);
+  std::vector<unsigned char> fails(n_boot);
+  DataFrameCpp fail_boots_data;
+  std::string hr_CI_type;
   
   if (!psimissing) {
     // summarize number of deaths by treatment arm in the outcome data
-    IntegerVector treated = data_outcome["treated"];
-    IntegerVector event_out = data_outcome["d_star"];
-    NumericVector n_event_out(2);
+    std::vector<int> treated = data_outcome.get<int>("treated");
+    std::vector<int> event_out = data_outcome.get<int>("d_star");
+    std::vector<double> n_event_out(2);
     for (int i = 0; i < n; ++i) {
       int g = treated[i];
-      if (event_out[i] == 1) n_event_out[g]++;
+      if (event_out[i] == 1) ++n_event_out[g];
     }
-    
-    NumericVector pct_event_out(2);
+    std::vector<double> pct_event_out(2);
     for (int g = 0; g < 2; g++) {
       pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
     }
+    event_summary.push_back(std::move(n_event_out), "event_out_n");
+    event_summary.push_back(std::move(pct_event_out), "event_out_pct");
     
-    event_summary.push_back(n_event_out, "event_out_n");
-    event_summary.push_back(pct_event_out, "event_out_pct");
-    
-    IntegerVector uid = data_outcome["uid"];
-    if (type_id == INTSXP) {
-      data_outcome.push_front(idwi[uid], id);
-    } else if (type_id == REALSXP) {
-      data_outcome.push_front(idwn[uid], id);
-    } else if (type_id == STRSXP) {
-      data_outcome.push_front(idwc[uid], id);
+    std::vector<int> uid = data_outcome.get<int>("uid");
+    if (data.int_cols.count(id)) {
+      data_outcome.push_front(subset(idwi, uid), id);
+    } else if (data.numeric_cols.count(id)) {
+      data_outcome.push_front(subset(idwn, uid), id);
+    } else if (data.string_cols.count(id)) {
+      data_outcome.push_front(subset(idwc, uid), id);
+    }
+
+    treated = event_summary.get<int>("treated");
+    std::vector<int> nottreated(treated.size());
+    std::transform(treated.begin(), treated.end(), nottreated.begin(),
+                   [](int value) { return 1 - value; });
+    if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+      event_summary.push_back(subset(treatwi, nottreated), treat);
+    } else if (data.numeric_cols.count(treat)) {
+      event_summary.push_back(subset(treatwn, nottreated), treat);
+    } else if (data.string_cols.count(treat)) {
+      event_summary.push_back(subset(treatwc, nottreated), treat);
     }
     
-    treated = event_summary["treated"];
-    if (type_treat == LGLSXP || type_treat == INTSXP) {
-      event_summary.push_back(treatwi[1-treated], treat);
-    } else if (type_treat == REALSXP) {
-      event_summary.push_back(treatwn[1-treated], treat);
-    } else if (type_treat == STRSXP) {
-      event_summary.push_back(treatwc[1-treated], treat);
+    treated = data_outcome.get<int>("treated");
+    nottreated.resize(treated.size());
+    std::transform(treated.begin(), treated.end(), nottreated.begin(),
+                   [](int value) { return 1 - value; });
+    if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+      data_outcome.push_back(subset(treatwi, nottreated), treat);
+    } else if (data.numeric_cols.count(treat)) {
+      data_outcome.push_back(subset(treatwn, nottreated), treat);
+    } else if (data.string_cols.count(treat)) {
+      data_outcome.push_back(subset(treatwc, nottreated), treat);
     }
     
-    treated = data_outcome["treated"];
-    if (type_treat == LGLSXP || type_treat == INTSXP) {
-      data_outcome.push_back(treatwi[1-treated], treat);
-    } else if (type_treat == REALSXP) {
-      data_outcome.push_back(treatwn[1-treated], treat);
-    } else if (type_treat == STRSXP) {
-      data_outcome.push_back(treatwc[1-treated], treat);
-    }
-    
-    treated = km_outcome["treated"];
-    if (type_treat == LGLSXP || type_treat == INTSXP) {
-      km_outcome.push_back(treatwi[1-treated], treat);
-    } else if (type_treat == REALSXP) {
-      km_outcome.push_back(treatwn[1-treated], treat);
-    } else if (type_treat == STRSXP) {
-      km_outcome.push_back(treatwc[1-treated], treat);
+    treated = km_outcome.get<int>("treated");
+    nottreated.resize(treated.size());
+    std::transform(treated.begin(), treated.end(), nottreated.begin(),
+                   [](int value) { return 1 - value; });
+    if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+      km_outcome.push_back(subset(treatwi, nottreated), treat);
+    } else if (data.numeric_cols.count(treat)) {
+      km_outcome.push_back(subset(treatwn, nottreated), treat);
+    } else if (data.string_cols.count(treat)) {
+      km_outcome.push_back(subset(treatwc, nottreated), treat);
     }
     
     if (has_stratum) {
-      IntegerVector ustratum = data_outcome["ustratum"];
-      for (int i=0; i<p_stratum; ++i) {
-        std::string s = as<std::string>(stratum[i]);
-        SEXP col_stratum = u_stratum[s];
-        SEXPTYPE type_stratum = TYPEOF(col_stratum);
-        if (type_stratum == INTSXP) {
-          IntegerVector v = col_stratum;
-          data_outcome.push_back(v[ustratum], s);
-        } else if (type_stratum == REALSXP) {
-          NumericVector v = col_stratum;
-          data_outcome.push_back(v[ustratum], s);
-        } else if (type_stratum == STRSXP) {
-          StringVector v = col_stratum;
-          data_outcome.push_back(v[ustratum], s);
+      std::vector<int> ustratum = data_outcome.get<int>("ustratum");
+      for (int i = 0; i < p_stratum; ++i) {
+        const std::string& s = stratum[i];
+        if (data.bool_cols.count(s)) {
+          auto v = u_stratum.get<unsigned char>(s);
+          data_outcome.push_back(subset(v, ustratum), s);
+        } else if (data.int_cols.count(s)) {
+          auto v = u_stratum.get<int>(s);
+          data_outcome.push_back(subset(v, ustratum), s);
+        } else if (data.numeric_cols.count(s)) {
+          auto v = u_stratum.get<double>(s);
+          data_outcome.push_back(subset(v, ustratum), s);
+        } else if (data.string_cols.count(s)) {
+          auto v = u_stratum.get<std::string>(s);
+          data_outcome.push_back(subset(v, ustratum), s);
         }
       }
     }
@@ -1004,23 +983,8 @@ List tsesimpcpp(const DataFrame data,
     if (!boot) { // use Cox model to construct CI for HR if no boot
       hr_CI_type = "Cox model";
     } else { // bootstrap the entire process to construct CI for HR
-      if (seed != NA_INTEGER) set_seed(seed);
-      
-      IntegerVector idb(n), stratumb(n), treatb(n), eventb(n);
-      IntegerVector pdb(n), swtrtb(n);
-      NumericVector timeb(n), censor_timeb(n), pd_timeb(n), swtrt_timeb(n);
-      NumericMatrix zb(n,p), z_aftb(n,q+p2);
-      
-      int B = n*n_boot;
-      IntegerVector boot_indexc(B);
-      IntegerVector idc(B), stratumc(B), treatc(B), eventc(B);
-      IntegerVector pdc(B), swtrtc(B);
-      NumericVector timec(B), censor_timec(B), pd_timec(B), swtrt_timec(B);
-      NumericMatrix z_aftc(B,q+p2);
-      int index1 = 0; // current index for fail boots data
-      
       // sort data by treatment group, stratum and id
-      IntegerVector order = seq(0, n-1);
+      std::vector<int> order = seqcpp(0, n-1);
       if (has_stratum) {
         std::sort(order.begin(), order.end(), [&](int i, int j) {
           return std::tie(treatn[i], stratumn[i], idn[i]) <
@@ -1032,21 +996,21 @@ List tsesimpcpp(const DataFrame data,
         });
       }
       
-      idn = idn[order];
-      stratumn = stratumn[order];
-      timen = timen[order];
-      eventn = eventn[order];
-      treatn = treatn[order];
-      censor_timen = censor_timen[order];
-      pdn = pdn[order];
-      pd_timen = pd_timen[order];
-      swtrtn = swtrtn[order];
-      swtrt_timen = swtrt_timen[order];
-      zn = subset_matrix_by_row(zn, order);
-      z_aftn = subset_matrix_by_row(z_aftn, order);
+      subset_in_place(idn, order);
+      subset_in_place(stratumn, order);
+      subset_in_place(timen, order);
+      subset_in_place(eventn, order);
+      subset_in_place(treatn, order);
+      subset_in_place(censor_timen, order);
+      subset_in_place(pdn, order);
+      subset_in_place(pd_timen, order);
+      subset_in_place(swtrtn, order);
+      subset_in_place(swtrt_timen, order);
+      subset_in_place_flatmatrix(zn, order);
+      subset_in_place_flatmatrix(z_aftn, order);
       
-      IntegerVector tsx(1,0); // first observation within each treat/stratum
-      for (int i=1; i<n; ++i) {
+      std::vector<int> tsx(1,0); // first observation within each treat/stratum
+      for (int i = 1; i < n; ++i) {
         if (treatn[i] != treatn[i-1] || stratumn[i] != stratumn[i-1]) {
           tsx.push_back(i);
         }
@@ -1055,188 +1019,388 @@ List tsesimpcpp(const DataFrame data,
       int ntss = static_cast<int>(tsx.size());
       tsx.push_back(n); // add the end index
       
-      for (k=0; k<n_boot; ++k) {
-        // sample the data with replacement by treatment group and stratum
-        for (int h=0; h<ntss; ++h) {
-          for (int i=tsx[h]; i<tsx[h+1]; ++i) {
-            double u = R::runif(0,1);
-            int j = tsx[h] + static_cast<int>(std::floor(u*(tsx[h+1]-tsx[h])));
-            
-            idb[i] = idn[j];
-            stratumb[i] = stratumn[j];
-            timeb[i] = timen[j];
-            eventb[i] = eventn[j];
-            treatb[i] = treatn[j];
-            censor_timeb[i] = censor_timen[j];
-            pdb[i] = pdn[j];
-            pd_timeb[i] = pd_timen[j];
-            swtrtb[i] = swtrtn[j];
-            swtrt_timeb[i] = swtrt_timen[j];
-            zb(i,_) = zn(j,_);
-            z_aftb(i,_) = z_aftn(j,_);
-          }
-        }
-        
-        List out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
-                     pdb, pd_timeb, swtrtb, swtrt_timeb, zb, z_aftb);
-        
-        fails[k] = out["fail"];
-        hrhats[k] = out["hrhat"];
-        psihats[k] = out["psihat"];
-        psi1hats[k] = out["psi1hat"];
-        
-        if (fails[k]) {
-          for (int i=0; i<n; ++i) {
-            int j = index1 + i;
-            boot_indexc[j] = k+1;
-            idc[j] = idb[i];
-            stratumc[j] = stratumb[i];
-            timec[j] = timeb[i];
-            eventc[j] = eventb[i];
-            treatc[j] = treatb[i];
-            censor_timec[j] = censor_timeb[i];
-            pdc[j] = pdb[i];
-            pd_timec[j] = pd_timeb[i];
-            swtrtc[j] = swtrtb[i];
-            swtrt_timec[j] = swtrt_timeb[i];
-            z_aftc(j,_) = z_aftb(i,_);
-          }
-          index1 += n;
-        }
-      }
+      // Before running the parallel loop: pre-generate deterministic seeds
+      std::vector<uint64_t> seeds(n_boot);
+      std::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
+      for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       
-      if (is_true(any(fails))) {
-        IntegerVector sub = seq(0,index1-1);
-        boot_indexc = boot_indexc[sub];
-        idc = idc[sub];
-        stratumc = stratumc[sub];
-        timec = timec[sub];
-        eventc = eventc[sub];
-        treatc = treatc[sub];
-        censor_timec = censor_timec[sub];
-        pdc = pdc[sub];
-        pd_timec = pd_timec[sub];
-        swtrtc = swtrtc[sub];
-        swtrt_timec = swtrt_timec[sub];
-        z_aftc = subset_matrix_by_row(z_aftc,sub);
+      // We'll collect failure bootstrap data per-worker and merge via Worker::join.
+      struct BootstrapWorker : public RcppParallel::Worker {
+        // references to read-only inputs (no mutation)
+        const int n;
+        const int ntss;
+        const std::vector<int>& tsx;
+        const std::vector<int>& idn;
+        const std::vector<int>& stratumn;
+        const std::vector<double>& timen;
+        const std::vector<int>& eventn;
+        const std::vector<int>& treatn;
+        const std::vector<double>& censor_timen;
+        const std::vector<int>& pdn;
+        const std::vector<double>& pd_timen;
+        const std::vector<int>& swtrtn;
+        const std::vector<double>& swtrt_timen;
+        const FlatMatrix& zn;
+        const FlatMatrix& z_aftn;
+        const std::vector<uint64_t>& seeds;
+        // function f and other params that f needs are captured from outer scope
+        // capture them by reference here so worker can call f(...)
+        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
+                              const std::vector<double>&, const std::vector<int>&,
+                              const std::vector<int>&, const std::vector<double>&,
+                              const std::vector<int>&, const std::vector<double>&, 
+                              const std::vector<int>&, const std::vector<double>&, 
+                              const FlatMatrix&, const FlatMatrix&, int)> f;
         
-        fail_boots_data = List::create(
-          Named("boot_index") = boot_indexc,
-          Named("time") = timec,
-          Named("event") = eventc,
-          Named("treated") = treatc,
-          Named("censor_time") = censor_timec,
-          Named("pd") = pdc,
-          Named("pd_time") = pd_timec,
-          Named("swtrt") = swtrtc,
-          Named("swtrt_time") = swtrt_timec
-        );
+        // result references (each iteration writes unique index into these)
+        std::vector<unsigned char>& fails_out;
+        std::vector<double>& hrhats_out;
+        std::vector<double>& psihats_out;
+        std::vector<double>& psi1hats_out;
         
-        for (int j=0; j<q+p2; ++j) {
-          String zj = covariates_aft[j+1];
-          NumericVector u = z_aftc(_,j);
-          fail_boots_data.push_back(u, zj);
+        // Per-worker storage for failed-boot data (to be merged in join)
+        std::vector<int> boot_indexc_local;
+        std::vector<int> oidc_local;
+        std::vector<int> idc_local;
+        std::vector<int> stratumc_local;
+        std::vector<int> treatc_local;
+        std::vector<double> timec_local;
+        std::vector<int> eventc_local;
+        std::vector<double> censor_timec_local;
+        std::vector<int> pdc_local;
+        std::vector<double> pd_timec_local;
+        std::vector<int> swtrtc_local;
+        std::vector<double> swtrt_timec_local;
+        // store column-wise z_aftc_local: outer vector length == z_aftn.ncol
+        // each inner vector stores column data across failed boots
+        std::vector<std::vector<double>> z_aftc_local;
+        int index1_local = 0; // number of rows stored so far for z_aftc_local
+        
+        // constructor
+        BootstrapWorker(int n_, int ntss_,
+                        const std::vector<int>& tsx_,
+                        const std::vector<int>& idn_,
+                        const std::vector<int>& stratumn_,
+                        const std::vector<double>& timen_,
+                        const std::vector<int>& eventn_,
+                        const std::vector<int>& treatn_,
+                        const std::vector<double>& censor_timen_,
+                        const std::vector<int>& pdn_,
+                        const std::vector<double>& pd_timen_,
+                        const std::vector<int>& swtrtn_,
+                        const std::vector<double>& swtrt_timen_,
+                        const FlatMatrix& zn_,
+                        const FlatMatrix& z_aftn_,
+                        const std::vector<uint64_t>& seeds_,
+                        decltype(f) f_,
+                        std::vector<unsigned char>& fails_out_,
+                        std::vector<double>& hrhats_out_,
+                        std::vector<double>& psihats_out_,
+                        std::vector<double>& psi1hats_out_) :
+          n(n_), ntss(ntss_), tsx(tsx_), idn(idn_), 
+          stratumn(stratumn_), timen(timen_), eventn(eventn_), treatn(treatn_), 
+          censor_timen(censor_timen_), pdn(pdn_), pd_timen(pd_timen_),
+          swtrtn(swtrtn_), swtrt_timen(swtrt_timen_), zn(zn_), z_aftn(z_aftn_),
+          seeds(seeds_), f(std::move(f_)),
+          fails_out(fails_out_), hrhats_out(hrhats_out_), 
+          psihats_out(psihats_out_), psi1hats_out(psi1hats_out_) {
+          // heuristic reservation to reduce reallocations:
+          int ncols_aft = z_aftn.ncol;
+          z_aftc_local.resize(static_cast<std::size_t>(ncols_aft));
+          // reserve some capacity per column. This is a heuristic; adjust if needed.
+          std::size_t per_col_reserve = static_cast<std::size_t>(10 * n);
+          for (int col = 0; col < ncols_aft; ++col) 
+            z_aftc_local[col].reserve(per_col_reserve);
+          // Reserve scalar buffers heuristically (reduce reallocs)
+          boot_indexc_local.reserve(per_col_reserve);
+          oidc_local.reserve(per_col_reserve);
+          idc_local.reserve(per_col_reserve);
+          stratumc_local.reserve(per_col_reserve);
+          treatc_local.reserve(per_col_reserve);
+          timec_local.reserve(per_col_reserve);
+          eventc_local.reserve(per_col_reserve);
+          censor_timec_local.reserve(per_col_reserve);
+          pdc_local.reserve(per_col_reserve);
+          pd_timec_local.reserve(per_col_reserve);
+          swtrtc_local.reserve(per_col_reserve);
+          swtrt_timec_local.reserve(per_col_reserve);
         }
         
-        if (type_id == INTSXP) {
-          fail_boots_data.push_back(idwi[idc], id);
-        } else if (type_id == REALSXP) {
-          fail_boots_data.push_back(idwn[idc], id);
-        } else if (type_id == STRSXP) {
-          fail_boots_data.push_back(idwc[idc], id);
+        // operator() processes a range of bootstrap iterations [begin, end)
+        void operator()(std::size_t begin, std::size_t end) {
+          // per-worker reusable buffers (avoid reallocation per iteration)
+          std::vector<int> oidb(n), idb(n), stratumb(n), eventb(n), treatb(n);
+          std::vector<int> pdb(n), swtrtb(n);
+          std::vector<double> timeb(n), censor_timeb(n), pd_timeb(n), 
+            swtrt_timeb(n);
+          FlatMatrix zb(n, zn.ncol), z_aftb(n, z_aftn.ncol);
+          
+          for (std::size_t k = begin; k < end; ++k) {
+            // deterministic RNG per-iteration
+            std::mt19937_64 rng(seeds[k]);
+            
+            // sample by treatment/stratum blocks
+            for (int h = 0; h < ntss; ++h) {
+              int start = tsx[h], end = tsx[h + 1];
+              int len = end - start;
+              std::uniform_int_distribution<int> index_dist(0, len - 1);
+              
+              std::vector<int> indices(len);
+              for (int i = start; i < end; ++i) {
+                int j = start + index_dist(rng);
+                indices[i - start] = j;
+                oidb[i] = idn[j];
+                idb[i] = idn[j] + i * n; // make unique ids within bootstrap
+                stratumb[i] = stratumn[j];
+                timeb[i] = timen[j];
+                eventb[i] = eventn[j];
+                treatb[i] = treatn[j];
+                censor_timeb[i] = censor_timen[j];
+                pdb[i] = pdn[j];
+                pd_timeb[i] = pd_timen[j];
+                swtrtb[i] = swtrtn[j];
+                swtrt_timeb[i] = swtrt_timen[j];
+              }
+              // copy covariates using sampled indices
+              for (int l = 0; l < zn.ncol; ++l) {
+                const double* zn_col = zn.data_ptr() + l * n;
+                double* zb_col = zb.data_ptr() + l * n;
+                for (int i = start; i < end; ++i) {
+                  int j = indices[i - start];
+                  zb_col[i] = zn_col[j];
+                }
+              }
+              for (int l = 0; l < z_aftn.ncol; ++l) {
+                const double* z_aftn_col = z_aftn.data_ptr() + l * n;
+                double* z_aftb_col = z_aftb.data_ptr() + l * n;
+                for (int i = start; i < end; ++i) {
+                  int j = indices[i - start];
+                  z_aftb_col[i] = z_aftn_col[j];
+                }
+              }
+            } // end block sampling
+            
+            // call the (thread-safe) per-iteration function f
+            ListCpp out = f(idb, stratumb, timeb, eventb, treatb, censor_timeb,
+                            pdb, pd_timeb, swtrtb, swtrt_timeb, zb, z_aftb,
+                            static_cast<int>(k));
+            
+            // write results
+            fails_out[k] = out.get<bool>("fail");
+            hrhats_out[k] = out.get<double>("hrhat");
+            psihats_out[k] = out.get<double>("psihat");
+            psi1hats_out[k] = out.get<double>("psi1hat");
+            
+            // existing code that collects failure data when fails_out[k] is true...
+            if (fails_out[k]) {
+              // collect into boot_indexc_local, idc_local, ... and z_aftc_local
+              append(boot_indexc_local, std::vector<int>(n, static_cast<int>(k + 1)));
+              append(oidc_local, oidb);
+              append(idc_local, idb);
+              append(stratumc_local, stratumb);
+              append(treatc_local, treatb);
+              append(timec_local, timeb);
+              append(eventc_local, eventb);
+              append(censor_timec_local, censor_timeb);
+              append(pdc_local, pdb);
+              append(pd_timec_local, pd_timeb);
+              append(swtrtc_local, swtrtb);
+              append(swtrt_timec_local, swtrt_timeb);
+              append_flatmatrix(z_aftc_local, z_aftb);
+              index1_local += n;
+            }
+          } // end for k
+        } // end operator()
+        
+        // join merges other (worker copy) into this instance (called by parallelFor)
+        void join(const BootstrapWorker& other) {
+          // append other's local vectors into this worker's storage
+          append(boot_indexc_local, other.boot_indexc_local);
+          append(idc_local, other.idc_local);
+          append(stratumc_local, other.stratumc_local);
+          append(treatc_local, other.treatc_local);
+          append(timec_local, other.timec_local);
+          append(eventc_local, other.eventc_local);
+          append(censor_timec_local, other.censor_timec_local);
+          append(pdc_local, other.pdc_local);
+          append(pd_timec_local, other.pd_timec_local);
+          append(swtrtc_local, other.swtrtc_local);
+          append(swtrt_timec_local, other.swtrt_timec_local);
+          append_flatmatrix(z_aftc_local, other.z_aftc_local);
+          index1_local += other.index1_local;
+        }
+      }; // end BootstrapWorker
+      
+      // Instantiate the Worker with references to inputs and outputs
+      BootstrapWorker worker(
+          n, ntss, tsx, idn, stratumn, timen, eventn, treatn, censor_timen,
+          pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, seeds,
+          // bind f into std::function (capture the f we already have)
+          std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
+                                const std::vector<double>&, const std::vector<int>&,
+                                const std::vector<int>&, const std::vector<double>&,
+                                const std::vector<int>&, const std::vector<double>&, 
+                                const std::vector<int>&, const std::vector<double>&, 
+                                const FlatMatrix&, const FlatMatrix&, int)>(f),
+                                fails, hrhats, psihats, psi1hats
+      );
+      
+      // Run the parallel loop over bootstrap iterations
+      RcppParallel::parallelFor(0, n_boot, worker, 1 /*grain size*/);
+
+      // After parallelFor returns, worker contains merged per-worker failure data.
+      // Move them into the outer-scope vectors used later in the function:
+      std::vector<int> oidc = std::move(worker.oidc_local);
+      std::vector<int> stratumc = std::move(worker.stratumc_local);
+      std::vector<int> treatc = std::move(worker.treatc_local);
+      
+      // assemble the failed bootstrap data into a DataFrame
+      if (worker.index1_local > 0) {
+        fail_boots_data.push_back(std::move(worker.boot_indexc_local), "boot_index");
+        fail_boots_data.push_back(std::move(worker.idc_local), "uid");
+        fail_boots_data.push_back(std::move(worker.timec_local), "time");
+        fail_boots_data.push_back(std::move(worker.eventc_local), "event");
+        fail_boots_data.push_back(treatc, "treated");
+        fail_boots_data.push_back(std::move(worker.censor_timec_local), "censor_time");
+        fail_boots_data.push_back(std::move(worker.pdc_local), "pd");
+        fail_boots_data.push_back(std::move(worker.pd_timec_local), "pd_time");
+        fail_boots_data.push_back(std::move(worker.swtrtc_local), "swtrt");
+        fail_boots_data.push_back(std::move(worker.swtrt_timec_local), "swtrt_time");
+        
+        int ncols_aft = worker.z_aftc_local.size();
+        for (int j = 0; j < ncols_aft; ++j) {
+          const std::string& zj = covariates_aft[j+1];
+          std::vector<double> u = std::move(worker.z_aftc_local[j]);
+          fail_boots_data.push_back(std::move(u), zj);
         }
         
-        if (type_treat == LGLSXP || type_treat == INTSXP) {
-          fail_boots_data.push_back(treatwi[1-treatc], treat);
-        } else if (type_treat == REALSXP) {
-          fail_boots_data.push_back(treatwn[1-treatc], treat);
-        } else if (type_treat == STRSXP) {
-          fail_boots_data.push_back(treatwc[1-treatc], treat);
+        if (data.int_cols.count(id)) {
+          fail_boots_data.push_back(subset(idwi, oidc), id);
+        } else if (data.numeric_cols.count(id)) {
+          fail_boots_data.push_back(subset(idwn, oidc), id);
+        } else if (data.string_cols.count(id)) {
+          fail_boots_data.push_back(subset(idwc, oidc), id);
+        }
+        
+        std::vector<int> nottreatc(treatc.size());
+        std::transform(treatc.begin(), treatc.end(), nottreatc.begin(),
+                       [](int value) { return 1 - value; });
+        if (data.bool_cols.count(treat) || data.int_cols.count(treat)) {
+          fail_boots_data.push_back(subset(treatwi, nottreatc), treat);
+        } else if (data.numeric_cols.count(treat)) {
+          fail_boots_data.push_back(subset(treatwn, nottreatc), treat);
+        } else if (data.string_cols.count(treat)) {
+          fail_boots_data.push_back(subset(treatwc, nottreatc), treat);
         }
         
         if (has_stratum) {
-          for (int i=0; i<p_stratum; ++i) {
-            std::string s = as<std::string>(stratum[i]);
-            SEXP col_stratum = u_stratum[s];
-            SEXPTYPE type_stratum = TYPEOF(col_stratum);
-            if (type_stratum == INTSXP) {
-              IntegerVector v = col_stratum;
-              fail_boots_data.push_back(v[stratumc], s);
-            } else if (type_stratum == REALSXP) {
-              NumericVector v = col_stratum;
-              fail_boots_data.push_back(v[stratumc], s);
-            } else if (type_stratum == STRSXP) {
-              StringVector v = col_stratum;
-              fail_boots_data.push_back(v[stratumc], s);
+          for (int i = 0; i < p_stratum; ++i) {
+            const std::string& s = stratum[i];
+            if (data.bool_cols.count(s)) {
+              auto v = u_stratum.get<unsigned char>(s);
+              fail_boots_data.push_back(subset(v, stratumc), s);
+            } else if (data.int_cols.count(s)) {
+              auto v = u_stratum.get<int>(s);
+              fail_boots_data.push_back(subset(v, stratumc), s);
+            } else if (data.numeric_cols.count(s)) {
+              auto v = u_stratum.get<double>(s);
+              fail_boots_data.push_back(subset(v, stratumc), s);
+            } else if (data.string_cols.count(s)) {
+              auto v = u_stratum.get<std::string>(s);
+              fail_boots_data.push_back(subset(v, stratumc), s);
             }
           }
         }
       }
       
+      // retrieve the bootstrap results      
+      fails = worker.fails_out;
+      hrhats = worker.hrhats_out;
+      psihats = worker.psihats_out;
+      psi1hats = worker.psi1hats_out;
+      
       // obtain bootstrap confidence interval for HR
-      double loghr = log(hrhat);
-      LogicalVector ok = (!fails) & !is_na(hrhats);
-      int n_ok = sum(ok);
-      NumericVector subset_hrhats = hrhats[ok];
-      NumericVector loghrs = log(subset_hrhats);
-      double sdloghr = sd(loghrs);
-      double tcrit = R::qt(1-alpha/2, n_ok-1, 1, 0);
-      hrlower = exp(loghr - tcrit*sdloghr);
-      hrupper = exp(loghr + tcrit*sdloghr);
+      double loghr = std::log(hrhat);
+      std::vector<int> ok;
+      ok.reserve(n_boot);
+      int n_ok = 0;
+      for (int k = 0; k < n_boot; ++k) {
+        if (!fails[k] && !std::isnan(hrhats[k])) {
+          ok.push_back(k);
+          ++n_ok;
+        }
+      }
+      std::vector<double> hrhats1 = subset(hrhats, ok);
+      std::vector<double> loghrs(n_ok);
+      std::transform(hrhats1.begin(), hrhats1.end(), loghrs.begin(),
+                     [](double value) { return std::log(value); });
+      double meanloghr, sdloghr;
+      mean_sd(loghrs.data(), n_ok, meanloghr, sdloghr);
+      double tcrit = boost_qt(1.0 - alpha / 2.0, n_ok - 1);
+      hrlower = std::exp(loghr - tcrit * sdloghr);
+      hrupper = std::exp(loghr + tcrit * sdloghr);
       hr_CI_type = "bootstrap";
-      pvalue = 2*(1 - R::pt(fabs(loghr/sdloghr), n_ok-1, 1, 0));
+      pvalue = 2.0 * (1.0 - boost_pt(std::fabs(loghr / sdloghr), n_ok - 1));
       
       // obtain bootstrap confidence interval for psi
-      NumericVector psihats1 = psihats[ok];
-      double sdpsi = sd(psihats1);
-      psilower = psihat - tcrit*sdpsi;
-      psiupper = psihat + tcrit*sdpsi;
+      std::vector<double> psihats1 = subset(psihats, ok);
+      double meanpsi, sdpsi;
+      mean_sd(psihats1.data(), n_ok, meanpsi, sdpsi);
+      psilower = psihat - tcrit * sdpsi;
+      psiupper = psihat + tcrit * sdpsi;
       psi_CI_type = "bootstrap";
       
-      NumericVector psi1hats1 = psi1hats[ok];
-      double sdpsi1 = sd(psi1hats1);
-      psi1lower = psi1hat - tcrit*sdpsi1;
-      psi1upper = psi1hat + tcrit*sdpsi1;
+      if (!swtrt_control_only) {
+        std::vector<double> psi1hats1 = subset(psi1hats, ok);
+        double meanpsi1, sdpsi1;
+        mean_sd(psihats1.data(), n_ok, meanpsi1, sdpsi1);
+        psi1lower = psi1hat - tcrit * sdpsi1;
+        psi1upper = psi1hat + tcrit * sdpsi1;
+      }
     }
   }
   
-  List result = List::create(
-    Named("psi") = psihat,
-    Named("psi_CI") = NumericVector::create(psilower, psiupper),
-    Named("psi_CI_type") = psi_CI_type,
-    Named("logrank_pvalue") = logRankPValue,
-    Named("cox_pvalue") = pvalue,
-    Named("hr") = hrhat,
-    Named("hr_CI") = NumericVector::create(hrlower, hrupper),
-    Named("hr_CI_type") = hr_CI_type,
-    Named("event_summary") = as<DataFrame>(event_summary),
-    Named("data_aft") = data_aft,
-    Named("fit_aft") = fit_aft,
-    Named("res_aft") = res_aft,
-    Named("data_outcome") = as<DataFrame>(data_outcome),
-    Named("km_outcome") = as<DataFrame>(km_outcome),
-    Named("lr_outcome") = as<DataFrame>(lr_outcome),
-    Named("fit_outcome") = fit_outcome,
-    Named("fail") = fail,
-    Named("psimissing") = psimissing);
+  ListCpp result;
+  std::string pvalue_type = boot ? "bootstrap" : "Cox model";
+  std::vector <double> psi_CI = {psilower, psiupper};
+  std::vector<double> hr_CI = {hrlower, hrupper};
+  result.push_back(psihat, "psi");
+  result.push_back(std::move(psi_CI), "psi_CI");
+  result.push_back(psi_CI_type, "psi_CI_type");
+  result.push_back(pvalue, "pvalue");
+  result.push_back(pvalue_type, "pvalue_type");
+  result.push_back(hrhat, "hr");
+  result.push_back(std::move(hr_CI), "hr_CI");
+  result.push_back(hr_CI_type, "hr_CI_type");
+  result.push_back(std::move(event_summary), "event_summary");
+  result.push_back(std::move(data_aft), "data_aft");
+  result.push_back(std::move(fit_aft), "fit_aft");
+  result.push_back(std::move(res_aft), "res_aft");
+  result.push_back(std::move(data_outcome), "data_outcome");
+  result.push_back(std::move(km_outcome), "km_outcome");
+  result.push_back(std::move(lr_outcome), "lr_outcome");
+  result.push_back(std::move(fit_outcome), "fit_outcome");
+  result.push_back(fail, "fail");
+  result.push_back(psimissing, "psimissing");
   
   if (!swtrt_control_only) {
     result.push_back(psi1hat, "psi_trt");
-    NumericVector psi1_CI = NumericVector::create(psi1lower, psi1upper);
-    result.push_back(psi1_CI, "psi_trt_CI");
+    std::vector<double> psi1_CI = {psi1lower, psi1upper};
+    result.push_back(std::move(psi1_CI), "psi_trt_CI");
   }
   
   if (boot) {
     result.push_back(fails, "fail_boots");
-    result.push_back(hrhats, "hr_boots");
-    result.push_back(psihats, "psi_boots");
+    result.push_back(std::move(hrhats), "hr_boots");
+    result.push_back(std::move(psihats), "psi_boots");
     if (!swtrt_control_only) {
-      result.push_back(psi1hats, "psi_trt_boots");
+      result.push_back(std::move(psi1hats), "psi_trt_boots");
     }
-    if (is_true(any(fails))) {
-      result.push_back(as<DataFrame>(fail_boots_data), "fail_boots_data");
+    if (std::any_of(fails.begin(), fails.end(), [](bool x){ return x; })) {
+      result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }
   
-  return result;
+  thread_utils::drain_thread_warnings_to_R();
+  return Rcpp::wrap(result);
 }

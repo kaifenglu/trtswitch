@@ -68,130 +68,114 @@
 #'
 #' @export
 residuals_phregr <- function(
-    object, type=c("martingale", "deviance", "score", "schoenfeld",
-                   "dfbeta", "dfbetas", "scaledsch"),
-    collapse=FALSE, weighted=(type %in% c("dfbeta", "dfbetas"))) {
+    object, type = c("martingale", "deviance", "score", "schoenfeld",
+                     "dfbeta", "dfbetas", "scaledsch"),
+    collapse = FALSE, weighted = (type %in% c("dfbeta", "dfbetas"))) {
   
-  if (!inherits(object, "phregr"))
-    stop("object must be of class 'phregr'");
+  if (!inherits(object, "phregr")) stop("object must be of class 'phregr'");
   
-  p = object$p
-  beta = object$beta
-  residuals = object$residuals
-
-  data = object$settings$data
-  stratum = object$settings$stratum
-  time = object$settings$time
-  time2 = object$settings$time2
-  event = object$settings$event
-  covariates = object$settings$covariates
-  weight = object$settings$weight
-  offset = object$settings$offset
-  id = object$settings$id
-  ties = object$settings$ties
-  param = object$param
-
-  rownames(data) = NULL
+  p <- object$p
+  beta <- object$beta
+  df <- object$settings$data
+  stratum <- object$settings$stratum
+  time <- object$settings$time
+  event <- object$settings$event
+  covariates <- object$settings$covariates
+  weight <- object$settings$weight
+  offset <- object$settings$offset
+  id <- object$settings$id
   
-  elements = c(stratum, time, event, covariates, weight, offset, id)
-  elements = unique(elements[elements != "" & elements != "none"])
-  fml = formula(paste("~", paste(elements, collapse = "+")))
-  mf = model.frame(fml, data = data, na.action = na.omit)
+  elements <- unique(c(stratum, time, event, covariates, weight, offset, id))
+  elements <- elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  var_all <- all.vars(fml_all)
+  rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  df <- df[rows_ok, , drop = FALSE]
   
-  rownum = as.integer(rownames(mf))
-  df = data[rownum,]
+  misscovariates <- length(covariates) == 0 || 
+    (length(covariates) == 1 && (covariates[1] == ""))
   
-  nvar = length(covariates)
-  if (missing(covariates) || is.null(covariates) || (nvar == 1 && (
-    covariates[1] == "" || tolower(covariates[1]) == "none"))) {
-    p3 = 0
-  } else {
-    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
-    p3 = length(rownames(attr(terms(fml1), "factors")))
-  }
-
-  if (p >= 1 && p3 >= 1) {
-    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
-    mm <- model.matrix(fml1, mf1)
-    colnames(mm) = make.names(colnames(mm))
-    varnames = colnames(mm)[-1]
-    for (i in 1:length(varnames)) {
-      if (!(varnames[i] %in% names(df))) {
-        df[,varnames[i]] = mm[,varnames[i]]
+  if (!misscovariates) {
+    fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
+    
+    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
+    cov_present <- covariates %in% names(df)
+    all_numeric <- FALSE
+    if (all(cov_present)) {
+      all_numeric <- all(vapply(df[ covariates ], is.numeric, logical(1)))
+    }
+    
+    if (all_numeric) {
+      # Build design columns directly from numeric covariates (intercept + columns)
+      # This avoids model.matrix and is valid when covariates are simple numeric columns.
+      varnames <- covariates
+    } else {
+      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
+      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
+      mm <- model.matrix(fml_cov, mf)
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
       }
     }
   } else {
-    varnames = ""
+    varnames <- ""
   }
-
-
+  
   type <- match.arg(type)
   
-  if (type=='dfbeta' || type=='dfbetas') {
+  if (type == "dfbeta" || type == "dfbetas") {
     if (missing(weighted))
       weighted <- TRUE  # different default for this case
   }
-
-  n <- length(residuals)
-
+  
   vv <- object$vbeta_naive
   if (is.null(vv)) vv <- object$vbeta
-
-  if (weight != "") {
-    weights <- df[[weight]]
-  } else {
-    weights <- rep(1,n)
-  }
-
-  if (id != "") {
-    idn <- df[[id]]
-  } else {
-    idn <- seq(1,n)
-  }
-  
   
   if (p == 0) { # null Cox model case
-    beta = 0
-    vv = matrix(0,1,1)
+    beta <- 0
+    vv <- matrix(0,1,1)
   }
-
-  temp = residuals_phregcpp(p = p,
-                            beta = beta,
-                            vbeta = vv,
-                            resmart = residuals,
-                            data = df,
-                            stratum = stratum,
-                            time = time,
-                            time2 = time2,
-                            event = event,
-                            covariates = varnames,
-                            weight = weight,
-                            offset = offset,
-                            id = id,
-                            ties = ties,
-                            type = type, 
-                            collapse = collapse,
-                            weighted = weighted)
   
-
+  temp <- residuals_phregRcpp(p = p,
+                              beta = beta,
+                              vbeta = vv,
+                              resmart = object$residuals,
+                              data = df,
+                              stratum = stratum,
+                              time = time,
+                              time2 = object$settings$time2,
+                              event = event,
+                              covariates = varnames,
+                              weight = weight,
+                              offset = offset,
+                              id = id,
+                              ties = object$settings$ties,
+                              type = type, 
+                              collapse = collapse,
+                              weighted = weighted)
+  
   if (type == "martingale" || type == "deviance") {
     rr <- temp$resid
   } else {
     if (p == 1) {
-      rr = c(temp$resid)
+      rr <- c(temp$resid)
     } else {
-      rr = temp$resid
+      rr <- temp$resid
     }
     
     if (type == "schoenfeld" || type == "scaledsch") {
-      attr(rr, "time") = temp$time
+      attr(rr, "time") <- temp$time
       if (length(temp) == 3) {
-        attr(rr, "strata") = temp$strata
+        attr(rr, "strata") <- temp$strata
       }
     }
   }
   
-  if (is.matrix(rr)) colnames(rr) <- param
+  if (is.matrix(rr)) colnames(rr) <- object$param
   
   rr
 }

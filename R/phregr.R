@@ -4,8 +4,6 @@
 #'
 #' @param data The input data frame that contains the following variables:
 #'
-#'   * \code{rep}: The replication for by-group processing.
-#'
 #'   * \code{stratum}: The stratum.
 #'
 #'   * \code{time}: The follow-up time for right censored data, or
@@ -29,7 +27,6 @@
 #'   * \code{id}: The optional subject ID for counting process data
 #'     with time-dependent covariates.
 #'
-#' @param rep The name(s) of the replication variable(s) in the input data.
 #' @param stratum The name(s) of the stratum variable(s) in the input data.
 #' @param time The name of the time variable or the left end of each
 #'   interval for counting process data in the input data.
@@ -92,8 +89,6 @@
 #'
 #'     - \code{loglik1_unpenalized}: The maximum unpenalized log-likelihood.
 #'
-#'     - \code{rep}: The replication.
-#'
 #' * \code{parest}: The data frame of parameter estimates with the
 #'   following variables:
 #'
@@ -107,8 +102,6 @@
 #'
 #'     - \code{expbeta}: The hazard ratio estimate.
 #'
-#'     - \code{vbeta}: The covariance matrix for parameter estimates.
-#'
 #'     - \code{lower}: The lower limit of confidence interval.
 #'
 #'     - \code{upper}: The upper limit of confidence interval.
@@ -120,11 +113,6 @@
 #'
 #'     - \code{sebeta_naive}: The naive standard error of log hazard ratio
 #'       estimate if robust variance is requested.
-#'
-#'     - \code{vbeta_naive}: The naive covariance matrix for parameter
-#'       estimates if robust variance is requested.
-#'
-#'     - \code{rep}: The replication.
 #'
 #' * \code{basehaz}: The data frame of baseline hazards with the following
 #'   variables (if est_basehaz is TRUE):
@@ -145,9 +133,9 @@
 #'
 #'     - \code{stratum}: The stratum.
 #'
-#'     - \code{rep}: The replication.
-#'
 #' * \code{residuals}: The martingale residuals.
+#' 
+#' * \code{linear_predictors}: The vector of linear predictors.
 #'
 #' * \code{p}: The number of parameters.
 #'
@@ -182,8 +170,9 @@
 #'
 #' # Example 1 with right-censored data
 #' (fit1 <- phregr(
-#'   data = rawdata %>% mutate(treat = 1*(treatmentGroup == 1)),
-#'   rep = "iterationNumber", stratum = "stratum",
+#'   data = rawdata %>% filter(iterationNumber == 1) %>% 
+#'     mutate(treat = 1*(treatmentGroup == 1)),
+#'   stratum = "stratum",
 #'   time = "timeUnderObservation", event = "event",
 #'   covariates = "treat", est_basehaz = FALSE, est_resid = FALSE))
 #'
@@ -195,101 +184,155 @@
 #'   robust = TRUE, est_basehaz = TRUE, est_resid = TRUE))
 #'
 #' @export
-phregr <- function(data, rep = "", stratum = "",
-                   time = "time", time2 = "", event = "event",
-                   covariates = "", weight = "", offset = "",
-                   id = "", ties = "efron", 
+phregr <- function(data, stratum = "", time = "time", time2 = "", 
+                   event = "event", covariates = "", weight = "", 
+                   offset = "", id = "", ties = "efron", 
                    init = NA_real_,  robust = FALSE,
-                   est_basehaz = TRUE, est_resid = TRUE, firth = FALSE,
-                   plci = FALSE, alpha = 0.05, 
+                   est_basehaz = TRUE, est_resid = TRUE, 
+                   firth = FALSE, plci = FALSE, alpha = 0.05, 
                    maxiter = 50, eps = 1.0e-9) {
   
-  rownames(data) = NULL
-  
-  elements = c(rep, stratum, time, event, covariates, weight, offset, id)
-  elements = unique(elements[elements != "" & elements != "none"])
-  fml = formula(paste("~", paste(elements, collapse = "+")))
-  mf = model.frame(fml, data = data, na.action = na.omit)
-  
-  rownum = as.integer(rownames(mf))
-  df = data[rownum,]
-  
-  nvar = length(covariates)
-  if (missing(covariates) || is.null(covariates) || (nvar == 1 && (
-    covariates[1] == "" || tolower(covariates[1]) == "none"))) {
-    p = 0
-    t1 = terms(formula("~1"))
-  } else {
-    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
-    t1 = terms(fml1)
+  # validate input
+  if (!inherits(data, "data.frame")) {
+    stop("Input 'data' must be a data frame");
   }
   
-  if (p >= 1) {
-    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
-    mm <- model.matrix(fml1, mf1)
-    xlevels = mf1$xlev
-    param = colnames(mm)
-    colnames(mm) = make.names(colnames(mm))
-    varnames = colnames(mm)[-1]
-    for (i in 1:length(varnames)) {
-      if (!(varnames[i] %in% names(df))) {
-        df[,varnames[i]] = mm[,varnames[i]]
-      }
+  if (inherits(data, "data.table") || inherits(data, "tbl") || 
+      inherits(data, "tbl_df")) {
+    df <- as.data.frame(data)
+  } else {
+    df <- data
+  }
+  
+  for (nm in c(time, time2, event, weight, offset, id)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
     }
-  } else {
-    xlevels = NULL
-    param = "(Intercept)"
-    varnames = ""
   }
   
-  fit <- phregcpp(data = df, rep = rep, stratum = stratum, time = time,
-                  time2 = time2, event = event, covariates = varnames,
-                  weight = weight, offset = offset, id = id, 
-                  ties = ties, init = init, 
-                  robust = robust, est_basehaz = est_basehaz,
-                  est_resid = est_resid, firth = firth,
-                  plci = plci, alpha = alpha, 
-                  maxiter = maxiter, eps = eps)
+  # select complete cases for the relevant variables
+  elements <- unique(c(stratum, time, time2, event, covariates, weight, offset, id))
+  elements <- elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  var_all <- all.vars(fml_all)
   
-  fit$p = fit$sumstat$p[1]
+  # check if the input data contains the required columns
+  missing_cols <- setdiff(var_all, names(df))
+  if (length(missing_cols) > 0) {
+    stop(paste0("The following required columns are missing in the input data: ",
+                paste(missing_cols, collapse = ", ")))
+  }
   
-  if (fit$p > 0) {
-    fit$param = param[-1]
-    fit$beta = fit$parest$beta
-    names(fit$beta) = rep(fit$param, length(fit$beta)/fit$p)
+  # use complete.cases on the subset of columns we care about
+  rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  df <- df[rows_ok, , drop = FALSE]
+  
+  # Determine if covariates were provided (empty string or NULL means no covariates)
+  misscovariates <- length(covariates) == 0 || 
+    (length(covariates) == 1 && (covariates[1] == ""))
+  
+  # build design matrix and extract variable names
+  if (misscovariates) {
+    t1 <- terms(formula("~1"))
+    param <- "(Intercept)"
+    varnames <- ""
+    xlevels <- NULL
+  } else {
+    fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
     
-    if (fit$p > 1) {
-      fit$vbeta = as.matrix(fit$parest[, paste0("vbeta.", 1:fit$p)])
-      if (robust) {
-        fit$vbeta_naive = as.matrix(fit$parest[, paste0("vbeta_naive.",
-                                                        1:fit$p)])
-      }
+    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
+    cov_present <- covariates %in% names(df)
+    all_numeric <- FALSE
+    if (all(cov_present)) {
+      all_numeric <- all(vapply(df[ covariates ], is.numeric, logical(1)))
+    }
+    
+    if (all_numeric) {
+      # Build design columns directly from numeric covariates (intercept + columns)
+      # This avoids model.matrix and is valid when covariates are simple numeric columns.
+      param <- c("(Intercept)", covariates)
+      varnames <- covariates
+      t1 <- terms(fml_cov)
+      xlevels <- NULL
     } else {
-      fit$vbeta = as.matrix(fit$parest[, "vbeta"])
-      if (robust) {
-        fit$vbeta_naive = as.matrix(fit$parest[, "vbeta_naive"])
+      # Use model.matrix to handle factors and interactions
+      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
+      mm <- model.matrix(fml_cov, mf)
+      param <- colnames(mm)
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
+      t1 <- terms(fml_cov)
+      xlevels <- mf$xlev
+      # Add derived columns to df if not already present
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
       }
-    }
-    
-    dimnames(fit$vbeta) = list(names(fit$beta), fit$param)
-    if (robust) {
-      dimnames(fit$vbeta_naive) = list(names(fit$beta), fit$param)
     }
   }
   
-  fit$terms = t1
-  if (fit$p > 0) fit$xlevels = xlevels
-  
+  # call the core fitting function
+  fit <- phregRcpp(
+    data = df,
+    stratum = stratum,
+    time = time,
+    time2 = time2,
+    event = event,
+    covariates = varnames,
+    weight = weight,
+    offset = offset,
+    id = id,
+    ties = ties,
+    init = init,
+    robust = robust,
+    est_basehaz = est_basehaz,
+    est_resid = est_resid,
+    firth = firth,
+    plci = plci,
+    alpha = alpha,
+    maxiter = maxiter,
+    eps = eps)
+
+  # post-process the output
+  fit$p <- fit$sumstat$p[1]
+
+  if (fit$p > 0) {
+    fit$param <- param[-1]
+    fit$beta <- fit$parest$beta
+    names(fit$beta) <- fit$param
+
+    dimnames(fit$vbeta) <- list(fit$param, fit$param)
+    if (robust) {
+      dimnames(fit$vbeta_naive) <- list(fit$param, fit$param)
+    }
+  }
+
+  fit$terms <- t1
+  if (fit$p > 0) fit$xlevels <- xlevels
+
   fit$settings <- list(
-    data = data, rep = rep, stratum = stratum, time = time, 
-    time2 = time2, event = event, covariates = covariates,
-    weight = weight, offset = offset, id = id, ties = ties,
-    iniy = init, robust = robust, est_basehaz = est_basehaz,
-    est_resid = est_resid, firth = firth, plci = plci,
-    alpha = alpha, maxiter = maxiter, eps = eps
+    data = data,
+    stratum = stratum,
+    time = time,
+    time2 = time2,
+    event = event,
+    covariates = covariates,
+    weight = weight,
+    offset = offset,
+    id = id,
+    ties = ties,
+    iniy = init,
+    robust = robust,
+    est_basehaz = est_basehaz,
+    est_resid = est_resid,
+    firth = firth,
+    plci = plci,
+    alpha = alpha,
+    maxiter = maxiter,
+    eps = eps
   )
-  
-  class(fit) = "phregr"
+
+  class(fit) <- "phregr"
   fit
 }

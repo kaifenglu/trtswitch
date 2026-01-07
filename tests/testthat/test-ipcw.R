@@ -112,10 +112,10 @@ testthat::test_that("ipcw: time-dependent covariates Cox switching model", {
   cut <- sort(unique(data1$tstop[data1$event == 1]))
   a1 <- survsplit(data1$tstart, data1$tstop, cut)
   data2 <- data1[a1$row+1,]
-  data2$tstart = a1$start
-  data2$tstop = a1$end
-  data2$event[a1$censor] = 0
-  data2$cross[a1$censor] = 0
+  data2$tstart <- a1$start
+  data2$tstop <- a1$end
+  data2$event[a1$censor != 0] <- 0
+  data2$cross[a1$censor != 0] <- 0
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data2 %>% 

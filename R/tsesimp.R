@@ -72,8 +72,9 @@
 #' @param boot Whether to use bootstrap to obtain the confidence
 #'   interval for hazard ratio. Defaults to \code{TRUE}.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   `NA`, in which case, the seed from the environment will be used.
+#' @param seed The seed to reproduce the bootstrap results.
+#' @param nthreads The number of threads to use in bootstrapping (0 means 
+#'   the default RcppParallel behavior)
 #'
 #' @details Assuming one-way switching from control to treatment, the 
 #' hazard ratio and confidence interval under a no-switching scenario 
@@ -107,14 +108,11 @@
 #' * \code{psi_CI_type}: The type of confidence interval for \code{psi},
 #'   i.e., "AFT model" or "bootstrap".
 #'   
-#' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   for the ITT analysis.
+#' * \code{pvalue}: The two-sided p-value.
 #'
-#' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model applied to counterfactual unswitched survival times.
-#'   If \code{boot} is \code{TRUE}, this value represents the 
-#'   bootstrap p-value.
-#'
+#' * \code{pvalue_type}: The type of two-sided p-value for treatment effect, 
+#'   i.e., "Cox model" or "bootstrap".
+#'   
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
 #' * \code{hr_CI}: The confidence interval for hazard ratio.
@@ -239,90 +237,81 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
                     base_cov = "", base2_cov = "",
                     aft_dist = "weibull", strata_main_effect_only = TRUE,
                     recensor = TRUE, admin_recensor_only = TRUE,
-                    swtrt_control_only = TRUE, alpha = 0.05, 
-                    ties = "efron", offset = 1, 
-                    boot = TRUE, n_boot = 1000, seed = NA) {
+                    swtrt_control_only = TRUE, 
+                    alpha = 0.05, ties = "efron", offset = 1, 
+                    boot = TRUE, n_boot = 1000, seed = 0, 
+                    nthreads = 0) {
 
-  rownames(data) = NULL
-
-  elements = c(stratum, time, event, treat, censor_time, pd, swtrt)
-  elements = unique(elements[elements != "" & elements != "none"])
-  fml = formula(paste("~", paste(elements, collapse = "+")))
-  mf = model.frame(fml, data = data, na.action = na.omit)
-
-  rownum = as.integer(rownames(mf))
-  df = data[rownum,]
-
-  nvar = length(base_cov)
-  if (missing(base_cov) || is.null(base_cov) || (nvar == 1 && (
-    base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
-    p = 0
-  } else {
-    fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    vnames = rownames(attr(terms(fml1), "factors"))
-    p = length(vnames)
+  # validate input
+  if (!inherits(data, "data.frame")) {
+    stop("Input 'data' must be a data frame");
   }
-
-  if (p >= 1) {
-    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
-    mm <- model.matrix(fml1, mf1)
-    colnames(mm) = make.names(colnames(mm))
-    varnames = colnames(mm)[-1]
-    for (i in 1:length(varnames)) {
-      if (!(varnames[i] %in% names(df))) {
-        df[,varnames[i]] = mm[,varnames[i]]
-      }
-    }
-  } else {
-    varnames = ""
-  }
-
-  nvar2 = length(base2_cov)
-  if (missing(base2_cov) || is.null(base2_cov) || (nvar2 == 1 && (
-    base2_cov[1] == "" || tolower(base2_cov[1]) == "none"))) {
-    p2 = 0
-  } else {
-    fml2 = formula(paste("~", paste(base2_cov, collapse = "+")))
-    vnames2 = rownames(attr(terms(fml2), "factors"))
-    p2 = length(vnames2)
-  }
-
-  if (p2 >= 1) {
-    mf2 <- model.frame(fml2, data = df, na.action = na.pass)
-    mm2 = model.matrix(fml2, mf2)
-    colnames(mm2) = make.names(colnames(mm2))
-    varnames2 = colnames(mm2)[-1]
-    for (i in 1:length(varnames2)) {
-      if (!(varnames2[i] %in% names(df))) {
-        df[,varnames2[i]] = mm2[,varnames2[i]]
-      }
-    }
-  } else {
-    varnames2 = ""
-  }
-
-  out <- tsesimpcpp(
-    data = df, id = id, stratum = stratum, time = time, 
-    event = event, treat = treat, censor_time = censor_time, 
-    pd = pd, pd_time = pd_time, swtrt = swtrt, 
-    swtrt_time = swtrt_time, base_cov = varnames, 
-    base2_cov = varnames2, aft_dist = aft_dist,
-    strata_main_effect_only = strata_main_effect_only,
-    recensor = recensor, admin_recensor_only = admin_recensor_only,
-    swtrt_control_only = swtrt_control_only, alpha = alpha,
-    ties = ties, offset = offset, 
-    boot = boot, n_boot = n_boot, seed = seed)
   
+  if (inherits(data, "data.table") || inherits(data, "tbl") || 
+      inherits(data, "tbl_df")) {
+    df <- as.data.frame(data)
+  } else {
+    df <- data
+  }
+  
+  for (nm in c(id, time, event, treat, censor_time, pd, pd_time, 
+               swtrt, swtrt_time)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
+    }
+  }
+  
+  # Respect user-requested number of threads (best effort)
+  if (nthreads > 0) {
+    n_physical_cores <- parallel::detectCores(logical = FALSE)
+    RcppParallel::setThreadOptions(min(nthreads, n_physical_cores))
+  }
+  
+  # select complete cases for the relevant variables
+  elements = unique(c(id, stratum, time, event, treat, censor_time, pd, swtrt))
+  elements = elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  var_all <- all.vars(fml_all)
+  rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  df <- df[rows_ok, , drop = FALSE]
+  
+  # process covariate specifications
+  res1 <- process_cov(base_cov, df)
+  df <- res1$df
+  vnames <- res1$vnames
+  varnames <- res1$varnames
+  
+  res2 <- process_cov(base2_cov, df)
+  df <- res2$df
+  vnames2 <- res2$vnames
+  varnames2 <- res2$varnames
+  
+  # call the core cpp function
+  out <- tsesimpcpp(
+    df = df, id = id, stratum = stratum, time = time, 
+    event = event, treat = treat, 
+    censor_time = censor_time, 
+    pd = pd, pd_time = pd_time, 
+    swtrt = swtrt, swtrt_time = swtrt_time, 
+    base_cov = varnames, base2_cov = varnames2, 
+    aft_dist = aft_dist, strata_main_effect_only = strata_main_effect_only,
+    recensor = recensor, admin_recensor_only = admin_recensor_only,
+    swtrt_control_only = swtrt_control_only, 
+    alpha = alpha, ties = ties, offset = offset, 
+    boot = boot, n_boot = n_boot, seed = seed)
   
   if (!out$psimissing) {
     out$data_outcome$uid <- NULL
     out$data_outcome$ustratum <- NULL
     
-    if (p >= 1) {
+    if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
-        out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
-                                  by = id, all.x = TRUE, sort = FALSE)
+        frame_df <- out$data_outcome
+        idx <- match(frame_df[[id]], df[[id]])
+        for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
+        out$data_outcome <- frame_df
       }
       
       del_vars <- setdiff(varnames, vnames)
@@ -331,16 +320,17 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
       }
     }
     
-    if (p2 >= 1) {
+    if (length(vnames2) > 0) {
       K = ifelse(swtrt_control_only, 1, 2)
       tem_vars <- c(pd_time, swtrt_time, time)
       add_vars <- c(setdiff(vnames2, varnames2), tem_vars)
       avars <- setdiff(add_vars, names(out$data_aft[[1]]$data))
       if (length(avars) > 0) {
         for (h in 1:K) {
-          out$data_aft[[h]]$data <- merge(out$data_aft[[h]]$data, 
-                                          df[, c(id, avars)], 
-                                          by = id, all.x = TRUE, sort = FALSE)
+          frame_df <- out$data_aft[[h]]$data
+          idx <- match(frame_df[[id]], df[[id]])
+          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
+          out$data_aft[[h]]$data <- frame_df
         }
       }
       
@@ -353,34 +343,28 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     }
   }
 
-  
   # convert treatment back to a factor variable if needed
   if (is.factor(data[[treat]])) {
-    levs = levels(data[[treat]])
+    levs <- levels(data[[treat]])
+    mf <- function(x) if (is.null(x)) x else factor(x, levels = c(1,2), labels = levs)
     
-    out$event_summary[[treat]] <- factor(out$event_summary[[treat]], 
-                                         levels = c(1,2), labels = levs)
-    
-    for (h in 1:2) {
-      out$data_aft[[h]][[treat]] <- factor(
-        out$data_aft[[h]][[treat]], levels = c(1,2), labels = levs)
+    # apply mf to a set of named containers that are data.frames with a column named `treat`
+    for (nm in c("event_summary", "data_outcome", "km_outcome")) {
+      out[[nm]][[treat]] <- mf(out[[nm]][[treat]])
     }
-
-    out$data_outcome[[treat]] <- factor(out$data_outcome[[treat]], 
-                                        levels = c(1,2), labels = levs)
     
-    out$km_outcome[[treat]] <- factor(out$km_outcome[[treat]], 
-                                      levels = c(1,2), labels = levs)
+    # and for the list-of-lists
+    out$data_aft <- lapply(out$data_aft, function(x) { x[[treat]] <- mf(x[[treat]]); x })
   }
-  
   
   out$settings <- list(
     data = data, id = id, stratum = stratum, time = time, 
-    event = event, treat = treat, censor_time = censor_time, 
-    pd = pd, pd_time = pd_time, swtrt = swtrt, 
-    swtrt_time = swtrt_time, base_cov = base_cov, 
-    base2_cov = base2_cov, aft_dist = aft_dist,
-    strata_main_effect_only = strata_main_effect_only,
+    event = event, treat = treat, 
+    censor_time = censor_time, 
+    pd = pd, pd_time = pd_time, 
+    swtrt = swtrt, swtrt_time = swtrt_time, 
+    base_cov = base_cov, base2_cov = base2_cov, 
+    aft_dist = aft_dist, strata_main_effect_only = strata_main_effect_only,
     recensor = recensor, admin_recensor_only = admin_recensor_only,
     swtrt_control_only = swtrt_control_only,
     alpha = alpha, ties = ties, offset = offset,

@@ -25,9 +25,8 @@ print.assess_phregr <- function(x, ...) {
                   sprintf("%.4f", p)))
   }
   
-  df <- data.frame(covariate = c(x$covariates, "Global test"),
-                   max_abs_value = c(x$max_abs_value, 
-                                     x$max_sum_abs_value),
+  df <- data.frame(covariate = c(x$covariates, "GLOBAL"),
+                   max_abs_value = x$max_abs_value,
                    resample = x$resample,
                    seed = x$seed,
                    p_value = format_pvalue(x$p_value))

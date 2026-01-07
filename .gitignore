@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+src/*.o
+src/*.so
+src/*.dll
+inst/doc
+notes/
+R/RcppExports.R
+src/RcppExports.cpp
+man/
+NAMESPACE
+trtswitch2.Rproj

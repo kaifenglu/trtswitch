@@ -12,16 +12,17 @@
 #'
 #' @export
 print.tsesimp <- function(x, ...) {
-  if (is.na(x$cox_pvalue)) {
-    pvalue = NA
-  } else if (x$cox_pvalue > 0.9999) {
-    pvalue = ">.9999" 
-  } else if (x$cox_pvalue < 0.0001) {
-    pvalue = "<.0001"
-  } else {
-    pvalue = formatC(x$cox_pvalue, format = "f", digits = 4)
-  }
+  pvalue1 <- x$pvalue
   
+  if (is.na(pvalue1)) {
+    pvalue <- NA
+  } else if (pvalue1 > 0.9999) {
+    pvalue <- ">.9999" 
+  } else if (pvalue1 < 0.0001) {
+    pvalue <- "<.0001"
+  } else {
+    pvalue <- formatC(pvalue1, format = "f", digits = 4)
+  }
   
   df0 <- x$event_summary[,-1]
   rownames(df0) <- c("Control", "Treatment")
@@ -30,8 +31,7 @@ print.tsesimp <- function(x, ...) {
   print(df0, ..., na.print = "", quote = FALSE)
   cat("\n")
   
-  
-  level = paste0(100*(1 - x$settings$alpha), "%")
+  level <- paste0(100*(1 - x$settings$alpha), "%")
   
   if (x$settings$swtrt_control_only) {
     df1 <- data.frame(
@@ -41,16 +41,15 @@ print.tsesimp <- function(x, ...) {
       pvalue = c(pvalue, "", "")
     )
     
-    j1 = c(1,2,3)
+    j1 <- c(1,2,3)
     df1[j1] <- lapply(df1[j1], formatC, format = "f", digits = 3)
     
     df2 <- t(df1)
     
-    colnames(df2) <- c("Estimate", paste("Lower", level), 
-                       paste("Upper", level))
+    colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
     
-    rownames(df2) = c("Causal parameter psi", "Causal survival time ratio", 
-                      "Hazard ratio (HR)", "P-value")
+    rownames(df2) <- c("Causal parameter psi", "Causal survival time ratio", 
+                       "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
   } else {
     df1 <- data.frame(
       psi = c(x$psi, x$psi_CI[1], x$psi_CI[2]),
@@ -62,23 +61,21 @@ print.tsesimp <- function(x, ...) {
       pvalue = c(pvalue, "", "")
     )
     
-    j1 = c(1,2,3,4,5)
+    j1 <- c(1,2,3,4,5)
     df1[j1] <- lapply(df1[j1], formatC, format = "f", digits = 3)
     
     df2 <- t(df1)
     
-    colnames(df2) <- c("Estimate", paste("Lower", level), 
-                       paste("Upper", level))
+    colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
     
-    rownames(df2) = c("Causal parameter psi for control arm", 
-                      "Causal survival time ratio for control arm",
-                      "Causal parameter psi for treatment arm",
-                      "Causal survival time ratio for treatment arm",
-                      "Hazard ratio (HR)", "P-value")
+    rownames(df2) <- c("Causal parameter psi for control arm", 
+                       "Causal survival time ratio for control arm",
+                       "Causal parameter psi for treatment arm",
+                       "Causal survival time ratio for treatment arm",
+                       "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
   }
   
   print(df2, ..., na.print = "" , quote = FALSE )
   
   invisible(x)
 }
-

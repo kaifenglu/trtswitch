@@ -42,8 +42,7 @@ testthat::test_that("tsesimp: weibull aft", {
 
   # numeric code of treatment and apply administrative censoring
   data1 <- shilong3 %>% 
-    mutate(treated = 1*(bras.f == "MTA"),
-           swtrt = 1*co)
+    mutate(treated = 1 * (bras.f == "MTA"), swtrt = 1 * co)
   
   tablist <- lapply(0:1, function(h) {
     df1 <- data1 %>% 
@@ -54,11 +53,12 @@ testthat::test_that("tsesimp: weibull aft", {
                          tt_Lnum + rmh_alea.c + pathway.f + 
                          ps + ttc + tran, data = df1)
     
-    psi = -fit_aft$coefficients[2]
+    psi <- -fit_aft$coefficients[2]
 
     data1 %>% 
       filter(treated == h) %>%
-      mutate(u_star = ifelse(swtrt==1, dpd-1 + (tstop-dpd+1)*exp(psi), tstop),
+      mutate(u_star = ifelse(swtrt == 1, 
+                             dpd - 1 + (tstop - dpd + 1) * exp(psi), tstop),
              c_star = pmin(dcut, dcut*exp(psi)),
              t_star = pmin(u_star, c_star),
              d_star = ifelse(c_star < u_star, 0, event))
@@ -110,8 +110,8 @@ testthat::test_that("tsesimp: boot", {
                   "pathway.f", "ps", "ttc", "tran"),
     aft_dist = "weibull", alpha = 0.05,
     recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
-    boot = TRUE, n_boot = 100, seed = 12345)
+    boot = TRUE, n_boot = 1000, seed = 0)
   
-  hr2 <- c(0.9125816, 0.5485876, 1.5180896)
-  testthat::expect_equal(hr2, c(fit2$hr, fit2$hr_CI))
+  hr2 <- c(0.9125816, 0.5540115, 1.5032271)
+  testthat::expect_equal(hr2, round(c(fit2$hr, fit2$hr_CI), 7))
 })

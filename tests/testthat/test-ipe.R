@@ -40,10 +40,10 @@ testthat::test_that("ipe: control to active switch", {
   
   data2 <- f(psi)
   fit <- coxph(Surv(t_star, d_star) ~ imm, data = data2)
-  beta = as.numeric(fit$coefficients[1])
-  se = beta/z_lr
+  beta <- as.numeric(fit$coefficients[1])
+  se <- beta/z_lr
   
-  zcrit = qnorm(0.975)
+  zcrit <- qnorm(0.975)
   hr1 <- exp(c(beta, beta - zcrit*se, beta + zcrit*se))
   testthat::expect_equal(hr1, c(fit1$hr, fit1$hr_CI))
 })

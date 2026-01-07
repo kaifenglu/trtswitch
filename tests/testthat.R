@@ -1,4 +1,4 @@
 library(testthat)
-library(trtswitch)
+library(trtswitch2)
 
-test_check("trtswitch")
+test_check("trtswitch2")

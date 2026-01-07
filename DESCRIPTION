@@ -1,4 +1,4 @@
-Package: trtswitch
+Package: trtswitch2
 Type: Package
 Title: Treatment Switching
 Version: 0.2.3
@@ -8,12 +8,14 @@ Authors@R:
 Description: Implements rank preserving structural failure time model (RPSFTM), iterative parameter estimation (IPE), inverse probability of censoring weights (IPCW), marginal structural model (MSM), simple two-stage estimation (TSEsimp), and improved two-stage estimation with g-estimation (TSEgest) methods for treatment switching in randomized clinical trials.
 License: GPL (>= 2)
 Imports: 
-    Rcpp (>= 1.0.9), 
+    Rcpp (>= 1.0.9),
+    RcppParallel (>= 5.1.5), 
+    parallel,
     rlang (>= 1.0.6),
     data.table (>= 1.14.10),
     ggplot2 (>= 3.3.6),
     cowplot (>= 1.2.0)
-LinkingTo: Rcpp
+LinkingTo: Rcpp, RcppParallel, RcppThread, BH
 Suggests: 
     testthat (>= 3.0.0),
     dplyr (>= 1.1.4),
@@ -21,14 +23,12 @@ Suggests:
     survival (>= 3.5-7),
     knitr (>= 1.45),
     rmarkdown (>= 2.25)
-VignetteBuilder: knitr
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 Encoding: UTF-8
 NeedsCompilation: yes
 Depends: 
     R (>= 3.5)
+SystemRequirements: C++17    
 LazyData: true
-URL: https://github.com/kaifenglu/trtswitch
-BugReports: https://github.com/kaifenglu/trtswitch/issues
 Config/testthat/edition: 3

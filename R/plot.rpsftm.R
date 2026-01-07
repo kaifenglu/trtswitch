@@ -27,21 +27,20 @@ plot.rpsftm <- function(x, time_unit = "day",
   }
   
   alpha <- x$settings$alpha
-  conflev <- 100*(1-alpha)
+  conflev <- 100*(1 - alpha)
   treat_var <- x$settings$treat
   
   # --- Z-plot ---
-  linetype = c("solid", "dashed", "dashed")
-  limits = range(x$eval_z$Z)
-  yintercept = c(0, qnorm(alpha/2), qnorm(1-alpha/2))
-  yindex = yintercept >= limits[1] & yintercept <= limits[2]
+  linetype <- c("solid", "dashed", "dashed")
+  limits <- range(x$eval_z$Z)
+  yintercept <- c(0, qnorm(alpha/2), qnorm(1-alpha/2))
+  yindex <- yintercept >= limits[1] & yintercept <= limits[2]
   
-  xintercept = c(x$psi, x$psi_CI)
-  xindex = !is.na(xintercept) & xintercept >= x$settings$low_psi & 
+  xintercept <- c(x$psi, x$psi_CI)
+  xindex <- !is.na(xintercept) & xintercept >= x$settings$low_psi & 
     xintercept <= x$settings$hi_psi
   
-  p_z <- ggplot2::ggplot(x$eval_z, 
-                         ggplot2::aes(x = .data$psi, y = .data$Z)) +
+  p_z <- ggplot2::ggplot(x$eval_z, ggplot2::aes(x = .data$psi, y = .data$Z)) +
     ggplot2::geom_line() +
     ggplot2::geom_hline(
       yintercept = yintercept[yindex], 
@@ -65,13 +64,13 @@ plot.rpsftm <- function(x, time_unit = "day",
   if (!is.null(x$km_outcome) && nrow(x$km_outcome) > 0) {
     df <- x$km_outcome
     if (time_unit == "day") {
-      df$month = df$time / 30.4375
+      df$month <- df$time / 30.4375
     } else if (time_unit == "week") {
-      df$month = df$time / 4.3482
+      df$month <- df$time / 4.3482
     } else if (time_unit == "month") {
-      df$month = df$time
+      df$month <- df$time
     } else if (time_unit == "year") {
-      df$month = df$time * 12
+      df$month <- df$time * 12
     } else {
       stop("time_unit must be one of 'day', 'week', 'month', or 'year'")
     }
@@ -85,19 +84,17 @@ plot.rpsftm <- function(x, time_unit = "day",
       }
     }
     
-    min_surv <- data.table::data.table(df)[
-      , min(get("surv")), by = treat_var][, get("V1")]
+    min_surv <- data.table::data.table(df)[, min(get("surv")), 
+                                           by = treat_var][, get("V1")]
     
-    p_km <- ggplot2::ggplot(df, ggplot2::aes(x = .data$month, 
-                                             y = .data$surv, 
-                                             group = .data[[treat_var]],
-                                             colour = .data[[treat_var]])) +
+    p_km <- ggplot2::ggplot(
+      df, ggplot2::aes(x = .data$month, y = .data$surv, 
+                       group = .data[[treat_var]], colour = .data[[treat_var]])) +
       ggplot2::geom_step() +
       ggplot2::scale_x_continuous(n.breaks = 11) +
       ggplot2::scale_y_continuous(limits = c(0, 1)) +
       ggplot2::labs(
-        x = "Months", 
-        y = "Survival Probability",
+        x = "Months", y = "Survival Probability",
         title = "Kaplan-Meier Curves for Counterfactual Outcomes") + 
       ggplot2::theme_bw() + 
       ggplot2::theme(
@@ -107,11 +104,9 @@ plot.rpsftm <- function(x, time_unit = "day",
         plot.margin = ggplot2::margin(t = 2, r = 5, b = 0, l = 20))
     
     if (max(min_surv) < 0.5) {
-      p_km <- p_km +
-        ggplot2::theme(legend.position = c(0.7, 0.85))
+      p_km <- p_km + ggplot2::theme(legend.position = c(0.7, 0.85))
     } else{
-      p_km <- p_km +
-        ggplot2::theme(legend.position = c(0.15, 0.25))
+      p_km <- p_km + ggplot2::theme(legend.position = c(0.15, 0.25))
     }
     
     # add hazard ratio to plot
@@ -121,8 +116,7 @@ plot.rpsftm <- function(x, time_unit = "day",
           ggplot2::annotate(
             "text", x = 0.6*max(df$month), y = 0.7, hjust = 0,
             label = sprintf("HR = %.3f (%.0f%% CI: %.3f, %.3f)", 
-                            x$hr, conflev, 
-                            x$hr_CI[1], x$hr_CI[2]),
+                            x$hr, conflev, x$hr_CI[1], x$hr_CI[2]),
             size = 3.5, color = "black"
           )
       } else {
@@ -130,8 +124,7 @@ plot.rpsftm <- function(x, time_unit = "day",
           ggplot2::annotate(
             "text", x = 0, y = 0, hjust = 0,
             label = sprintf("HR = %.3f (%.0f%% CI: %.3f, %.3f)", 
-                            x$hr, conflev, 
-                            x$hr_CI[1], x$hr_CI[2]),
+                            x$hr, conflev, x$hr_CI[1], x$hr_CI[2]),
             size = 3.5, color = "black"
           )
       }
@@ -148,8 +141,8 @@ plot.rpsftm <- function(x, time_unit = "day",
         t <- df$month[df$treated == h]
         n <- df$nrisk[df$treated == h]
         
-        idx = findInterval(xbreaks, t) + 1
-        atrisk = ifelse(idx <= length(n), n[idx], 0)
+        idx <- findInterval(xbreaks, t) + 1
+        atrisk <- ifelse(idx <= length(n), n[idx], 0)
         
         df1 <- data.frame(time = xbreaks, atrisk = atrisk)
         df1[[treat_var]] <- df[[treat_var]][df$treated == h][1]
@@ -161,16 +154,12 @@ plot.rpsftm <- function(x, time_unit = "day",
                                      levels = levels(df[[treat_var]]))
       
       # --- Create number at risk plot ---
-      p_risk <- ggplot2::ggplot(df_risk, 
-                                ggplot2::aes(x = .data$time, 
-                                             y = .data[[treat_var]], 
-                                             label = .data$atrisk, 
-                                             colour = .data[[treat_var]])) +
+      p_risk <- ggplot2::ggplot(
+        df_risk, ggplot2::aes(x = .data$time, y = .data[[treat_var]], 
+                              label = .data$atrisk, colour = .data[[treat_var]])) +
         ggplot2::geom_text(size = 3.2, na.rm = TRUE) +
-        ggplot2::scale_x_continuous(
-          breaks = xbreaks, limits = range(xbreaks)) +
-        ggplot2::scale_y_discrete(
-          limits = rev(levels(df_risk[[treat_var]]))) +
+        ggplot2::scale_x_continuous(breaks = xbreaks, limits = range(xbreaks)) +
+        ggplot2::scale_y_discrete(limits = rev(levels(df_risk[[treat_var]]))) +
         ggplot2::coord_cartesian(clip = "off") + 
         ggplot2::theme_minimal() +
         ggplot2::theme(
@@ -182,8 +171,7 @@ plot.rpsftm <- function(x, time_unit = "day",
           plot.margin = ggplot2::margin(t = 6, r = 5, b = 0, l = 20)) + 
         ggplot2::annotate(
           "text", x = min(xbreaks), y = 3,
-          label = "No. of Subjects at Risk",
-          size = 4, hjust = 0.5)
+          label = "No. of Subjects at Risk", size = 4, hjust = 0.5)
       
       suppressMessages({ 
         p_km <- p_km +

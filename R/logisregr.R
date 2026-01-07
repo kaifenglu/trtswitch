@@ -4,8 +4,6 @@
 #'
 #' @param data The input data frame that contains the following variables:
 #'
-#'   * \code{rep}: The replication for by-group processing.
-#'
 #'   * \code{event}: The event indicator, 1=event, 0=no event.
 #'
 #'   * \code{covariates}: The values of baseline covariates.
@@ -19,7 +17,6 @@
 #'   * \code{id}: The optional subject ID to group the score residuals
 #'     in computing the robust sandwich variance.
 #'
-#' @param rep The name(s) of the replication variable(s) in the input data.
 #' @param event The name of the event variable in the input data.
 #' @param covariates The vector of names of baseline covariates
 #'   in the input data.
@@ -102,8 +99,6 @@
 #'
 #'     - \code{loglik1_unpenalized}: The maximum unpenalized log-likelihood.
 #'
-#'     - \code{rep}: The replication.
-#'
 #' * \code{parest}: The data frame of parameter estimates with the
 #'   following variables:
 #'
@@ -117,8 +112,6 @@
 #'
 #'     - \code{expbeta}: The exponentiated parameter estimate.
 #'
-#'     - \code{vbeta}: The covariance matrix for parameter estimates.
-#'
 #'     - \code{lower}: The lower limit of confidence interval.
 #'
 #'     - \code{upper}: The upper limit of confidence interval.
@@ -130,11 +123,6 @@
 #'
 #'     - \code{sebeta_naive}: The naive standard error of parameter estimate.
 #'
-#'     - \code{vbeta_naive}: The naive covariance matrix of parameter
-#'       estimates.
-#'
-#'     - \code{rep}: The replication.
-#'
 #' * \code{fitted}: The data frame with the following variables:
 #'
 #'     - \code{linear_predictors}: The linear fit on the link function scale.
@@ -142,8 +130,6 @@
 #'     - \code{fitted_values}: The fitted probabilities of having an event,
 #'       obtained by transforming the linear predictors by the inverse of
 #'       the link function.
-#'
-#'     - \code{rep}: The replication.
 #'
 #' * \code{p}: The number of parameters.
 #'
@@ -190,99 +176,151 @@
 #'   ingots, event = "NotReady", covariates = "Heat*Soak", freq = "Freq"))
 #'
 #' @export
-logisregr <- function(data, rep = "", event = "event", covariates = "",
+logisregr <- function(data, event = "event", covariates = "",
                       freq = "", weight = "", offset = "", id = "",
-                      link = "logit", init = NA_real_, 
+                      link = "logit", init = NA_real_,
                       robust = FALSE, firth = FALSE,
-                      flic = FALSE, plci = FALSE, alpha = 0.05, 
+                      flic = FALSE, plci = FALSE, alpha = 0.05,
                       maxiter = 50, eps = 1.0e-9) {
   
-  rownames(data) = NULL
-  
-  elements = c(rep, event, covariates, freq, weight, offset)
-  elements = unique(elements[elements != "" & elements != "none"])
-  fml = formula(paste("~", paste(elements, collapse = "+")))
-  mf = model.frame(fml, data = data, na.action = na.omit)
-  
-  rownum = as.integer(rownames(mf))
-  df = data[rownum,]
-  
-  nvar = length(covariates)
-  if (missing(covariates) || is.null(covariates) || (nvar == 1 && (
-    covariates[1] == "" || tolower(covariates[1]) == "none"))) {
-    p = 0
-    t1 = terms(formula("~1"))
-  } else {
-    fml1 = formula(paste("~", paste(covariates, collapse = "+")))
-    p = length(rownames(attr(terms(fml1), "factors")))
-    t1 = terms(fml1)
+  # validate input
+  if (!inherits(data, "data.frame")) {
+    stop("Input 'data' must be a data frame");
   }
   
-  if (p >= 1) {
-    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
-    mm <- model.matrix(fml1, mf1)
-    xlevels = mf1$xlev
-    param = colnames(mm)
-    colnames(mm) = make.names(colnames(mm))
-    varnames = colnames(mm)[-1]
-    for (i in 1:length(varnames)) {
-      if (!(varnames[i] %in% names(df))) {
-        df[,varnames[i]] = mm[,varnames[i]]
+  if (inherits(data, "data.table") || inherits(data, "tbl") || 
+      inherits(data, "tbl_df")) {
+    df <- as.data.frame(data)
+  } else {
+    df <- data
+  }
+  
+  for (nm in c(event, freq, weight, offset, id)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
+    }
+  }
+  
+  # select complete cases for the relevant variables
+  elements <- unique(c(event, covariates, freq, weight, offset, id))
+  elements <- elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  var_all <- all.vars(fml_all)
+  
+  # check if the input data contains the required columns
+  missing_cols <- setdiff(var_all, names(df))
+  if (length(missing_cols) > 0) {
+    stop(paste0("The following required columns are missing in the input data: ",
+                paste(missing_cols, collapse = ", ")))
+  }
+  
+  # use complete.cases on the subset of columns we care about
+  rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  df <- df[rows_ok, , drop = FALSE]
+
+  # Determine if covariates were provided (empty string or NULL means no covariates)
+  misscovariates <- length(covariates) == 0 || 
+    (length(covariates) == 1 && (covariates[1] == ""))
+  
+  # build design matrix and extract variable names
+  if (misscovariates) {
+    t1 <- terms(formula("~1"))
+    param <- "(Intercept)"
+    varnames <- ""
+    xlevels <- NULL
+  } else {
+    fml_cov <- as.formula(paste("~", paste(covariates, collapse = "+")))
+    t1 <- terms(fml_cov)
+    
+    # QUICK PATH: if all covariates present in df and are numeric, avoid model.matrix
+    cov_present <- covariates %in% names(df)
+    all_numeric <- FALSE
+    if (all(cov_present)) {
+      all_numeric <- all(vapply(df[ covariates ], is.numeric, logical(1)))
+    }
+    
+    if (all_numeric) {
+      # Build design columns directly from numeric covariates (intercept + columns)
+      # This avoids model.matrix and is valid when covariates are simple numeric columns.
+      param <- c("(Intercept)", covariates)
+      varnames <- covariates
+      xlevels <- NULL      
+    } else {
+      # FALLBACK (existing robust behavior): use model.frame + model.matrix on df
+      mf <- model.frame(fml_cov, data = df, na.action = na.pass)
+      mm <- model.matrix(fml_cov, mf)
+      param <- colnames(mm)
+      colnames(mm) <- make.names(colnames(mm))
+      varnames <- colnames(mm)[-1]
+      xlevels <- mf$xlev
+      # copy model-matrix columns into df only if they are missing
+      missing_cols <- setdiff(varnames, names(df))
+      if (length(missing_cols) > 0) {
+        for (vn in missing_cols) df[[vn]] <- mm[, vn, drop = TRUE]
       }
     }
-  } else {
-    xlevels = NULL
-    param = "(Intercept)"
-    varnames = ""
   }
   
-  fit <- logisregcpp(data = df, rep = rep, event = event,
-                     covariates = varnames, freq = freq, weight = weight,
-                     offset = offset, id = id, link = link, 
-                     init = init, robust = robust,
-                     firth = firth, flic = flic, plci = plci,
-                     alpha = alpha, maxiter = maxiter, eps = eps)
+  # call the core fitting function
+  fit <- logisregRcpp(
+    data =  df,
+    event = event,
+    covariates = varnames,
+    freq = freq,
+    weight = weight,
+    offset = offset,
+    id = id,
+    link = link,
+    init = init,
+    robust = robust,
+    firth = firth,
+    flic = flic,
+    plci = plci,
+    alpha = alpha,
+    maxiter = maxiter,
+    eps = eps
+  )
   
+  # post-process the output
   fit$p <- fit$sumstat$p[1]
   fit$link <- fit$sumstat$link[1]
   
   if (fit$p > 0) {
-    fit$param = param
-    fit$beta = fit$parest$beta
-    names(fit$beta) = rep(fit$param, length(fit$beta)/fit$p)
+    fit$param <- param
+    fit$beta <- fit$parest$beta
+    names(fit$beta) <- fit$param
     
-    if (fit$p > 1) {
-      fit$vbeta = as.matrix(fit$parest[, paste0("vbeta.", 1:fit$p)])
-      if (robust) {
-        fit$vbeta_naive = as.matrix(fit$parest[, paste0("vbeta_naive.",
-                                                        1:fit$p)])
-      }
-    } else {
-      fit$vbeta = as.matrix(fit$parest[, "vbeta"])
-      if (robust) {
-        fit$vbeta_naive = as.matrix(fit$parest[, "vbeta_naive"])
-      }
-    }
-    
-    dimnames(fit$vbeta) = list(names(fit$beta), fit$param)
+    dimnames(fit$vbeta) <- list(fit$param, fit$param)
     if (robust) {
-      dimnames(fit$vbeta_naive) = list(names(fit$beta), fit$param)
+      dimnames(fit$vbeta_naive) <- list(fit$param, fit$param)
     }
   }
   
-  fit$linear_predictors = fit$fitted$linear_predictors
-  fit$fitted_values = fit$fitted$fitted_values
-  
-  fit$terms = t1
-  if (fit$p > 0) fit$xlevels = xlevels
+  fit$linear_predictors <- fit$fitted$linear_predictors
+  fit$fitted_values <- fit$fitted$fitted_values
+  fit$terms <- t1
+  if (fit$p > 0) fit$xlevels <- xlevels
   
   fit$settings <- list(
-    data = data, rep = rep, event = event, covariates = covariates,
-    freq = freq, weight = weight, offset = offset, id = id,
-    link = link, init = init, robust = robust, firth = firth, flic = flic,
-    plci = plci, alpha = alpha, maxiter = maxiter, eps = eps
+    data = data,
+    event = event,
+    covariates = covariates,
+    freq = freq,
+    weight = weight,
+    offset = offset,
+    id = id,
+    link = link,
+    init = init,
+    robust = robust,
+    firth = firth,
+    flic = flic,
+    plci = plci,
+    alpha = alpha,
+    maxiter = maxiter,
+    eps = eps
   )
-
-  class(fit) = "logisregr"
+  
+  class(fit) <- "logisregr"
   fit
 }

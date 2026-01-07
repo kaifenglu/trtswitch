@@ -77,9 +77,10 @@
 #'   the confidence interval will be constructed to match the log-rank
 #'   test p-value.
 #' @param n_boot The number of bootstrap samples.
-#' @param seed The seed to reproduce the bootstrap results. The default is 
-#'   `NA`, in which case, the seed from the environment will be used.
-#'
+#' @param seed The seed to reproduce the bootstrap results.
+#' @param nthreads The number of threads to use in bootstrapping (0 means 
+#'   the default RcppParallel behavior)
+#'   
 #' @details Assuming one-way switching from control to treatment, the 
 #' hazard ratio and confidence interval under a no-switching scenario 
 #' are obtained as follows:
@@ -120,13 +121,10 @@
 #' * \code{psi_CI_type}: The type of confidence interval for \code{psi},
 #'   i.e., "grid search", "root finding", or "bootstrap".
 #'
-#' * \code{logrank_pvalue}: The two-sided p-value of the log-rank test
-#'   for the ITT analysis.
+#' * \code{pvalue}: The two-sided p-value.
 #'
-#' * \code{cox_pvalue}: The two-sided p-value for treatment effect based on
-#'   the Cox model applied to counterfactual unswitched survival times. 
-#'   If \code{boot} is \code{TRUE}, this value represents the 
-#'   bootstrap p-value.
+#' * \code{pvalue_type}: The type of two-sided p-value for treatment effect, 
+#'   i.e., "log-rank" or "bootstrap".
 #'
 #' * \code{hr}: The estimated hazard ratio from the Cox model.
 #'
@@ -237,61 +235,67 @@
 #' @export
 rpsftm <- function(data, id = "id", stratum = "", time = "time", 
                    event = "event", treat = "treat", rx = "rx", 
-                   censor_time = "censor_time",
-                   base_cov = "", psi_test = "logrank", 
-                   aft_dist = "weibull", strata_main_effect_only = TRUE, 
-                   low_psi = -2, hi_psi = 2,
-                   n_eval_z = 101, treat_modifier = 1,
-                   recensor = TRUE, admin_recensor_only = TRUE,
-                   autoswitch = TRUE, gridsearch = TRUE,
-                   root_finding = "brent",
+                   censor_time = "censor_time", base_cov = "", 
+                   psi_test = "logrank", aft_dist = "weibull", 
+                   strata_main_effect_only = TRUE, 
+                   low_psi = -2, hi_psi = 2, n_eval_z = 101, 
+                   treat_modifier = 1, recensor = TRUE, 
+                   admin_recensor_only = TRUE, autoswitch = TRUE, 
+                   gridsearch = TRUE, root_finding = "brent",
                    alpha = 0.05, ties = "efron", tol = 1.0e-6,
-                   boot = FALSE, n_boot = 1000, seed = NA) {
+                   boot = FALSE, n_boot = 1000, seed = 0, 
+                   nthreads = 0) {
 
-  rownames(data) = NULL
-
-  elements = c(stratum, time, event, treat, rx, censor_time)
-  elements = unique(elements[elements != "" & elements != "none"])
-  fml = formula(paste("~", paste(elements, collapse = "+")))
-  mf = model.frame(fml, data = data, na.action = na.omit)
+  # validate input
+  if (!inherits(data, "data.frame")) {
+    stop("Input 'data' must be a data frame");
+  }
   
-  rownum = as.integer(rownames(mf))
-  df = data[rownum,]
-
-  nvar = length(base_cov)
-  if (missing(base_cov) || is.null(base_cov) || (nvar == 1 && (
-    base_cov[1] == "" || tolower(base_cov[1]) == "none"))) {
-    p = 0
+  if (inherits(data, "data.table") || inherits(data, "tbl") || 
+      inherits(data, "tbl_df")) {
+    df <- as.data.frame(data)
   } else {
-    fml1 = formula(paste("~", paste(base_cov, collapse = "+")))
-    vnames = rownames(attr(terms(fml1), "factors"))
-    p = length(vnames)
+    df <- data
   }
-
-  if (p >= 1) {
-    mf1 <- model.frame(fml1, data = df, na.action = na.pass)
-    mm <- model.matrix(fml1, mf1)
-    colnames(mm) = make.names(colnames(mm))
-    varnames = colnames(mm)[-1]
-    for (i in 1:length(varnames)) {
-      if (!(varnames[i] %in% names(df))) {
-        df[,varnames[i]] = mm[,varnames[i]]
-      }
+  
+  for (nm in c(id, time, event, treat, rx, censor_time)) {
+    if (!is.character(nm) || length(nm) != 1) {
+      stop(paste(nm, "must be a single character string."));
     }
-  } else {
-    varnames = ""
   }
-
+  
+  # Respect user-requested number of threads (best effort)
+  if (nthreads > 0) {
+    n_physical_cores <- parallel::detectCores(logical = FALSE)
+    RcppParallel::setThreadOptions(min(nthreads, n_physical_cores))
+  }
+  
+  # select complete cases for the relevant variables
+  elements <- unique(c(id, stratum, time, event, treat, rx, censor_time, base_cov))
+  elements <- elements[elements != ""]
+  fml_all <- formula(paste("~", paste(elements, collapse = "+")))
+  var_all <- all.vars(fml_all)
+  rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
+  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  df <- df[rows_ok, , drop = FALSE]
+  
+  # process covariate specifications
+  res <- process_cov(base_cov, df)
+  df <- res$df
+  vnames <- res$vnames
+  varnames <- res$varnames
+  
+  # call the core cpp function
   out <- rpsftmcpp(
-    data = df, id = id, stratum = stratum, time = time, event = event,
-    treat = treat, rx = rx, censor_time = censor_time,
-    base_cov = varnames, psi_test = psi_test, aft_dist = aft_dist,
+    df = df, id = id, stratum = stratum, time = time, 
+    event = event, treat = treat, rx = rx, 
+    censor_time = censor_time, base_cov = varnames, 
+    psi_test = psi_test, aft_dist = aft_dist,
     strata_main_effect_only = strata_main_effect_only, 
-    low_psi = low_psi, hi_psi = hi_psi,
-    n_eval_z = n_eval_z, treat_modifier = treat_modifier,
-    recensor = recensor, admin_recensor_only = admin_recensor_only,
-    autoswitch = autoswitch, gridsearch = gridsearch, 
-    root_finding = root_finding,
+    low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z, 
+    treat_modifier = treat_modifier, recensor = recensor, 
+    admin_recensor_only = admin_recensor_only, autoswitch = autoswitch, 
+    gridsearch = gridsearch, root_finding = root_finding,
     alpha = alpha, ties = ties, tol = tol, 
     boot = boot, n_boot = n_boot, seed = seed)
   
@@ -301,13 +305,15 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
     out$data_outcome$uid <- NULL
     out$data_outcome$ustratum <- NULL
     
-    if (p >= 1) {
+    if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
-        out$Sstar <- merge(out$Sstar, df[, c(id, add_vars)], 
-                           by = id, all.x = TRUE, sort = FALSE)
-        out$data_outcome <- merge(out$data_outcome, df[, c(id, add_vars)], 
-                                  by = id, all.x = TRUE, sort = FALSE)
+        for (frame_name in c("Sstar", "data_aft", "data_outcome")) {
+          frame_df <- out[[frame_name]]
+          idx <- match(frame_df[[id]], df[[id]])
+          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
+          out[[frame_name]] <- frame_df
+        }
       }
       
       del_vars <- setdiff(varnames, vnames)
@@ -318,27 +324,12 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
     }
   }
   
-  
-  # convert treatment back to a factor variable if needed
   if (is.factor(data[[treat]])) {
-    levs = levels(data[[treat]])
-    
-    out$event_summary[[treat]] <- factor(out$event_summary[[treat]], 
-                                         levels = c(1,2), labels = levs)
-    
-    out$Sstar[[treat]] <- factor(out$Sstar[[treat]], 
-                                 levels = c(1,2), labels = levs)
-    
-    out$kmstar[[treat]] <- factor(out$kmstar[[treat]], 
-                                  levels = c(1,2), labels = levs)
-    
-    out$data_outcome[[treat]] <- factor(out$data_outcome[[treat]], 
-                                        levels = c(1,2), labels = levs)
-    
-    out$km_outcome[[treat]] <- factor(out$km_outcome[[treat]], 
-                                      levels = c(1,2), labels = levs)
+    levs <- levels(data[[treat]])
+    for (nm in c("event_summary", "Sstar", "kmstar", "data_outcome", "km_outcome")) {
+      out[[nm]][[treat]] <- factor(out[[nm]][[treat]], levels = c(1,2), labels = levs)
+    }
   }
- 
   
   out$settings <- list(
     data = data, id = id, stratum = stratum, time = time, 
@@ -348,13 +339,12 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
     strata_main_effect_only = strata_main_effect_only,
     low_psi = low_psi, hi_psi = hi_psi, n_eval_z = n_eval_z,
     treat_modifier = treat_modifier, recensor = recensor,
-    admin_recensor_only = admin_recensor_only,
-    autoswitch = autoswitch, gridsearch = gridsearch,
-    root_finding = root_finding,
+    admin_recensor_only = admin_recensor_only, autoswitch = autoswitch, 
+    gridsearch = gridsearch, root_finding = root_finding,
     alpha = alpha, ties = ties, tol = tol, 
     boot = boot, n_boot = n_boot, seed = seed
   )
   
-  class(out) = "rpsftm"
+  class(out) <- "rpsftm"
   out
 }

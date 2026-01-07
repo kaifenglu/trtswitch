@@ -1,5 +1,5 @@
-#' @name trtswitch-package
-#' @aliases trtswitch-package
+#' @name trtswitch2-package
+#' @aliases trtswitch2-package
 #' @title Treatment Switching
 #'
 #' @description Implements rank preserving structural failure time model 
@@ -75,12 +75,16 @@
 #' zidovudine on the survival of HIV-positive men. 
 #' Epidemiology. 2000;11(5):561-570.
 #'
-#' @useDynLib trtswitch, .registration = TRUE
+#' @useDynLib trtswitch2, .registration = TRUE
 #' @importFrom Rcpp evalCpp
-#' @importFrom stats formula makepredictcall model.frame model.matrix 
-#' na.omit na.pass pchisq plogis qnorm rbinom rexp terms
+#' @importFrom RcppParallel setThreadOptions
+#' @importFrom parallel clusterEvalQ clusterExport detectCores makeCluster 
+#' parLapply stopCluster
+#' @importFrom stats as.formula complete.cases formula makepredictcall 
+#' model.frame model.matrix na.omit na.pass pchisq plogis qnorm rbinom rexp 
+#' setNames terms
 #' @importFrom rlang .data
-#' @importFrom data.table data.table dcast  fifelse nafill
+#' @importFrom data.table data.table dcast fifelse is.data.table nafill
 #'   setDT setnames setorderv shift .N .SD :=
 #' @importFrom ggplot2 aes annotate coord_cartesian element_blank 
 #'  element_text facet_wrap geom_step geom_text geom_histogram geom_line
