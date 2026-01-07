@@ -277,7 +277,8 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
   var_all <- all.vars(fml_all)
   rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
-  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  if (length(rows_ok) == 0) 
+    stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
 
   # process covariate specifications
@@ -325,10 +326,10 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   if (length(vnames) > 0) {
     add_vars <- setdiff(vnames, varnames)
     if (length(add_vars) > 0) {
-      frame_df <- out$data_outcome
-      idx <- match(frame_df[[id]], df[[id]])
-      for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-      out$data_outcome <- frame_df
+      out$data_outcome <- merge_append(
+        A = out$data_outcome, B = dfu, 
+        by_vars = id, new_vars = add_vars,
+        overwrite = FALSE, first_match = FALSE)
     }
     
     del_vars <- setdiff(varnames, vnames)
@@ -365,10 +366,10 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     if (length(avars) > 0) {
       if (logistic_switching_model) {
         for (h in 1:K) {
-          frame_df <- out$data_switch[[h]]$data
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out$data_switch[[h]]$data <- frame_df
+          out$data_switch[[h]]$data <- merge_append(
+            A = out$data_switch[[h]]$data, B = data1, 
+            by_vars = c(id, "tstart", "tstop"), new_vars = avars,
+            overwrite = FALSE, first_match = FALSE)
         }
       } else {
         # replicate event times within each subject
@@ -378,10 +379,10 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
         data2$tstart = a1$start
         data2$tstop = a1$end
         for (h in 1:K) {
-          frame_df <- out$data_switch[[h]]$data
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out$data_switch[[h]]$data <- frame_df
+          out$data_switch[[h]]$data <- merge_append(
+            A = out$data_switch[[h]]$data, B = data2, 
+            by_vars = c(id, "tstart", "tstop"), new_vars = avars,
+            overwrite = FALSE, first_match = FALSE)
         }
       }
     }
@@ -397,11 +398,11 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   # convert treatment back to a factor variable if needed
   if (is.factor(data[[treat]])) {
     levs = levels(data[[treat]])
+    mf <- function(x) factor(x, levels = c(1,2), labels = levs)
     
-    mf <- function(x) if (is.null(x)) x else factor(x, levels = c(1,2), labels = levs)
-    
-    # apply mf to a set of named containers that are data.frames with a column named `treat`
-    for (nm in c("event_summary", "weight_summary", "data_outcome", "km_outcome")) {
+    # apply mf to a set of data.frames with a column named `treat`
+    for (nm in c("event_summary", "weight_summary", "data_outcome", 
+                 "km_outcome")) {
       out[[nm]][[treat]] <- mf(out[[nm]][[treat]])
     }
     
