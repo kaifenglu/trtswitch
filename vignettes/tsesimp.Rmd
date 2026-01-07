@@ -1,0 +1,116 @@
+---
+title: "Simple Two-Stage Estimation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Simple Two-Stage Estimation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(trtswitch)
+library(dplyr, warn.conflicts = FALSE)
+```
+
+# Introduction
+The two-stage estimation (TSE) approach first estimates the effect of treatment switching on survival, then uses this estimate to derive counterfactual survival times if switching had not occurred. A key requirement of the TSE approach is that treatment switching must occur at or after a disease-related "secondary baseline" time point, typically defined by disease progression.
+
+The TSE method assumes the no unmeasured confounding condition, meaning treatment switching must be independent of potential outcomes, provided all relevant patient characteristics at the secondary baseline are measured and included in the model. The simple TSE method further assumes that no time-dependent confounding exists between the secondary baseline and the time of switching.
+
+# Estimation of $\psi$
+The simple TSE method involves applying an accelerated failure time (AFT) model that compares post-progression survival in control group switchers with post-progression survival in control group non-switchers. Prognostic variables measured at the secondary baseline are included to account for differences between the groups. The treatment effect of switching is estimated as a time ratio and used to adjust the survival times of switchers.
+
+# Estimation of Hazard Ratio
+Once $\psi$ has been estimated, we can derive an adjusted data set and fit a (potentially stratified) Cox proportional hazards model to the adjusted data set to obtain an estimate of the hazard ratio. The confidence interval for the hazard ratio can be derived by bootstrapping the entire adjustment and subsequent model-fitting process.
+
+# Example
+We start by preparing the data.
+```{r data}
+# modify pd and dpd based on co and dco
+shilong <- shilong %>%
+  mutate(dpd = ifelse(co & !pd, dco, dpd),
+         pd = ifelse(co & !pd, 1, pd)) %>%
+  mutate(dpd = ifelse(pd & co & dco < dpd, dco, dpd))
+  
+# the eventual survival time
+shilong1 <- shilong %>%
+  arrange(bras.f, id, tstop) %>%
+  group_by(bras.f, id) %>%
+  slice(n()) %>%
+  select(-c("ps", "ttc", "tran"))
+
+# the last value of time-dependent covariates before pd
+shilong2 <- shilong %>%
+  filter(pd == 0 | tstart <= dpd) %>%
+  arrange(bras.f, id, tstop) %>%
+  group_by(bras.f, id) %>%
+  slice(n()) %>%
+  select(bras.f, id, ps, ttc, tran)
+
+# combine baseline and time-dependent covariates
+shilong3 <- shilong1 %>%
+  left_join(shilong2, by = c("bras.f", "id"))
+```
+
+Next we apply the simple TSE method. 
+```{r analysis}
+fit1 <- tsesimp(
+  data = shilong3, id = "id", time = "tstop", event = "event",
+  treat = "bras.f", censor_time = "dcut", pd = "pd",
+  pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
+  base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
+                "pathway.f"),
+  base2_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
+                "pathway.f", "ps", "ttc", "tran"),
+  aft_dist = "weibull", alpha = 0.05,
+  recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
+  boot = FALSE)
+```
+
+We can examine the Weibull AFT model fits and the corresponding value of $\hat{\psi}$. 
+```{r aft}
+# control group
+fit1$fit_aft[[1]]$fit$parest[, c("param", "beta", "sebeta", "z")]
+
+fit1$psi
+
+# experimental group
+fit1$fit_aft[[2]]$fit$parest[, c("param", "beta", "sebeta", "z")]
+
+fit1$psi_trt
+```
+
+Now we fit the outcome Cox model and compare the treatment hazard ratio estimate with the reported. 
+```{r cox}
+fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
+
+c(fit1$hr, fit1$hr_CI)
+```
+
+Finally, to ensure the uncertainty is accurately represented, the entire adjustment process and subsequent survival modeling can be bootstrapped.
+````{verbatim}
+
+```{r boot}
+fit2 <- tsesimp(
+  data = shilong3, id = "id", time = "tstop", event = "event",
+  treat = "bras.f", censor_time = "dcut", pd = "pd",
+  pd_time = "dpd", swtrt = "co", swtrt_time = "dco",
+  base_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
+                "pathway.f"),
+  base2_cov = c("agerand", "sex.f", "tt_Lnum", "rmh_alea.c",
+                "pathway.f", "ps", "ttc", "tran"),
+  aft_dist = "weibull", alpha = 0.05,
+  recensor = TRUE, swtrt_control_only = FALSE, offset = 1,
+  boot = TRUE, n_boot = 1000, seed = 12345)
+
+c(fit2$hr, fit2$hr_CI)
+```
+
+````

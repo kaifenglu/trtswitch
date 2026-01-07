@@ -1,5 +1,5 @@
-#' @name trtswitch2-package
-#' @aliases trtswitch2-package
+#' @name trtswitch-package
+#' @aliases trtswitch-package
 #' @title Treatment Switching
 #'
 #' @description Implements rank preserving structural failure time model 
@@ -75,7 +75,7 @@
 #' zidovudine on the survival of HIV-positive men. 
 #' Epidemiology. 2000;11(5):561-570.
 #'
-#' @useDynLib trtswitch2, .registration = TRUE
+#' @useDynLib trtswitch, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 #' @importFrom RcppParallel setThreadOptions
 #' @importFrom parallel clusterEvalQ clusterExport detectCores makeCluster 
