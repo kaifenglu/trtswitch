@@ -308,11 +308,11 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
     if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
-        for (frame_name in c("Sstar", "data_aft", "data_outcome")) {
-          frame_df <- out[[frame_name]]
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out[[frame_name]] <- frame_df
+        for (frame_name in c("Sstar", "data_outcome")) {
+          out[[frame_name]] <- merge_append(
+            A = out[[frame_name]],   B = df,
+            by_vars = id, new_vars = add_vars,
+            overwrite = FALSE, first_match = TRUE)
         }
       }
       
@@ -326,8 +326,11 @@ rpsftm <- function(data, id = "id", stratum = "", time = "time",
   
   if (is.factor(data[[treat]])) {
     levs <- levels(data[[treat]])
-    for (nm in c("event_summary", "Sstar", "kmstar", "data_outcome", "km_outcome")) {
-      out[[nm]][[treat]] <- factor(out[[nm]][[treat]], levels = c(1,2), labels = levs)
+    mf <- function(x) factor(x, levels = c(1,2), labels = levs)
+    
+    for (nm in c("event_summary", "Sstar", "kmstar", "data_outcome", 
+                 "km_outcome")) {
+      out[[nm]][[treat]] <- mf(out[[nm]][[treat]])
     }
   }
   

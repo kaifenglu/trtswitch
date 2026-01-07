@@ -48,7 +48,8 @@ print.ipe <- function(x, ...) {
   colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
   
   rownames(df2) <- c("Causal parameter psi", "Causal survival time ratio", 
-                     "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
+                     "Hazard ratio (HR)", 
+                     paste0("P-value", " (", x$pvalue_type, ")"))
   
   print(df2, ..., na.print = "" , quote = FALSE )
   

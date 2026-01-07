@@ -273,7 +273,8 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
   fml_all <- formula(paste("~", paste(elements, collapse = "+")))
   var_all <- all.vars(fml_all)
   rows_ok <- which(complete.cases(df[, var_all, drop = FALSE]))
-  if (length(rows_ok) == 0) stop("No complete cases found for the specified variables.")
+  if (length(rows_ok) == 0) 
+    stop("No complete cases found for the specified variables.")
   df <- df[rows_ok, , drop = FALSE]
   
   # process covariate specifications
@@ -308,10 +309,10 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
     if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
-        frame_df <- out$data_outcome
-        idx <- match(frame_df[[id]], df[[id]])
-        for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-        out$data_outcome <- frame_df
+        out$data_outcome <- merge_append(
+          A = out$data_outcome, B = df,
+          by_vars = id, new_vars = add_vars,
+          overwrite = FALSE, first_match = FALSE)
       }
       
       del_vars <- setdiff(varnames, vnames)
@@ -327,10 +328,10 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
       avars <- setdiff(add_vars, names(out$data_aft[[1]]$data))
       if (length(avars) > 0) {
         for (h in 1:K) {
-          frame_df <- out$data_aft[[h]]$data
-          idx <- match(frame_df[[id]], df[[id]])
-          for (var in add_vars) frame_df[[var]] <- df[[var]][idx]
-          out$data_aft[[h]]$data <- frame_df
+          out$data_aft[[h]]$data <- merge_append(
+            A = out$data_aft[[h]]$data, B = df,
+            by_vars = id, new_vars = avars,
+            overwrite = FALSE, first_match = FALSE)
         }
       }
       
@@ -346,15 +347,16 @@ tsesimp <- function(data, id = "id", stratum = "", time = "time",
   # convert treatment back to a factor variable if needed
   if (is.factor(data[[treat]])) {
     levs <- levels(data[[treat]])
-    mf <- function(x) if (is.null(x)) x else factor(x, levels = c(1,2), labels = levs)
+    mf <- function(x) factor(x, levels = c(1,2), labels = levs)
     
-    # apply mf to a set of named containers that are data.frames with a column named `treat`
+    # apply mf to a set of data.frames with a column named `treat`
     for (nm in c("event_summary", "data_outcome", "km_outcome")) {
       out[[nm]][[treat]] <- mf(out[[nm]][[treat]])
     }
     
     # and for the list-of-lists
-    out$data_aft <- lapply(out$data_aft, function(x) { x[[treat]] <- mf(x[[treat]]); x })
+    out$data_aft <- lapply(out$data_aft, function(x) { 
+      x[[treat]] <- mf(x[[treat]]); x })
   }
   
   out$settings <- list(

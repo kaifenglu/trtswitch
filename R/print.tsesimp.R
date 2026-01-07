@@ -24,7 +24,7 @@ print.tsesimp <- function(x, ...) {
     pvalue <- formatC(pvalue1, format = "f", digits = 4)
   }
   
-  df0 <- x$event_summary[,-1]
+  df0 <- x$event_summary[, -1]
   rownames(df0) <- c("Control", "Treatment")
   j0 <- grep("pct$", names(df0))
   df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
@@ -49,7 +49,8 @@ print.tsesimp <- function(x, ...) {
     colnames(df2) <- c("Estimate", paste("Lower", level), paste("Upper", level))
     
     rownames(df2) <- c("Causal parameter psi", "Causal survival time ratio", 
-                       "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
+                       "Hazard ratio (HR)", 
+                       paste0("P-value", " (", x$pvalue_type, ")"))
   } else {
     df1 <- data.frame(
       psi = c(x$psi, x$psi_CI[1], x$psi_CI[2]),
@@ -72,7 +73,8 @@ print.tsesimp <- function(x, ...) {
                        "Causal survival time ratio for control arm",
                        "Causal parameter psi for treatment arm",
                        "Causal survival time ratio for treatment arm",
-                       "Hazard ratio (HR)", paste0("P-value", " (", x$pvalue_type, ")"))
+                       "Hazard ratio (HR)", 
+                       paste0("P-value", " (", x$pvalue_type, ")"))
   }
   
   print(df2, ..., na.print = "" , quote = FALSE )

@@ -25,7 +25,7 @@ print.ipcw <- function(x, ...) {
     pvalue <- formatC(pvalue1, format = "f", digits = 4)
   }
   
-  df0 <- x$event_summary[,-1]
+  df0 <- x$event_summary[, -1]
   rownames(df0) <- c("Control", "Treatment")
   j0 <- grep("pct$", names(df0))
   df0[j0] <- lapply(df0[j0], formatC, format = "f", digits = 1)
