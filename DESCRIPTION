@@ -1,4 +1,4 @@
-Package: trtswitch2
+Package: trtswitch
 Type: Package
 Title: Treatment Switching
 Version: 0.2.3
@@ -23,6 +23,7 @@ Suggests:
     survival (>= 3.5-7),
     knitr (>= 1.45),
     rmarkdown (>= 2.25)
+VignetteBuilder: knitr
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 Encoding: UTF-8
@@ -31,4 +32,6 @@ Depends:
     R (>= 3.5)
 SystemRequirements: C++17    
 LazyData: true
+URL: https://github.com/kaifenglu/trtswitch
+BugReports: https://github.com/kaifenglu/trtswitch/issues
 Config/testthat/edition: 3
