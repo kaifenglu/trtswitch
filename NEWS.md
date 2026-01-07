@@ -3,7 +3,8 @@
 * added assess_phregr to assess the proportional hazards assumption for the Cox model using the supremum test of Lin et al. (1993)
 * added an internal data pbc for testing assess_phregr
 * updated the censoring of post switch survival times in ipcw and msm to be consistent with the swtrt_control_only parameter value
-
+* added zph_phregr to compute the Schoenfeld residuals and test statistics for the proportional hazards assumption for the Cox model
+* refactored the code in pure c++ and RcppParallel for core computations to improve computational speed
 
 # trtswitch 0.2.2
 
