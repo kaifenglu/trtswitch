@@ -23,6 +23,7 @@ struct ListCpp;
 #include <vector>      // vector
 
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
+inline constexpr double POS_INF = std::numeric_limits<double>::infinity();
 
 // --------------------------- Distribution helpers --------------------------
 double boost_pnorm(double q, double mean = 0.0, double sd = 1.0, 
@@ -64,6 +65,17 @@ std::vector<int> findInterval3(const std::vector<double>& x,
                                bool rightmost_closed = false,
                                bool all_inside = false,
                                bool left_open = false);
+
+// all_equal: check if all elements in v equal target within tolerance tol
+inline bool all_equal(const std::vector<double>& v, double target, double tol = 0.0) {
+  if (v.empty()) return true;              // mimic R: all(logical(0)) == TRUE
+  if (tol == 0.0) {
+    for (double x : v) if (!(x == target)) return false;
+  } else {
+    for (double x : v) if (std::fabs(x - target) > tol) return false;
+  }
+  return true;
+}
 
 // mean using Kahan summation for improved numerical stability
 inline double mean_kahan(const std::vector<double>& v) {

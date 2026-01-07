@@ -680,8 +680,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     }
                     
                     ListCpp fit1 = liferegcpp(
-                      data1, {""}, "pps", "", "event", covariates_aft, 
-                      "", "", "", dist, init, 0, 0, alpha);
+                      data1, {""}, "pps", "", "event", 
+                      covariates_aft, "", "", "", dist, init, 0, 0, alpha);
                     
                     DataFrameCpp sumstat1 = fit1.get<DataFrameCpp>("sumstat");
                     if (sumstat1.get<unsigned char>("fail")[0]) fail = true;
@@ -766,9 +766,9 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                       double c0 = std::min(1.0, a);
                       for (int i = 0; i < n; ++i) {
                         if (treatb[i] == h) {
-                          double b2, u_star, c_star;
+                          double u_star, c_star;
                           if (swtrtb[i] == 1) {
-                            b2 = pd_timeb[i] - offset;
+                            double b2 = pd_timeb[i] - offset;
                             u_star = b2 + (timeb[i] - b2) * a;
                           } else {
                             u_star = timeb[i];
@@ -821,8 +821,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                     
                     // fit the outcome model
                     fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", covariates, 
-                      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
                     
                     DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
                     if (sumstat.get<unsigned char>("fail")[0]) fail = true;
@@ -1045,12 +1045,18 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         const std::vector<uint64_t>& seeds;
         // function f and other params that f needs are captured from outer scope
         // capture them by reference here so worker can call f(...)
-        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<int>&, const std::vector<double>&,
-                              const std::vector<int>&, const std::vector<double>&, 
-                              const std::vector<int>&, const std::vector<double>&, 
-                              const FlatMatrix&, const FlatMatrix&, int)> f;
+        std::function<ListCpp(const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<int>&,
+                              const std::vector<int>&, 
+                              const std::vector<double>&,
+                              const std::vector<int>&, 
+                              const std::vector<double>&, 
+                              const std::vector<int>&, 
+                              const std::vector<double>&, 
+                              const FlatMatrix&, 
+                              const FlatMatrix&, int)> f;
         
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
@@ -1236,12 +1242,18 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
           n, ntss, tsx, idn, stratumn, timen, eventn, treatn, censor_timen,
           pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
-          std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                                const std::vector<double>&, const std::vector<int>&,
-                                const std::vector<int>&, const std::vector<double>&,
-                                const std::vector<int>&, const std::vector<double>&, 
-                                const std::vector<int>&, const std::vector<double>&, 
-                                const FlatMatrix&, const FlatMatrix&, int)>(f),
+          std::function<ListCpp(const std::vector<int>&, 
+                                const std::vector<int>&,
+                                const std::vector<double>&, 
+                                const std::vector<int>&,
+                                const std::vector<int>&, 
+                                const std::vector<double>&,
+                                const std::vector<int>&, 
+                                const std::vector<double>&, 
+                                const std::vector<int>&, 
+                                const std::vector<double>&, 
+                                const FlatMatrix&, 
+                                const FlatMatrix&, int)>(f),
                                 fails, hrhats, psihats, psi1hats
       );
       

@@ -65,8 +65,8 @@ double est_psi_rpsftm(
     
     std::vector<double> init(1, NaN);
     ListCpp fit = phregcpp(
-      Sstar, {"ustratum"}, "t_star", "", "d_star", covariates, 
-      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+      Sstar, {"ustratum"}, "t_star", "", "d_star", 
+      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
     
     DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
     if (!sumstat.get<unsigned char>("fail")[0]) {
@@ -82,8 +82,8 @@ double est_psi_rpsftm(
     
     std::vector<double> init(1, NaN);
     ListCpp fit = liferegcpp(
-      Sstar, {""}, "t_star", "", "d_star", covariates_aft, 
-      "", "", "", dist, init, 0, 0, alpha);
+      Sstar, {""}, "t_star", "", "d_star", 
+      covariates_aft, "", "", "", dist, init, 0, 0, alpha);
     
     DataFrameCpp sumstat = fit.get<DataFrameCpp>("sumstat");
     if (!sumstat.get<unsigned char>("fail")[0]) {
@@ -413,7 +413,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) 
+        zn_col[i] = z_aftn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
       std::memcpy(zn_col, vd.data(), n * sizeof(double));
@@ -708,13 +709,14 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                         data_outcome, {"treated"}, "t_star", "", "d_star", 
                         "", "log-log", 1.0 - alpha, 1);
                       lr_outcome = lrtestcpp(
-                        data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
+                        data_outcome, {"ustratum"}, "treated", 
+                        "t_star", "", "d_star");
                     }
                     
                     // fit the outcome model
                     fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", covariates, 
-                      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
                     
                     DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
                     if (sumstat.get<unsigned char>("fail")[0]) fail = true;
@@ -971,10 +973,14 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         const std::vector<uint64_t>& seeds;
         // function f and other params that f needs are captured from outer scope
         // capture them by reference here so worker can call f(...)
-        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<int>&, const std::vector<double>&,
-                              const std::vector<double>&, const FlatMatrix&, 
+        std::function<ListCpp(const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<int>&,
+                              const std::vector<int>&, 
+                              const std::vector<double>&,
+                              const std::vector<double>&, 
+                              const FlatMatrix&, 
                               const FlatMatrix&, int)> f;
         
         // result references (each iteration writes unique index into these)
@@ -1018,11 +1024,12 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           timen(timen_), eventn(eventn_), treatn(treatn_), rxn(rxn_),
           censor_timen(censor_timen_), zn(zn_), z_aftn(z_aftn_),
           seeds(seeds_), f(std::move(f_)),
-          fails_out(fails_out_), hrhats_out(hrhats_out_), psihats_out(psihats_out_) {
+          fails_out(fails_out_), hrhats_out(hrhats_out_), 
+          psihats_out(psihats_out_) {
           // heuristic reservation to reduce reallocations:
           int ncols_aft = z_aftn.ncol;
           z_aftc_local.resize(static_cast<std::size_t>(ncols_aft));
-          // reserve some capacity per column. This is a heuristic; adjust if needed.
+          // reserve some capacity per column. This is a heuristic.
           std::size_t per_col_reserve = static_cast<std::size_t>(10 * n);
           for (int col = 0; col < ncols_aft; ++col) 
             z_aftc_local[col].reserve(per_col_reserve);
@@ -1088,8 +1095,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             } // end block sampling
             
             // call the (thread-safe) per-iteration function f
-            ListCpp out = f(idb, stratumb, timeb, eventb, treatb, rxb, censor_timeb, 
-                            zb, z_aftb, static_cast<int>(k));
+            ListCpp out = f(idb, stratumb, timeb, eventb, treatb, rxb, 
+                            censor_timeb, zb, z_aftb, static_cast<int>(k));
             
             // write results
             fails_out[k] = out.get<bool>("fail");
@@ -1099,7 +1106,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             // if this bootstrap iteration failed, collect the bootstrap data 
             // into per-worker storage
             if (fails_out[k]) {
-              append(boot_indexc_local, std::vector<int>(n, static_cast<int>(k + 1)));
+              append(boot_indexc_local, std::vector<int>(n, static_cast<int>(k+1)));
               append(oidc_local, oidb);
               append(idc_local, idb);
               append(stratumc_local, stratumb);
@@ -1136,10 +1143,14 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           n, ntss, tsx, idn, stratumn, timen, eventn, treatn, rxn, 
           censor_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
-          std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                                const std::vector<double>&, const std::vector<int>&,
-                                const std::vector<int>&, const std::vector<double>&,
-                                const std::vector<double>&, const FlatMatrix&, 
+          std::function<ListCpp(const std::vector<int>&, 
+                                const std::vector<int>&,
+                                const std::vector<double>&, 
+                                const std::vector<int>&,
+                                const std::vector<int>&, 
+                                const std::vector<double>&,
+                                const std::vector<double>&, 
+                                const FlatMatrix&, 
                                 const FlatMatrix&, int)>(f),
                                 fails, hrhats, psihats
       );

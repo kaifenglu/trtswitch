@@ -79,7 +79,8 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
   }
   
   if (p > 0) {
-    if (p2 == 0) throw std::invalid_argument("base_cov must be a subset of denominator");
+    if (p2 == 0) 
+      throw std::invalid_argument("base_cov must be a subset of denominator");
     
     std::unordered_set<std::string> denom_set;
     denom_set.reserve(denominator.size());
@@ -1351,11 +1352,16 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
       
       // function f and other params that f needs are captured from outer scope
       // capture them by reference here so worker can call f(...)
-      std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                            const std::vector<double>&, const std::vector<double>&,
-                            const std::vector<int>&, const std::vector<int>&,
-                            const std::vector<double>&, const std::vector<int>&,
-                            const std::vector<double>&, const FlatMatrix&,
+      std::function<ListCpp(const std::vector<int>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const std::vector<double>&,
+                            const std::vector<int>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const FlatMatrix&,
                             const FlatMatrix&, int)> f;
       
       // result references (each iteration writes unique index into these)
@@ -1442,9 +1448,10 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
         int ncols_z = zn.ncol, ncols_lgs = z_lgs_denn.ncol;
         zb_cols.resize(ncols_z); z_lgs_denb_cols.resize(ncols_lgs);
         
-        oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); tstartb.reserve(n);
-        tstopb.reserve(n); eventb.reserve(n); treatb.reserve(n); osb.reserve(n);
-        os_timeb.reserve(n); swtrtb.reserve(n); swtrt_timeb.reserve(n);
+        oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); 
+        tstartb.reserve(n); tstopb.reserve(n); eventb.reserve(n); 
+        treatb.reserve(n); osb.reserve(n); os_timeb.reserve(n); 
+        swtrtb.reserve(n); swtrt_timeb.reserve(n);
         for (int col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
         for (int col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].reserve(n);
         
@@ -1560,11 +1567,16 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
         n, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn,
         osn, os_timen, swtrtn, swtrt_timen, zn, z_lgs_denn, seeds,
         // bind f into std::function (capture the f we already have)
-        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<double>&,
-                              const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<double>&, const FlatMatrix&,
+        std::function<ListCpp(const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<double>&,
+                              const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const FlatMatrix&,
                               const FlatMatrix&, int)>(f),
                               fails, hrhats
     );

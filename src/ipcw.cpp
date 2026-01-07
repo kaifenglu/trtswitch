@@ -79,7 +79,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   
   if (p > 0) {
-    if (p2 == 0) throw std::invalid_argument("base_cov must be a subset of denominator");
+    if (p2 == 0) 
+      throw std::invalid_argument("base_cov must be a subset of denominator");
     
     std::unordered_set<std::string> denom_set;
     denom_set.reserve(denominator.size());
@@ -887,7 +888,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::vector<int> treat21 = subset(treat1, start, n1);
                       std::vector<int> cross21 = subset(cross1, start, n1);
                       FlatMatrix z21 = subset_flatmatrix(z1, start, n1);
-                      FlatMatrix z_cox_den21 = subset_flatmatrix(z_cox_den1, start, n1);
+                      FlatMatrix z_cox_den21 = 
+                        subset_flatmatrix(z_cox_den1, start, n1);
                       int n21 = n1 - start;
                       
                       // combine weighted control with unweighted active data
@@ -925,7 +927,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       std::vector<double> tstart3 = subset(tstart2, start, end);
                       std::vector<double> tstop3 = subset(tstop2, start, end);
                       std::vector<int> cross3 = subset(cross2, start, end);
-                      FlatMatrix z_cox_den3 = subset_flatmatrix(z_cox_den2, start, end);
+                      FlatMatrix z_cox_den3 = 
+                        subset_flatmatrix(z_cox_den2, start, end);
                       int n3 = end - start;
                       
                       // prepare the data for fitting the switching model
@@ -944,8 +947,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       
                       // fit the denominator model for crossover
                       ListCpp fit_den = phregcpp(
-                        data1, {"ustratum"}, "tstart", "tstop", "cross", denominator, 
-                        "", "", "uid", ties, init, 0, 1, 0, 0, 0, alpha);
+                        data1, {"ustratum"}, "tstart", "tstop", "cross", 
+                        denominator, "", "", "uid", ties, init, 0, 1, 0, 0, 0, alpha);
                       
                       // obtain the survival probabilities for crossover
                       DataFrameCpp sumstat_den = fit_den.get<DataFrameCpp>("sumstat");
@@ -957,20 +960,21 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       DataFrameCpp basehaz_den = fit_den.get<DataFrameCpp>("basehaz");
                       
                       DataFrameCpp km_den = survfit_phregcpp(
-                        p2, beta_den, vbeta_den, basehaz_den, data1, denominator, 
-                        {"ustratum"}, "", "uid", "tstart", "tstop", 0, "log-log", 
-                        1.0 - alpha);
+                        p2, beta_den, vbeta_den, basehaz_den, data1, 
+                        denominator, {"ustratum"}, "", "uid", "tstart", 
+                        "tstop", 0, "log-log", 1.0 - alpha);
                       std::vector<double> surv_den = km_den.get<double>("surv");
                       
                       ListCpp fit_num = phregcpp(
-                        data1, {"ustratum"}, "tstart", "tstop", "cross", numerator, 
-                        "", "", "uid", ties, init, 0, 1, 0, 0, 0, alpha);
+                        data1, {"ustratum"}, "tstart", "tstop", "cross", 
+                        numerator, "", "", "uid", ties, init, 0, 1, 0, 0, 0, alpha);
                       
                       int p10 = (p1 > 0) ? p1 : 1;
                       std::vector<double> beta_num(p10);
                       FlatMatrix vbeta_num(p10,p10);
                       if (p1 > 0) {
-                        DataFrameCpp sumstat_num = fit_num.get<DataFrameCpp>("sumstat");
+                        DataFrameCpp sumstat_num = 
+                          fit_num.get<DataFrameCpp>("sumstat");
                         if (sumstat_num.get<unsigned char>("fail")[0]) fail = true;
                         
                         DataFrameCpp parest_num = fit_num.get<DataFrameCpp>("parest");
@@ -980,9 +984,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       DataFrameCpp basehaz_num = fit_num.get<DataFrameCpp>("basehaz");
                       
                       DataFrameCpp km_num = survfit_phregcpp(
-                        p1, beta_num, vbeta_num, basehaz_num, data1, numerator, 
-                        {"ustratum"}, "", "uid", "tstart", "tstop", 0, "log-log", 
-                        1.0 - alpha);
+                        p1, beta_num, vbeta_num, basehaz_num, data1, 
+                        numerator, {"ustratum"}, "", "uid", "tstart", 
+                        "tstop", 0, "log-log", 1.0 - alpha);
                       std::vector<double> surv_num = km_num.get<double>("surv");
                       
                       // update data_switch and fit_switch
@@ -1377,8 +1381,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                   
                   // fit the outcome model with weights
                   ListCpp fit_outcome = phregcpp(
-                    data_outcome, {"ustratum"}, "tstart", "tstop", "event", covariates, 
-                    weight_variable, "", "uid", ties, init, 1, 0, 0, 0, 0, alpha);
+                    data_outcome, {"ustratum"}, "tstart", "tstop", "event", 
+                    covariates, weight_variable, "", "uid", ties, init, 
+                    1, 0, 0, 0, 0, alpha);
                   
                   DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
                   if (sumstat.get<unsigned char>("fail")[0]) fail = true;
@@ -1615,12 +1620,18 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       
       // function f and other params that f needs are captured from outer scope
       // capture them by reference here so worker can call f(...)
-      std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                            const std::vector<double>&, const std::vector<double>&,
-                            const std::vector<int>&, const std::vector<int>&,
-                            const std::vector<double>&, const std::vector<int>&,
-                            const std::vector<double>&, const FlatMatrix&,
-                            const FlatMatrix&, const FlatMatrix&, int)> f;
+      std::function<ListCpp(const std::vector<int>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const std::vector<double>&,
+                            const std::vector<int>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const std::vector<int>&,
+                            const std::vector<double>&, 
+                            const FlatMatrix&,
+                            const FlatMatrix&, 
+                            const FlatMatrix&, int)> f;
       
       // result references (each iteration writes unique index into these)
       std::vector<unsigned char>& fails_out;
@@ -1710,9 +1721,10 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         zb_cols.resize(ncols_z); z_cox_denb_cols.resize(ncols_cox);
         z_lgs_denb_cols.resize(ncols_lgs);
         
-        oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); tstartb.reserve(n);
-        tstopb.reserve(n); eventb.reserve(n); treatb.reserve(n); osb.reserve(n);
-        os_timeb.reserve(n); swtrtb.reserve(n); swtrt_timeb.reserve(n);
+        oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); 
+        tstartb.reserve(n); tstopb.reserve(n); eventb.reserve(n); 
+        treatb.reserve(n); osb.reserve(n); os_timeb.reserve(n); 
+        swtrtb.reserve(n); swtrt_timeb.reserve(n);
         for (int col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
         for (int col = 0; col < ncols_cox; ++col) z_cox_denb_cols[col].reserve(n);
         for (int col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].reserve(n);
@@ -1834,12 +1846,18 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         n, nids, ntss, idx, tsx, idn, stratumn, tstartn, tstopn, eventn, treatn, 
         osn, os_timen, swtrtn, swtrt_timen, zn, z_cox_denn, z_lgs_denn, seeds,
         // bind f into std::function (capture the f we already have)
-        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<double>&,
-                              const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<double>&, const FlatMatrix&,
-                              const FlatMatrix&, const FlatMatrix&, int)>(f),
+        std::function<ListCpp(const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<double>&,
+                              const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const FlatMatrix&,
+                              const FlatMatrix&, 
+                              const FlatMatrix&, int)>(f),
                               fails, hrhats
     );
     

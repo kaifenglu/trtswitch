@@ -693,7 +693,7 @@ DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
   std::vector<int> interval(n2);
   std::vector<double> start(n2);
   std::vector<double> end(n2);
-  std::vector<int> censor(n2, 0);
+  std::vector<int> censor(n2);
   int k = 0;
   for (int i = 0; i < n; ++i) {
     if (std::isnan(tstart[i]) || std::isnan(tstop[i])) {

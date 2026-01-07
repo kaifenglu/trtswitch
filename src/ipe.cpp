@@ -50,8 +50,8 @@ ListCpp est_psi_ipe(
   
   std::vector<double> init(1, NaN);
   ListCpp fit = liferegcpp(
-    df, {""}, "t_star", "", "d_star", covariates_aft, 
-    "", "", "", dist, init, 0, 0, alpha);
+    df, {""}, "t_star", "", "d_star", 
+    covariates_aft, "", "", "", dist, init, 0, 0, alpha);
   
   DataFrameCpp sumstat =  fit.get<DataFrameCpp>("sumstat");
   bool fail = sumstat.get<unsigned char>("fail")[0];
@@ -384,7 +384,8 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
       for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = z_aftn_col[i] = static_cast<double>(vi[i]);
+      for (int i = 0; i < n; ++i) 
+        zn_col[i] = z_aftn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
       std::memcpy(zn_col, vd.data(), n * sizeof(double));
@@ -600,13 +601,14 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
                         data_outcome, {"treated"}, "t_star", "", "d_star", 
                         "", "log-log", 1.0 - alpha, 1);
                       lr_outcome = lrtestcpp(
-                        data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
+                        data_outcome, {"ustratum"}, "treated", "t_star", 
+                        "", "d_star");
                     }
                     
                     // fit the outcome model
                     fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", covariates, 
-                      "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
                     
                     DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
                     if (sumstat.get<unsigned char>("fail")[0]) fail = true;
@@ -902,10 +904,14 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
         const std::vector<uint64_t>& seeds;
         // function f and other params that f needs are captured from outer scope
         // capture them by reference here so worker can call f(...)
-        std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                              const std::vector<double>&, const std::vector<int>&,
-                              const std::vector<int>&, const std::vector<double>&,
-                              const std::vector<double>&, const FlatMatrix&, 
+        std::function<ListCpp(const std::vector<int>&, 
+                              const std::vector<int>&,
+                              const std::vector<double>&, 
+                              const std::vector<int>&,
+                              const std::vector<int>&, 
+                              const std::vector<double>&,
+                              const std::vector<double>&, 
+                              const FlatMatrix&, 
                               const FlatMatrix&, int)> f;
         
         // result references (each iteration writes unique index into these)
@@ -1066,10 +1072,14 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
           n, ntss, tsx, idn, stratumn, timen, eventn, treatn, rxn, 
           censor_timen, zn, z_aftn, seeds,
           // bind f into std::function (capture the f we already have)
-          std::function<ListCpp(const std::vector<int>&, const std::vector<int>&,
-                                const std::vector<double>&, const std::vector<int>&,
-                                const std::vector<int>&, const std::vector<double>&,
-                                const std::vector<double>&, const FlatMatrix&, 
+          std::function<ListCpp(const std::vector<int>&, 
+                                const std::vector<int>&,
+                                const std::vector<double>&, 
+                                const std::vector<int>&,
+                                const std::vector<int>&, 
+                                const std::vector<double>&,
+                                const std::vector<double>&, 
+                                const FlatMatrix&, 
                                 const FlatMatrix&, int)>(f),
                                 fails, hrhats, psihats
       );
