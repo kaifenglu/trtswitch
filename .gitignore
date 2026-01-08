@@ -11,10 +11,6 @@ R/RcppExports.R
 src/RcppExports.cpp
 man/
 trtswitch2.Rproj
+literature/
 /doc/
 /Meta/
-^\\.git$
-^\\.github$
-^\\.Rcheck$
-^literature/
-^vignettes/\\.gitignore$
