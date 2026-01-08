@@ -3,4 +3,4 @@
 notes
 literature
 data-raw
-^\\.github$
+.github
