@@ -3,7 +3,7 @@ Type: Package
 Title: Treatment Switching
 Version: 0.2.3
 Authors@R: 
-    person("Kaifeng", "Lu", , "kaifenglu@gmail.com", role = c("aut", "cre"),
+    person("Kaifeng", "Lu", , "kaifenglu@gmail.com", role = c("aut", "cre", "m"),
            comment = c(ORCID = "0000-0002-6160-7119"))
 Description: Implements rank preserving structural failure time model (RPSFTM), iterative parameter estimation (IPE), inverse probability of censoring weights (IPCW), marginal structural model (MSM), simple two-stage estimation (TSEsimp), and improved two-stage estimation with g-estimation (TSEgest) methods for treatment switching in randomized clinical trials.
 License: GPL (>= 2)
