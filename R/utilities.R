@@ -147,3 +147,27 @@ merge_append <- function(A, B, by_vars, new_vars,
 survsplit <- function(tstart, tstop, cut) {
   survsplitRcpp(tstart, tstop, cut)
 }
+
+# LOCF within each id and paramcd
+locf_safe <- function(x) {
+  v <- !is.na(x)
+  # Find indices of non-NA values
+  idx <- which(v)
+  
+  # If no non-NA values exist, or the first value is already the only value
+  if (length(idx) == 0) return(x)
+  
+  # Identify where the first non-NA value starts
+  first_val_idx <- idx[1]
+  
+  # For indices before the first non-NA, keep them as NA
+  # For indices after, use the cumulative sum to find the latest non-NA
+  res <- x
+  if (length(idx) > 0) {
+    # Generate mapping: 0 for leading NAs, then 1, 1, 2, 3...
+    vv <- cumsum(v)
+    # Subset only the portion from the first non-NA onwards
+    res[first_val_idx:length(x)] <- x[idx[vv[first_val_idx:length(x)]]]
+  }
+  return(res)
+}
