@@ -1,8 +1,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-notes
-literature
-data-raw
-.github
+^.notes$
+^.data-raw$
+^.github$
+^literature$
 ^doc$
 ^Meta$
