@@ -138,8 +138,18 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
                  all.y = TRUE)
   
   data.table::setorderv(data3, c(id, paramcd, "adt2"))
-  data3[, `:=`(temp_col = locf_safe(.SD[[aval]])),  
-               by = c(id, paramcd), .SDcols = aval]
+  
+  
+  data_list <- split(data3, by = c(id, paramcd))
+  
+  data_list <- lapply(data_list, function(sub) {
+    # Perform assignment in standard R context
+    sub[, `:=`(temp_col = locf_safe(get(aval)))]
+    return(sub)
+  })
+  
+  data3 <- data.table::rbindlist(data_list)
+  
   data3[[aval]] <- NULL
   data.table::setnames(data3, "temp_col", aval)
   
