@@ -171,9 +171,15 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   # time-dependent covariate values at tstart
   # last interval ends with osdt     
   data5[, `:=`(tstart = get("ady"))]
-  data5[, `:=`(tstop = data.table::shift(get("ady"), type = "lead")), by = id]
-  data5[, `:=`(tstop = data.table::fifelse(is.na(get("tstop")), 
-                                           get("osdy"), get("tstop")))]
+  
+  data_list <- split(data5, by = id)
+  data_list <- lapply(data_list, function(sub) {
+    # Perform assignment in standard R context
+    tstop <- data.table::shift(sub$ady, type = "lead")
+    sub$tstop <- data.table::fifelse(is.na(tstop), sub$osdy, tstop)
+    return(sub)
+  })
+  data5 <- data.table::rbindlist(data_list)
   
   # create event
   data5[, `:=`(event = data.table::fifelse(
