@@ -139,7 +139,7 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   # LOCF within each id and paramcd
   data.table::setorderv(data3, c(id, paramcd, "adt2"))
-  data3[, `:=`(temp_col = zoo::na.locf(get(aval), na.rm = FALSE)), 
+  data3[, `:=`(temp_col = data.table::nafill(as.vector(get(aval)), type = "locf")), 
         by = c(id, paramcd)]
   data3[[aval]] <- NULL
   data.table::setnames(data3, "temp_col", aval)
