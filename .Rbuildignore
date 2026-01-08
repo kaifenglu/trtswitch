@@ -1,10 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^notes/
 ^\.git$
-^\..Rcheck$
 ^\.gitignore$
-^data-raw/
-^literature/
-^doc/
-^Meta/
+^\.\.Rcheck$
+^data-raw$
+^notes$
