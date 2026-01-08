@@ -1,9 +1,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^notes/
-^\.git/
-^\.github/
-^\.Rcheck/
+^\\.git$
+^\\.github$
 ^data-raw/
 ^literature/
 ^doc/
