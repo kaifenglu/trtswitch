@@ -1,6 +1,8 @@
 #include <RcppThread.h>
 #include <Rcpp.h>
 
+#include <boost/random.hpp>
+
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
@@ -504,11 +506,11 @@ DataFrameCpp kmestcpp(const DataFrameCpp& data,
   int i1 = 0;                 // index for removing out-of-risk subjects
   
   int stratum_size = 0;
-  std::vector<int> stratum0, size00;
+  std::vector<int> stratum0, size00(n);
   std::vector<double> time0, nrisk0, nriskw0, nriskw20;
   std::vector<double> nevent0, neventw0, ncensor0;
-  stratum0.reserve(n); size00.reserve(n); 
-  time0.reserve(n); nrisk0.reserve(n); nriskw0.reserve(n); nriskw20.reserve(n);
+  stratum0.reserve(n); time0.reserve(n); 
+  nrisk0.reserve(n); nriskw0.reserve(n); nriskw20.reserve(n);
   nevent0.reserve(n); neventw0.reserve(n); ncensor0.reserve(n);
   
   for (int i = 0; i < n; ) {
@@ -8313,8 +8315,8 @@ ListCpp assess_phregcpp(const int p,
                         const int resample,
                         const int seed) {
   
-  std::mt19937_64 rng(seed);  // choose generator and seed
-  std::normal_distribution<double> dist(0.0, 1.0);
+  boost::random::mt19937_64 rng(seed);
+  boost::random::normal_distribution<double> dist(0.0, 1.0);
   
   if (p <= 0) {
     throw std::invalid_argument(

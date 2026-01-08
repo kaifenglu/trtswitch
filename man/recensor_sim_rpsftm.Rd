@@ -104,8 +104,7 @@ the confidence interval is matched to the log-rank p-value.}
 \item{n_boot}{Number of bootstrap samples, used only if
 \code{boot = TRUE}.}
 
-\item{seed}{Optional. Random seed for reproducibility. If not provided,
-the global seed is used.}
+\item{seed}{Optional. Random seed for reproducibility.}
 }
 \value{
 A data frame summarizing the simulation results, including:

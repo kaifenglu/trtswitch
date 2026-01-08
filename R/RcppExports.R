@@ -73,8 +73,7 @@ msmcpp <- function(df, id, stratum, tstart, tstop, event, treat, swtrt, swtrt_ti
 #'   the confidence interval is matched to the log-rank p-value.
 #' @param n_boot Number of bootstrap samples, used only if 
 #'   \code{boot = TRUE}.
-#' @param seed Optional. Random seed for reproducibility. If not provided, 
-#'   the global seed is used.
+#' @param seed Optional. Random seed for reproducibility. 
 #'
 #' @return A data frame summarizing the simulation results, including:
 #' \itemize{

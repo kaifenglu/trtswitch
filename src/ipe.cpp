@@ -2,6 +2,8 @@
 #include <RcppThread.h>
 #include <Rcpp.h>
 
+#include <boost/random.hpp>
+
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
@@ -885,9 +887,9 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
       
       // Before running the parallel loop: pre-generate deterministic seeds
       std::vector<uint64_t> seeds(n_boot);
-      std::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
+      boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
       for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
-
+      
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
       struct BootstrapWorker : public RcppParallel::Worker {
         // references to read-only inputs (no mutation)
@@ -992,7 +994,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
             for (int h = 0; h < ntss; ++h) {
               int start = tsx[h], end = tsx[h + 1];
               int len = end - start;
-              std::uniform_int_distribution<int> index_dist(0, len - 1);
+              boost::random::uniform_int_distribution<int> index_dist(0, len - 1);
               
               std::vector<int> indices(len);
               for (int i = start; i < end; ++i) {

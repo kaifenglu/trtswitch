@@ -15,8 +15,8 @@ preptdc(
   osdt = "OSDT",
   died = "DIED",
   dcutdt = "DCUTDT",
-  adt = "ADT",
   paramcd = "PARAMCD",
+  adt = "ADT",
   aval = "AVAL",
   nodup = TRUE,
   offset = TRUE
@@ -26,8 +26,8 @@ preptdc(
 \item{adsl}{A data set containing baseline subject-level information.
 It should include, at a minimum, subject ID (\code{id}),
 randomization date (\code{randdt}), treatment start date (\code{trtsdt}),
-survival outcome (\code{osdt}, \code{died}), progression date (\code{pddt}),
-treatment switch date (\code{xodt}), and data cut-off date (\code{dcutdt}).}
+progression date (\code{pddt}), treatment switch date (\code{xodt}),
+survival outcome (\code{osdt}, \code{died}), and data cut-off date (\code{dcutdt}).}
 
 \item{adtdc}{A data set containing longitudinal
 time-dependent covariate data, with subject ID (\code{id}),
@@ -57,11 +57,11 @@ indicator (0 = alive/censored, 1 = died).}
 \item{dcutdt}{Character string specifying the column name for data
 cut-off date.}
 
-\item{adt}{Character string specifying the column name for analysis
-date in the time-dependent covariate dataset.}
-
 \item{paramcd}{Character string specifying the column name for parameter
 code (identifying different covariates).}
+
+\item{adt}{Character string specifying the column name for analysis
+date in the time-dependent covariate dataset.}
 
 \item{aval}{Character string specifying the column name for analysis
 value (covariate values).}
@@ -103,7 +103,9 @@ and \code{randdt} if \code{adt <= trtsdt} (i.e., baseline time point).
 This ensures that the baseline covariate value is the last
 non-missing value at or before the treatment start date.
 Post-baseline covariate values are anchored at their actual
-analysis dates.
+analysis dates. The first record per subject corresponds to
+survival time zero at randomization and ensures availability
+of baseline covariates at randomization.
 \item Keep the last record per subject, \code{adt2}, and \code{paramcd}.
 \item Construct a complete skeleton so all covariates are present
 for each subject and time point.

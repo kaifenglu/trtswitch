@@ -1,5 +1,7 @@
 #include <Rcpp.h>
 
+#include <boost/random.hpp>
+
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
@@ -189,12 +191,12 @@ Rcpp::List tsegestsim(const int n = 500,
                       const int seed = 0) {
   
   // random number generator
-  std::mt19937_64 rng(seed);
+  boost::random::mt19937_64 rng(seed);
   
   // distributions reused
-  std::uniform_real_distribution<double> unif(0.0, 1.0);
-  std::gamma_distribution<double> ga(5, 1.0);  // shape = 5, scale = 1
-  std::gamma_distribution<double> gb(10, 1.0); // shape = 10, scale = 1
+  boost::random::uniform_real_distribution<double> unif(0.0, 1.0);
+  boost::random::gamma_distribution<double> ga(5, 1.0);  // shape = 5, scale = 1
+  boost::random::gamma_distribution<double> gb(10, 1.0); // shape = 10, scale = 1
   
   // survival function of the Weibull mixture
   auto S = [shape1, scale1, shape2, scale2, pmix](double t) -> double {

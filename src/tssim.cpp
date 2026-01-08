@@ -1,5 +1,7 @@
 #include <Rcpp.h>
 
+#include <boost/random.hpp>
+
 #include "utilities.h"
 #include "dataframe_list.h"
 
@@ -364,10 +366,11 @@ Rcpp::List tssim(const bool tdxo = false,
   if (NSim <= 0) throw std::invalid_argument("NSim must be positive");
   
   // random number generator
-  std::mt19937_64 rng(seed);
-
+  boost::random::mt19937_64 rng(seed);
+  
   // distributions reused
-  std::uniform_real_distribution<double> unif(0.0, 1.0);
+  boost::random::uniform_real_distribution<double> unif(0.0, 1.0);
+  boost::random::exponential_distribution<double> expo(1.0);
   
   int maxFollowup = static_cast<int>(std::ceil(plannedTime / days));
   int K = n * maxFollowup;
@@ -389,27 +392,23 @@ Rcpp::List tssim(const bool tdxo = false,
       int id = i;
       
       // generate accrual time
-      double u = unif(rng);
-      enrollt = qtpwexpcpp1(u, accTime, accRate, enrollt, 1, 0);
+      enrollt = qtpwexpcpp1(unif(rng), accTime, accRate, enrollt, 1, 0);
       double arrivalTime = std::ceil(enrollt);
       
       // stratified block randomization
       // stratified block randomization
-      u = unif(rng);
       int trtrand;
-      if (u <= b1 / (b1 + b2)) { trtrand = 1; b1 -= 1.0; }
+      if (unif(rng) <= b1 / (b1 + b2)) { trtrand = 1; b1 -= 1.0; }
       else { trtrand = 0; b2 -= 1.0; }
       if (b1 == 0.0 && b2 == 0.0) { b1 = allocation1; b2 = allocation2; }
       
       // baseline prognostic bprog (Bernoulli)
       double p_bprog = (trtrand == 1) ? p_X_1 : p_X_0;
-      u = unif(rng);
-      int bprog = (u <= p_bprog) ? 1 : 0;
+      int bprog = (unif(rng) <= p_bprog) ? 1 : 0;
       
       // event time T from exponential with rate = rate_T * exp(...)
       double rate_this = rate_T * std::exp(beta1 * trtrand + beta2 * bprog);
-      u = unif(rng);
-      double T = std::round(-std::log(u)/rate_this);
+      double T = std::round(expo(rng) / rate_this);
       if (T == 0.0) T = 1.0;
       
       // follow-up and cycles as before...
@@ -431,8 +430,7 @@ Rcpp::List tssim(const bool tdxo = false,
         // generate time-dependent covariate
         double probL = boost_plogis(gamma0 + gamma1 * Alag + gamma2 * Llag +
                                     gamma3 * bprog + gamma4 * trtrand);
-        u = unif(rng);
-        L = (u <= probL) ? 1 : 0;
+        L = (unif(rng) <= probL) ? 1 : 0;
         
         double tstop;
         int event;
@@ -446,8 +444,7 @@ Rcpp::List tssim(const bool tdxo = false,
           if (Zlag == 0) {
             double probZ = boost_plogis(zeta0 + zeta1 * L + zeta2 * bprog + 
                                         zeta3 * trtrand);
-            u = unif(rng);
-            Z = (u <= probZ) ? 1 : 0;
+            Z = (unif(rng) <= probZ) ? 1 : 0;
           } else {
             Z = 1;
           }
@@ -459,8 +456,7 @@ Rcpp::List tssim(const bool tdxo = false,
                                          ((coxo == 1 && trtrand == 0) || (coxo == 0));
             if (condition_for_switch) {
               double probA = boost_plogis(alpha0 + alpha1 * L + alpha2 * bprog);
-              u = unif(rng);
-              A = (u <= probA) ? 1 : 0;
+              A = (unif(rng) <= probA) ? 1 : 0;
             } else {
               A = 0;
             }
@@ -498,8 +494,7 @@ Rcpp::List tssim(const bool tdxo = false,
       }
       
       // generate random censoring due to dropout
-      u = unif(rng);
-      double C = std::round(-std::log(u)/rate_C);
+      double C = std::round(expo(rng) / rate_C);
       if (C == 0.0) C = 1.0;
       double time = std::min({T, C, fu});
       
@@ -522,8 +517,7 @@ Rcpp::List tssim(const bool tdxo = false,
         tstopx[k] = time;
         double probL_final = boost_plogis(gamma0 + gamma1 * Alag + gamma2 * Llag 
                                             + gamma3 * bprog + gamma4 * trtrand);
-        u = unif(rng);
-        Lx[k] = (u <= probL_final) ? 1 : 0;
+        Lx[k] = (unif(rng) <= probL_final) ? 1 : 0;
         Llagx[k] = L;
         Zx[k] = INT_MIN;
         Zlagx[k] = Z;

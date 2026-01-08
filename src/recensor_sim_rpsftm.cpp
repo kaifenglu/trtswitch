@@ -1,6 +1,8 @@
 #include <RcppThread.h>
 #include <Rcpp.h>
 
+#include <boost/random.hpp>
+
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
@@ -381,8 +383,7 @@ double f_est_psi_rpsftm(
 //'   the confidence interval is matched to the log-rank p-value.
 //' @param n_boot Number of bootstrap samples, used only if 
 //'   \code{boot = TRUE}.
-//' @param seed Optional. Random seed for reproducibility. If not provided, 
-//'   the global seed is used.
+//' @param seed Optional. Random seed for reproducibility. 
 //'
 //' @return A data frame summarizing the simulation results, including:
 //' \itemize{
@@ -453,12 +454,12 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   str1 += std::to_string(recensor_type) + ", admin_recensor_only = " + 
     std::to_string(admin_recensor_only) + "\n";
   
-  std::mt19937_64 rng(seed);
-  std::uniform_real_distribution<double> unif(0.0, 1.0);
-  std::exponential_distribution<double> expo(gamma);
-  std::weibull_distribution<double> weib(shape, scale);
-  std::gamma_distribution<double> g1(a, 1.0);
-  std::gamma_distribution<double> g2(b, 1.0);
+  boost::random::mt19937_64 rng(seed);
+  boost::random::uniform_real_distribution<double> unif(0.0, 1.0);
+  boost::random::exponential_distribution<double> expo(gamma);
+  boost::random::weibull_distribution<double> weib(shape, scale);
+  boost::random::gamma_distribution<double> g1(a, 1.0);
+  boost::random::gamma_distribution<double> g2(b, 1.0);
   
   double twidth = tfmax - tfmin;
   double npergrp = static_cast<double>(n) / 2.0;

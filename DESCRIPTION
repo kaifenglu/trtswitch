@@ -13,6 +13,7 @@ Imports:
     parallel,
     rlang (>= 1.0.6),
     data.table (>= 1.14.10),
+    zoo (>= 1.8-14),
     ggplot2 (>= 3.3.6),
     cowplot (>= 1.2.0)
 LinkingTo: Rcpp, RcppParallel, RcppThread, BH

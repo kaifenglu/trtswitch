@@ -11,8 +11,8 @@
 #' @param adsl A data set containing baseline subject-level information. 
 #'   It should include, at a minimum, subject ID (`id`), 
 #'   randomization date (`randdt`), treatment start date (`trtsdt`),
-#'   survival outcome (`osdt`, `died`), progression date (`pddt`), 
-#'   treatment switch date (`xodt`), and data cut-off date (`dcutdt`).
+#'   progression date (`pddt`), treatment switch date (`xodt`), 
+#'   survival outcome (`osdt`, `died`), and data cut-off date (`dcutdt`).
 #' @param adtdc A data set containing longitudinal
 #'   time-dependent covariate data, with subject ID (`id`),
 #'   parameter code (`paramcd`), analysis date (`adt`), and covariate
@@ -32,10 +32,10 @@
 #'   indicator (0 = alive/censored, 1 = died).
 #' @param dcutdt Character string specifying the column name for data
 #'   cut-off date.
-#' @param adt Character string specifying the column name for analysis
-#'   date in the time-dependent covariate dataset.
 #' @param paramcd Character string specifying the column name for parameter
 #'   code (identifying different covariates).
+#' @param adt Character string specifying the column name for analysis
+#'   date in the time-dependent covariate dataset.
 #' @param aval Character string specifying the column name for analysis
 #'   value (covariate values).
 #' @param nodup Logical; if `TRUE` (default), only rows where at least
@@ -54,7 +54,9 @@
 #'         This ensures that the baseline covariate value is the last 
 #'         non-missing value at or before the treatment start date.
 #'         Post-baseline covariate values are anchored at their actual
-#'         analysis dates.
+#'         analysis dates. The first record per subject corresponds to 
+#'         survival time zero at randomization and ensures availability 
+#'         of baseline covariates at randomization.
 #'   \item Keep the last record per subject, `adt2`, and `paramcd`.
 #'   \item Construct a complete skeleton so all covariates are present
 #'         for each subject and time point.
@@ -85,9 +87,8 @@
 #' @export
 preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT", 
                     trtsdt = "TRTSDT", pddt = "PDDT", xodt = "XODT", 
-                    osdt = "OSDT", died = "DIED", 
-                    dcutdt = "DCUTDT", adt = "ADT", 
-                    paramcd = "PARAMCD", aval = "AVAL",
+                    osdt = "OSDT", died = "DIED", dcutdt = "DCUTDT", 
+                    paramcd = "PARAMCD", adt = "ADT", aval = "AVAL", 
                     nodup = TRUE, offset = TRUE) {
   
   # convert input data into data.table
@@ -96,20 +97,20 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   # verify whether the input data have required columns
   cols <- colnames(adsl)
-  req_cols <- c(id, randdt, osdt, died, pddt, xodt, dcutdt)
+  req_cols <- c(id, randdt, trtsdt, pddt, xodt, osdt, died, dcutdt)
   if (!all(req_cols %in% cols)) {
     stop(paste("The following columns are missing from adsl:", 
                paste(req_cols[!(req_cols %in% cols)], collapse = ", ")))
   }
   
   cols <- colnames(adtdc)
-  req_cols <- c(id, adt, paramcd, aval)
+  req_cols <- c(id, paramcd, adt, aval)
   if (!all(req_cols %in% cols)) {
     stop(paste("The following columns are missing from adtdc:", 
                paste(req_cols[!(req_cols %in% cols)], collapse = ", ")))
   }
   
-  # obtain randdt and trtsdt
+  # obtain randdt and trtsdt for each record in adtdc
   cols <- c(id, randdt, trtsdt)
   data1 <- merge(adtdc, adsl[, mget(cols)], by = id)
   
@@ -121,8 +122,8 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   data.table::setorderv(data1, c(id, "adt2", paramcd, adt))
   data1 <- data1[, .SD[.N], by = c(id, "adt2", paramcd)]
   
-  # build skeleton
-  cols <- c(id, randdt, "adt2")
+  # build skeleton for id, randdt, trtsdt, adt2, and paramcd
+  cols <- c(id, randdt, trtsdt, "adt2")
   pars <- unique(data1[[paramcd]])
   data2 <- merge(
     unique(data1[, mget(cols)])[, `:=`(dummy = 1)],
@@ -133,12 +134,12 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   # right join
   data3 <- merge(data1, data2, 
-                 by = c(id, randdt, "adt2", paramcd), 
+                 by = c(id, randdt, trtsdt, "adt2", paramcd), 
                  all.y = TRUE)
   
-  # LOCF
+  # LOCF within each id and paramcd
   data.table::setorderv(data3, c(id, paramcd, "adt2"))
-  data3[, `:=`(temp_col = data.table::nafill(get(aval), type = "locf")), 
+  data3[, `:=`(temp_col = zoo::na.locf(get(aval), na.rm = FALSE)), 
         by = c(id, paramcd)]
   data3[[aval]] <- NULL
   data.table::setnames(data3, "temp_col", aval)
@@ -171,8 +172,7 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   # time-dependent covariate values at tstart
   # last interval ends with osdt     
   data5[, `:=`(tstart = get("ady"))]
-  data5[, `:=`(tstop = data.table::shift(get("ady"), type = "lead")), 
-        by = id]
+  data5[, `:=`(tstop = data.table::shift(get("ady"), type = "lead")), by = id]
   data5[, `:=`(tstop = data.table::fifelse(is.na(get("tstop")), 
                                            get("osdy"), get("tstop")))]
   
