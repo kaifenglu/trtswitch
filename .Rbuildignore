@@ -4,3 +4,5 @@ notes
 literature
 data-raw
 .github
+^doc$
+^Meta$
