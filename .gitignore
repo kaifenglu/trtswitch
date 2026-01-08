@@ -13,3 +13,8 @@ man/
 trtswitch2.Rproj
 /doc/
 /Meta/
+^\\.git$
+^\\.github$
+^\\.Rcheck$
+^literature/
+^vignettes/\\.gitignore$
