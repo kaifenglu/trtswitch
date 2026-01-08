@@ -22,6 +22,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      
+    - name: Remove cached or temporary files
+        run: |
+          rm -rf .Rcheck
+          rm -rf /Users/runner/work/_temp/Rtmp*
+          rm -rf /Users/runner/work/_temp/Library/00LOCK*
 
     - name: Install system dependencies (Ubuntu)
       if: runner.os == 'Linux'

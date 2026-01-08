@@ -4,7 +4,7 @@
 ^\.git$
 ^\.github$
 ^\..Rcheck$
-^\.gitignore
+^\.gitignore$
 ^data-raw/
 ^literature/
 ^doc/
