@@ -1,0 +1,37 @@
+name: R Package Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up R
+      uses: r-lib/actions/setup-r@v3
+      with:
+        r-version: 4.3
+        extra-repositories: |
+          CRAN: https://cran.r-project.org
+
+    - name: Install System Requirements
+      run: |
+        brew install openssl || true
+
+    - name: Install Package Dependencies
+      run: |
+        Rscript -e 'install.packages(c("devtools", "roxygen2", "rcmdcheck"))'
+        Rscript -e 'devtools::install_deps(dependencies = TRUE)'
+
+    - name: Check Package
+      run: |
+        R CMD check .

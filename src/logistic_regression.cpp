@@ -10,6 +10,8 @@
 #include <cctype>    // tolower
 #include <climits>   // INT_MIN
 #include <cmath>     // exp, fabs, isinf, isnan, log, pow
+#include <cstdio>
+#include <cstdlib>
 #include <numeric>   // accumulate, inner_product, iota
 #include <stdexcept> // invalid_argument, runtime_error
 #include <string>    // string

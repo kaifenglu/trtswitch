@@ -1,7 +1,10 @@
 #include "dataframe_list.h"
 
 #include <algorithm> // copy_n, fill, max_element, remove
+#include <cmath>     // isnan
 #include <cstddef>   // size_t
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>   // memcpy
 #include <memory>    // make_shared, shared_ptr
 #include <stdexcept> // invalid_argument, out_of_range, runtime_error

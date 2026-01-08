@@ -6,7 +6,10 @@
 #include "ska/flat_hash_map.hpp"
 
 #include <algorithm>   // fill, min
+#include <cmath>       // isnan
 #include <cstddef>     // size_t
+#include <cstdio>
+#include <cstdlib>     
 #include <cstring>     // memcpy
 #include <iomanip>     // fixed, setprecision
 #include <ios>         // ios::floatfield, ios::fmtflags
