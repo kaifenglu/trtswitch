@@ -1,2 +1,2 @@
 CXX_STD = CXX17
-CXXFLAGS = -isysroot $(xcrun --show-sdk-path)
+CXXFLAGS += -isysroot $(xcrun --show-sdk-path)
