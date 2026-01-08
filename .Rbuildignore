@@ -2,7 +2,6 @@
 ^\.Rproj\.user$
 ^notes/
 ^\.git$
-^\.github$
 ^\..Rcheck$
 ^\.gitignore$
 ^data-raw/
