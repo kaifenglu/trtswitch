@@ -141,17 +141,12 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   
   data_list <- split(data3, by = c(id, paramcd))
-  
   data_list <- lapply(data_list, function(sub) {
     # Perform assignment in standard R context
-    sub[, `:=`(temp_col = locf_safe(get(aval)))]
+    sub[[aval]] = data.table::nafill(sub[[aval]], type = "locf")
     return(sub)
   })
-  
   data3 <- data.table::rbindlist(data_list)
-  
-  data3[[aval]] <- NULL
-  data.table::setnames(data3, "temp_col", aval)
   
   # wide format
   fml <- paste(paste(c(id, randdt, "adt2"), collapse = " + "), "~", paramcd)
@@ -159,15 +154,10 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   # de-dup
   if (nodup) {
-    # only keep rows where at least one paramcd changes value
-    data4[, `:=`(change = rowSums(
-      .SD != data.table::shift(.SD, type = "lag"), na.rm = TRUE) > 0),
-      by = id, .SDcols = pars]
-    
-    # keep only change rows (plus the very first row per subject 
-    # to establish baseline)
-    data4 <- data4[get("change") | !duplicated(get(id))]
-    data4[, `:=`(change = NULL)]   # drop helper column if not needed
+    # keep only change rows (plus the very first row per subject for baseline)
+    idx <- data.table::rleidv(data4, c(id, pars))
+    idxprev <- data.table::shift(idx, type = "lag", fill = 0L)
+    data4 <- data4[which(idx != idxprev), ]
   }
   
   # merge survival info
