@@ -24,7 +24,6 @@ jobs:
       uses: actions/checkout@v3
       
     - name: Remove cached or temporary files
-    - name: Remove cached or temporary files
       shell: bash
       run: |
         rm -f ~/.Rbuildignore 2>/dev/null || del /Q "%USERPROFILE%\.Rbuildignore" 2>NUL
