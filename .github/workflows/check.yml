@@ -38,7 +38,7 @@ jobs:
         R CMD check --as-cran .
 
     - name: Upload Check Results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Updated to use v4
       with:
         name: check-results-${{ matrix.config.os }}
         path: check
