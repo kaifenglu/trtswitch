@@ -2,9 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
+..Rcheck/
 src/*.o
 src/*.so
 src/*.dll
+src/*.rds
 inst/doc
 notes/
 R/RcppExports.R
@@ -12,5 +14,5 @@ src/RcppExports.cpp
 man/
 trtswitch2.Rproj
 literature/
-/doc/
-/Meta/
+doc/
+Meta/
