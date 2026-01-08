@@ -25,6 +25,7 @@ jobs:
       
     - name: Remove cached or temporary files
         run: |
+          rm -rf ~/.Rbuildignore
           rm -rf .Rcheck
           rm -rf /Users/runner/work/_temp/Rtmp*
           rm -rf /Users/runner/work/_temp/Library/00LOCK*
