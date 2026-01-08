@@ -5,3 +5,4 @@
 ^\.\.Rcheck$
 ^data-raw$
 ^notes$
+^\.github$
