@@ -10,7 +10,6 @@ notes/
 R/RcppExports.R
 src/RcppExports.cpp
 man/
-NAMESPACE
 trtswitch2.Rproj
 /doc/
 /Meta/
