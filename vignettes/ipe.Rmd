@@ -74,7 +74,7 @@ fit1 <- ipe(
 
 The log-rank test for an ITT analysis, which ignores treatment changes, yields a borderline significant p-value of $0.056$.
 ```{r logrank}
-fit1$logrank_pvalue
+paste0("P-value", " (", fit1$pvalue_type, "): ", formatC(fit1$pvalue, format = "f", digits = 4))
 ```
 
 Using the IPE method with a Weibull AFT model, we estimate $\hat{\psi} = -0.183$, which is similar to the estimate obtained from the RPSFTM analysis.   

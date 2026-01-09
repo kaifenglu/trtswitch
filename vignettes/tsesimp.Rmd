@@ -95,8 +95,6 @@ c(fit1$hr, fit1$hr_CI)
 ```
 
 Finally, to ensure the uncertainty is accurately represented, the entire adjustment process and subsequent survival modeling can be bootstrapped.
-````{verbatim}
-
 ```{r boot}
 fit2 <- tsesimp(
   data = shilong3, id = "id", time = "tstop", event = "event",
@@ -112,5 +110,3 @@ fit2 <- tsesimp(
 
 c(fit2$hr, fit2$hr_CI)
 ```
-
-````

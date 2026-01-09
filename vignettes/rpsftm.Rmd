@@ -144,7 +144,7 @@ fit1 <- rpsftm(
 
 The log-rank test for an ITT analysis, which ignores treatment changes, produces a borderline significant p-value of $0.056$.
 ```{r logrank}
-fit1$logrank_pvalue
+paste0("P-value", " (", fit1$pvalue_type, "): ", formatC(fit1$pvalue, format = "f", digits = 4))
 ```
 
 Using a root-finding algorithm, we estimate $\hat{\psi} = -0.181$, with a 95\% confidence interval of $(-0.350, 0.002)$. 
