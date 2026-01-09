@@ -182,8 +182,9 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   data5 <- data.table::rbindlist(data_list)
   
   # create event
-  data5[, `:=`(event = data.table::fifelse(
-    seq_len(.N) == .N, get(died), 0L)), by = id]
+  last_rows <- data5[, .I[.N], by = id]$V1
+  data5[, event := 0L]
+  data5[last_rows, event := as.integer(get(died))]  
   
   # set up pd, swtrt, and censoring time
   data5[, `:=`(pd = !is.na(get(pddt)), 
