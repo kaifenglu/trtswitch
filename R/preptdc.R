@@ -183,8 +183,8 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   
   # create event
   last_rows <- data5[, .I[.N], by = id]$V1
-  data5[, event := 0L]
-  data5[last_rows, event := as.integer(get(died))]  
+  data5[, `:=`(event = 0L)]
+  data5[last_rows, `:=`(event = as.integer(get(died)))]
   
   # set up pd, swtrt, and censoring time
   data5[, `:=`(pd = !is.na(get(pddt)), 
