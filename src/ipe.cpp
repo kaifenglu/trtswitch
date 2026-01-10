@@ -497,7 +497,7 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   double pvalue = lr.get<double>("logRankPValue")[0];
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  auto f = [n, p, qp, covariates, covariates_aft, dist, low_psi, hi_psi,
+  auto f = [p, qp, covariates, covariates_aft, dist, low_psi, hi_psi,
             treat_modifier, recensor, autoswitch, rooting, alpha, ties, tol](
                 const std::vector<int>& idb, 
                 const std::vector<int>& stratumb,

@@ -543,7 +543,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     psi[i] = low_psi + i * step_psi;
   }
   
-  auto f = [n, p, qp, test, covariates, covariates_aft, dist, low_psi, 
+  auto f = [p, qp, test, covariates, covariates_aft, dist, low_psi, 
             hi_psi, n_eval_z, psi, treat_modifier, recensor, autoswitch, 
             gridsearch, rooting, alpha, zcrit, ties, tol](
                 const std::vector<int>& idb,
