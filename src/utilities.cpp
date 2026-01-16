@@ -552,9 +552,11 @@ double quadsym(const std::vector<double>& u, const FlatMatrix& v) {
   }
   return sum;
 }
+
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
 // cholesky2: in-place working on FlatMatrix (n x n), returns rank * nonneg
 int cholesky2(FlatMatrix& matrix, int n, double toler) {
+  double* base = matrix.data_ptr();
   double eps = 0.0;
   for (int i = 0; i < n; ++i) {
     double val = matrix(i, i);
@@ -565,18 +567,20 @@ int cholesky2(FlatMatrix& matrix, int n, double toler) {
   int rank = 0;
   
   for (int i = 0; i < n; ++i) {
-    double pivot = matrix(i, i);
+    double* col_i = base + i * n;
+    double pivot = col_i[i];
     if (std::isinf(pivot) || pivot < eps) {
-      matrix(i, i) = 0.0;
+      col_i[i] = 0.0;
       if (pivot < -8.0 * eps) nonneg = -1;
     } else {
       ++rank;
       for (int j = i + 1; j < n; ++j) {
-        double temp = matrix(i, j) / pivot;
-        matrix(i, j) = temp;
-        matrix(j, j) -= temp * temp * pivot;
+        double* col_j = base + j * n;
+        double temp = col_i[j] / pivot;
+        col_i[j] = temp;
+        col_j[j] -= temp * temp * pivot;
         for (int k = j + 1; k < n; ++k) {
-          matrix(j, k) -= temp * matrix(i, k);
+          col_j[k] -= temp * col_i[k];
         }
       }
     }
@@ -585,75 +589,42 @@ int cholesky2(FlatMatrix& matrix, int n, double toler) {
 }
 
 // chsolve2 assumes matrix holds the representation produced by cholesky2
-void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y) {
+void chsolve2(FlatMatrix& matrix, int n, double* y) {
   // Forward substitution L * z = y
-  for (int i = 0; i < n; ++i) {
-    double temp = y[i];
-    for (int j = 0; j < i; ++j) temp -= y[j] * matrix(j, i);
-    y[i] = temp;
+  double* base = matrix.data_ptr();
+  for (int j = 0; j < n-1; ++j) {
+    double yj = y[j];
+    if (yj == 0.0) continue;
+    double* col_j = base + j * n;
+    for (int i = j + 1; i < n; ++i) {
+      y[i] -= yj * col_j[i];
     }
-  // Backward substitution L^T * x = z
+  }
+  // Now y holds z; solve L^T * x = z
   if (n == 0) return;
   for (int i = n - 1; i >= 0; --i) {
-    double diag = matrix(i, i);
+    double* col_i = base + i * n;
+    double diag = col_i[i];
     if (diag == 0.0) {
       y[i] = 0.0;
     } else {
       double temp = y[i] / diag;
-      for (int j = i + 1; j < n; ++j) temp -= y[j] * matrix(i, j);
+      for (int j = i + 1; j < n; ++j) temp -= y[j] * col_i[j];
       y[i] = temp;
     }
   }
 }
 
-// chinv2: invert after decomposition in-place (FlatMatrix)
-void chinv2(FlatMatrix& matrix, int n) {
-  // Step 1: invert diagonal and apply sweep operator
-  for (int i = 0; i < n; ++i) {
-    double mii = matrix(i, i);
-    if (mii > 0.0) {
-      matrix(i, i) = 1.0 / mii;
-      for (int j = i + 1; j < n; ++j) {
-        int idx_ij = j * n + i;
-        matrix.data[idx_ij] = -matrix.data[idx_ij];
-        for (int k = 0; k < i; ++k) {
-          matrix(k, j) += matrix.data[idx_ij] * matrix(k, i);
-        }
-      }
-    }
-  }
-  // Step 2: finalize inverse and symmetrize
-  for (int i = 0; i < n; ++i) {
-    double mii = matrix(i, i);
-    if (mii == 0.0) {
-      for (int j = 0; j < i; ++j) matrix(i, j) = 0.0;
-      for (int j = i; j < n; ++j) matrix(j, i) = 0.0;
-    } else {
-      for (int j = i + 1; j < n; ++j) {
-        double temp = matrix(i, j) * matrix(j, j);
-        matrix(j, i) = temp;
-        for (int k = i; k < j; ++k) 
-          matrix(k, i) += temp * matrix(k, j);
-      }
-    }
-  }
-}
-
-// invsympd: invert symmetric positive definite matrix (returns FlatMatrix)
 FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler) {
   FlatMatrix v = matrix; // copy
-  if (cholesky2(v, n, toler) != 0) {
-    // proceed: cholesky2 returns rank * nonneg; if not PD, chinv2 may not work
-    // still attempt inverse; caller should handle exceptions if needed
+  cholesky2(v, n, toler);
+  FlatMatrix iv(n, n);
+  for (int i = 0; i < n; ++i) {
+    iv(i,i) = 1.0;
+    double* ycol = iv.data_ptr() + i * n;
+    chsolve2(v, n, ycol);
   }
-  chinv2(v, n);
-  // fill symmetric entries (upper -> lower)
-  for (int i = 1; i < n; ++i) {
-    for (int j = 0; j < i; ++j) {
-      v(j, i) = v(i, j);
-    }
-  }
-  return v;
+  return iv;
 }
 
 // -------------------------- Survival helpers --------------------------------

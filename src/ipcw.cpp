@@ -844,19 +844,19 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       }
                     } else {
                       // extract data for the control group
-                      int end = 0;
-                      for (; end < n1; ++end) {
-                        if (treat1[end] == 1) break;
+                      int mid = 0;
+                      for (; mid < n1; ++mid) {
+                        if (treat1[mid] == 1) break;
                       }
-                      std::vector<int> id10 = subset(id1, 0, end);
-                      std::vector<int> stratum10 = subset(stratum1, 0, end);
-                      std::vector<double> tstart10 = subset(tstart1, 0, end);
-                      std::vector<double> tstop10 = subset(tstop1, 0, end);
-                      std::vector<int> event10 = subset(event1, 0, end);
-                      std::vector<int> treat10 = subset(treat1, 0, end);
-                      std::vector<int> cross10 = subset(cross1, 0, end);
-                      FlatMatrix z10 = subset_flatmatrix(z1, 0, end);
-                      FlatMatrix z_cox_den10 = subset_flatmatrix(z_cox_den1, 0, end);
+                      std::vector<int> id10 = subset(id1, 0, mid);
+                      std::vector<int> stratum10 = subset(stratum1, 0, mid);
+                      std::vector<double> tstart10 = subset(tstart1, 0, mid);
+                      std::vector<double> tstop10 = subset(tstop1, 0, mid);
+                      std::vector<int> event10 = subset(event1, 0, mid);
+                      std::vector<int> treat10 = subset(treat1, 0, mid);
+                      std::vector<int> cross10 = subset(cross1, 0, mid);
+                      FlatMatrix z10 = subset_flatmatrix(z1, 0, mid);
+                      FlatMatrix z_cox_den10 = subset_flatmatrix(z_cox_den1, 0, mid);
                       
                       // replicate event times within each subject
                       DataFrameCpp a = survsplitcpp(tstart10, tstop10, cut);
@@ -880,18 +880,17 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       }
                       
                       // extract data for the active group
-                      int start = end;
-                      std::vector<int> id21 = subset(id1, start, n1);
-                      std::vector<int> stratum21 = subset(stratum1, start, n1);
-                      std::vector<double> tstart21 = subset(tstart1, start, n1);
-                      std::vector<double> tstop21 = subset(tstop1, start, n1);
-                      std::vector<int> event21 = subset(event1, start, n1);
-                      std::vector<int> treat21 = subset(treat1, start, n1);
-                      std::vector<int> cross21 = subset(cross1, start, n1);
-                      FlatMatrix z21 = subset_flatmatrix(z1, start, n1);
+                      std::vector<int> id21 = subset(id1, mid, n1);
+                      std::vector<int> stratum21 = subset(stratum1, mid, n1);
+                      std::vector<double> tstart21 = subset(tstart1, mid, n1);
+                      std::vector<double> tstop21 = subset(tstop1, mid, n1);
+                      std::vector<int> event21 = subset(event1, mid, n1);
+                      std::vector<int> treat21 = subset(treat1, mid, n1);
+                      std::vector<int> cross21 = subset(cross1, mid, n1);
+                      FlatMatrix z21 = subset_flatmatrix(z1, mid, n1);
                       FlatMatrix z_cox_den21 = 
-                        subset_flatmatrix(z_cox_den1, start, n1);
-                      int n21 = n1 - start;
+                        subset_flatmatrix(z_cox_den1, mid, n1);
+                      int n21 = n1 - mid;
                       
                       // combine weighted control with unweighted active data
                       id2 = concat(id20, id21);
