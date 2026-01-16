@@ -309,7 +309,7 @@ double quadsym(const std::vector<double>& u, const FlatMatrix& v);
 
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
 int cholesky2(FlatMatrix& matrix, int n, double toler = 1e-12);
-void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y);
+void chsolve2(FlatMatrix& matrix, int n, double* y);
 FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = 1e-12);
 
 // Survival helpers

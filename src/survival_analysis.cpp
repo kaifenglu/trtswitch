@@ -3347,7 +3347,7 @@ ListCpp liferegloop(int p, const std::vector<double>& par, void *ex,
   std::vector<double> u = der.get<std::vector<double>>("score");
   FlatMatrix imat = der.get<FlatMatrix>("imat");
   FlatMatrix jj; // will be used if needed
-  std::vector<double> u1(ncolfit);
+  double* u1 = new double[ncolfit];
   FlatMatrix imat1(ncolfit, ncolfit);
   FlatMatrix jj1(ncolfit, ncolfit);
   
@@ -3973,7 +3973,7 @@ ListCpp liferegcpp(const DataFrameCpp& data,
           }
         }
         
-        std::vector<double> u1(nvar, 0.0); // X'Wy
+        double* u1 = new double[nvar]; // X'Wy
         for (int j = 0; j < nvar; ++j) {
           const double* zj = zptr + j * n1;          // pointer to Z(:,j)
           double sum = 0.0;
@@ -5398,6 +5398,7 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
     // obtain the determinant of information matrix
     FlatMatrix imat0 = imat;
     cholesky2(imat0, p);
+    double* base = imat0.data_ptr();
     
     double v = 0.0;
     for (int i = 0; i < p; ++i) {
@@ -5410,6 +5411,7 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
     // compute the bias adjustment to the score function
     FlatMatrix y(p,p);
     std::vector<double> g(p);
+    double* yptr = y.data_ptr();
     
     for (int k = 0; k < p; ++k) {
       // partial derivative of the information matrix w.r.t. beta[k]
@@ -5421,20 +5423,25 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
       
       // solve(imat, y)
       for (int h = 0; h < p; ++h) {
-        for (int i = 0; i < p; ++i) {
-          double temp = y(i,h);
-          for (int j = 0; j < i; ++j)
-            temp -= y(j,h) * imat0(j,i);
-          y(i,h) = temp;
-        }
+        double* yh = yptr + h * p;
         
+        for (int j = 0; j < p - 1; ++j) {
+          double yjh = yh[j];
+          if (yjh = 0.0) continue;
+          double* col_j = base + j * p;
+          for (int i = j + 1; i < p; ++i) {
+            yh[i] -= yjh * col_j[i];
+          }
+        }
         for (int i = p - 1; i >= 0; --i) {
-          if (imat0(i,i) == 0) y(i,h) = 0;
+          double* col_i = base + i * p;
+          double diag = col_i[i];
+          if (diag == 0.0) yh[i] = 0.0;
           else {
-            double temp = y(i,h) / imat0(i,i);
+            double temp = yh[i] / diag;
             for (int j = i + 1; j < p; ++j)
-              temp -= y(j,h) * imat0(i,j);
-            y(i,h) = temp;
+              temp -= yh[j] * col_i[j];
+            yh[i] = temp;
           }
         }
       }
@@ -5475,7 +5482,7 @@ ListCpp phregloop(int p, const std::vector<double>& par, void *ex,
   std::vector<double> newbeta(p);
   double loglik = 0.0, newlk = 0.0;
   std::vector<double> u(p);
-  std::vector<double> u1(ncolfit);
+  double* u1 = new double[ncolfit];
   FlatMatrix imat(p,p);
   FlatMatrix imat1(ncolfit, ncolfit);
   
