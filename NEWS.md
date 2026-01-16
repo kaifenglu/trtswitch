@@ -1,3 +1,9 @@
+# trtswitch 0.2.4
+
+* updated the concat_flatmatrix function for empty flat matrices
+* utilized column-major storage of flat matrices for cholesky decomposition
+* simplified the bygroup function
+
 # trtswitch 0.2.3
 
 * added assess_phregr to assess the proportional hazards assumption for the Cox model using the supremum test of Lin et al. (1993)

@@ -1,6 +1,8 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
+// [[Rcpp::plugins(cpp17)]]
+
 #include <Rcpp.h>
 
 #include "ska/flat_hash_map.hpp"
