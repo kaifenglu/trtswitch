@@ -880,10 +880,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                       }
                       
                       // extract data for the active group
-                      int start = 0;
-                      for (; start < n1; ++start) {
-                        if (treat1[start] == 1) break;
-                      }
+                      int start = end;
                       std::vector<int> id21 = subset(id1, start, n1);
                       std::vector<int> stratum21 = subset(stratum1, start, n1);
                       std::vector<double> tstart21 = subset(tstart1, start, n1);
