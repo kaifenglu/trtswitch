@@ -340,7 +340,8 @@ ListCpp logisregloop(int p, const std::vector<double>& par, void *ex,
   std::vector<double> newbeta(p);
   double loglik = 0.0, newlk = 0.0;
   std::vector<double> u(p);
-  double* u1 = new double[ncolfit];
+  std::vector<double> uu1(ncolfit);
+  double* u1 = uu1.data();
   FlatMatrix imat(p, p);
   FlatMatrix imat1(ncolfit, ncolfit);
   
