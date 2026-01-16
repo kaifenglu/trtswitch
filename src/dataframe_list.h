@@ -8,8 +8,6 @@
 #include <algorithm>   // fill, min
 #include <cmath>       // isnan
 #include <cstddef>     // size_t
-#include <cstdio>
-#include <cstdlib>     
 #include <cstring>     // memcpy
 #include <iomanip>     // fixed, setprecision
 #include <ios>         // ios::floatfield, ios::fmtflags
@@ -331,46 +329,6 @@ struct DataFrameCpp {
     throw std::runtime_error("Column '" + name + "' not found or type mismatch.");
   }
   
-  // Convenience parallel-friendly accessors
-  const double* numeric_col_ptr(const std::string& name) const noexcept {
-    auto it = numeric_cols.find(name);
-    return it == numeric_cols.end() ? nullptr : it->second.data();
-  }
-  std::size_t numeric_col_nrows(const std::string& name) const noexcept {
-    auto it = numeric_cols.find(name);
-    return it == numeric_cols.end() ? 0 : it->second.size();
-  }
-  
-  const int* int_col_ptr(const std::string& name) const noexcept {
-    auto it = int_cols.find(name);
-    return it == int_cols.end() ? nullptr : it->second.data();
-  }
-  std::size_t int_col_nrows(const std::string& name) const noexcept {
-    auto it = int_cols.find(name);
-    return it == int_cols.end() ? 0 : it->second.size();
-  }
-
-  const unsigned char* bool_col_ptr(const std::string& name) const noexcept {
-    auto it = bool_cols.find(name);
-    return it == bool_cols.end() ? nullptr : it->second.data();
-  }
-  std::size_t bool_col_nrows(const std::string& name) const noexcept {
-    auto it = bool_cols.find(name);
-    return it == bool_cols.end() ? 0 : it->second.size();
-  }
-  
-  const std::string* string_col_ptr(const std::string& name) const noexcept {
-    auto it = string_cols.find(name);
-    return it == string_cols.end() ? nullptr : it->second.data();
-  }
-  std::size_t string_col_nrows(const std::string& name) const noexcept {
-    auto it = string_cols.find(name);
-    return it == string_cols.end() ? 0 : it->second.size();
-  }
-  
-  // reserve map buckets (useful to avoid rehashing)
-  void reserve_columns(int expected);
-  
   // Print helper for DataFrameCpp: prints basic table view to ostream
   // (default std::cout)
   inline void print(std::ostream& os = std::cout, int max_rows = 10, 
@@ -527,19 +485,6 @@ struct ListCpp {
     const ListCpp& get_list(const std::string& name) const;
 };
 
-DataFrameCpp dataframe_from_flatmatrix(const FlatMatrix& fm, 
-                                       const std::vector<std::string>& names = {});
-FlatMatrix flatten_numeric_columns(const DataFrameCpp& df, 
-                                   const std::vector<std::string>& cols = {});
-const double* numeric_column_ptr(const DataFrameCpp& df, 
-                                 const std::string& name) noexcept;
-const int* int_column_ptr(const DataFrameCpp& df, const std::string& name) noexcept;
-void move_numeric_column(DataFrameCpp& df, std::vector<double>&& col, 
-                         const std::string& name);
-void move_int_column(DataFrameCpp& df, std::vector<int>&& col, 
-                     const std::string& name);
-std::vector<DataFrameCpp> split_dataframe(const DataFrameCpp& df, 
-                                          const std::vector<int>& idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
 void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
 FlatMatrix subset_flatmatrix(const FlatMatrix& fm, int start, int end);
