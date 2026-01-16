@@ -5427,7 +5427,7 @@ ListCpp f_der_2(int p, const std::vector<double>& par, void* ex, bool firth) {
         
         for (int j = 0; j < p - 1; ++j) {
           double yjh = yh[j];
-          if (yjh = 0.0) continue;
+          if (yjh == 0.0) continue;
           double* col_j = base + j * p;
           for (int i = j + 1; i < p; ++i) {
             yh[i] -= yjh * col_j[i];
