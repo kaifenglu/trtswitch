@@ -7,7 +7,7 @@
 #include <vector>     // vector
 #include <string>     // string
 #include <algorithm>  // fill, lower_bound, max_element, memmove, 
-// min_element, sort, swap, upper_bound
+                      // min_element, sort, swap, upper_bound
 #include <numeric>    // accumulate, inner_product, iota 
 #include <functional> // function
 #include <cmath>      // copysign, exp, fabs, isinf, isnan, log, pow, sqrt
@@ -348,7 +348,7 @@ ListCpp bygroup(const DataFrameCpp& data,
   std::vector<unsigned char> bool_flat;
   std::vector<std::string> str_flat;
   
-  ListCpp lookups_per_variable; // will contain DataFrameCpp for each variable
+  ListCpp lookups_per_variable; // will contain a std::vector for each variable
   
   for (int i = 0; i < p; ++i) {
     const std::string& var = variables[i];
@@ -367,12 +367,8 @@ ListCpp bygroup(const DataFrameCpp& data,
       var_info[i] = VarLookupInfo{0, off};
       
       // fill indices column i (column-major layout)
-      for (int r = 0; r < n; ++r) {
-        indices(r, i) = idx[r];
-      }
-      
+      intmatrix_set_column(indices, i, idx);
       lookups_per_variable.push_back(std::move(w), var);
-      
     } else if (data.numeric_cols.count(var)) {
       const auto& col = data.numeric_cols.at(var);
       auto w = unique_sorted(col);
@@ -383,12 +379,8 @@ ListCpp bygroup(const DataFrameCpp& data,
       dbl_flat.insert(dbl_flat.end(), w.begin(), w.end());
       var_info[i] = VarLookupInfo{1, off};
       
-      for (int r = 0; r < n; ++r) {
-        indices(r, i) = idx[r];
-      }
-      
+      intmatrix_set_column(indices, i, idx);
       lookups_per_variable.push_back(std::move(w), var);
-      
     } else if (data.bool_cols.count(var)) {
       const auto& col = data.bool_cols.at(var);
       auto w = unique_sorted(col);
@@ -396,15 +388,11 @@ ListCpp bygroup(const DataFrameCpp& data,
       auto idx = matchcpp(col, w);
       
       int off = bool_flat.size();
-      for (bool bv : w) bool_flat.push_back(bv ? 1u : 0u);
+      bool_flat.insert(bool_flat.end(), w.begin(), w.end());
       var_info[i] = VarLookupInfo{2, off};
       
-      for (int r = 0; r < n; ++r) {
-        indices(r, i) = idx[r];
-      }
-      
+      intmatrix_set_column(indices, i, idx);
       lookups_per_variable.push_back(std::move(w), var);
-      
     } else if (data.string_cols.count(var)) {
       const auto& col = data.string_cols.at(var);
       auto w = unique_sorted(col);
@@ -415,12 +403,8 @@ ListCpp bygroup(const DataFrameCpp& data,
       str_flat.insert(str_flat.end(), w.begin(), w.end());
       var_info[i] = VarLookupInfo{3, off};
       
-      for (int r = 0; r < n; ++r) {
-        indices(r, i) = idx[r];
-      }
-      
+      intmatrix_set_column(indices, i, idx);
       lookups_per_variable.push_back(std::move(w), var);
-      
     } else {
       throw std::invalid_argument("Unsupported variable type in bygroup: " + var);
     }
@@ -430,23 +414,23 @@ ListCpp bygroup(const DataFrameCpp& data,
   std::vector<int> combined_index(n, 0);
   int orep = 1;
   for (int i = 0; i < p; ++i) orep *= nlevels[i];
+  int lookup_nrows = orep;
+  
   for (int i = 0; i < p; ++i) {
     orep /= nlevels[i];
+    const int* col_ptr = indices.data_ptr() + i * n;
     for (int j = 0; j < n; ++j) {
-      combined_index[j] += indices(j, i) * orep;
+      combined_index[j] += col_ptr[j] * orep;
     }
   }
   
-  int lookup_nrows = 1;
-  for (int i = 0; i < p; ++i) lookup_nrows *= nlevels[i];
-  
   // Build lookup_df with columns repeated in the same pattern as before.
   DataFrameCpp lookup_df;
+  int repeat_each = lookup_nrows;
   for (int i = 0; i < p; ++i) {
     const std::string& var = variables[i];
     int nlevels_i = nlevels[i];
-    int repeat_each = 1;
-    for (int j = i + 1; j < p; ++j) repeat_each *= nlevels[j];
+    repeat_each /= nlevels_i;
     int times = lookup_nrows / ( nlevels_i * repeat_each );
     
     VarLookupInfo info = var_info[i];
@@ -474,9 +458,7 @@ ListCpp bygroup(const DataFrameCpp& data,
       int idxw = 0;
       for (int t = 0; t < times; ++t) {
         for (int level = 0; level < nlevels_i; ++level) {
-          for (int r = 0; r < repeat_each; ++r) {
-            col[idxw++] = (base[level] != 0);
-          }
+          for (int r = 0; r < repeat_each; ++r) col[idxw++] = base[level];
         }
       }
       lookup_df.push_back(std::move(col), var);
@@ -609,7 +591,7 @@ void chsolve2(FlatMatrix& matrix, int n, std::vector<double>& y) {
     double temp = y[i];
     for (int j = 0; j < i; ++j) temp -= y[j] * matrix(j, i);
     y[i] = temp;
-  }
+    }
   // Backward substitution L^T * x = z
   if (n == 0) return;
   for (int i = n - 1; i >= 0; --i) {
