@@ -1604,7 +1604,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
       
       // Before running the parallel loop: pre-generate deterministic seeds
       std::vector<uint64_t> seeds(n_boot);
-      boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
+      boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed));
       for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
