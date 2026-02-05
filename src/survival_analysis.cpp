@@ -342,15 +342,13 @@ Rcpp::DataFrame survQuantile(
     const Rcpp::NumericVector& event,
     const double cilevel = 0.95,
     const std::string& transform = "loglog",
-    const Rcpp::NumericVector& probs = 
-      Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
+    const Rcpp::NumericVector& probs = Rcpp::NumericVector::create(0.25, 0.5, 0.75)) {
   
-  std::vector<double> timev = Rcpp::as<std::vector<double>>(time);
-  std::vector<int> eventv = Rcpp::as<std::vector<int>>(event);
-  std::vector<double> probsv = Rcpp::as<std::vector<double>>(probs);
+  auto timev = Rcpp::as<std::vector<double>>(time);
+  auto eventv = Rcpp::as<std::vector<int>>(event);
+  auto probsv = Rcpp::as<std::vector<double>>(probs);
   
   DataFrameCpp result = survQuantilecpp(timev, eventv, cilevel, transform, probsv);
-  
   return Rcpp::wrap(result);
 }
 
@@ -753,7 +751,7 @@ Rcpp::DataFrame kmest(const Rcpp::DataFrame& data,
                       const bool keep_censor = false) {
   
   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  auto stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
   DataFrameCpp cpp_result = kmestcpp(
     dfcpp, stratumcpp, time, time2, event, weight, 
@@ -1275,7 +1273,7 @@ Rcpp::DataFrame kmdiff(const Rcpp::DataFrame& data,
                        const double conflev = 0.95) {
   
   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  auto stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
   DataFrameCpp cpp_result = kmdiffcpp(
     dfcpp, stratumcpp, treat, time, time2, event, weight, 
@@ -1766,7 +1764,7 @@ Rcpp::DataFrame lrtest(const Rcpp::DataFrame data,
                        const double rho2 = 0) {
   
   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  auto stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
   DataFrameCpp cpp_result = lrtestcpp(
     dfcpp, stratumcpp, treat, time, time2, event, weight, 
@@ -2160,7 +2158,7 @@ Rcpp::DataFrame rmest(const Rcpp::DataFrame& data,
                       const bool biascorrection = false) {
   
   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  auto stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
   DataFrameCpp cpp_result = rmestcpp(
     dfcpp, stratumcpp, time, event, milestone, conflev, biascorrection
@@ -2502,7 +2500,7 @@ Rcpp::DataFrame rmdiff(const Rcpp::DataFrame& data,
                        const bool biascorrection = false) {
   
   DataFrameCpp dfcpp = convertRDataFrameToCpp(data);
-  std::vector<std::string> stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
+  auto stratumcpp = Rcpp::as<std::vector<std::string>>(stratum);
   
   DataFrameCpp cpp_result = rmdiffcpp(
     dfcpp, stratumcpp, treat, time, event, milestone,
