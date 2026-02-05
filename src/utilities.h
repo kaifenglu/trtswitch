@@ -370,13 +370,6 @@ double getpsiend(const std::function<double(double)>& f,
                  bool lowerend, double initialend);
 
 
-
-
-#include <iostream>
-#include <iomanip>
-#include <sstream>
-#include <type_traits>
-
 // Print a std::vector<T> to std::cout.
 // Requirements: T must be streamable via operator<< to std::ostream.
 //
