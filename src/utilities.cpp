@@ -161,7 +161,6 @@ std::vector<int> which(const std::vector<unsigned char>& vec) {
   return indices;
 }
 
-// findInterval3: adapted from previous implementation
 std::vector<int> findInterval3(const std::vector<double>& x,
                                const std::vector<double>& v,
                                bool rightmost_closed,
@@ -279,7 +278,7 @@ double bisect(const std::function<double(double)>& f,
 // --------------------------- Quantiles -------------------------------------
 
 double quantilecpp(const std::vector<double>& x, double p) {
-  int n = x.size();
+  int n = static_cast<int>(x.size());
   if (n == 0) throw std::invalid_argument("Empty vector");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument("p must be in [0,1]");
   std::vector<double> y(x);
@@ -289,9 +288,7 @@ double quantilecpp(const std::vector<double>& x, double p) {
   double g = h - j;
   if (j <= 0) return y.front();
   if (j >= n) return y.back();
-  double lower_val = y[j - 1];
-  double upper_val = y[j];
-  return (1 - g) * lower_val + g * upper_val;
+  return (1 - g) * y[j - 1] + g * y[j];
 }
 
 double squantilecpp(const std::function<double(double)>& S, double p, double tol) {
@@ -685,13 +682,53 @@ DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
   return df;
 }
 
+
+//' @title Split a survival data set at specified cut points
+//' @description For a given survival dataset and specified cut times, 
+//' each record is split into multiple subrecords at each cut time. 
+//' The resulting dataset is in counting process format, with each 
+//' subrecord containing a start time, stop time, and event status.
+//' This is adapted from the survsplit.c function from the survival package.
+//'
+//' @param tstart The starting time of the time interval for 
+//'   counting-process data.
+//' @param tstop The stopping time of the time interval for 
+//'   counting-process data.
+//' @param cut The vector of cut points.
+//'
+//' @return A data frame with the following variables:
+//'
+//' * \code{row}: The row number of the observation in the input data 
+//'   (starting from 0).
+//'
+//' * \code{start}: The starting time of the resulting subrecord.
+//'
+//' * \code{end}: The ending time of the resulting subrecord.
+//'
+//' * \code{censor}: Whether the subrecord lies strictly within a record
+//'   in the input data (1 for all but the last interval and 0 for the 
+//'   last interval).
+//'
+//' * \code{interval}: The interval number derived from cut (starting 
+//'   from 0 if the interval lies to the left of the first cutpoint).
+//'
+//' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+//'
+//' @keywords internal
+//'
+//' @examples
+//'
+//' survsplit(15, 60, c(10, 30, 40))
+//'
+//' @export
 // [[Rcpp::export]]
-Rcpp::DataFrame survsplitRcpp(const std::vector<double>& tstart,
-                              const std::vector<double>& tstop,
-                              const std::vector<double>& cut) {
+Rcpp::DataFrame survsplit(const std::vector<double>& tstart,
+                          const std::vector<double>& tstop,
+                          const std::vector<double>& cut) {
   DataFrameCpp dfcpp = survsplitcpp(tstart, tstop, cut);
   return Rcpp::wrap(dfcpp);
 }
+
 
 // ------------------------- QR and other helpers -----------------------------
 double sumsq(const std::vector<double>& x) {
@@ -953,7 +990,7 @@ double qtpwexpcpp1(const double p,
                    const double lowerBound,
                    const bool lowertail,
                    const bool logp) {
-  int m = piecewiseSurvivalTime.size();
+  int m = static_cast<int>(piecewiseSurvivalTime.size());
   if (m == 0 || static_cast<int>(lambda.size()) != m) 
     throw std::invalid_argument("Invalid piecewise model inputs.");
   double u = logp ? std::exp(p) : p;
