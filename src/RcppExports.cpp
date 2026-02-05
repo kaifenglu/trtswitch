@@ -659,16 +659,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// survsplitRcpp
-Rcpp::DataFrame survsplitRcpp(const std::vector<double>& tstart, const std::vector<double>& tstop, const std::vector<double>& cut);
-RcppExport SEXP _trtswitch_survsplitRcpp(SEXP tstartSEXP, SEXP tstopSEXP, SEXP cutSEXP) {
+// survsplit
+Rcpp::DataFrame survsplit(const std::vector<double>& tstart, const std::vector<double>& tstop, const std::vector<double>& cut);
+RcppExport SEXP _trtswitch_survsplit(SEXP tstartSEXP, SEXP tstopSEXP, SEXP cutSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const std::vector<double>& >::type tstart(tstartSEXP);
     Rcpp::traits::input_parameter< const std::vector<double>& >::type tstop(tstopSEXP);
     Rcpp::traits::input_parameter< const std::vector<double>& >::type cut(cutSEXP);
-    rcpp_result_gen = Rcpp::wrap(survsplitRcpp(tstart, tstop, cut));
+    rcpp_result_gen = Rcpp::wrap(survsplit(tstart, tstop, cut));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -697,7 +697,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_trtswitch_tsegestsim", (DL_FUNC) &_trtswitch_tsegestsim, 25},
     {"_trtswitch_tsesimpcpp", (DL_FUNC) &_trtswitch_tsesimpcpp, 24},
     {"_trtswitch_tssim", (DL_FUNC) &_trtswitch_tssim, 34},
-    {"_trtswitch_survsplitRcpp", (DL_FUNC) &_trtswitch_survsplitRcpp, 3},
+    {"_trtswitch_survsplit", (DL_FUNC) &_trtswitch_survsplit, 3},
     {NULL, NULL, 0}
 };
 

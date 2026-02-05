@@ -961,7 +961,45 @@ tssim <- function(tdxo = FALSE, coxo = TRUE, allocation1 = 1L, allocation2 = 1L,
     .Call(`_trtswitch_tssim`, tdxo, coxo, allocation1, allocation2, p_X_1, p_X_0, rate_T, beta1, beta2, gamma0, gamma1, gamma2, gamma3, gamma4, zeta0, zeta1, zeta2, zeta3, alpha0, alpha1, alpha2, theta1_1, theta1_0, theta2, rate_C, accrualTime, accrualIntensity, followupTime, fixedFollowup, plannedTime, days, n, NSim, seed)
 }
 
-survsplitRcpp <- function(tstart, tstop, cut) {
-    .Call(`_trtswitch_survsplitRcpp`, tstart, tstop, cut)
+#' @title Split a survival data set at specified cut points
+#' @description For a given survival dataset and specified cut times, 
+#' each record is split into multiple subrecords at each cut time. 
+#' The resulting dataset is in counting process format, with each 
+#' subrecord containing a start time, stop time, and event status.
+#' This is adapted from the survsplit.c function from the survival package.
+#'
+#' @param tstart The starting time of the time interval for 
+#'   counting-process data.
+#' @param tstop The stopping time of the time interval for 
+#'   counting-process data.
+#' @param cut The vector of cut points.
+#'
+#' @return A data frame with the following variables:
+#'
+#' * \code{row}: The row number of the observation in the input data 
+#'   (starting from 0).
+#'
+#' * \code{start}: The starting time of the resulting subrecord.
+#'
+#' * \code{end}: The ending time of the resulting subrecord.
+#'
+#' * \code{censor}: Whether the subrecord lies strictly within a record
+#'   in the input data (1 for all but the last interval and 0 for the 
+#'   last interval).
+#'
+#' * \code{interval}: The interval number derived from cut (starting 
+#'   from 0 if the interval lies to the left of the first cutpoint).
+#'
+#' @author Kaifeng Lu, \email{kaifenglu@@gmail.com}
+#'
+#' @keywords internal
+#'
+#' @examples
+#'
+#' survsplit(15, 60, c(10, 30, 40))
+#'
+#' @export
+survsplit <- function(tstart, tstop, cut) {
+    .Call(`_trtswitch_survsplit`, tstart, tstop, cut)
 }
 
