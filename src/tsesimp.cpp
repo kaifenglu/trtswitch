@@ -99,6 +99,17 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   } else throw std::invalid_argument(
       "incorrect type for the id variable in data");
   
+  // check whether id is unique for each observation
+  size_t unique_count = 0;
+  if (!idwi.empty()) unique_count = idwi.size();
+  else if (!idwn.empty()) unique_count = idwn.size();
+  else unique_count = idwc.size();
+  
+  if (unique_count != static_cast<size_t>(n)) {
+    throw std::invalid_argument(
+        "id must be unique for each observation: duplicates found");
+  }
+  
   // --- time existence and checks ---
   if (time.empty() || !data.containElementNamed(time))
     throw std::invalid_argument("data must contain the time variable");
@@ -1023,7 +1034,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
       
       // Before running the parallel loop: pre-generate deterministic seeds
       std::vector<uint64_t> seeds(n_boot);
-      boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed)); // user-provided seed
+      boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed));
       for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
