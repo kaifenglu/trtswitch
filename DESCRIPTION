@@ -10,7 +10,7 @@ License: GPL (>= 2)
 Imports: 
     Rcpp (>= 1.0.9),
     RcppParallel (>= 5.1.5), 
-    parallel,
+    parallel (>= 3.5),
     rlang (>= 1.0.6),
     data.table (>= 1.14.10),
     ggplot2 (>= 3.3.6),
@@ -30,7 +30,7 @@ Encoding: UTF-8
 NeedsCompilation: yes
 Depends: 
     R (>= 3.5)
-SystemRequirements: C++17    
+SystemRequirements: C++17
 LazyData: true
 URL: https://github.com/kaifenglu/trtswitch
 BugReports: https://github.com/kaifenglu/trtswitch/issues
