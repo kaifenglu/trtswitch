@@ -1,6 +1,6 @@
+#include <Rcpp.h>
 #include <RcppParallel.h>
 #include <RcppThread.h>
-#include <Rcpp.h>
 
 #include <boost/random.hpp>
 
@@ -173,7 +173,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     idn = matchcpp(v, idwc);
   } else throw std::invalid_argument(
       "incorrect type for the id variable in data");
-
+  
   // check whether id is unique for each observation
   size_t unique_count = 0;
   if (!idwi.empty()) unique_count = idwi.size();
@@ -201,7 +201,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     if (!std::isnan(timen[i]) && timen[i] < 0.0)
       throw std::invalid_argument("time must be nonnegative");
   }
-
+  
   // --- event variable ---
   if (!data.containElementNamed(event))
     throw std::invalid_argument("data must contain the event variable");
@@ -222,7 +222,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (std::all_of(eventn.begin(), eventn.end(), [](int x){ return x == 0; })) {
     throw std::invalid_argument("at least 1 event is needed");
   }
-
+  
   // create the numeric treat variable
   if (treat.empty() || !data.containElementNamed(treat))
     throw std::invalid_argument("data must contain the treat variable");
@@ -269,9 +269,9 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         "incorrect type for the treat variable in the input data");
   }
   for (int i = 0; i < n; ++i) {
-   treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
+    treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
   }
-
+  
   // --- rx variable ---
   if (rx.empty() || !data.containElementNamed(rx))
     throw std::invalid_argument("data must contain the rx variable");
@@ -286,7 +286,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   }
   for (double v : rxn) if (v < 0.0 || v > 1.0)
     throw std::invalid_argument("rx must take values between 0 and 1");
-
+  
   // --- censor_time variable ---
   if (censor_time.empty() || !data.containElementNamed(censor_time))
     throw std::invalid_argument("data must contain the censor_time variable");
@@ -308,7 +308,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (!admin_recensor_only) { // use the actual censoring time for dropouts
     for (int i = 0; i < n; ++i) if (eventn[i] == 0) censor_timen[i] = timen[i];
   }
-
+  
   // number of columns corresponding to the strata effects
   int q = 0;
   if (has_stratum) {
@@ -331,7 +331,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       for (int i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
         int di = d[i] - 1;
-
+        
         if (u_stratum.string_cols.count(s)) {
           auto u = levels.get<std::vector<std::string>>(s);
           for (int j = 0; j < di; ++j) {
@@ -353,7 +353,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             covariates_aft[k + j + 1] = s + std::to_string(u[j]);
           }
         }
-
+        
         for (int j = 0; j < di; ++j) {
           const int* stratan_col = stratan.data_ptr() + i * n;
           double* z_aftn_col = z_aftn.data_ptr() + (k + j) * n;
@@ -361,7 +361,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             z_aftn_col[r] = stratan_col[r] == j ? 1.0 : 0.0;
           }
         }
-
+        
         k += di;
       }
     } else {
@@ -371,15 +371,15 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         for (; first_k < n; ++first_k) {
           if (stratumn[first_k] == j) break;
         }
-
+        
         covariates_aft[j + 1] = "";
-
+        
         for (int i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
-
+          
           std::vector<int> q_col = intmatrix_get_column(stratan, i);
           int l = q_col[first_k];
-
+          
           if (u_stratum.string_cols.count(s)) {
             auto u = levels.get<std::vector<std::string>>(s);
             covariates_aft[j + 1] += s + sanitize(u[l]);
@@ -393,7 +393,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
             auto u = levels.get<std::vector<unsigned char>>(s);
             covariates_aft[j + 1] += s + std::to_string(u[l]);
           }
-
+          
           if (i < p_stratum - 1) {
             covariates_aft[j + 1] += ".";
           }
@@ -406,7 +406,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       }
     }
   }
-
+  
   // covariates for the Cox model containing treat and base_cov
   std::vector<std::string> covariates(p + 1);
   FlatMatrix zn(n, p);
@@ -436,7 +436,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
   }
-
+  
   std::string test = psi_test;
   std::for_each(test.begin(), test.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -447,7 +447,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   else if (test == "survreg" || test == "aft") test = "lifereg";
   if (!(test == "logrank" || test == "phreg" || test == "lifereg"))
     throw std::invalid_argument("psi_test must be logrank, phreg, or lifereg");
-
+  
   std::string dist = aft_dist;
   std::for_each(dist.begin(), dist.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -457,14 +457,14 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   if (!(dist == "exponential" || dist == "weibull" || dist == "lognormal" ||
       dist == "loglogistic")) throw std::invalid_argument(
         "aft_dist must be exponential, weibull, lognormal, or loglogistic");
-
+  
   if (low_psi >= hi_psi)
     throw std::invalid_argument("low_psi must be less than hi_psi");
   if (n_eval_z < 2)
     throw std::invalid_argument("n_eval_z must be greater than or equal to 2");
   if (treat_modifier <= 0.0)
     throw std::invalid_argument("treat_modifier must be positive");
-
+  
   std::string rooting = root_finding;
   std::for_each(rooting.begin(), rooting.end(), [](char & c) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -473,7 +473,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   else if (rooting.find("bi", 0) == 0) rooting = "bisection";
   if (!(rooting == "brent" || rooting == "bisection"))
     throw std::invalid_argument("root_finding must be brent or bisection");
-
+  
   if (alpha <= 0.0 || alpha >= 0.5)
     throw std::invalid_argument("alpha must lie between 0 and 0.5");
   if (ties != "efron" && ties != "breslow")
@@ -482,7 +482,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     throw std::invalid_argument("tol must be positive");
   if (n_boot < 100)
     throw std::invalid_argument("n_boot must be greater than or equal to 100");
-
+  
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
   for (int i = 0; i < n; ++i) {
@@ -496,7 +496,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
     }
   }
-
+  
   std::vector<int> keep = which(sub);
   if (keep.empty())
     throw std::invalid_argument("no observations without missing values");
@@ -510,7 +510,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   subset_in_place_flatmatrix(zn, keep);
   subset_in_place_flatmatrix(z_aftn, keep);
   n = static_cast<int>(keep.size());
-
+  
   // summarize number of deaths and switches by treatment arm
   std::vector<int> treat_out = {0, 1};
   std::vector<double> n_total(2);
@@ -524,7 +524,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       ++n_switch[g];
     }
   }
-
+  
   // Compute percentages
   std::vector<double> pct_event(2);
   std::vector<double> pct_switch(2);
@@ -532,7 +532,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     pct_event[g] = 100.0 * n_event[g] / n_total[g];
     pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
   }
-
+  
   // Combine count and percentage
   DataFrameCpp event_summary;
   event_summary.push_back(std::move(treat_out), "treated");
@@ -541,231 +541,224 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   event_summary.push_back(std::move(pct_event), "event_pct");
   event_summary.push_back(std::move(n_switch), "switch_n");
   event_summary.push_back(std::move(pct_switch), "switch_pct");
-
+  
   // ITT analysis log-rank test
   DataFrameCpp lr = lrtestcpp(data, stratum, treat, time, "", event);
   double logRankZ = lr.get<double>("logRankZ")[0];
   double pvalue = lr.get<double>("logRankPValue")[0];
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
-
+  
   double step_psi = (hi_psi - low_psi) / (n_eval_z - 1);
   std::vector<double> psi(n_eval_z);
   for (int i = 0; i < n_eval_z; ++i) {
     psi[i] = low_psi + i * step_psi;
   }
   
-  auto f = [p, qp, test, covariates, covariates_aft, dist, low_psi, 
-            hi_psi, n_eval_z, psi, treat_modifier, recensor, autoswitch, 
-            gridsearch, rooting, alpha, zcrit, ties, tol](
-                const std::vector<int>& idb,
-                const std::vector<int>& stratumb,
-                const std::vector<double>& timeb,
-                const std::vector<int>& eventb,
-                const std::vector<int>& treatb,
-                const std::vector<double>& rxb,
-                const std::vector<double>& censor_timeb,
-                const FlatMatrix& zb,
-                const FlatMatrix& z_aftb, int k) -> ListCpp {
-                  bool fail = false; // whether any model fails to converge
-                  std::vector<double> init(1, NaN);
-                  double psihat = NaN, psilower = NaN, psiupper = NaN;
-                  std::vector<double> psihat_vec;
-                  std::string psi_CI_type;
-                  std::vector<double> Z(n_eval_z);
-                  
-                  if (gridsearch) {
-                    for (int i = 0; i < n_eval_z; ++i) {
-                      Z[i] = est_psi_rpsftm(
-                        psi[i], p, qp, idb, stratumb, timeb, eventb,
-                        treatb, rxb, censor_timeb, test, covariates, zb,
-                        covariates_aft, z_aftb, dist, treat_modifier,
-                        recensor, autoswitch, alpha, ties);
-                    }
-                    
-                    ListCpp psihat_list = getpsiest(0, psi, Z, 0);
-                    psihat = psihat_list.get<double>("selected_root");
-                    psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
-                    psi_CI_type = "grid search";
-                    
-                    if (k == -1) {
-                      ListCpp psilower_list = getpsiest(zcrit, psi, Z, -1);
-                      psilower = psilower_list.get<double>("selected_root");
-                      ListCpp psiupper_list = getpsiest(-zcrit, psi, Z, 1);
-                      psiupper = psiupper_list.get<double>("selected_root");
-                    }
-                  } else {
-                    double target = 0.0;
-                    auto g = [&target, p, qp, idb, stratumb, timeb, eventb, 
-                              treatb, rxb, censor_timeb, test, covariates, 
-                              zb, covariates_aft, z_aftb, dist, 
-                              treat_modifier, recensor, autoswitch, 
-                              alpha, ties](double x) -> double {
-                                double z = est_psi_rpsftm(
-                                  x, p, qp, idb, stratumb, timeb, eventb,
-                                  treatb, rxb, censor_timeb, test, covariates, zb,
-                                  covariates_aft, z_aftb, dist, treat_modifier,
-                                  recensor, autoswitch, alpha, ties);
-                                return z - target;
-                              };
-                    
-                    double psilo = getpsiend(g, true, low_psi);
-                    double psihi = getpsiend(g, false, hi_psi);
-                    if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                      if (rooting == "brent") {
-                        psihat = brent(g, psilo, psihi, tol);
-                      } else {
-                        psihat = bisect(g, psilo, psihi, tol);
-                      }
-                    }
-                    psi_CI_type = "root finding";
-                    
-                    if (k == -1) {
-                      target = zcrit;
-                      psilo = getpsiend(g, true, low_psi);
-                      psihi = getpsiend(g, false, hi_psi);
-                      if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat) && g(psihat) < 0) {
-                          if (rooting == "brent") {
-                            psilower = brent(g, psilo, psihat, tol);
-                          } else {
-                            psilower = bisect(g, psilo, psihat, tol);
-                          }
-                        } else {
-                          if (rooting == "brent") {
-                            psilower = brent(g, psilo, psihi, tol);
-                          } else {
-                            psilower = bisect(g, psilo, psihi, tol);
-                          }
-                        }
-                      }
-                      
-                      target = -zcrit;
-                      psilo = getpsiend(g, true, low_psi);
-                      psihi = getpsiend(g, false, hi_psi);
-                      if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                        if (!std::isnan(psihat) && g(psihat) > 0) {
-                          if (rooting == "brent") {
-                            psiupper = brent(g, psihat, psihi, tol);
-                          } else {
-                            psiupper = bisect(g, psihat, psihi, tol);
-                          }
-                        } else {
-                          if (rooting == "brent") {
-                            psiupper = brent(g, psilo, psihi, tol);
-                          } else {
-                            psiupper = bisect(g, psilo, psihi, tol);
-                          }
-                        }
-                      }
-                    }
-                  }
-                  
-                  DataFrameCpp eval_z, Sstar, kmstar, data_outcome;
-                  DataFrameCpp km_outcome, lr_outcome;
-                  ListCpp fit_outcome;
-                  double hrhat = NaN;
-                  
-                  if (k == -1) {
-                    if (!gridsearch) {
-                      for (int i = 0; i < n_eval_z; ++i) {
-                        Z[i] = est_psi_rpsftm(
-                          psi[i], p, qp, idb, stratumb, timeb, eventb,
-                          treatb, rxb, censor_timeb, test, covariates, zb,
-                          covariates_aft, z_aftb, dist, treat_modifier,
-                          recensor, autoswitch, alpha, ties);
-                      }
-                      
-                      ListCpp psihat_list = getpsiest(0, psi, Z, 0);
-                      psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
-                    }
-                    eval_z.push_back(psi, "psi");
-                    eval_z.push_back(std::move(Z), "Z");
-                  }
-                  
-                  bool psimissing = std::isnan(psihat);
-                  if (psimissing) fail = true;
-                  
-                  if (!psimissing) {
-                    if (k == -1) {
-                      // construct the counterfactual survival times
-                      Sstar = untreated(
-                        psihat * treat_modifier, idb, timeb, eventb, treatb,
-                        rxb, censor_timeb, recensor, autoswitch);
-                      Sstar.push_back(stratumb, "ustratum");
-                      
-                      for (int j = 0; j < p; ++j) {
-                        const std::string& zj = covariates[j + 1];
-                        std::vector<double> u = flatmatrix_get_column(zb, j);
-                        Sstar.push_back(std::move(u), zj);
-                      }
-                      
-                      kmstar = kmestcpp(
-                        Sstar, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, 1);
-                    }
-                    
-                    // run Cox model to obtain the hazard ratio estimate
-                    data_outcome = unswitched(
-                      psihat * treat_modifier, idb, timeb, eventb, treatb,
-                      rxb, censor_timeb, recensor, autoswitch);
-                    data_outcome.push_back(stratumb, "ustratum");
-                    
-                    for (int j = 0; j < p; ++j) {
-                      const std::string& zj = covariates[j + 1];
-                      std::vector<double> u = flatmatrix_get_column(zb, j);
-                      data_outcome.push_back(std::move(u), zj);
-                    }
-                    
-                    // generate KM estimate and log-rank test
-                    if (k == -1) {
-                      km_outcome = kmestcpp(
-                        data_outcome, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, 1);
-                      lr_outcome = lrtestcpp(
-                        data_outcome, {"ustratum"}, "treated", 
-                        "t_star", "", "d_star");
-                    }
-                    
-                    // fit the outcome model
-                    fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
-                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
-                    
-                    DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
-                    if (sumstat.get<unsigned char>("fail")[0]) fail = true;
-                    DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
-                    hrhat = std::exp(parest.get<double>("beta")[0]);
-                  }
-                  
-                  ListCpp out;
-                  if (k == -1) {
-                    out.push_back(std::move(eval_z), "eval_z");
-                    out.push_back(std::move(Sstar), "Sstar");
-                    out.push_back(std::move(kmstar), "kmstar");
-                    out.push_back(std::move(data_outcome), "data_outcome");
-                    out.push_back(std::move(km_outcome), "km_outcome");
-                    out.push_back(std::move(lr_outcome), "lr_outcome");
-                    out.push_back(std::move(fit_outcome), "fit_outcome");
-                    out.push_back(psihat, "psihat");
-                    out.push_back(std::move(psihat_vec), "psihat_vec");
-                    out.push_back(psilower, "psilower");
-                    out.push_back(psiupper, "psiupper");
-                    out.push_back(psi_CI_type, "psi_CI_type");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(fail, "fail");
-                    out.push_back(psimissing, "psimissing");
-                  } else {
-                    out.push_back(psihat, "psihat");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(fail, "fail");
-                  }
-                  
-                  return out;
-                };
+  auto f = [&](const std::vector<int>& idb,
+               const std::vector<int>& stratumb,
+               const std::vector<double>& timeb,
+               const std::vector<int>& eventb,
+               const std::vector<int>& treatb,
+               const std::vector<double>& rxb,
+               const std::vector<double>& censor_timeb,
+               const FlatMatrix& zb,
+               const FlatMatrix& z_aftb, int k) -> ListCpp {
+                 bool fail = false; // whether any model fails to converge
+                 std::vector<double> init(1, NaN);
+                 double psihat = NaN, psilower = NaN, psiupper = NaN;
+                 std::vector<double> psihat_vec;
+                 std::string psi_CI_type;
+                 std::vector<double> Z(n_eval_z);
+                 
+                 if (gridsearch) {
+                   for (int i = 0; i < n_eval_z; ++i) {
+                     Z[i] = est_psi_rpsftm(
+                       psi[i], p, qp, idb, stratumb, timeb, eventb,
+                       treatb, rxb, censor_timeb, test, covariates, zb,
+                       covariates_aft, z_aftb, dist, treat_modifier,
+                       recensor, autoswitch, alpha, ties);
+                   }
+                   
+                   ListCpp psihat_list = getpsiest(0, psi, Z, 0);
+                   psihat = psihat_list.get<double>("selected_root");
+                   psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
+                   psi_CI_type = "grid search";
+                   
+                   if (k == -1) {
+                     ListCpp psilower_list = getpsiest(zcrit, psi, Z, -1);
+                     psilower = psilower_list.get<double>("selected_root");
+                     ListCpp psiupper_list = getpsiest(-zcrit, psi, Z, 1);
+                     psiupper = psiupper_list.get<double>("selected_root");
+                   }
+                 } else {
+                   double target = 0.0;
+                   auto g = [&](double x) -> double {
+                     double z = est_psi_rpsftm(
+                       x, p, qp, idb, stratumb, timeb, eventb,
+                       treatb, rxb, censor_timeb, test, covariates, zb,
+                       covariates_aft, z_aftb, dist, treat_modifier,
+                       recensor, autoswitch, alpha, ties);
+                     return z - target;
+                   };
+                   
+                   double psilo = getpsiend(g, true, low_psi);
+                   double psihi = getpsiend(g, false, hi_psi);
+                   if (!std::isnan(psilo) && !std::isnan(psihi)) {
+                     if (rooting == "brent") {
+                       psihat = brent(g, psilo, psihi, tol);
+                     } else {
+                       psihat = bisect(g, psilo, psihi, tol);
+                     }
+                   }
+                   psi_CI_type = "root finding";
+                   
+                   if (k == -1) {
+                     target = zcrit;
+                     psilo = getpsiend(g, true, low_psi);
+                     psihi = getpsiend(g, false, hi_psi);
+                     if (!std::isnan(psilo) && !std::isnan(psihi)) {
+                       if (!std::isnan(psihat) && g(psihat) < 0) {
+                         if (rooting == "brent") {
+                           psilower = brent(g, psilo, psihat, tol);
+                         } else {
+                           psilower = bisect(g, psilo, psihat, tol);
+                         }
+                       } else {
+                         if (rooting == "brent") {
+                           psilower = brent(g, psilo, psihi, tol);
+                         } else {
+                           psilower = bisect(g, psilo, psihi, tol);
+                         }
+                       }
+                     }
+                     
+                     target = -zcrit;
+                     psilo = getpsiend(g, true, low_psi);
+                     psihi = getpsiend(g, false, hi_psi);
+                     if (!std::isnan(psilo) && !std::isnan(psihi)) {
+                       if (!std::isnan(psihat) && g(psihat) > 0) {
+                         if (rooting == "brent") {
+                           psiupper = brent(g, psihat, psihi, tol);
+                         } else {
+                           psiupper = bisect(g, psihat, psihi, tol);
+                         }
+                       } else {
+                         if (rooting == "brent") {
+                           psiupper = brent(g, psilo, psihi, tol);
+                         } else {
+                           psiupper = bisect(g, psilo, psihi, tol);
+                         }
+                       }
+                     }
+                   }
+                 }
+                 
+                 DataFrameCpp eval_z, Sstar, kmstar, data_outcome;
+                 DataFrameCpp km_outcome, lr_outcome;
+                 ListCpp fit_outcome;
+                 double hrhat = NaN;
+                 
+                 if (k == -1) {
+                   if (!gridsearch) {
+                     for (int i = 0; i < n_eval_z; ++i) {
+                       Z[i] = est_psi_rpsftm(
+                         psi[i], p, qp, idb, stratumb, timeb, eventb,
+                         treatb, rxb, censor_timeb, test, covariates, zb,
+                         covariates_aft, z_aftb, dist, treat_modifier,
+                         recensor, autoswitch, alpha, ties);
+                     }
+                     
+                     ListCpp psihat_list = getpsiest(0, psi, Z, 0);
+                     psihat_vec = psihat_list.get<std::vector<double>>("all_roots");
+                   }
+                   eval_z.push_back(psi, "psi");
+                   eval_z.push_back(std::move(Z), "Z");
+                 }
+                 
+                 bool psimissing = std::isnan(psihat);
+                 if (psimissing) fail = true;
+                 
+                 if (!psimissing) {
+                   if (k == -1) {
+                     // construct the counterfactual survival times
+                     Sstar = untreated(
+                       psihat * treat_modifier, idb, timeb, eventb, treatb,
+                       rxb, censor_timeb, recensor, autoswitch);
+                     Sstar.push_back(stratumb, "ustratum");
+                     
+                     for (int j = 0; j < p; ++j) {
+                       const std::string& zj = covariates[j + 1];
+                       std::vector<double> u = flatmatrix_get_column(zb, j);
+                       Sstar.push_back(std::move(u), zj);
+                     }
+                     
+                     kmstar = kmestcpp(
+                       Sstar, {"treated"}, "t_star", "", "d_star", 
+                       "", "log-log", 1.0 - alpha, 1);
+                   }
+                   
+                   // run Cox model to obtain the hazard ratio estimate
+                   data_outcome = unswitched(
+                     psihat * treat_modifier, idb, timeb, eventb, treatb,
+                     rxb, censor_timeb, recensor, autoswitch);
+                   data_outcome.push_back(stratumb, "ustratum");
+                   
+                   for (int j = 0; j < p; ++j) {
+                     const std::string& zj = covariates[j + 1];
+                     std::vector<double> u = flatmatrix_get_column(zb, j);
+                     data_outcome.push_back(std::move(u), zj);
+                   }
+                   
+                   // generate KM estimate and log-rank test
+                   if (k == -1) {
+                     km_outcome = kmestcpp(
+                       data_outcome, {"treated"}, "t_star", "", "d_star", 
+                       "", "log-log", 1.0 - alpha, 1);
+                     lr_outcome = lrtestcpp(
+                       data_outcome, {"ustratum"}, "treated", 
+                       "t_star", "", "d_star");
+                   }
+                   
+                   // fit the outcome model
+                   fit_outcome = phregcpp(
+                     data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                     covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                   
+                   DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
+                   if (sumstat.get<unsigned char>("fail")[0]) fail = true;
+                   DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
+                   hrhat = std::exp(parest.get<double>("beta")[0]);
+                 }
+                 
+                 ListCpp out;
+                 if (k == -1) {
+                   out.push_back(std::move(eval_z), "eval_z");
+                   out.push_back(std::move(Sstar), "Sstar");
+                   out.push_back(std::move(kmstar), "kmstar");
+                   out.push_back(std::move(data_outcome), "data_outcome");
+                   out.push_back(std::move(km_outcome), "km_outcome");
+                   out.push_back(std::move(lr_outcome), "lr_outcome");
+                   out.push_back(std::move(fit_outcome), "fit_outcome");
+                   out.push_back(psihat, "psihat");
+                   out.push_back(std::move(psihat_vec), "psihat_vec");
+                   out.push_back(psilower, "psilower");
+                   out.push_back(psiupper, "psiupper");
+                   out.push_back(psi_CI_type, "psi_CI_type");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(fail, "fail");
+                   out.push_back(psimissing, "psimissing");
+                 } else {
+                   out.push_back(psihat, "psihat");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(fail, "fail");
+                 }
+                 
+                 return out;
+               };
   
   ListCpp out = f(idn, stratumn, timen, eventn, treatn, rxn, censor_timen, 
                   zn, z_aftn, -1);
-
+  
   DataFrameCpp eval_z = out.get<DataFrameCpp>("eval_z");
   DataFrameCpp Sstar = out.get<DataFrameCpp>("Sstar");
   DataFrameCpp kmstar = out.get<DataFrameCpp>("kmstar");
@@ -773,7 +766,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   DataFrameCpp km_outcome = out.get<DataFrameCpp>("km_outcome");
   DataFrameCpp lr_outcome = out.get<DataFrameCpp>("lr_outcome");
   ListCpp fit_outcome = out.get_list("fit_outcome");
-
+  
   double psihat = out.get<double>("psihat");
   std::vector<double> psihat_vec = out.get<std::vector<double>>("psihat_vec");
   double psilower = out.get<double>("psilower");
@@ -782,13 +775,13 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   double hrhat = out.get<double>("hrhat");
   bool fail = out.get<bool>("fail");
   bool psimissing = out.get<bool>("psimissing");
-
+  
   double hrlower = NaN, hrupper = NaN;
   std::vector<double> hrhats(n_boot), psihats(n_boot);
   std::vector<unsigned char> fails(n_boot);
   DataFrameCpp fail_boots_data;
   std::string hr_CI_type;
-
+  
   if (!psimissing) {
     // summarize number of deaths by treatment arm in the outcome data
     std::vector<int> treated = data_outcome.get<int>("treated");
@@ -804,7 +797,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     }
     event_summary.push_back(std::move(n_event_out), "event_out_n");
     event_summary.push_back(std::move(pct_event_out), "event_out_pct");
-
+    
     // add back the id, treat, and stratum variables
     std::vector<int> uid = Sstar.get<int>("uid");
     if (data.int_cols.count(id)) {
@@ -814,7 +807,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(id)) {
       Sstar.push_front(subset(idwc, uid), id);
     }
-
+    
     uid = data_outcome.get<int>("uid");
     if (data.int_cols.count(id)) {
       data_outcome.push_front(subset(idwi, uid), id);
@@ -823,7 +816,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(id)) {
       data_outcome.push_front(subset(idwc, uid), id);
     }
-
+    
     treated = event_summary.get<int>("treated");
     std::vector<int> nottreated(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -835,7 +828,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       event_summary.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = Sstar.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -847,7 +840,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       Sstar.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = kmstar.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -859,7 +852,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       kmstar.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = data_outcome.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -871,7 +864,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       data_outcome.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     treated = km_outcome.get<int>("treated");
     nottreated.resize(treated.size());
     std::transform(treated.begin(), treated.end(), nottreated.begin(),
@@ -883,7 +876,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
     } else if (data.string_cols.count(treat)) {
       km_outcome.push_back(subset(treatwc, nottreated), treat);
     }
-
+    
     if (has_stratum) {
       std::vector<int> ustratum = Sstar.get<int>("ustratum");
       for (int i = 0; i < p_stratum; ++i) {
@@ -902,7 +895,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           Sstar.push_back(subset(v, ustratum), s);
         }
       }
-
+      
       ustratum = data_outcome.get<int>("ustratum");
       for (int i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
@@ -921,7 +914,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         }
       }
     }
-
+    
     // construct the confidence interval for HR
     if (!boot) { // use log-rank p-value to construct CI for HR if no boot
       double loghr = std::log(hrhat);
@@ -1176,7 +1169,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       std::vector<int> oidc = std::move(worker.oidc_local);
       std::vector<int> stratumc = std::move(worker.stratumc_local);
       std::vector<int> treatc = std::move(worker.treatc_local);
-
+      
       // assemble the failed bootstrap data into a DataFrame
       if (worker.index1_local > 0) {
         fail_boots_data.push_back(std::move(worker.boot_indexc_local), "boot_index");
@@ -1186,7 +1179,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         fail_boots_data.push_back(treatc, "treated");
         fail_boots_data.push_back(std::move(worker.rxc_local), "rx");
         fail_boots_data.push_back(std::move(worker.censor_timec_local), "censor_time");
-
+        
         int ncols_aft = worker.z_aftc_local.size();
         for (int j = 0; j < ncols_aft; ++j) {
           const std::string& zj = covariates_aft[j+1];
@@ -1201,7 +1194,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         } else if (data.string_cols.count(id)) {
           fail_boots_data.push_back(subset(idwc, oidc), id);
         }
-
+        
         std::vector<int> nottreatc(treatc.size());
         std::transform(treatc.begin(), treatc.end(), nottreatc.begin(),
                        [](int value) { return 1 - value; });
@@ -1212,7 +1205,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         } else if (data.string_cols.count(treat)) {
           fail_boots_data.push_back(subset(treatwc, nottreatc), treat);
         }
-
+        
         if (has_stratum) {
           for (int i = 0; i < p_stratum; ++i) {
             const std::string& s = stratum[i];
@@ -1232,12 +1225,12 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
           }
         }
       }
-    
+      
       // retrieve the bootstrap results      
       fails = worker.fails_out;
       hrhats = worker.hrhats_out;
       psihats = worker.psihats_out;
-
+      
       // obtain bootstrap confidence interval for HR
       double loghr = std::log(hrhat);
       std::vector<int> ok;
@@ -1261,7 +1254,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       hrupper = std::exp(loghr + tcrit * sdloghr);
       hr_CI_type = "bootstrap";
       pvalue = 2.0 * (1.0 - boost_pt(std::fabs(loghr / sdloghr), n_ok - 1));
-
+      
       // obtain bootstrap confidence interval for psi
       std::vector<double> psihats1 = subset(psihats, ok);
       double meanpsi, sdpsi;
@@ -1271,7 +1264,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       psi_CI_type = "bootstrap";
     }
   }
-
+  
   ListCpp result;
   std::string pvalue_type = boot ? "bootstrap" : "log-rank";
   std::vector<double> psi_CI = {psilower, psiupper};
@@ -1295,7 +1288,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
   result.push_back(std::move(fit_outcome), "fit_outcome");
   result.push_back(fail, "fail");
   result.push_back(psimissing, "psimissing");
-
+  
   if (boot) {
     result.push_back(fails, "fail_boots");
     result.push_back(std::move(hrhats), "hr_boots");
@@ -1304,7 +1297,7 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
       result.push_back(std::move(fail_boots_data), "fail_boots_data");
     }
   }
-
+  
   thread_utils::drain_thread_warnings_to_R();
   return Rcpp::wrap(result);
 }

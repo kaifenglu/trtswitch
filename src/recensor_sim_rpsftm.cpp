@@ -1,5 +1,5 @@
-#include <RcppThread.h>
 #include <Rcpp.h>
+#include <RcppThread.h>
 
 #include <boost/random.hpp>
 
@@ -492,56 +492,52 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     else treat[i] = 0;
   }
   
-  auto f = [n, low_psi, hi_psi, treat_modifier, recensor_type, 
-            autoswitch, alpha, ties, tol](
-                std::vector<int>& idb, 
-                std::vector<int>& stratumb, 
-                std::vector<double>& timeb, 
-                std::vector<int>& eventb, 
-                std::vector<int>& treatb, 
-                std::vector<double>& rxb, 
-                std::vector<double>& censor_timeb) -> ListCpp {
-                  std::vector<double> init(1, NaN);
-                  
-                  // obtain the estimate of psi
-                  double target = 0.0;
-                  auto g = [&target, n, idb, stratumb, timeb, eventb, 
-                            treatb, rxb, censor_timeb, treat_modifier, 
-                            recensor_type, autoswitch](double x) -> double {
-                              return f_est_psi_rpsftm(
-                                x, n, idb, stratumb, timeb, eventb, 
-                                treatb, rxb, censor_timeb, 
-                                treat_modifier, recensor_type, 
-                                autoswitch, target);
-                            };
-                  
-                  double psihat = NaN, loghrhat = NaN, seloghrcox = NaN;
-                  if (g(low_psi) > 0 && g(hi_psi) < 0) {
-                    psihat = brent(g, low_psi, hi_psi, tol);
-                    
-                    // run Cox model to obtain the hazard ratio estimate
-                    DataFrameCpp data_outcome = f_unswitched(
-                      psihat*treat_modifier, n, idb, timeb, eventb, treatb,
-                      rxb, censor_timeb, recensor_type, autoswitch);
-                    
-                    data_outcome.push_back(stratumb, "ustratum");
-                    
-                    ListCpp fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
-                      {"treated"}, "", "", "", ties, init, 
-                      0, 0, 0, 0, 0, alpha);
-                    
-                    DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
-                    loghrhat = parest.get<double>("beta")[0];
-                    seloghrcox = parest.get<double>("sebeta")[0];
-                  }
-                  
-                  ListCpp out;
-                  out.push_back(psihat, "psihat");
-                  out.push_back(loghrhat, "loghrhat");
-                  out.push_back(seloghrcox, "seloghrcox");
-                  return out;
-                };
+  auto f = [&](std::vector<int>& idb, 
+               std::vector<int>& stratumb, 
+               std::vector<double>& timeb, 
+               std::vector<int>& eventb, 
+               std::vector<int>& treatb, 
+               std::vector<double>& rxb, 
+               std::vector<double>& censor_timeb) -> ListCpp {
+                 std::vector<double> init(1, NaN);
+                 
+                 // obtain the estimate of psi
+                 double target = 0.0;
+                 auto g = [&](double x) -> double {
+                   return f_est_psi_rpsftm(
+                     x, n, idb, stratumb, timeb, eventb, 
+                     treatb, rxb, censor_timeb, 
+                     treat_modifier, recensor_type, 
+                     autoswitch, target);
+                 };
+                 
+                 double psihat = NaN, loghrhat = NaN, seloghrcox = NaN;
+                 if (g(low_psi) > 0 && g(hi_psi) < 0) {
+                   psihat = brent(g, low_psi, hi_psi, tol);
+                   
+                   // run Cox model to obtain the hazard ratio estimate
+                   DataFrameCpp data_outcome = f_unswitched(
+                     psihat*treat_modifier, n, idb, timeb, eventb, treatb,
+                     rxb, censor_timeb, recensor_type, autoswitch);
+                   
+                   data_outcome.push_back(stratumb, "ustratum");
+                   
+                   ListCpp fit_outcome = phregcpp(
+                     data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                     {"treated"}, "", "", "", ties, init, 
+                     0, 0, 0, 0, 0, alpha);
+                   
+                   DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
+                   loghrhat = parest.get<double>("beta")[0];
+                   seloghrcox = parest.get<double>("sebeta")[0];
+                 }
+                 
+                 ListCpp out;
+                 out.push_back(psihat, "psihat");
+                 out.push_back(loghrhat, "loghrhat");
+                 out.push_back(seloghrcox, "seloghrcox");
+                 return out;
+               };
   
   
   for (int iter = 0; iter < nsim; ++iter) {

@@ -1,6 +1,6 @@
+#include <Rcpp.h>
 #include <RcppParallel.h>
 #include <RcppThread.h>
-#include <Rcpp.h>
 
 #include <boost/random.hpp>
 
@@ -598,289 +598,285 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  auto f = [data, has_stratum, stratum, p_stratum, u_stratum, 
-            treat, treatwi, treatwn, treatwc, id, idwi, idwn, idwc,
-            n, p, qp2, covariates, covariates_aft, dist, 
-            recensor, swtrt_control_only, alpha, zcrit, ties, offset](
-                const std::vector<int>& idb, 
-                const std::vector<int>& stratumb, 
-                const std::vector<double>& timeb, 
-                const std::vector<int>& eventb, 
-                const std::vector<int>& treatb, 
-                const std::vector<double>& censor_timeb, 
-                const std::vector<int>& pdb, 
-                const std::vector<double>& pd_timeb, 
-                const std::vector<int>& swtrtb, 
-                const std::vector<double>& swtrt_timeb, 
-                const FlatMatrix& zb, 
-                const FlatMatrix& z_aftb, int k) -> ListCpp {
-                  bool fail = false; // whether any model fails to converge
-                  std::vector<double> init(1, NaN);
-                  
-                  // time and event adjusted for treatment switching
-                  std::vector<double> t_star = timeb;
-                  std::vector<int> d_star = eventb;
-                  
-                  double psi0hat = NaN, psi0lower = NaN, psi0upper = NaN;
-                  double psi1hat = NaN, psi1lower = NaN, psi1upper = NaN;
-                  
-                  // initialize data_aft and fit_aft
-                  std::vector<ListPtr> data_aft(2), fit_aft(2), res_aft(2);
-                  if (k == -1) {
-                    DataFrameCpp nulldata;
-                    ListCpp nullfit;
-                    std::vector<double> nullres;
-                    for (int h = 0; h < 2; ++h) {
-                      ListPtr data_x = std::make_shared<ListCpp>();
-                      ListPtr fit_x  = std::make_shared<ListCpp>();
-                      ListPtr res_x  = std::make_shared<ListCpp>();
-                      data_x->push_back(nulldata, "data");
-                      fit_x->push_back(nullfit, "fit");
-                      res_x->push_back(nullres, "res");
-                      if (data.bool_cols.count(treat) || 
-                          data.int_cols.count(treat)) {
-                        data_x->push_back(treatwi[1 - h], treat);
-                        fit_x->push_back(treatwi[1 - h], treat);
-                        res_x->push_back(treatwi[1 - h], treat);
-                      } else if (data.numeric_cols.count(treat)) {
-                        data_x->push_back(treatwn[1 - h], treat);
-                        fit_x->push_back(treatwn[1 - h], treat);
-                        res_x->push_back(treatwn[1 - h], treat);
-                      } else if (data.string_cols.count(treat)) {
-                        data_x->push_back(treatwc[1 - h], treat);
-                        fit_x->push_back(treatwc[1 - h], treat);
-                        res_x->push_back(treatwc[1 - h], treat);
-                      }
-                      data_aft[h] = std::move(data_x);
-                      fit_aft[h]  = std::move(fit_x);
-                      res_aft[h]  = std::move(res_x);
-                    }
-                  }
-                  
-                  
-                  bool psimissing = false;
-                  
-                  // # arms that include patients who switched treatment
-                  int K = swtrt_control_only ? 1 : 2;
-                  for (int h = 0; h < K; ++h) {
-                    // post progression data
-                    std::vector<int> l; 
-                    l.reserve(n);
-                    for (int i = 0; i < n; ++i) 
-                      if (treatb[i] == h && pdb[i] == 1) l.push_back(i);
-                    
-                    int m = static_cast<int>(l.size());
-                    std::vector<int> id2(m), event2(m), swtrt2(m);
-                    std::vector<double> time2(m);
-                    for (int i = 0; i < m; ++i) {
-                      int j = l[i];
-                      id2[i] = idb[j];
-                      time2[i] = timeb[j] - pd_timeb[j] + offset;
-                      event2[i] = eventb[j];
-                      swtrt2[i] = swtrtb[j];
-                    }
-                    
-                    DataFrameCpp data1;
-                    data1.push_back(id2, "uid");
-                    data1.push_back(std::move(time2), "pps");
-                    data1.push_back(std::move(event2), "event");
-                    data1.push_back(std::move(swtrt2), "swtrt");
-                    
-                    for (int j = 0; j < qp2; ++j) {
-                      const std::string& zj = covariates_aft[j+1];
-                      std::vector<double> u = flatmatrix_get_column(z_aftb, j);
-                      data1.push_back(subset(u, l), zj);
-                    }
-                    
-                    ListCpp fit1 = liferegcpp(
-                      data1, {""}, "pps", "", "event", 
-                      covariates_aft, "", "", "", dist, init, 0, 0, alpha);
-                    
-                    DataFrameCpp sumstat1 = fit1.get<DataFrameCpp>("sumstat");
-                    if (sumstat1.get<unsigned char>("fail")[0]) fail = true;
-                    
-                    DataFrameCpp parest1 = fit1.get<DataFrameCpp>("parest");
-                    std::vector<double> beta1 = parest1.get<double>("beta");
-                    double psihat = -beta1[1];
-                    double psilower = NaN, psiupper = NaN;
-                    if (k == -1) {
-                      std::vector<double> sebeta1 = parest1.get<double>("sebeta");
-                      psilower = -beta1[1] - zcrit * sebeta1[1];
-                      psiupper = -beta1[1] + zcrit * sebeta1[1];
-                    }
-                    
-                    std::vector<double> res1;
-                    if (k == -1) {
-                      FlatMatrix vbeta1 = fit1.get<FlatMatrix>("vbeta");
-                      FlatMatrix rr = residuals_liferegcpp(
-                        beta1, vbeta1, data1, {""}, "pps", "", "event",
-                        covariates_aft, "", "", "", dist, "deviance");
-                      res1 = flatmatrix_get_column(rr, 0);
-                    }
-                    
-                    // update treatment-specific causal parameter estimates
-                    if (h == 0) {
-                      psi0hat = psihat;
-                      if (k == -1) {
-                        psi0lower = psilower;
-                        psi0upper = psiupper;
-                      }
-                    } else {
-                      psi1hat = psihat;
-                      if (k == -1) {
-                        psi1lower = psilower;
-                        psi1upper = psiupper;
-                      }
-                    }
-                    
-                    // update data_aft, fit_aft, and res_aft
-                    if (k == -1) {
-                      std::vector<int> stratum2 = subset(stratumb, l);
-                      if (has_stratum) {
-                        for (int i = 0; i < p_stratum; ++i) {
-                          const std::string& s = stratum[i];
-                          if (data.bool_cols.count(s)) {
-                            auto v = u_stratum.get<unsigned char>(s);
-                            data1.push_back(subset(v, stratum2), s);
-                          } else if (data.int_cols.count(s)) {
-                            auto v = u_stratum.get<int>(s);
-                            data1.push_back(subset(v, stratum2), s);
-                          } else if (data.numeric_cols.count(s)) {
-                            auto v = u_stratum.get<double>(s);
-                            data1.push_back(subset(v, stratum2), s);
-                          } else if (data.string_cols.count(s)) {
-                            auto v = u_stratum.get<std::string>(s);
-                            data1.push_back(subset(v, stratum2), s);
-                          }
-                        }
-                      }
-                      
-                      if (data.int_cols.count(id)) {
-                        data1.push_front(subset(idwi, id2), id);
-                      } else if (data.numeric_cols.count(id)) {
-                        data1.push_front(subset(idwn, id2), id);
-                      } else if (data.string_cols.count(id)) {
-                        data1.push_front(subset(idwc, id2), id);
-                      }
-                      
-                      ListPtr& data_x = data_aft[h];
-                      data_x->get<DataFrameCpp>("data") = data1;
-                      
-                      ListPtr& fit_x = fit_aft[h];
-                      fit_x->get_list("fit") = fit1;
-                      
-                      ListPtr& res_x = res_aft[h];
-                      res_x->get<std::vector<double>>("res") = res1;
-                    }
-                    
-                    if (!std::isnan(psihat)) {
-                      // calculate counter-factual survival times
-                      double a = std::exp(psihat);
-                      double c0 = std::min(1.0, a);
-                      for (int i = 0; i < n; ++i) {
-                        if (treatb[i] == h) {
-                          double u_star, c_star;
-                          if (swtrtb[i] == 1) {
-                            double b2 = pd_timeb[i] - offset;
-                            u_star = b2 + (timeb[i] - b2) * a;
-                          } else {
-                            u_star = timeb[i];
-                          }
-                          
-                          if (recensor) {
-                            c_star = censor_timeb[i] * c0;
-                            t_star[i] = std::min(u_star, c_star);
-                            d_star[i] = c_star < u_star ? 0 : eventb[i];
-                          } else {
-                            t_star[i] = u_star;
-                            d_star[i] = eventb[i];
-                          }
-                        }
-                      }
-                    } else {
-                      psimissing = true;
-                      fail = true;
-                    }
-                  }
-                  
-                  
-                  DataFrameCpp data_outcome, km_outcome, lr_outcome;
-                  ListCpp fit_outcome;
-                  double hrhat = NaN, hrlower = NaN, hrupper = NaN, pvalue = NaN;
-                  
-                  if (!psimissing) {
-                    // Cox model for hypothetical treatment effect estimate
-                    data_outcome.push_back(idb, "uid");
-                    data_outcome.push_back(std::move(t_star), "t_star");
-                    data_outcome.push_back(std::move(d_star), "d_star");
-                    data_outcome.push_back(treatb, "treated");
-                    data_outcome.push_back(stratumb, "ustratum");
-                    
-                    for (int j = 0; j < p; ++j) {
-                      const std::string& zj = covariates[j+1];
-                      std::vector<double> u = flatmatrix_get_column(zb, j);
-                      data_outcome.push_back(std::move(u), zj);
-                    }
-                    
-                    // generate KM estimate and log-rank test
-                    if (k == -1) {
-                      km_outcome = kmestcpp(
-                        data_outcome, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, 1);
-                      
-                      lr_outcome = lrtestcpp(
-                        data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
-                    }
-                    
-                    // fit the outcome model
-                    fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
-                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
-                    
-                    DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
-                    if (sumstat.get<unsigned char>("fail")[0]) fail = true;
-                    
-                    DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
-                    double beta0 = parest.get<double>("beta")[0];
-                    double sebeta0 = parest.get<double>("sebeta")[0];
-                    hrhat = std::exp(beta0);
-                    if (k == -1) {
-                      hrlower = std::exp(beta0 - zcrit * sebeta0);
-                      hrupper = std::exp(beta0 + zcrit * sebeta0);
-                      pvalue = parest.get<double>("p")[0];
-                    }
-                  }
-                  
-                  ListCpp out;
-                  if (k == -1) {
-                    out.push_back(std::move(data_aft), "data_aft");
-                    out.push_back(std::move(fit_aft), "fit_aft");
-                    out.push_back(std::move(res_aft), "res_aft");
-                    out.push_back(std::move(data_outcome), "data_outcome");
-                    out.push_back(std::move(km_outcome), "km_outcome");
-                    out.push_back(std::move(lr_outcome), "lr_outcome");
-                    out.push_back(std::move(fit_outcome), "fit_outcome");
-                    out.push_back(psi0hat, "psihat");
-                    out.push_back(psi0lower, "psilower");
-                    out.push_back(psi0upper, "psiupper");
-                    out.push_back(psi1hat, "psi1hat");
-                    out.push_back(psi1lower, "psi1lower");
-                    out.push_back(psi1upper, "psi1upper");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(hrlower, "hrlower");
-                    out.push_back(hrupper, "hrupper");
-                    out.push_back(pvalue, "pvalue");
-                    out.push_back(fail, "fail");
-                    out.push_back(psimissing, "psimissing");
-                  } else {
-                    out.push_back(psi0hat, "psihat");
-                    out.push_back(psi1hat, "psi1hat");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(fail, "fail");
-                  }
-                  
-                  return out;
-                };
+  auto f = [&](const std::vector<int>& idb, 
+               const std::vector<int>& stratumb, 
+               const std::vector<double>& timeb, 
+               const std::vector<int>& eventb, 
+               const std::vector<int>& treatb, 
+               const std::vector<double>& censor_timeb, 
+               const std::vector<int>& pdb, 
+               const std::vector<double>& pd_timeb, 
+               const std::vector<int>& swtrtb, 
+               const std::vector<double>& swtrt_timeb, 
+               const FlatMatrix& zb, 
+               const FlatMatrix& z_aftb, int k) -> ListCpp {
+                 bool fail = false; // whether any model fails to converge
+                 std::vector<double> init(1, NaN);
+                 
+                 // time and event adjusted for treatment switching
+                 std::vector<double> t_star = timeb;
+                 std::vector<int> d_star = eventb;
+                 
+                 double psi0hat = NaN, psi0lower = NaN, psi0upper = NaN;
+                 double psi1hat = NaN, psi1lower = NaN, psi1upper = NaN;
+                 
+                 // initialize data_aft and fit_aft
+                 std::vector<ListPtr> data_aft(2), fit_aft(2), res_aft(2);
+                 if (k == -1) {
+                   DataFrameCpp nulldata;
+                   ListCpp nullfit;
+                   std::vector<double> nullres;
+                   for (int h = 0; h < 2; ++h) {
+                     ListPtr data_x = std::make_shared<ListCpp>();
+                     ListPtr fit_x  = std::make_shared<ListCpp>();
+                     ListPtr res_x  = std::make_shared<ListCpp>();
+                     data_x->push_back(nulldata, "data");
+                     fit_x->push_back(nullfit, "fit");
+                     res_x->push_back(nullres, "res");
+                     if (data.bool_cols.count(treat) || 
+                         data.int_cols.count(treat)) {
+                       data_x->push_back(treatwi[1 - h], treat);
+                       fit_x->push_back(treatwi[1 - h], treat);
+                       res_x->push_back(treatwi[1 - h], treat);
+                     } else if (data.numeric_cols.count(treat)) {
+                       data_x->push_back(treatwn[1 - h], treat);
+                       fit_x->push_back(treatwn[1 - h], treat);
+                       res_x->push_back(treatwn[1 - h], treat);
+                     } else if (data.string_cols.count(treat)) {
+                       data_x->push_back(treatwc[1 - h], treat);
+                       fit_x->push_back(treatwc[1 - h], treat);
+                       res_x->push_back(treatwc[1 - h], treat);
+                     }
+                     data_aft[h] = std::move(data_x);
+                     fit_aft[h]  = std::move(fit_x);
+                     res_aft[h]  = std::move(res_x);
+                   }
+                 }
+                 
+                 
+                 bool psimissing = false;
+                 
+                 // # arms that include patients who switched treatment
+                 int K = swtrt_control_only ? 1 : 2;
+                 for (int h = 0; h < K; ++h) {
+                   // post progression data
+                   std::vector<int> l; 
+                   l.reserve(n);
+                   for (int i = 0; i < n; ++i) {
+                     if (treatb[i] == h && pdb[i] == 1) l.push_back(i);
+                   }
+                   int m = static_cast<int>(l.size());
+                   std::vector<int> id2(m), event2(m), swtrt2(m);
+                   std::vector<double> time2(m);
+                   for (int i = 0; i < m; ++i) {
+                     int j = l[i];
+                     id2[i] = idb[j];
+                     time2[i] = timeb[j] - pd_timeb[j] + offset;
+                     event2[i] = eventb[j];
+                     swtrt2[i] = swtrtb[j];
+                   }
+                   
+                   DataFrameCpp data1;
+                   data1.push_back(id2, "uid");
+                   data1.push_back(std::move(time2), "pps");
+                   data1.push_back(std::move(event2), "event");
+                   data1.push_back(std::move(swtrt2), "swtrt");
+                   
+                   for (int j = 0; j < qp2; ++j) {
+                     const std::string& zj = covariates_aft[j+1];
+                     std::vector<double> u = flatmatrix_get_column(z_aftb, j);
+                     data1.push_back(subset(u, l), zj);
+                   }
+                   
+                   ListCpp fit1 = liferegcpp(
+                     data1, {""}, "pps", "", "event", 
+                     covariates_aft, "", "", "", dist, init, 0, 0, alpha);
+                   
+                   DataFrameCpp sumstat1 = fit1.get<DataFrameCpp>("sumstat");
+                   if (sumstat1.get<unsigned char>("fail")[0]) fail = true;
+                   
+                   DataFrameCpp parest1 = fit1.get<DataFrameCpp>("parest");
+                   std::vector<double> beta1 = parest1.get<double>("beta");
+                   double psihat = -beta1[1];
+                   double psilower = NaN, psiupper = NaN;
+                   if (k == -1) {
+                     std::vector<double> sebeta1 = parest1.get<double>("sebeta");
+                     psilower = -beta1[1] - zcrit * sebeta1[1];
+                     psiupper = -beta1[1] + zcrit * sebeta1[1];
+                   }
+                   
+                   std::vector<double> res1;
+                   if (k == -1) {
+                     FlatMatrix vbeta1 = fit1.get<FlatMatrix>("vbeta");
+                     FlatMatrix rr = residuals_liferegcpp(
+                       beta1, vbeta1, data1, {""}, "pps", "", "event",
+                       covariates_aft, "", "", "", dist, "deviance");
+                     res1 = flatmatrix_get_column(rr, 0);
+                   }
+                   
+                   // update treatment-specific causal parameter estimates
+                   if (h == 0) {
+                     psi0hat = psihat;
+                     if (k == -1) {
+                       psi0lower = psilower;
+                       psi0upper = psiupper;
+                     }
+                   } else {
+                     psi1hat = psihat;
+                     if (k == -1) {
+                       psi1lower = psilower;
+                       psi1upper = psiupper;
+                     }
+                   }
+                   
+                   // update data_aft, fit_aft, and res_aft
+                   if (k == -1) {
+                     std::vector<int> stratum2 = subset(stratumb, l);
+                     if (has_stratum) {
+                       for (int i = 0; i < p_stratum; ++i) {
+                         const std::string& s = stratum[i];
+                         if (data.bool_cols.count(s)) {
+                           auto v = u_stratum.get<unsigned char>(s);
+                           data1.push_back(subset(v, stratum2), s);
+                         } else if (data.int_cols.count(s)) {
+                           auto v = u_stratum.get<int>(s);
+                           data1.push_back(subset(v, stratum2), s);
+                         } else if (data.numeric_cols.count(s)) {
+                           auto v = u_stratum.get<double>(s);
+                           data1.push_back(subset(v, stratum2), s);
+                         } else if (data.string_cols.count(s)) {
+                           auto v = u_stratum.get<std::string>(s);
+                           data1.push_back(subset(v, stratum2), s);
+                         }
+                       }
+                     }
+                     
+                     if (data.int_cols.count(id)) {
+                       data1.push_front(subset(idwi, id2), id);
+                     } else if (data.numeric_cols.count(id)) {
+                       data1.push_front(subset(idwn, id2), id);
+                     } else if (data.string_cols.count(id)) {
+                       data1.push_front(subset(idwc, id2), id);
+                     }
+                     
+                     ListPtr& data_x = data_aft[h];
+                     data_x->get<DataFrameCpp>("data") = data1;
+                     
+                     ListPtr& fit_x = fit_aft[h];
+                     fit_x->get_list("fit") = fit1;
+                     
+                     ListPtr& res_x = res_aft[h];
+                     res_x->get<std::vector<double>>("res") = res1;
+                   }
+                   
+                   if (!std::isnan(psihat)) {
+                     // calculate counter-factual survival times
+                     double a = std::exp(psihat);
+                     double c0 = std::min(1.0, a);
+                     for (int i = 0; i < n; ++i) {
+                       if (treatb[i] == h) {
+                         double u_star, c_star;
+                         if (swtrtb[i] == 1) {
+                           double b2 = pd_timeb[i] - offset;
+                           u_star = b2 + (timeb[i] - b2) * a;
+                         } else {
+                           u_star = timeb[i];
+                         }
+                         
+                         if (recensor) {
+                           c_star = censor_timeb[i] * c0;
+                           t_star[i] = std::min(u_star, c_star);
+                           d_star[i] = c_star < u_star ? 0 : eventb[i];
+                         } else {
+                           t_star[i] = u_star;
+                           d_star[i] = eventb[i];
+                         }
+                       }
+                     }
+                   } else {
+                     psimissing = true;
+                     fail = true;
+                   }
+                 }
+                 
+                 
+                 DataFrameCpp data_outcome, km_outcome, lr_outcome;
+                 ListCpp fit_outcome;
+                 double hrhat = NaN, hrlower = NaN, hrupper = NaN, pvalue = NaN;
+                 
+                 if (!psimissing) {
+                   // Cox model for hypothetical treatment effect estimate
+                   data_outcome.push_back(idb, "uid");
+                   data_outcome.push_back(std::move(t_star), "t_star");
+                   data_outcome.push_back(std::move(d_star), "d_star");
+                   data_outcome.push_back(treatb, "treated");
+                   data_outcome.push_back(stratumb, "ustratum");
+                   
+                   for (int j = 0; j < p; ++j) {
+                     const std::string& zj = covariates[j+1];
+                     std::vector<double> u = flatmatrix_get_column(zb, j);
+                     data_outcome.push_back(std::move(u), zj);
+                   }
+                   
+                   // generate KM estimate and log-rank test
+                   if (k == -1) {
+                     km_outcome = kmestcpp(
+                       data_outcome, {"treated"}, "t_star", "", "d_star", 
+                       "", "log-log", 1.0 - alpha, 1);
+                     
+                     lr_outcome = lrtestcpp(
+                       data_outcome, {"ustratum"}, "treated", "t_star", "", "d_star");
+                   }
+                   
+                   // fit the outcome model
+                   fit_outcome = phregcpp(
+                     data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                     covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                   
+                   DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
+                   if (sumstat.get<unsigned char>("fail")[0]) fail = true;
+                   
+                   DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
+                   double beta0 = parest.get<double>("beta")[0];
+                   double sebeta0 = parest.get<double>("sebeta")[0];
+                   hrhat = std::exp(beta0);
+                   if (k == -1) {
+                     hrlower = std::exp(beta0 - zcrit * sebeta0);
+                     hrupper = std::exp(beta0 + zcrit * sebeta0);
+                     pvalue = parest.get<double>("p")[0];
+                   }
+                 }
+                 
+                 ListCpp out;
+                 if (k == -1) {
+                   out.push_back(std::move(data_aft), "data_aft");
+                   out.push_back(std::move(fit_aft), "fit_aft");
+                   out.push_back(std::move(res_aft), "res_aft");
+                   out.push_back(std::move(data_outcome), "data_outcome");
+                   out.push_back(std::move(km_outcome), "km_outcome");
+                   out.push_back(std::move(lr_outcome), "lr_outcome");
+                   out.push_back(std::move(fit_outcome), "fit_outcome");
+                   out.push_back(psi0hat, "psihat");
+                   out.push_back(psi0lower, "psilower");
+                   out.push_back(psi0upper, "psiupper");
+                   out.push_back(psi1hat, "psi1hat");
+                   out.push_back(psi1lower, "psi1lower");
+                   out.push_back(psi1upper, "psi1upper");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(hrlower, "hrlower");
+                   out.push_back(hrupper, "hrupper");
+                   out.push_back(pvalue, "pvalue");
+                   out.push_back(fail, "fail");
+                   out.push_back(psimissing, "psimissing");
+                 } else {
+                   out.push_back(psi0hat, "psihat");
+                   out.push_back(psi1hat, "psi1hat");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(fail, "fail");
+                 }
+                 
+                 return out;
+               };
   
   ListCpp out = f(idn, stratumn, timen, eventn, treatn, censor_timen,
                   pdn, pd_timen, swtrtn, swtrt_timen, zn, z_aftn, -1);

@@ -1,6 +1,6 @@
+#include <Rcpp.h>
 #include <RcppParallel.h>
 #include <RcppThread.h>
-#include <Rcpp.h>
 
 #include <boost/random.hpp>
 
@@ -508,152 +508,147 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   double pvalue = lr.get<double>("logRankPValue")[0];
   double zcrit = boost_qnorm(1.0 - alpha / 2.0);
   
-  auto f = [p, qp, covariates, covariates_aft, dist, low_psi, hi_psi,
-            treat_modifier, recensor, autoswitch, rooting, alpha, ties, tol](
-                const std::vector<int>& idb, 
-                const std::vector<int>& stratumb,
-                const std::vector<double>& timeb, 
-                const std::vector<int>& eventb,
-                const std::vector<int>& treatb, 
-                const std::vector<double>& rxb,
-                const std::vector<double>& censor_timeb,
-                const FlatMatrix& zb, 
-                const FlatMatrix& z_aftb, int k) -> ListCpp {
-                  bool fail = false; // whether any model fails to converge
-                  std::vector<double> init(1, NaN);
-                  double psihat = NaN;
-                  
-                  // estimate psi
-                  auto g = [qp, idb, timeb, eventb, treatb, rxb, 
-                            censor_timeb, covariates_aft, z_aftb, dist, 
-                            treat_modifier, recensor, autoswitch, 
-                            alpha](double x) -> double {
-                              ListCpp out_aft = est_psi_ipe(
-                                x, qp, idb, timeb, eventb, treatb, rxb, 
-                                censor_timeb, covariates_aft, z_aftb, dist, 
-                                treat_modifier, recensor, autoswitch, alpha);
-                              if (!out_aft.get<bool>("fail")) {
-                                double psinew = out_aft.get<double>("psinew");
-                                return psinew - x;
-                              } else {
-                                return NaN;
-                              }
-                            };
-                  
-                  double psilo = getpsiend(g, true, low_psi);
-                  double psihi = getpsiend(g, false, hi_psi);
-                  if (!std::isnan(psilo) && !std::isnan(psihi)) {
-                    if (rooting == "brent") {
-                      psihat = brent(g, psilo, psihi, tol);
-                    } else {
-                      psihat = bisect(g, psilo, psihi, tol);
-                    }
-                  }
-                  
-                  // obtain the Kaplan-Meier estimates
-                  DataFrameCpp Sstar, kmstar, data_aft, data_outcome;
-                  DataFrameCpp km_outcome, lr_outcome;
-                  ListCpp fit_aft, fit_outcome;
-                  std::vector<double> res_aft; // deviance residuals
-                  double hrhat = NaN;
-                  
-                  bool psimissing = std::isnan(psihat);
-                  if (psimissing) fail = true;
-                  
-                  if (!psimissing) {
-                    if (k == -1) {
-                      // construct the counterfactual survival times
-                      Sstar = untreated(
-                        psihat * treat_modifier, idb, timeb, eventb, treatb,
-                        rxb, censor_timeb, recensor, autoswitch);
-                      Sstar.push_back(stratumb, "ustratum");
-                      
-                      for (int j = 0; j < p; ++j) {
-                        const std::string& zj = covariates[j + 1];
-                        std::vector<double> u = flatmatrix_get_column(zb, j);
-                        Sstar.push_back(std::move(u), zj);
-                      }
-                      
-                      kmstar = kmestcpp(
-                        Sstar, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, 1);
-                      
-                      ListCpp out_aft = est_psi_ipe(
-                        psihat, qp, idb, timeb, eventb, treatb, rxb,
-                        censor_timeb, covariates_aft, z_aftb, dist, 
-                        treat_modifier, recensor, autoswitch, alpha);
-                      
-                      if (out_aft.get<bool>("fail")) fail = true;
-                      
-                      data_aft = out_aft.get<DataFrameCpp>("data_aft");
-                      data_aft.push_back(stratumb, "ustratum");
-                      
-                      fit_aft = out_aft.get_list("fit_aft");
-                      DataFrameCpp parest = fit_aft.get<DataFrameCpp>("parest");
-                      std::vector<double> beta = parest.get<double>("beta");
-                      FlatMatrix vbeta = fit_aft.get<FlatMatrix>("vbeta");
-                      FlatMatrix rr = residuals_liferegcpp(
-                        beta, vbeta, data_aft, {""}, "t_star", "", "d_star",
-                        covariates_aft, "", "", "", dist, "deviance");
-                      res_aft = flatmatrix_get_column(rr ,0);
-                    }
-                    
-                    // run Cox model to obtain the hazard ratio estimate
-                    data_outcome = unswitched(
-                      psihat * treat_modifier, idb, timeb, eventb, treatb,
-                      rxb, censor_timeb, recensor, autoswitch);
-                    data_outcome.push_back(stratumb, "ustratum");
-                    
-                    for (int j = 0; j < p; ++j) {
-                      const std::string& zj = covariates[j + 1];
-                      std::vector<double> u = flatmatrix_get_column(zb, j);
-                      data_outcome.push_back(std::move(u), zj);
-                    }
-                    
-                    // generate KM estimate and log-rank test
-                    if (k == -1) {
-                      km_outcome = kmestcpp(
-                        data_outcome, {"treated"}, "t_star", "", "d_star", 
-                        "", "log-log", 1.0 - alpha, 1);
-                      lr_outcome = lrtestcpp(
-                        data_outcome, {"ustratum"}, "treated", "t_star", 
-                        "", "d_star");
-                    }
-                    
-                    // fit the outcome model
-                    fit_outcome = phregcpp(
-                      data_outcome, {"ustratum"}, "t_star", "", "d_star", 
-                      covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
-                    
-                    DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
-                    if (sumstat.get<unsigned char>("fail")[0]) fail = true;
-                    DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
-                    hrhat = std::exp(parest.get<double>("beta")[0]);
-                  }
-                  
-                  ListCpp out;
-                  if (k == -1) {
-                    out.push_back(std::move(Sstar), "Sstar");
-                    out.push_back(std::move(kmstar), "kmstar");
-                    out.push_back(std::move(data_aft), "data_aft");
-                    out.push_back(std::move(fit_aft), "fit_aft");
-                    out.push_back(std::move(res_aft), "res_aft");
-                    out.push_back(std::move(data_outcome), "data_outcome");
-                    out.push_back(std::move(km_outcome), "km_outcome");
-                    out.push_back(std::move(lr_outcome), "lr_outcome");
-                    out.push_back(std::move(fit_outcome), "fit_outcome");
-                    out.push_back(psihat, "psihat");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(fail, "fail");
-                    out.push_back(psimissing, "psimissing");
-                  } else {
-                    out.push_back(psihat, "psihat");
-                    out.push_back(hrhat, "hrhat");
-                    out.push_back(fail, "fail");
-                  }
-                  
-                  return out;
-                };
+  auto f = [&](const std::vector<int>& idb, 
+               const std::vector<int>& stratumb,
+               const std::vector<double>& timeb, 
+               const std::vector<int>& eventb,
+               const std::vector<int>& treatb, 
+               const std::vector<double>& rxb,
+               const std::vector<double>& censor_timeb,
+               const FlatMatrix& zb, 
+               const FlatMatrix& z_aftb, int k) -> ListCpp {
+                 bool fail = false; // whether any model fails to converge
+                 std::vector<double> init(1, NaN);
+                 double psihat = NaN;
+                 
+                 // estimate psi
+                 auto g = [&](double x) -> double {
+                   ListCpp out_aft = est_psi_ipe(
+                     x, qp, idb, timeb, eventb, treatb, rxb, 
+                     censor_timeb, covariates_aft, z_aftb, dist, 
+                     treat_modifier, recensor, autoswitch, alpha);
+                   if (!out_aft.get<bool>("fail")) {
+                     double psinew = out_aft.get<double>("psinew");
+                     return psinew - x;
+                   } else {
+                     return NaN;
+                   }
+                 };
+                 
+                 double psilo = getpsiend(g, true, low_psi);
+                 double psihi = getpsiend(g, false, hi_psi);
+                 if (!std::isnan(psilo) && !std::isnan(psihi)) {
+                   if (rooting == "brent") {
+                     psihat = brent(g, psilo, psihi, tol);
+                   } else {
+                     psihat = bisect(g, psilo, psihi, tol);
+                   }
+                 }
+                 
+                 // obtain the Kaplan-Meier estimates
+                 DataFrameCpp Sstar, kmstar, data_aft, data_outcome;
+                 DataFrameCpp km_outcome, lr_outcome;
+                 ListCpp fit_aft, fit_outcome;
+                 std::vector<double> res_aft; // deviance residuals
+                 double hrhat = NaN;
+                 
+                 bool psimissing = std::isnan(psihat);
+                 if (psimissing) fail = true;
+                 
+                 if (!psimissing) {
+                   if (k == -1) {
+                     // construct the counterfactual survival times
+                     Sstar = untreated(
+                       psihat * treat_modifier, idb, timeb, eventb, treatb,
+                       rxb, censor_timeb, recensor, autoswitch);
+                     Sstar.push_back(stratumb, "ustratum");
+                     
+                     for (int j = 0; j < p; ++j) {
+                       const std::string& zj = covariates[j + 1];
+                       std::vector<double> u = flatmatrix_get_column(zb, j);
+                       Sstar.push_back(std::move(u), zj);
+                     }
+                     
+                     kmstar = kmestcpp(
+                       Sstar, {"treated"}, "t_star", "", "d_star", 
+                       "", "log-log", 1.0 - alpha, 1);
+                     
+                     ListCpp out_aft = est_psi_ipe(
+                       psihat, qp, idb, timeb, eventb, treatb, rxb,
+                       censor_timeb, covariates_aft, z_aftb, dist, 
+                       treat_modifier, recensor, autoswitch, alpha);
+                     
+                     if (out_aft.get<bool>("fail")) fail = true;
+                     
+                     data_aft = out_aft.get<DataFrameCpp>("data_aft");
+                     data_aft.push_back(stratumb, "ustratum");
+                     
+                     fit_aft = out_aft.get_list("fit_aft");
+                     DataFrameCpp parest = fit_aft.get<DataFrameCpp>("parest");
+                     std::vector<double> beta = parest.get<double>("beta");
+                     FlatMatrix vbeta = fit_aft.get<FlatMatrix>("vbeta");
+                     FlatMatrix rr = residuals_liferegcpp(
+                       beta, vbeta, data_aft, {""}, "t_star", "", "d_star",
+                       covariates_aft, "", "", "", dist, "deviance");
+                     res_aft = flatmatrix_get_column(rr ,0);
+                   }
+                   
+                   // run Cox model to obtain the hazard ratio estimate
+                   data_outcome = unswitched(
+                     psihat * treat_modifier, idb, timeb, eventb, treatb,
+                     rxb, censor_timeb, recensor, autoswitch);
+                   data_outcome.push_back(stratumb, "ustratum");
+                   
+                   for (int j = 0; j < p; ++j) {
+                     const std::string& zj = covariates[j + 1];
+                     std::vector<double> u = flatmatrix_get_column(zb, j);
+                     data_outcome.push_back(std::move(u), zj);
+                   }
+                   
+                   // generate KM estimate and log-rank test
+                   if (k == -1) {
+                     km_outcome = kmestcpp(
+                       data_outcome, {"treated"}, "t_star", "", "d_star", 
+                       "", "log-log", 1.0 - alpha, 1);
+                     lr_outcome = lrtestcpp(
+                       data_outcome, {"ustratum"}, "treated", "t_star", 
+                       "", "d_star");
+                   }
+                   
+                   // fit the outcome model
+                   fit_outcome = phregcpp(
+                     data_outcome, {"ustratum"}, "t_star", "", "d_star", 
+                     covariates, "", "", "", ties, init, 0, 0, 0, 0, 0, alpha);
+                   
+                   DataFrameCpp sumstat = fit_outcome.get<DataFrameCpp>("sumstat");
+                   if (sumstat.get<unsigned char>("fail")[0]) fail = true;
+                   DataFrameCpp parest = fit_outcome.get<DataFrameCpp>("parest");
+                   hrhat = std::exp(parest.get<double>("beta")[0]);
+                 }
+                 
+                 ListCpp out;
+                 if (k == -1) {
+                   out.push_back(std::move(Sstar), "Sstar");
+                   out.push_back(std::move(kmstar), "kmstar");
+                   out.push_back(std::move(data_aft), "data_aft");
+                   out.push_back(std::move(fit_aft), "fit_aft");
+                   out.push_back(std::move(res_aft), "res_aft");
+                   out.push_back(std::move(data_outcome), "data_outcome");
+                   out.push_back(std::move(km_outcome), "km_outcome");
+                   out.push_back(std::move(lr_outcome), "lr_outcome");
+                   out.push_back(std::move(fit_outcome), "fit_outcome");
+                   out.push_back(psihat, "psihat");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(fail, "fail");
+                   out.push_back(psimissing, "psimissing");
+                 } else {
+                   out.push_back(psihat, "psihat");
+                   out.push_back(hrhat, "hrhat");
+                   out.push_back(fail, "fail");
+                 }
+                 
+                 return out;
+               };
   
   ListCpp out = f(idn, stratumn, timen, eventn, treatn, rxn, censor_timen, 
                   zn, z_aftn, -1);
