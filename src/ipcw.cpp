@@ -5,6 +5,7 @@
 #include "dataframe_list.h"
 #include "thread_utils.h"
 
+#include <Rcpp.h>
 #include <RcppParallel.h>
 #include <boost/random.hpp>
 

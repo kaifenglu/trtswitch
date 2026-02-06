@@ -1,5 +1,7 @@
 #include "dataframe_list.h"
 
+#include <Rcpp.h>
+
 #include <algorithm> // copy_n, fill, max_element, remove
 #include <cmath>     // isnan
 #include <cstddef>   // size_t

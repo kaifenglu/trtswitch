@@ -3,6 +3,7 @@
 #include "dataframe_list.h"
 #include "thread_utils.h"
 
+#include <Rcpp.h>
 #include <boost/random.hpp>
 
 #include <algorithm> // accumulate, any_of, max_element, min_element, none_of, sort

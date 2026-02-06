@@ -1,6 +1,8 @@
 #include "utilities.h"
 #include "dataframe_list.h"
 
+#include <Rcpp.h>
+
 #include <cstddef>    // size_t
 #include <vector>     // vector
 #include <string>     // string

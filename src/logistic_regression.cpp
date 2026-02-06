@@ -3,6 +3,8 @@
 #include "dataframe_list.h"
 #include "thread_utils.h"
 
+#include <Rcpp.h>
+
 #include <algorithm> // any_of, fill, for_each, none_of, sort
 #include <cctype>    // tolower
 #include <climits>   // INT_MIN
