@@ -28,6 +28,16 @@
 double boost_pnorm(double q, double mean, double sd, bool lower_tail) {
   if (std::isnan(q)) return std::numeric_limits<double>::quiet_NaN();
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
+  
+  double z = (q - mean) / sd;
+  if (lower_tail) {
+    if (z <= -EXTREME_Z) return 0.0;
+    if (z >= EXTREME_Z) return 1.0;
+  } else {
+    if (z >= EXTREME_Z) return 0.0;
+    if (z <= -EXTREME_Z) return 1.0;
+  }
+  
   boost::math::normal_distribution<> dist(mean, sd);
   if (lower_tail) return boost::math::cdf(dist, q);
   else return boost::math::cdf(boost::math::complement(dist, q));
@@ -38,8 +48,38 @@ double boost_qnorm(double p, double mean, double sd, bool lower_tail) {
   if (sd <= 0) throw std::invalid_argument("Standard deviation must be positive.");
   if (p < 0.0 || p > 1.0) throw std::invalid_argument(
       "Probability must be between 0 and 1.");
+  
+  // Clamp extreme probabilities to avoid overflow in boost::math::quantile
+  bool at_extreme = false;
+  double extreme_quantile = 0.0;
+  
+  if (lower_tail) {
+    if (p <= MIN_PROB) {
+      at_extreme = true;
+      extreme_quantile = MIN_NORMAL_QUANTILE;
+    } else if (p >= MAX_PROB) {
+      at_extreme = true;
+      extreme_quantile = MAX_NORMAL_QUANTILE;
+    }
+  } else {
+    // When lower_tail = false, we compute quantile(1 - p)
+    if (p <= MIN_PROB) {
+      at_extreme = true;
+      extreme_quantile = MAX_NORMAL_QUANTILE;
+    } else if (p >= MAX_PROB) {
+      at_extreme = true;
+      extreme_quantile = MIN_NORMAL_QUANTILE;
+    }
+  }
+  
+  // If at extreme, return scaled value directly
+  if (at_extreme) {
+    return mean + sd * extreme_quantile;
+  }
+  
+  // Safe to call boost quantile
   boost::math::normal_distribution<> dist(mean, sd);
-  return lower_tail ? boost::math::quantile(dist, p) : 
+  return lower_tail ? boost::math::quantile(dist, p) :
     boost::math::quantile(dist, 1.0 - p);
 }
 
@@ -300,7 +340,7 @@ double squantilecpp(const std::function<double(double)>& S, double p, double tol
     if (upper > 1e12) throw std::runtime_error(
         "Cannot find suitable upper bound for quantile search");
   }
-  auto f = [&S, p](double t) -> double { return S(t) - p; };
+  auto f = [&](double t) -> double { return S(t) - p; };
   return brent(f, lower, upper, tol);
 }
 
