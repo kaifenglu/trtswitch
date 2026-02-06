@@ -1,8 +1,6 @@
 #ifndef __UTILITIES_H__
 #define __UTILITIES_H__
 
-// [[Rcpp::plugins(cpp17)]]
-
 struct FlatMatrix;
 struct DataFrameCpp;
 struct ListCpp;

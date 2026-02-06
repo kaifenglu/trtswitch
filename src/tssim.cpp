@@ -1,9 +1,7 @@
-#include <Rcpp.h>
-
-#include <boost/random.hpp>
-
 #include "utilities.h"
 #include "dataframe_list.h"
+
+#include <boost/random.hpp>
 
 #include <algorithm>
 #include <cmath>

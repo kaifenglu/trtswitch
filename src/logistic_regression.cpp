@@ -1,6 +1,3 @@
-#include <Rcpp.h>
-#include <RcppThread.h>
-
 #include "logistic_regression.h"
 #include "utilities.h"
 #include "dataframe_list.h"

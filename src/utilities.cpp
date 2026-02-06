@@ -1,5 +1,3 @@
-#include <Rcpp.h>
-
 #include "utilities.h"
 #include "dataframe_list.h"
 

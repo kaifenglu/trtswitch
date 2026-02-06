@@ -1,13 +1,10 @@
-#include <Rcpp.h>
-#include <RcppParallel.h>
-#include <RcppThread.h>
-
-#include <boost/random.hpp>
-
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
 #include "thread_utils.h"
+
+#include <RcppParallel.h>
+#include <boost/random.hpp>
 
 #include <algorithm>
 #include <cmath>

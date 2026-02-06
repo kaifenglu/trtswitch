@@ -1,10 +1,8 @@
-#include <Rcpp.h>
-
-#include <boost/random.hpp>
-
 #include "survival_analysis.h"
 #include "utilities.h"
 #include "dataframe_list.h"
+
+#include <boost/random.hpp>
 
 #include <algorithm>
 #include <cmath>
