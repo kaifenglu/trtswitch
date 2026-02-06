@@ -1,5 +1,5 @@
-#include <RcppThread.h>
 #include <Rcpp.h>
+#include <RcppThread.h>
 
 #include <boost/random.hpp>
 

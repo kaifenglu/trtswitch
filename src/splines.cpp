@@ -1,3 +1,4 @@
+#include <Rcpp.h>
 #include <RcppThread.h>
 
 #include "splines.h"

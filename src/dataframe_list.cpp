@@ -1,3 +1,5 @@
+#include <Rcpp.h>
+
 #include "dataframe_list.h"
 
 #include <algorithm> // copy_n, fill, max_element, remove
@@ -11,7 +13,6 @@
 #include <variant>   // get_if, variant
 #include <vector>    // vector
 
-#include <Rcpp.h> // ensure Rcpp types available in this TU
 
 // ------------------------- DataFrameCpp members (small) -------------------
 
