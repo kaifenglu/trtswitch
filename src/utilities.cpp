@@ -1031,8 +1031,6 @@ double qtpwexpcpp1(const double p,
                    const bool lowertail,
                    const bool logp) {
   int m = static_cast<int>(piecewiseSurvivalTime.size());
-  if (m == 0 || static_cast<int>(lambda.size()) != m) 
-    throw std::invalid_argument("Invalid piecewise model inputs.");
   double u = logp ? std::exp(p) : p;
   if (!lowertail) u = 1.0 - u;
   if (u <= 0.0) return lowerBound;
