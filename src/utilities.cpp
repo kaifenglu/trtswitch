@@ -765,7 +765,7 @@ DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
 Rcpp::DataFrame survsplit(const std::vector<double>& tstart,
                           const std::vector<double>& tstop,
                           const std::vector<double>& cut) {
-  DataFrameCpp dfcpp = survsplitcpp(tstart, tstop, cut);
+  auto dfcpp = survsplitcpp(tstart, tstop, cut);
   return Rcpp::wrap(dfcpp);
 }
 
