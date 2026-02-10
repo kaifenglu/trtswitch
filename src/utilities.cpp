@@ -561,15 +561,67 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B) {
   return C;
 }
 
-FlatMatrix transpose(const FlatMatrix& A) {
-  if (A.nrow == 0 || A.ncol == 0) return FlatMatrix();
-  FlatMatrix At(A.ncol, A.nrow);
-  for (int c = 0; c < A.ncol; ++c) {
-    for (int r = 0; r < A.nrow; ++r) {
-      At(c, r) = A(r, c);
+// Transpose a FlatMatrix (double)
+FlatMatrix transpose(const FlatMatrix& M) {
+  if (M.nrow == 0 || M.ncol == 0) return FlatMatrix();
+  
+  const int src_nrow = M.nrow;
+  const int src_ncol = M.ncol;
+  FlatMatrix out(src_ncol, src_nrow); // swapped dims
+  
+  const double* src = M.data_ptr();
+  double* dst = out.data_ptr();
+  
+  for (int c = 0; c < src_ncol; ++c) {
+    const double* src_col = src + c * src_nrow;
+    for (int r = 0; r < src_nrow; ++r) {
+      dst[r * src_ncol + c] = src_col[r];
     }
   }
-  return At;
+  
+  return out;
+}
+
+// Transpose an IntMatrix (int)
+IntMatrix transpose(const IntMatrix& M) {
+  if (M.nrow == 0 || M.ncol == 0) return IntMatrix();
+  
+  const int src_nrow = M.nrow;
+  const int src_ncol = M.ncol;
+  IntMatrix out(src_ncol, src_nrow); // swapped dims
+  
+  const int* src = M.data_ptr();
+  int* dst = out.data_ptr();
+  
+  for (int c = 0; c < src_ncol; ++c) {
+    const int* src_col = src + c * src_nrow;
+    for (int r = 0; r < src_nrow; ++r) {
+      dst[r * src_ncol + c] = src_col[r];
+    }
+  }
+  
+  return out;
+}
+
+// Transpose a BoolMatrix (unsigned char)
+BoolMatrix transpose(const BoolMatrix& M) {
+  if (M.nrow == 0 || M.ncol == 0) return BoolMatrix();
+  
+  const int src_nrow = M.nrow;
+  const int src_ncol = M.ncol;
+  BoolMatrix out(src_ncol, src_nrow); // swapped dims
+  
+  const unsigned char* src = M.data_ptr();
+  unsigned char* dst = out.data_ptr();
+  
+  for (int c = 0; c < src_ncol; ++c) {
+    const unsigned char* src_col = src + c * src_nrow;
+    for (int r = 0; r < src_nrow; ++r) {
+      dst[r * src_ncol + c] = src_col[r];
+    }
+  }
+  
+  return out;
 }
 
 double quadsym(const std::vector<double>& u, const FlatMatrix& v) {

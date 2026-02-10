@@ -2,6 +2,8 @@
 #define __UTILITIES_H__
 
 struct FlatMatrix;
+struct IntMatrix;
+struct BoolMatrix;
 struct DataFrameCpp;
 struct ListCpp;
 
@@ -319,7 +321,11 @@ ListCpp bygroup(const DataFrameCpp& data, const std::vector<std::string>& variab
 // --------------------------- Matrix utilities (FlatMatrix) ------------------
 std::vector<double> mat_vec_mult(const FlatMatrix& A, const std::vector<double>& x);
 FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
-FlatMatrix transpose(const FlatMatrix& A);
+
+FlatMatrix transpose(const FlatMatrix& M);
+IntMatrix transpose(const IntMatrix& M);
+BoolMatrix transpose(const BoolMatrix& M);
+
 double quadsym(const std::vector<double>& u, const FlatMatrix& v);
 
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
