@@ -604,8 +604,11 @@ void append_flatmatrix(std::vector<std::vector<double>>& fm1,
 FlatMatrix cols_to_flatmatrix(const std::vector<std::vector<double>>& cols);
 std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col);
 std::vector<int> intmatrix_get_column(const IntMatrix& M, int col);
+std::vector<unsigned char> boolmatrix_get_column(const BoolMatrix& M, int col);
 void flatmatrix_set_column(FlatMatrix& M, int col, const std::vector<double>& src);
 void intmatrix_set_column(IntMatrix& M, int col, const std::vector<int>& src);
+void boolmatrix_set_column(BoolMatrix& M, int col, 
+                           const std::vector<unsigned char>& src);
 
 // ------------------- Converters between R and C++ types (declarations) ----
 DataFrameCpp convertRDataFrameToCpp(const Rcpp::DataFrame& r_df);
