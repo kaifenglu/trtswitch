@@ -607,7 +607,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                const std::vector<int>& swtrtb, 
                const std::vector<double>& swtrt_timeb, 
                const FlatMatrix& zb, 
-               const FlatMatrix& z_aftb, int k) -> ListCpp {
+               const FlatMatrix& z_aftb, 
+               const int k) -> ListCpp {
                  bool fail = false; // whether any model fails to converge
                  std::vector<double> init(1, NaN);
                  
@@ -1063,7 +1064,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                               const std::vector<int>&, 
                               const std::vector<double>&, 
                               const FlatMatrix&, 
-                              const FlatMatrix&, int)> f;
+                              const FlatMatrix&, 
+                              const int)> f;
         
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
@@ -1090,7 +1092,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         int index1_local = 0; // number of rows stored so far for z_aftc_local
         
         // constructor
-        BootstrapWorker(int n_, int ntss_,
+        BootstrapWorker(const int n_, 
+                        const int ntss_,
                         const std::vector<int>& tsx_,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
@@ -1260,7 +1263,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
                                 const std::vector<int>&, 
                                 const std::vector<double>&, 
                                 const FlatMatrix&, 
-                                const FlatMatrix&, int)>(f),
+                                const FlatMatrix&, 
+                                const int)>(f),
                                 fails, hrhats, psihats, psi1hats
       );
       

@@ -639,7 +639,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                const std::vector<double>& swtrt_timeb, 
                const FlatMatrix& zb,
                const FlatMatrix& z_cox_denb,
-               const FlatMatrix& z_lgs_denb, int k) -> ListCpp {
+               const FlatMatrix& z_lgs_denb, 
+               const int k) -> ListCpp {
                  // the total number of rows change across bootstrap samples 
                  // because bootstrap is done at the subject level and 
                  // different subjects generally have different number of rows
@@ -1622,7 +1623,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                             const std::vector<double>&, 
                             const FlatMatrix&,
                             const FlatMatrix&, 
-                            const FlatMatrix&, int)> f;
+                            const FlatMatrix&, 
+                            const int)> f;
       
       // result references (each iteration writes unique index into these)
       std::vector<unsigned char>& fails_out;
@@ -1649,7 +1651,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       int index1_local = 0; // number of rows stored so far for z_lgs_denc_local
       
       // constructor
-      BootstrapWorker(int n_, int nids_, int ntss_,
+      BootstrapWorker(const int n_, 
+                      const int nids_, 
+                      const int ntss_,
                       const std::vector<int>& idx_,
                       const std::vector<int>& tsx_,
                       const std::vector<int>& idn_,
@@ -1848,7 +1852,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                               const std::vector<double>&, 
                               const FlatMatrix&,
                               const FlatMatrix&, 
-                              const FlatMatrix&, int)>(f),
+                              const FlatMatrix&, 
+                              const int)>(f),
                               fails, hrhats
     );
     

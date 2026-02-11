@@ -560,7 +560,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                const std::vector<double>& rxb,
                const std::vector<double>& censor_timeb,
                const FlatMatrix& zb,
-               const FlatMatrix& z_aftb, int k) -> ListCpp {
+               const FlatMatrix& z_aftb, 
+               const int k) -> ListCpp {
                  bool fail = false; // whether any model fails to converge
                  std::vector<double> init(1, NaN);
                  double psihat = NaN, psilower = NaN, psiupper = NaN;
@@ -985,7 +986,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                               const std::vector<double>&,
                               const std::vector<double>&, 
                               const FlatMatrix&, 
-                              const FlatMatrix&, int)> f;
+                              const FlatMatrix&, 
+                              const int)> f;
         
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
@@ -1008,7 +1010,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
         int index1_local = 0; // number of rows stored so far for z_aftc_local
         
         // constructor
-        BootstrapWorker(int n_, int ntss_,
+        BootstrapWorker(const int n_, 
+                        const int ntss_,
                         const std::vector<int>& tsx_,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
@@ -1155,7 +1158,8 @@ Rcpp::List rpsftmcpp(const Rcpp::DataFrame& df,
                                 const std::vector<double>&,
                                 const std::vector<double>&, 
                                 const FlatMatrix&, 
-                                const FlatMatrix&, int)>(f),
+                                const FlatMatrix&, 
+                                const int)>(f),
                                 fails, hrhats, psihats
       );
       

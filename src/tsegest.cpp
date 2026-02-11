@@ -859,7 +859,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                const std::vector<int>& swtrtb,
                const std::vector<double>& swtrt_timeb,
                const FlatMatrix& zb,
-               const FlatMatrix& z_lgsb, int k) -> ListCpp {
+               const FlatMatrix& z_lgsb, 
+               const int k) -> ListCpp {
                  int n = static_cast<int>(idb.size());
                  bool fail = false; // whether any model fails to converge
                  std::vector<double> init(1, NaN);
@@ -1636,7 +1637,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                               const std::vector<int>&,
                               const std::vector<double>&,
                               const FlatMatrix&,
-                              const FlatMatrix&, int)> f;
+                              const FlatMatrix&, 
+                              const int)> f;
         
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
@@ -1666,7 +1668,9 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         int index1_local = 0; // number of rows stored so far for z_lgsc_local
         
         // constructor
-        BootstrapWorker(int n_, int nids_, int ntss_,
+        BootstrapWorker(const int n_, 
+                        const int nids_, 
+                        const int ntss_,
                         const std::vector<int>& idx_,
                         const std::vector<int>& tsx_,
                         const std::vector<int>& idn_,
@@ -1883,7 +1887,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                                 const std::vector<int>&,
                                 const std::vector<double>&,
                                 const FlatMatrix&,
-                                const FlatMatrix&, int)>(f),
+                                const FlatMatrix&, 
+                                const int)>(f),
                                 fails, hrhats
       );
       
