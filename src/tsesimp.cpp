@@ -510,9 +510,9 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   }
   
   std::string dist = aft_dist;
-  std::for_each(dist.begin(), dist.end(), [](char & c) {
+  for (char &c : dist) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  });
+  }
   if (dist == "log-logistic" || dist == "llogistic") dist = "loglogistic";
   else if  (dist == "log-normal" || dist == "lnormal") dist = "lognormal";
   if (!(dist == "exponential" || dist == "weibull" || dist == "lognormal" ||

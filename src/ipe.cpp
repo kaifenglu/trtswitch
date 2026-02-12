@@ -409,9 +409,9 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
   }
   
   std::string dist = aft_dist;
-  std::for_each(dist.begin(), dist.end(), [](char & c) {
+  for (char &c : dist) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  });
+  }
   if (dist == "log-logistic" || dist == "llogistic") dist = "loglogistic";
   else if  (dist == "log-normal" || dist == "lnormal") dist = "lognormal";
   if (!(dist == "exponential" || dist == "weibull" || dist == "lognormal" ||
@@ -424,9 +424,9 @@ Rcpp::List ipecpp(const Rcpp::DataFrame& df,
     throw std::invalid_argument("treat_modifier must be positive");
   
   std::string rooting = root_finding;
-  std::for_each(rooting.begin(), rooting.end(), [](char & c) {
+  for (char &c : rooting) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  });
+  }
   if (rooting == "uniroot" || rooting.find("br", 0) == 0) rooting = "brent";
   else if (rooting.find("bi", 0) == 0) rooting = "bisection";
   if (!(rooting == "brent" || rooting == "bisection"))

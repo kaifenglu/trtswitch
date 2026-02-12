@@ -634,9 +634,9 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   std::string rooting = root_finding;
-  std::for_each(rooting.begin(), rooting.end(), [](char & c) {
+  for (char &c : rooting) {
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  });
+  }
   if (rooting == "uniroot" || rooting.find("br", 0) == 0) rooting = "brent";
   else if (rooting.find("bi", 0) == 0) rooting = "bisection";
   if (!(rooting == "brent" || rooting == "bisection"))
