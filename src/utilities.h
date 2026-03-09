@@ -3,6 +3,7 @@
 
 struct FlatMatrix;
 struct IntMatrix;
+struct SztMatrix;
 struct BoolMatrix;
 struct DataFrameCpp;
 struct ListCpp;
@@ -67,21 +68,37 @@ double boost_qchisq(double p, double df, bool lower_tail = true);
 double boost_pt(double q, double df, bool lower_tail = true);
 double boost_qt(double p, double df, bool lower_tail = true);
 
+
+struct DoubleView {
+  const double* p = nullptr;
+  size_t n = 0;
+  
+  const double& operator[](size_t i) const { return p[i]; }
+  size_t size() const { return n; }
+};
+
+
 // --------------------------- Small utilities --------------------------------
 inline double sq(double x) noexcept { return x * x; }
 
 // seqcpp: inclusive sequence; inputs are int
-std::vector<int> seqcpp(int start, int end);
+std::vector<size_t> seqcpp(size_t start, size_t end);
 
 // which: return indices of true values
-std::vector<int> which(const std::vector<unsigned char>& vec);
+std::vector<size_t> which(const std::vector<unsigned char>& vec);
 
-// findInterval3: adapted helper (return indices following R-like convention)
-std::vector<int> findInterval3(const std::vector<double>& x,
-                               const std::vector<double>& v,
-                               bool rightmost_closed = false,
-                               bool all_inside = false,
-                               bool left_open = false);
+// findInterval: adapted helper (return indices following R-like convention)
+size_t findInterval1(const double x,
+                     const std::vector<double>& v,
+                     bool rightmost_closed = false,
+                     bool all_inside = false,
+                     bool left_open = false);
+
+std::vector<size_t> findInterval3(const std::vector<double>& x,
+                                  const std::vector<double>& v,
+                                  bool rightmost_closed = false,
+                                  bool all_inside = false,
+                                  bool left_open = false);
 
 // all_equal: check if all elements in v equal target within tolerance tol
 inline bool all_equal(const std::vector<double>& v, double target, double tol = 0.0) {
@@ -139,14 +156,100 @@ inline void mean_sd(const double* data, int n, double &omean, double &osd) {
 }
 
 // --------------------------- Root finders -----------------------------------
-double brent(const std::function<double(double)>& f,
-             double x1, double x2, double tol = 1e-8, int maxiter = 100);
-double bisect(const std::function<double(double)>& f,
-              double x1, double x2, double tol = 1e-8, int maxiter = 100);
+template <class F>
+double brent(F&& f, double x1, double x2, double tol = 1e-8, int maxiter = 100) {
+  constexpr double EPS = 3.0e-8;
+  
+  double a = x1, b = x2, c = x2;
+  double fa = f(a), fb = f(b), fc = fb;
+  double d = 0.0, d1 = 0.0;
+  
+  if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0))
+    throw std::invalid_argument("Root must be bracketed in brent");
+  
+  for (int iter = 1; iter <= maxiter; ++iter) {
+    if ((fb > 0.0 && fc > 0.0) || (fb < 0.0 && fc < 0.0)) {
+      c = a; fc = fa; d = b - a; d1 = d;
+    }
+    
+    if (std::fabs(fc) < std::fabs(fb)) {
+      a = b; b = c; c = a;
+      fa = fb; fb = fc; fc = fa;
+    }
+    
+    double tol1 = 2.0 * EPS * std::fabs(b) + 0.5 * tol;
+    double xm = 0.5 * (c - b);
+    if (std::fabs(xm) <= tol1 || fb == 0.0) return b;
+    
+    double p, q, r, s;
+    if (std::fabs(d1) >= tol1 && std::fabs(fa) > std::fabs(fb)) {
+      s = fb / fa;
+      if (a == c) {
+        p = 2.0 * xm * s;
+        q = 1.0 - s;
+      } else {
+        q = fa / fc;
+        r = fb / fc;
+        p = s * (2.0 * xm * q * (q - r) - (b - a) * (r - 1.0));
+        q = (q - 1.0) * (r - 1.0) * (s - 1.0);
+      }
+      if (p > 0.0) q = -q;
+      p = std::fabs(p);
+      double min1 = 3.0 * xm * q - std::fabs(tol1 * q);
+      double min2 = std::fabs(d1 * q);
+      if (2.0 * p < (min1 < min2 ? min1 : min2)) {
+        d1 = d; d = p / q;
+      } else {
+        d = xm; d1 = d;
+      }
+    } else {
+      d = xm; d1 = d;
+    }
+    
+    a = b; fa = fb;
+    if (std::fabs(d) > tol1) b += d; else b += std::copysign(tol1, xm);
+    fb = f(b);
+  }
+  throw std::runtime_error("Maximum iterations exceeded in brent");
+}
+
+
+template <class F>
+double bisect(F&& f, double x1, double x2, double tol = 1e-8, int maxiter = 100) {
+  double a = x1, b = x2;
+  double fa = f(a), fb = f(b);
+  if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) 
+    throw std::invalid_argument("Root must be bracketed in bisect");
+  if (std::fabs(fa) < tol) return a;
+  if (std::fabs(fb) < tol) return b;
+  double xmid, fmid;
+  for (int iter = 1; iter <= maxiter; ++iter) {
+    xmid = a + 0.5 * (b - a);
+    fmid = f(xmid);
+    if (std::fabs(fmid) < tol || (b - a) < tol) return xmid;
+    if ((fa > 0.0 && fmid < 0.0) || (fa < 0.0 && fmid > 0.0)) { b = xmid; fb = fmid; }
+    else { a = xmid; fa = fmid; }
+  }
+  throw std::runtime_error("Maximum number of iterations exceeded in bisect");
+}
+
 
 // --------------------------- Quantiles -------------------------------------
 double quantilecpp(const std::vector<double>& x, double p);
-double squantilecpp(const std::function<double(double)>& S, double p, double tol);
+
+template <class F>
+double squantilecpp(F&& S, double p, double tol) {
+  if (p < 0.0 || p > 1.0) throw std::invalid_argument("p must be in [0,1]");
+  double lower = 0.0, upper = 1.0;
+  double Su = S(upper);
+  while (Su > p) {
+    lower = upper; upper *= 2.0; Su = S(upper);
+    if (upper > 1e12) throw std::runtime_error(
+        "Cannot find suitable upper bound for quantile search");
+  }
+  auto f = [&](double t) -> double { return S(t) - p; };
+  return brent(f, lower, upper, tol);
+}
 
 
 // in-place truncation of vector
@@ -154,12 +257,46 @@ void truncate_in_place(std::vector<double>& v, bool trunc_upper_only, double tru
 
 // subset: return a subset of v according to 'order' (indices)
 template <typename T>
+std::vector<T> subset(const std::vector<T>& v, const std::vector<size_t>& order) {
+  std::vector<T> result(order.size());
+  size_t n = order.size();
+  size_t nv = v.size();
+  for (size_t i = 0; i < n; ++i) {
+    size_t index = order[i];
+    if (index < 0 || index >= nv) {
+      throw std::out_of_range(
+          "Index in 'order' is out of bounds for the source vector.");
+    }
+    result[i] = v[index];
+  }
+  return result;
+}
+
+// subset_in_place: reorder/keep elements of v according to 'order' (indices)
+template <typename T>
+void subset_in_place(std::vector<T>& v, const std::vector<size_t>& order) {
+  std::vector<T> temp_subset(order.size());
+  size_t n = order.size();
+  size_t nv = v.size();
+  for (size_t i = 0; i < n; ++i) {
+    size_t index = order[i];
+    if (index < 0 || index >= nv) {
+      throw std::out_of_range(
+          "Index in 'order' is out of bounds for the source vector.");
+    }
+    temp_subset[i] = v[index];
+  }
+  v = std::move(temp_subset);
+}
+
+
+template <typename T>
 std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
   std::vector<T> result(order.size());
-  int n = order.size();
-  int nv = v.size();
-  for (int i = 0; i < n; ++i) {
-    int index = order[i];
+  size_t n = order.size();
+  size_t nv = v.size();
+  for (size_t i = 0; i < n; ++i) {
+    size_t index = order[i];
     if (index < 0 || index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
@@ -173,10 +310,10 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
 template <typename T>
 void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
   std::vector<T> temp_subset(order.size());
-  int n = order.size();
-  int nv = v.size();
-  for (int i = 0; i < n; ++i) {
-    int index = order[i];
+  size_t n = order.size();
+  size_t nv = v.size();
+  for (size_t i = 0; i < n; ++i) {
+    size_t index = order[i];
     if (index < 0 || index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
@@ -186,20 +323,21 @@ void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
   v = std::move(temp_subset);
 }
 
+
 // Return a new vector containing elements v[start, end).
 // Preconditions required by you: 0 <= start < end (and end <= v.size()).
 template <typename T>
-std::vector<T> subset(const std::vector<T>& v, int start, int end) {
+std::vector<T> subset(const std::vector<T>& v, size_t start, size_t end) {
   if (start < 0) throw std::out_of_range("subset: start < 0");
   if (end < 0) throw std::out_of_range("subset: end < 0");
-  const std::size_t vsz = v.size();
-  if (static_cast<std::size_t>(end) > vsz) 
+  const size_t vsz = v.size();
+  if (static_cast<size_t>(end) > vsz)
     throw std::out_of_range("subset: end > v.size()");
   if (!(start < end)) throw std::invalid_argument("subset: require start < end");
   
-  const std::size_t s = static_cast<std::size_t>(start);
-  const std::size_t e = static_cast<std::size_t>(end);
-  const std::size_t n = e - s;
+  const size_t s = static_cast<size_t>(start);
+  const size_t e = static_cast<size_t>(end);
+  const size_t n = e - s;
   
   if constexpr (std::is_trivially_copyable_v<T>) {
     std::vector<T> out;
@@ -220,18 +358,18 @@ std::vector<T> subset(const std::vector<T>& v, int start, int end) {
 // In-place subset: keep elements [start, end) and discard the rest.
 // Preconditions required by you: 0 <= start < end (and end <= v.size()).
 template <typename T>
-void subset_in_place(std::vector<T>& v, int start, int end) {
+void subset_in_place(std::vector<T>& v, size_t start, size_t end) {
   if (start < 0) throw std::out_of_range("subset_in_place: start < 0");
   if (end < 0) throw std::out_of_range("subset_in_place: end < 0");
-  const std::size_t vsz = v.size();
-  if (static_cast<std::size_t>(end) > vsz) 
+  const size_t vsz = v.size();
+  if (static_cast<size_t>(end) > vsz)
     throw std::out_of_range("subset_in_place: end > v.size()");
-  if (!(start < end)) 
+  if (!(start < end))
     throw std::invalid_argument("subset_in_place: require start < end");
   
-  const std::size_t s = static_cast<std::size_t>(start);
-  const std::size_t e = static_cast<std::size_t>(end);
-  const std::size_t n = e - s; // number of elements to keep
+  const size_t s = static_cast<size_t>(start);
+  const size_t e = static_cast<size_t>(end);
+  const size_t n = e - s; // number of elements to keep
   
   if (s == 0) {
     // already at beginning; just resize down to requested length
@@ -300,11 +438,11 @@ std::vector<T> unique_sorted(const std::vector<T>& v) {
 
 // matchcpp: for each element of x find its index in table or -1 if not found
 template <typename T>
-std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table, 
-                          const int start_index = 0) {
+std::vector<int> matchcpp(const std::vector<T>& x, const std::vector<T>& table,
+                          const size_t start_index = 0) {
   std::vector<int> result(x.size());
-  int n = x.size();
-  for (int i = 0; i < n; ++i) {
+  size_t n = x.size();
+  for (size_t i = 0; i < n; ++i) {
     auto it = std::find(table.begin(), table.end(), x[i]);
     if (it != table.end()) {
       result[i] = static_cast<int>(std::distance(table.begin(), it)) + start_index;
@@ -324,14 +462,15 @@ FlatMatrix mat_mat_mult(const FlatMatrix& A, const FlatMatrix& B);
 
 FlatMatrix transpose(const FlatMatrix& M);
 IntMatrix transpose(const IntMatrix& M);
+SztMatrix transpose(const SztMatrix& M);
 BoolMatrix transpose(const BoolMatrix& M);
 
 double quadsym(const std::vector<double>& u, const FlatMatrix& v);
 
 // --------------------------- Linear algebra helpers (FlatMatrix-backed) ----
-int cholesky2(FlatMatrix& matrix, int n, double toler = 1e-12);
-void chsolve2(FlatMatrix& matrix, int n, double* y);
-FlatMatrix invsympd(const FlatMatrix& matrix, int n, double toler = 1e-12);
+int cholesky2(FlatMatrix& matrix, size_t n, double toler = 1e-12);
+void chsolve2(FlatMatrix& matrix, size_t n, double* y);
+FlatMatrix invsympd(const FlatMatrix& matrix, size_t n, double toler = 1e-12);
 
 // Survival helpers
 DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
@@ -372,12 +511,48 @@ DataFrameCpp unswitched(double psi,
 // Misc math helpers
 std::string sanitize(const std::string& s);
 
-double qtpwexpcpp1(const double p,
-                   const std::vector<double>& piecewiseSurvivalTime,
-                   const std::vector<double>& lambda,
-                   const double lowerBound = 0.0,
-                   const bool lowertail = true,
-                   const bool logp = false);
+
+template <class VTIME, class VLam>
+inline double qtpwexpcpp1(
+    const double p,
+    const VTIME& piecewiseSurvivalTime,
+    const VLam& lambda,
+    const double lowerBound = 0.0,
+    const bool lowertail = true,
+    const bool logp = false) {
+  
+  size_t m = piecewiseSurvivalTime.size();
+  double u = logp ? std::exp(p) : p;
+  if (!lowertail) u = 1.0 - u;
+  if (u <= 0.0) return lowerBound;
+  if (u >= 1.0) return std::numeric_limits<double>::infinity();
+  double v1 = -log1p(-u);
+  size_t j = 0;
+  while (j < m && piecewiseSurvivalTime[j] <= lowerBound) ++j;
+  size_t j1 = (j == 0) ? 0 : (j - 1);
+  double v = 0.0;
+  if (j1 == m - 1) {
+    double lj = lambda[j1];
+    if (lj <= 0.0) return std::numeric_limits<double>::infinity();
+    return lowerBound + v1 / lj;
+  }
+  for (j = j1; j < m - 1; ++j) {
+    double dt = (j == j1) ? piecewiseSurvivalTime[j + 1] - lowerBound :
+    piecewiseSurvivalTime[j + 1] - piecewiseSurvivalTime[j];
+    double lj = lambda[j];
+    if (lj > 0.0) v += lj * dt;
+    if (v >= v1) break;
+  }
+  double lj = lambda[j];
+  if (lj <= 0.0) return std::numeric_limits<double>::infinity();
+  if (j == m - 1) {
+    double dt = (v1 - v) / lj;
+    return piecewiseSurvivalTime[j] + dt;
+  }
+  double dt = (v - v1) / lj;
+  return piecewiseSurvivalTime[j + 1] - dt;
+}
+
 
 // Root selection helpers
 ListCpp getpsiest(double target,
