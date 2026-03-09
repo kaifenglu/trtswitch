@@ -22,10 +22,12 @@
 #include <unordered_map>
 #include <vector>
 
+using std::size_t;
+
 // Helper: estimate psi using counterfactual residuals and logistic regression
 ListCpp est_psi_tsegest(
-    int n2, int q, int p2, int nids2, 
-    const std::vector<int>& idx2, const std::vector<int>& stratum3,
+    size_t n2, size_t q, size_t p2, size_t nids2, 
+    const std::vector<size_t>& idx2, const std::vector<int>& stratum3,
     const std::vector<int>& os3, const std::vector<double>& os_time3,
     const std::vector<double>& censor_time3,
     const std::vector<int>& swtrt3, const std::vector<double>& swtrt_time3,
@@ -33,7 +35,7 @@ ListCpp est_psi_tsegest(
     const std::vector<double>& tstart2, const std::vector<double>& tstop2,
     const std::vector<std::string>& covariates_lgs,
     const FlatMatrix& z_lgs2,
-    int ns_df, const FlatMatrix& s, bool firth, bool flic,
+    size_t ns_df, const FlatMatrix& s, bool firth, bool flic,
     bool recensor, double alpha,
     const std::string& ties, double offset, double x) {
   
@@ -44,7 +46,7 @@ ListCpp est_psi_tsegest(
   std::vector<double> t_star(nids2);
   std::vector<int> d_star(nids2);
   
-  for (int i = 0; i < nids2; ++i) {
+  for (size_t i = 0; i < nids2; ++i) {
     double u_star;
     if (swtrt3[i] == 1) {
       double b2 = swtrt_time3[i] - offset;
@@ -77,8 +79,8 @@ ListCpp est_psi_tsegest(
   // Extract residuals (subject-level) and expand to observation-level
   std::vector<double> resid3 = fn.get<std::vector<double>>("residuals");
   std::vector<double> resid(n2);
-  for (int i = 0; i < nids2; ++i) {
-    int start = idx2[i], end = idx2[i+1];
+  for (size_t i = 0; i < nids2; ++i) {
+    size_t start = idx2[i], end = idx2[i+1];
     std::fill(resid.begin() + start, resid.begin() + end, resid3[i]);
   }
   
@@ -91,12 +93,12 @@ ListCpp est_psi_tsegest(
   dl.push_back(resid, "counterfactual");
   
   // Append covariates (q + p2) from z_lgs2 (FlatMatrix gives column-major)
-  for (int j = 0; j < q + p2; ++j) {
+  for (size_t j = 0; j < q + p2; ++j) {
     std::vector<double> col = flatmatrix_get_column(z_lgs2, j);
     dl.push_back(std::move(col), covariates_lgs[j + 1]);
   }
   // Append spline columns (ns_df)
-  for (int j = 0; j < ns_df; ++j) {
+  for (size_t j = 0; j < ns_df; ++j) {
     std::vector<double> col = flatmatrix_get_column(s, j);
     dl.push_back(std::move(col), covariates_lgs[q + p2 + j + 1]);
   }
@@ -140,12 +142,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                       const std::vector<std::string>& base_cov,
                       const std::vector<std::string>& conf_cov,
                       bool strata_main_effect_only,
-                      int ns_df,
+                      size_t ns_df,
                       bool firth,
                       bool flic,
                       double low_psi,
                       double hi_psi,
-                      int n_eval_z,
+                      size_t n_eval_z,
                       bool recensor,
                       bool admin_recensor_only,
                       bool swtrt_control_only,
@@ -156,25 +158,25 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                       double tol,
                       double offset,
                       bool boot,
-                      int n_boot,
+                      size_t n_boot,
                       int seed) {
   
   DataFrameCpp data = convertRDataFrameToCpp(df);  
   
-  int n = static_cast<int>(data.nrows());
-  int p = static_cast<int>(base_cov.size());
+  size_t n = data.nrows();
+  size_t p = base_cov.size();
   if (p == 1 && base_cov[0] == "") p = 0;
   
   
-  int p2 = static_cast<int>(conf_cov.size());
+  size_t p2 = conf_cov.size();
   if (p2 == 1 && conf_cov[0] == "") p2 = 0;
   
   // process stratification variables
-  int p_stratum = static_cast<int>(stratum.size());
+  size_t p_stratum = stratum.size();
   bool has_stratum = false;
   std::vector<int> stratumn(n);
   DataFrameCpp u_stratum;
-  std::vector<int> d(p_stratum);
+  std::vector<size_t> d(p_stratum);
   IntMatrix stratan(n, p_stratum);
   ListCpp levels;
   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
@@ -182,12 +184,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     has_stratum = true;
     stratumn = out.get<std::vector<int>>("index");
     u_stratum = out.get<DataFrameCpp>("lookup");
-    d = out.get<std::vector<int>>("nlevels");
+    d = out.get<std::vector<size_t>>("nlevels");
     stratan = out.get<IntMatrix>("indices");
     levels = out.get_list("lookups_per_variable");
   }
   std::vector<int> stratumn_unique = unique_sorted(stratumn);
-  int nstrata = static_cast<int>(stratumn_unique.size());
+  size_t nstrata = stratumn_unique.size();
   
   // create the numeric id variable
   if (id.empty() || !data.containElementNamed(id))
@@ -217,13 +219,13 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> tstartn(n);
   if (data.int_cols.count(tstart)) {
     const std::vector<int>& vi = data.get<int>(tstart);
-    for (int i = 0; i < n; ++i) tstartn[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) tstartn[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(tstart)) {
     tstartn = data.get<double>(tstart);
   } else {
     throw std::invalid_argument("tstart variable must be integer or numeric");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (!std::isnan(tstartn[i]) && tstartn[i] < 0.0)
       throw std::invalid_argument("tstart must be nonnegative");
   }
@@ -233,13 +235,13 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> tstopn(n);
   if (data.int_cols.count(tstop)) {
     const std::vector<int>& vi = data.get<int>(tstop);
-    for (int i = 0; i < n; ++i) tstopn[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) tstopn[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(tstop)) {
     tstopn = data.get<double>(tstop);
   } else {
     throw std::invalid_argument("tstop variable must be integer or numeric");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (!std::isnan(tstartn[i]) && !std::isnan(tstopn[i]) && tstopn[i] <= tstartn[i])
       throw std::invalid_argument("tstop must be greater than tstart");
   }
@@ -251,12 +253,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
+    for (size_t i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
     eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
     const std::vector<double>& vd = data.get<double>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
+    for (size_t i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -277,7 +279,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     std::vector<int> treatv(n);
     if (data.bool_cols.count(treat)) {
       const std::vector<unsigned char>& treatvb = data.get<unsigned char>(treat);
-      for (int i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
+      for (size_t i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
     } else treatv = data.get<int>(treat);
     treatwi = unique_sorted(treatv); // obtain unique treatment values
     if (treatwi.size() != 2)
@@ -285,7 +287,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     if (std::all_of(treatwi.begin(), treatwi.end(), [](int v) {
       return v == 0 || v == 1; })) {
       treatwi = {1, 0}; // special handling for 1/0 treatment coding
-      for (int i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
+      for (size_t i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
     } else {
       treatn = matchcpp(treatv, treatwi, 1);
     }
@@ -297,7 +299,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     if (std::all_of(treatwn.begin(), treatwn.end(), [](double v) {
       return v == 0.0 || v == 1.0; })) {
       treatwn = {1.0, 0.0};
-      for (int i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
+      for (size_t i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
     } else {
       treatn = matchcpp(treatv, treatwn, 1);
     }
@@ -311,7 +313,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     throw std::invalid_argument(
         "incorrect type for the treat variable in the input data");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
   }
   
@@ -321,7 +323,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> censor_timen(n);
   if (data.int_cols.count(censor_time)) {
     const std::vector<int>& vi = data.get<int>(censor_time);
-    for (int i = 0; i < n; ++i) censor_timen[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) censor_timen[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(censor_time)) {
     censor_timen = data.get<double>(censor_time);
   } else {
@@ -329,7 +331,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   for (double v : censor_timen) if (v < 0.0 || std::isnan(v))
     throw std::invalid_argument("censor_time cannot be missing");
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (censor_timen[i] < tstopn[i]) throw std::invalid_argument(
         "censor_time must be greater than or equal to tstop");
   }
@@ -341,12 +343,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<int> pdn(n);
   if (data.bool_cols.count(pd)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(pd);
-    for (int i = 0; i < n; ++i) pdn[i] = vb[i] ? 1 : 0;
+    for (size_t i = 0; i < n; ++i) pdn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(pd)) {
     pdn = data.get<int>(pd);
   } else if (data.numeric_cols.count(pd)) {
     const std::vector<double>& vd = data.get<double>(pd);
-    for (int i = 0; i < n; ++i) pdn[i] = static_cast<int>(vd[i]);
+    for (size_t i = 0; i < n; ++i) pdn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("pd variable must be bool, integer or numeric");
   }
@@ -359,7 +361,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> pd_timen(n);
   if (data.int_cols.count(pd_time)) {
     const std::vector<int>& vi = data.get<int>(pd_time);
-    for (int i = 0; i < n; ++i) pd_timen[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) pd_timen[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(pd_time)) {
     pd_timen = data.get<double>(pd_time);
   } else {
@@ -367,7 +369,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   // check consistency between pd and pd_time
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (pdn[i] == 1 && std::isnan(pd_timen[i])) {
       throw std::runtime_error("pd_time must not be missing when pd = 1");
     }
@@ -383,12 +385,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<int> swtrtn(n);
   if (data.bool_cols.count(swtrt)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
+    for (size_t i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(swtrt)) {
     swtrtn = data.get<int>(swtrt);
   } else if (data.numeric_cols.count(swtrt)) {
     const std::vector<double>& vd = data.get<double>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
+    for (size_t i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("swtrt variable must be bool, integer or numeric");
   }
@@ -397,7 +399,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   
   // check presence of at least 1 pd and swtrt in each group
   bool found_control = false;
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (pdn[i] == 1 && swtrtn[i] == 1 && treatn[i] == 0) {
       found_control = true;
       break;
@@ -410,7 +412,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   
   if (!swtrt_control_only)  {
     bool found_treated = false;
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (pdn[i] == 1 && swtrtn[i] == 1 && treatn[i] == 1) {
         found_treated = true;
         break;
@@ -428,7 +430,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> swtrt_timen(n);
   if (data.int_cols.count(swtrt_time)) {
     const std::vector<int>& vi = data.get<int>(swtrt_time);
-    for (int i = 0; i < n; ++i) swtrt_timen[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) swtrt_timen[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(swtrt_time)) {
     swtrt_timen = data.get<double>(swtrt_time);
   } else {
@@ -436,7 +438,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   // check consistency between swtrt and swtrt_time
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
       throw std::runtime_error("swtrt_time must not be missing when swtrt=1");
     }
@@ -447,7 +449,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   
   // adjust pd and pd_time based on swtrt and swtrt_time:
   // if the patient switched before pd, set pd time equal to switch time
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (pdn[i] == 1 && swtrtn[i] == 1 && swtrt_timen[i] < pd_timen[i]) {
       pd_timen[i] = swtrt_timen[i];
     }
@@ -459,7 +461,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   // make sure offset is less than or equal to observed time variables
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (pdn[i] == 1 && pd_timen[i] < offset) {
       throw std::runtime_error("pd_time must be great than or equal to offset");
     }
@@ -472,7 +474,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<std::string> covariates(p + 1);
   FlatMatrix zn(n, p);
   covariates[0] = "treated";
-  for (int j = 0; j < p; ++j) {
+  for (size_t j = 0; j < p; ++j) {
     const std::string& zj = base_cov[j];
     if (!data.containElementNamed(zj))
       throw std::invalid_argument("data must contain the variables in base_cov");
@@ -482,10 +484,10 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     double* zn_col = zn.data_ptr() + j * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
+      for (size_t i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
+      for (size_t i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
       std::memcpy(zn_col, vd.data(), n * sizeof(double));
@@ -495,11 +497,11 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   // number of columns corresponding to the strata effects
-  int q = 0;
+  size_t q = 0;
   if (has_stratum) {
     if (strata_main_effect_only) {
       q = 0;
-      for (int i = 0; i < p_stratum; ++i) q += d[i] - 1;
+      for (size_t i = 0; i < p_stratum; ++i) q += d[i] - 1;
     } else {
       q = nstrata - 1;
     }
@@ -512,58 +514,58 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   covariates_lgs[0] = "counterfactual";
   if (has_stratum) {
     if (strata_main_effect_only) {
-      int k = 0;
-      for (int i = 0; i < p_stratum; ++i) {
+      size_t k = 0;
+      for (size_t i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
-        int di = d[i] - 1;
+        size_t di = d[i] - 1;
         
         if (u_stratum.string_cols.count(s)) {
           auto u = levels.get<std::vector<std::string>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs[k + j + 1] = s + sanitize(u[j]);
           }
         } else if (u_stratum.numeric_cols.count(s)) {
           auto u = levels.get<std::vector<double>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs[k + j + 1] = s + std::to_string(u[j]);
           }
         } else if (u_stratum.int_cols.count(s)) {
           auto u = levels.get<std::vector<int>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs[k + j + 1] = s + std::to_string(u[j]);
           }
         } else if (u_stratum.bool_cols.count(s)) {
           auto u = levels.get<std::vector<unsigned char>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs[k + j + 1] = s + std::to_string(u[j]);
           }
         }
         
-        for (int j = 0; j < di; ++j) {
+        for (size_t j = 0; j < di; ++j) {
           const int* stratan_col = stratan.data_ptr() + i * n;
           double* z_lgsn_col = z_lgsn.data_ptr() + (k + j) * n;
-          for (int r = 0; r < n; ++r) {
-            z_lgsn_col[r] = stratan_col[r] == j ? 1.0 : 0.0;
+          for (size_t r = 0; r < n; ++r) {
+            z_lgsn_col[r] = static_cast<size_t>(stratan_col[r]) == j ? 1.0 : 0.0;
           }
         }
         
         k += di;
       }
     } else {
-      for (int j = 0; j < nstrata - 1; ++j) {
+      for (size_t j = 0; j < nstrata - 1; ++j) {
         // locate the first observation in the stratum
-        int first_k = 0;
+        size_t first_k = 0;
         for (; first_k<n; ++first_k) {
-          if (stratumn[first_k] == j) break;
+          if (static_cast<size_t>(stratumn[first_k]) == j) break;
         }
         
         covariates_lgs[j + 1] = "";
         
-        for (int i = 0; i < p_stratum; ++i) {
+        for (size_t i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
           
           std::vector<int> q_col = intmatrix_get_column(stratan, i);
-          int l = q_col[first_k];
+          size_t l = q_col[first_k];
           
           if (u_stratum.string_cols.count(s)) {
             auto u = levels.get<std::vector<std::string>>(s);
@@ -585,15 +587,15 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         }
         
         double* z_lgsn_col = z_lgsn.data_ptr() + j * n;
-        for (int r = 0; r < n; ++r) {
-          z_lgsn_col[r] = stratumn[r] == j ? 1.0 : 0.0;
+        for (size_t r = 0; r < n; ++r) {
+          z_lgsn_col[r] = static_cast<size_t>(stratumn[r]) == j ? 1.0 : 0.0;
         }
       }
     }
   }
   
   // append confounding covariates
-  for (int j = 0; j < p2; ++j) {
+  for (size_t j = 0; j < p2; ++j) {
     const std::string& zj = conf_cov[j];
     if (!data.containElementNamed(zj))
       throw std::invalid_argument("data must contain the variables in conf_cov");
@@ -603,11 +605,11 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     double* z_lgsn_col = z_lgsn.data_ptr() + (q + j) * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i)
+      for (size_t i = 0; i < n; ++i)
         z_lgsn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i)
+      for (size_t i = 0; i < n; ++i)
         z_lgsn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
@@ -621,7 +623,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     throw std::invalid_argument("ns_df must be a nonnegative integer");
   }
   
-  for (int j = 0; j < ns_df; ++j) {
+  for (size_t j = 0; j < ns_df; ++j) {
     covariates_lgs[q + p2 + j + 1] = "ns" + std::to_string(j+1);
   }
   
@@ -653,7 +655,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (idn[i] == INT_MIN || stratumn[i] == INT_MIN ||
         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) ||
         eventn[i] == INT_MIN || treatn[i] == INT_MIN ||
@@ -661,12 +663,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         swtrtn[i] == INT_MIN) {
       sub[i] = 0; continue;
     }
-    for (int j = 0; j < p; ++j) {
+    for (size_t j = 0; j < p; ++j) {
       if (std::isnan(zn(i,j))) { sub[i] = 0; break; }
     }
   }
   
-  std::vector<int> keep = which(sub);
+  std::vector<size_t> keep = which(sub);
   if (keep.empty())
     throw std::invalid_argument("no observations without missing values");
   subset_in_place(idn, keep);
@@ -682,22 +684,22 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   subset_in_place(swtrt_timen, keep);
   subset_in_place_flatmatrix(zn, keep);
   subset_in_place_flatmatrix(z_lgsn, keep);
-  n = static_cast<int>(keep.size());
+  n = keep.size();
   
   // split at treatment switching into two observations if treatment
   // switching occurs strictly between tstart and tstop for a subject
   std::vector<unsigned char> tosplit(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     tosplit[i] = swtrtn[i] == 1 && swtrt_timen[i] > tstartn[i] &&
       swtrt_timen[i] < tstopn[i] ? 1 : 0;
   }
   
-  int k = std::accumulate(tosplit.begin(), tosplit.end(), 0);
+  size_t k = std::accumulate(tosplit.begin(), tosplit.end(), 0);
   if (k > 0) {
-    std::vector<int> sub = which(tosplit);
-    for (int i = 0; i < k; ++i) {
+    std::vector<size_t> sub = which(tosplit);
+    for (size_t i = 0; i < k; ++i) {
       // append a new observation by changing tstart
-      int l = sub[i];
+      size_t l = sub[i];
       idn.push_back(idn[l]);
       stratumn.push_back(stratumn[l]);
       tstartn.push_back(swtrt_timen[l]);
@@ -726,8 +728,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   }
   
   // sort data by treatment group, id, and time
-  std::vector<int> order = seqcpp(0, n - 1);
-  std::sort(order.begin(), order.end(), [&](int i, int j) {
+  std::vector<size_t> order = seqcpp(0, n - 1);
+  std::sort(order.begin(), order.end(), [&](size_t i, size_t j) {
     return std::tie(treatn[i], idn[i], tstopn[i]) <
       std::tie(treatn[j], idn[j], tstopn[j]);
   });
@@ -747,33 +749,33 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   subset_in_place_flatmatrix(z_lgsn, order);
   
   // identify first and last observation within an id
-  std::vector<int> idx(1,0); // first observation within an id
-  for (int i = 1; i < n; ++i) {
+  std::vector<size_t> idx(1,0); // first observation within an id
+  for (size_t i = 1; i < n; ++i) {
     if (idn[i] != idn[i-1]) {
       idx.push_back(i);
     }
   }
-  int nids = static_cast<int>(idx.size());
+  size_t nids = idx.size();
   idx.push_back(n);
   
-  std::vector<int> idx1(nids); // last observation within an id
-  for (int i = 0; i < nids; ++i) {
+  std::vector<size_t> idx1(nids); // last observation within an id
+  for (size_t i = 0; i < nids; ++i) {
     idx1[i] = idx[i+1] - 1;
   }
   
   // create os_time variable
   std::vector<int> osn(n);
   std::vector<double> os_timen(n);
-  for (int i = 0; i < nids; ++i) {
-    int k = idx1[i];
+  for (size_t i = 0; i < nids; ++i) {
+    size_t k = idx1[i];
     int ev = eventn[k];
     double ts = tstopn[k];
-    int start = idx[i], end = idx[i+1];
+    size_t start = idx[i], end = idx[i+1];
     std::fill(osn.begin() + start, osn.begin() + end, ev);
     std::fill(os_timen.begin() + start, os_timen.begin() + end, ts);
   }
   
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (pdn[i] == 1 && pd_timen[i] > os_timen[i]) {
       throw std::invalid_argument("pd_time must be less than or equal to os_time");
     }
@@ -784,12 +786,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   
   // adjust censor_time for dropouts if recensoring is requested
   if (!admin_recensor_only) { // use the actual censoring time for dropouts
-    for (int i = 0; i < nids; ++i) {
-      int k = idx1[i];
+    for (size_t i = 0; i < nids; ++i) {
+      size_t k = idx1[i];
       int ev = eventn[k];
       double ts = tstopn[k];
       if (ev == 0) {
-        int start = idx[i], end = idx[i+1];
+        size_t start = idx[i], end = idx[i+1];
         std::fill(censor_timen.begin() + start, censor_timen.begin() + end, ts);
       }
     }
@@ -807,8 +809,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> n_event(2);
   std::vector<double> n_pd(2);
   std::vector<double> n_switch(2);
-  for (int i = 0; i < nids; ++i) {
-    int g = treatn1[i];
+  for (size_t i = 0; i < nids; ++i) {
+    size_t g = treatn1[i];
     ++n_total[g];
     if (eventn1[i] == 1) ++n_event[g];
     if (pdn1[i] == 1) ++n_pd[g];
@@ -819,7 +821,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   std::vector<double> pct_event(2);
   std::vector<double> pct_pd(2);
   std::vector<double> pct_switch(2);
-  for (int g = 0; g < 2; g++) {
+  for (size_t g = 0; g < 2; g++) {
     pct_event[g] = 100.0 * n_event[g] / n_total[g];
     pct_pd[g] = 100.0 * n_pd[g] / n_total[g];
     pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
@@ -841,7 +843,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   // evaluation points for psi
   double step_psi = (hi_psi - low_psi) / (n_eval_z - 1);
   std::vector<double> psi(n_eval_z);
-  for (int i = 0; i < n_eval_z; ++i) {
+  for (size_t i = 0; i < n_eval_z; ++i) {
     psi[i] = low_psi + i * step_psi;
   }
   
@@ -861,21 +863,21 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                const FlatMatrix& zb,
                const FlatMatrix& z_lgsb, 
                const int k) -> ListCpp {
-                 int n = static_cast<int>(idb.size());
+                 size_t n = idb.size();
                  bool fail = false; // whether any model fails to converge
                  std::vector<double> init(1, NaN);
                  
-                 std::vector<int> idx(1, 0); // first observation within an id
-                 for (int i = 1; i < n; ++i) {
+                 std::vector<size_t> idx(1, 0); // first observation within an id
+                 for (size_t i = 1; i < n; ++i) {
                    if (idb[i] != idb[i-1]) {
                      idx.push_back(i);
                    }
                  }
-                 int nids = static_cast<int>(idx.size());
+                 size_t nids = idx.size();
                  idx.push_back(n);
                  
-                 std::vector<int> idx1(nids); // last observation within an id
-                 for (int i = 0; i < nids; ++i) {
+                 std::vector<size_t> idx1(nids); // last observation within an id
+                 for (size_t i = 0; i < nids; ++i) {
                    idx1[i] = idx[i+1] - 1;
                  }
                  
@@ -907,7 +909,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                  if (k == -1) {
                    DataFrameCpp nulldata;
                    ListCpp nullfit;
-                   auto make_group = [&](int h) -> std::array<ListPtr, 7> {
+                   auto make_group = [&](size_t h) -> std::array<ListPtr, 7> {
                      ListPtr ds = std::make_shared<ListCpp>();
                      ListPtr km = std::make_shared<ListCpp>();
                      ListPtr ez = std::make_shared<ListCpp>();
@@ -944,7 +946,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                      return {ds, km, ez, dn, dl, fn, fl};
                    };
                    
-                   for (int h = 0; h < 2; ++h) {
+                   for (size_t h = 0; h < 2; ++h) {
                      auto grp = make_group(h);
                      data_switch[h]  = grp[0];
                      km_switch[h]    = grp[1];
@@ -963,13 +965,13 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                  bool psimissing = false;
                  
                  // # arms that include patients who switched treatment
-                 int K = swtrt_control_only ? 1 : 2;
-                 for (int h = 0; h < K; ++h) {
+                 size_t K = swtrt_control_only ? 1 : 2;
+                 for (size_t h = 0; h < K; ++h) {
                    // post progression data up to switching for the treat
-                   std::vector<int> l;
+                   std::vector<size_t> l;
                    l.reserve(n);
-                   for (int i = 0; i < n; ++i) {
-                     if (treatb[i] != h) continue;
+                   for (size_t i = 0; i < n; ++i) {
+                     if (static_cast<size_t>(treatb[i]) != h) continue;
                      if (pdb[i] != 1 || tstopb[i] < pd_timeb[i]) continue;
                      if (swtrtb[i] == 1) {
                        if (tstartb[i] < swtrt_timeb[i]) l.push_back(i);
@@ -989,11 +991,11 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    std::vector<int> swtrt2 = subset(swtrtb, l);
                    std::vector<double> swtrt_time2 = subset(swtrt_timeb, l);
                    FlatMatrix z_lgs2 = subset_flatmatrix(z_lgsb, l);
-                   int n2 = static_cast<int>(l.size());
+                   size_t n2 = l.size();
                    
                    // treatment switching indicators
                    std::vector<int> cross2(n2);
-                   for (int i = 0; i < n2; ++i) {
+                   for (size_t i = 0; i < n2; ++i) {
                      if (swtrt2[i] == 1 && tstop2[i] >= swtrt_time2[i]) {
                        cross2[i] = 1;                        
                      }
@@ -1004,7 +1006,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    if (ns_df > 0) {
                      std::vector<double> x;
                      x.reserve(n2);
-                     for (int i = 0; i < n2; ++i) {
+                     for (size_t i = 0; i < n2; ++i) {
                        if (cross2[i] == 1) x.push_back(tstop2[i]);
                      }
                      ListCpp out = nscpp(x, ns_df);
@@ -1015,21 +1017,21 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    }
                    
                    // re-baseline based on disease progression date
-                   std::vector<int> idx2(1, 0);
-                   for (int i = 1; i < n2; ++i) {
+                   std::vector<size_t> idx2(1, 0);
+                   for (size_t i = 1; i < n2; ++i) {
                      if (id2[i] != id2[i-1]) {
                        idx2.push_back(i);
                      }
                    }
-                   int nids2 = static_cast<int>(idx2.size());
+                   size_t nids2 = idx2.size();
                    idx2.push_back(n2);
                    
                    std::vector<int> id3(nids2), stratum3(nids2);
                    std::vector<int> os3(nids2), swtrt3(nids2);
                    std::vector<double> os_time3(nids2), censor_time3(nids2);
                    std::vector<double> swtrt_time3(nids2, NaN);
-                   for (int i = 0; i < nids2; ++i) {
-                     int j = idx2[i];
+                   for (size_t i = 0; i < nids2; ++i) {
+                     size_t j = idx2[i];
                      double b2 = pd_time2[j] - offset;
                      id3[i] = id2[j];
                      stratum3[i] = stratum2[j];
@@ -1047,7 +1049,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    std::vector<double> psihat_vec;
                    std::vector<double> Z(n_eval_z, NaN);
                    if (gridsearch) {
-                     for (int i = 0; i < n_eval_z; ++i) {
+                     for (size_t i = 0; i < n_eval_z; ++i) {
                        ListCpp out = est_psi_tsegest(
                          n2, q, p2, nids2, idx2, stratum3, 
                          os3, os_time3, censor_time3, 
@@ -1166,7 +1168,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    if (k == -1) {
                      // obtain data and KM plot for time to switch
                      std::vector<double> swtrt_timen4(nids2);
-                     for (int i = 0; i < nids2; ++i) {
+                     for (size_t i = 0; i < nids2; ++i) {
                        swtrt_timen4[i] = (swtrt3[i] == 1) ? 
                        swtrt_time3[i] : os_time3[i];
                      }
@@ -1183,7 +1185,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                      }
                      
                      if (has_stratum) {
-                       for (int i = 0; i < p_stratum; ++i) {
+                       for (size_t i = 0; i < p_stratum; ++i) {
                          const std::string& s = stratum[i];
                          if (data.bool_cols.count(s)) {
                            auto v = u_stratum.get<unsigned char>(s);
@@ -1209,7 +1211,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                      // the counterfactual in the logistic regression 
                      // switching model at a sequence of psi values
                      if (!gridsearch) {
-                       for (int i = 0; i < n_eval_z; ++i) {
+                       for (size_t i = 0; i < n_eval_z; ++i) {
                          ListCpp out = est_psi_tsegest(
                            n2, q, p2, nids2, idx2, stratum3, 
                            os3, os_time3, censor_time3, 
@@ -1244,8 +1246,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                      // calculate counter-factual survival times
                      double a = std::exp(psihat);
                      double c0 = std::min(1.0, a);
-                     for (int i = 0; i < nids; ++i) {
-                       if (treat1[i] == h) {
+                     for (size_t i = 0; i < nids; ++i) {
+                       if (static_cast<size_t>(treat1[i]) == h) {
                          double u_star;
                          if (swtrt1[i] == 1) {
                            double b2 = swtrt_time1[i] - offset;
@@ -1293,7 +1295,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                        }
                        
                        if (has_stratum) {
-                         for (int i=0; i<p_stratum; ++i) {
+                         for (size_t i=0; i<p_stratum; ++i) {
                            const std::string& s = stratum[i];
                            if (data.bool_cols.count(s)) {
                              auto v = u_stratum.get<unsigned char>(s);
@@ -1342,7 +1344,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                    data_outcome.push_back(treat1, "treated");
                    data_outcome.push_back(stratum1, "ustratum");
                    
-                   for (int j = 0; j < p; ++j) {
+                   for (size_t j = 0; j < p; ++j) {
                      const std::string& zj = covariates[j+1];
                      std::vector<double> u = flatmatrix_get_column(z1, j);
                      data_outcome.push_back(std::move(u), zj);
@@ -1458,12 +1460,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     std::vector<int> event_out = data_outcome.get<int>("d_star");
     std::vector<double> n_event_out(2);
     // note: outcome data excludes data after switch
-    for (int i = 0; i < static_cast<int>(treated.size()); ++i) {
-      int g = treated[i];
+    for (size_t i = 0; i < treated.size(); ++i) {
+      size_t g = treated[i];
       if (event_out[i] == 1) ++n_event_out[g];
     }
     std::vector<double> pct_event_out(2);
-    for (int g = 0; g < 2; g++) {
+    for (size_t g = 0; g < 2; g++) {
       pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
     }
     event_summary.push_back(std::move(n_event_out), "event_out_n");
@@ -1516,7 +1518,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     
     if (has_stratum) {
       std::vector<int> ustratum = data_outcome.get<int>("ustratum");
-      for (int i = 0; i < p_stratum; ++i) {
+      for (size_t i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
         if (data.bool_cols.count(s)) {
           auto v = u_stratum.get<unsigned char>(s);
@@ -1540,8 +1542,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     } else { // bootstrap the entire process to construct CI for HR
       if (has_stratum) {
         // sort data by treatment group, stratum, id, and time
-        std::vector<int> order = seqcpp(0, n-1);
-        std::sort(order.begin(), order.end(), [&](int i, int j) {
+        std::vector<size_t> order = seqcpp(0, n-1);
+        std::sort(order.begin(), order.end(), [&](size_t i, size_t j) {
           return std::tie(treatn[i], stratumn[i], idn[i], tstopn[i]) <
             std::tie(treatn[j], stratumn[j], idn[j], tstopn[j]);
         });
@@ -1563,47 +1565,47 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         subset_in_place_flatmatrix(z_lgsn, order);
       }
       
-      std::vector<int> idx(1, 0); // first observation within an id
-      for (int i = 1; i < n; ++i) {
+      std::vector<size_t> idx(1, 0); // first observation within an id
+      for (size_t i = 1; i < n; ++i) {
         if (idn[i] != idn[i-1]) {
           idx.push_back(i);
         }
       }
       
-      int nids = static_cast<int>(idx.size());
+      size_t nids = idx.size();
       idx.push_back(n);
       
-      std::vector<int> idx1(nids); // last observation within an id
-      for (int i = 0; i < nids; ++i) {
+      std::vector<size_t> idx1(nids); // last observation within an id
+      for (size_t i = 0; i < nids; ++i) {
         idx1[i] = idx[i+1] - 1;
       }
       
       std::vector<int> treat1 = subset(treatn, idx1);
       std::vector<int> stratum1 = subset(stratumn, idx1);
       
-      std::vector<int> tsx(1, 0); // first id within each treat/stratum
-      for (int i = 1; i < nids; ++i) {
+      std::vector<size_t> tsx(1, 0); // first id within each treat/stratum
+      for (size_t i = 1; i < nids; ++i) {
         if (treat1[i] != treat1[i-1] || stratum1[i] != stratum1[i-1]) {
           tsx.push_back(i);
         }
       }
       
-      int ntss = static_cast<int>(tsx.size());
+      size_t ntss = tsx.size();
       tsx.push_back(nids); // add the end index
       
       // Before running the parallel loop: pre-generate deterministic seeds
       std::vector<uint64_t> seeds(n_boot);
       boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed));
-      for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
+      for (size_t k = 0; k < n_boot; ++k) seeds[k] = master_rng();
       
       // We'll collect failure bootstrap data per-worker and merge via Worker::join.
       struct BootstrapWorker : public RcppParallel::Worker {
         // references to read-only inputs (no mutation)
-        const int n;
-        const int nids;
-        const int ntss;
-        const std::vector<int>& idx;
-        const std::vector<int>& tsx;
+        const size_t n;
+        const size_t nids;
+        const size_t ntss;
+        const std::vector<size_t>& idx;
+        const std::vector<size_t>& tsx;
         const std::vector<int>& idn;
         const std::vector<int>& stratumn;
         const std::vector<double>& tstartn;
@@ -1665,14 +1667,14 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         // each inner vector stores column data across failed boots
         std::vector<std::vector<double>> z_lgsc_local;
         
-        int index1_local = 0; // number of rows stored so far for z_lgsc_local
+        size_t index1_local = 0; // number of rows stored so far for z_lgsc_local
         
         // constructor
-        BootstrapWorker(const int n_, 
-                        const int nids_, 
-                        const int ntss_,
-                        const std::vector<int>& idx_,
-                        const std::vector<int>& tsx_,
+        BootstrapWorker(const size_t n_, 
+                        const size_t nids_, 
+                        const size_t ntss_,
+                        const std::vector<size_t>& idx_,
+                        const std::vector<size_t>& tsx_,
                         const std::vector<int>& idn_,
                         const std::vector<int>& stratumn_,
                         const std::vector<double>& tstartn_,
@@ -1701,12 +1703,12 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
           fails_out(fails_out_), hrhats_out(hrhats_out_) {
           
           // heuristic reservation to reduce reallocations:
-          int ncols_lgs = z_lgsn.ncol;
+          size_t ncols_lgs = z_lgsn.ncol;
           z_lgsc_local.resize(ncols_lgs);
           
           // reserve some capacity per column. This is a heuristic; adjust if needed.
           std::size_t per_col_reserve = 10 * n;
-          for (int col = 0; col < ncols_lgs; ++col)
+          for (size_t col = 0; col < ncols_lgs; ++col)
             z_lgsc_local[col].reserve(per_col_reserve);
           
           // Reserve scalar buffers heuristically (reduce reallocs)
@@ -1734,7 +1736,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
           std::vector<double> tstartb, tstopb, os_timeb, censor_timeb;
           std::vector<double> pd_timeb, swtrt_timeb;
           std::vector<std::vector<double>> zb_cols, z_lgsb_cols;
-          int ncols_z = zn.ncol, ncols_lgs = z_lgsn.ncol;
+          size_t ncols_z = zn.ncol, ncols_lgs = z_lgsn.ncol;
           zb_cols.resize(ncols_z); z_lgsb_cols.resize(ncols_lgs);
           
           oidb.reserve(n); idb.reserve(n); stratumb.reserve(n); 
@@ -1742,8 +1744,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
           treatb.reserve(n); osb.reserve(n); os_timeb.reserve(n); 
           censor_timeb.reserve(n); pdb.reserve(n); pd_timeb.reserve(n);
           swtrtb.reserve(n); swtrt_timeb.reserve(n);
-          for (int col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
-          for (int col = 0; col < ncols_lgs; ++col) z_lgsb_cols[col].reserve(n);
+          for (size_t col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
+          for (size_t col = 0; col < ncols_lgs; ++col) z_lgsb_cols[col].reserve(n);
           
           for (std::size_t k = begin; k < end; ++k) {
             // Reset per-iteration buffers so each k starts fresh.
@@ -1752,24 +1754,24 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
             tstopb.clear(); eventb.clear(); treatb.clear(); osb.clear();
             os_timeb.clear(); censor_timeb.clear(); pdb.clear(); 
             pd_timeb.clear(); swtrtb.clear(); swtrt_timeb.clear();
-            for (int col = 0; col < ncols_z; ++col) zb_cols[col].clear();
-            for (int col = 0; col < ncols_lgs; ++col) z_lgsb_cols[col].clear();
+            for (size_t col = 0; col < ncols_z; ++col) zb_cols[col].clear();
+            for (size_t col = 0; col < ncols_lgs; ++col) z_lgsb_cols[col].clear();
             
             // deterministic RNG per-iteration
-            std::mt19937_64 rng(seeds[k]);
+            boost::random::mt19937_64 rng(seeds[k]);
             
             // sample by treatment/stratum blocks
-            for (int h = 0; h < ntss; ++h) {
-              int start = tsx[h], end = tsx[h + 1];
-              int len = end - start;
+            for (size_t h = 0; h < ntss; ++h) {
+              size_t start = tsx[h], end = tsx[h + 1];
+              size_t len = end - start;
               boost::random::uniform_int_distribution<int> index_dist(0, len - 1);
-              for (int r = start; r < end; ++r) {
-                int i = start + index_dist(rng);
+              for (size_t r = start; r < end; ++r) {
+                size_t i = start + index_dist(rng);
                 int oidb1 = idn[idx[i]];     // original id
                 int idb1 = oidb1 + r * nids; // unique id
                 
-                int start1 = idx[i], end1 = idx[i+1]; // within-id block
-                int len1 = end1 - start1;
+                size_t start1 = idx[i], end1 = idx[i+1]; // within-id block
+                size_t len1 = end1 - start1;
                 
                 std::vector<int> oidn1(len1, oidb1);
                 std::vector<int> idn1(len1, idb1);
@@ -1822,7 +1824,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
             
             // existing code that collects failure data when fails_out[k] is true...
             if (fails_out[k]) {
-              int l = static_cast<int>(idb.size());
+              size_t l = idb.size();
               append(boot_indexc_local, std::vector<int>(l, k+1));
               append(oidc_local, oidb);
               append(idc_local, idb);
@@ -1917,8 +1919,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         fail_boots_data.push_back(std::move(worker.swtrtc_local), "swtrt");
         fail_boots_data.push_back(std::move(worker.swtrt_timec_local), "swtrt_time");
         
-        int ncols_lgs = worker.z_lgsc_local.size();
-        for (int j = 0; j < ncols_lgs; ++j) {
+        size_t ncols_lgs = worker.z_lgsc_local.size();
+        for (size_t j = 0; j < ncols_lgs; ++j) {
           const std::string& zj = covariates_lgs[j];
           fail_boots_data.push_back(std::move(worker.z_lgsc_local[j]), zj);
         }
@@ -1943,7 +1945,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         }
         
         if (has_stratum) {
-          for (int i = 0; i < p_stratum; ++i) {
+          for (size_t i = 0; i < p_stratum; ++i) {
             const std::string& s = stratum[i];
             if (data.bool_cols.count(s)) {
               auto v = u_stratum.get<unsigned char>(s);
@@ -1968,10 +1970,10 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
       
       // obtain bootstrap confidence interval for HR
       double loghr = std::log(hrhat);
-      std::vector<int> ok;
+      std::vector<size_t> ok;
       ok.reserve(n_boot);
-      int n_ok = 0;
-      for (int k = 0; k < n_boot; ++k) {
+      size_t n_ok = 0;
+      for (size_t k = 0; k < n_boot; ++k) {
         if (!fails[k] && !std::isnan(hrhats[k])) {
           ok.push_back(k);
           ++n_ok;

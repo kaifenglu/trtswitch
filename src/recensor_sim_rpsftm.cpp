@@ -15,11 +15,12 @@
 #include <stdexcept>
 #include <vector>
 
+using std::size_t;
 
 // counterfactual untreated survival times and event indicators
 DataFrameCpp f_untreated(
     const double psi,
-    const int n,
+    const size_t n,
     const std::vector<int>& id,
     const std::vector<double>& time,
     const std::vector<int>& event,
@@ -29,9 +30,9 @@ DataFrameCpp f_untreated(
     const int recensor_type,
     const bool autoswitch) {
   
-  std::vector<int> nonswitchers;
+  std::vector<size_t> nonswitchers;
   nonswitchers.reserve(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (treat[i] == 1) {
       if (rx[i] == 1.0) nonswitchers.push_back(i);
     } else {
@@ -41,7 +42,7 @@ DataFrameCpp f_untreated(
   
   double a = std::exp(psi);
   std::vector<double> u_star(n);
-  for (int i = 0; i < n; ++i) 
+  for (size_t i = 0; i < n; ++i) 
     u_star[i] = time[i] * ((1 - rx[i]) + rx[i] * a);
   std::vector<double> t_star = u_star;
   std::vector<int> d_star = event;
@@ -49,64 +50,64 @@ DataFrameCpp f_untreated(
   if (recensor_type == 1) { // recensor all patients
     std::vector<double> c_star(n);
     double multiplier = std::min(1.0, a);
-    for (int i=0; i<n; i++) 
+    for (size_t i=0; i<n; i++) 
       c_star[i] = censor_time[i] * multiplier;
     
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
   } else if (recensor_type == 2) { // recensor only switchers
     std::vector<double> c_star(n);
     double multiplier = std::min(1.0, a);
-    for (int i = 0; i < n; ++i) 
+    for (size_t i = 0; i < n; ++i) 
       c_star[i] = censor_time[i] * multiplier;
     
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i : nonswitchers) c_star[i] = POS_INF;
+    for (size_t i : nonswitchers) c_star[i] = POS_INF;
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
@@ -117,27 +118,27 @@ DataFrameCpp f_untreated(
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i : nonswitchers) c_star[i] = POS_INF;
+    for (size_t i : nonswitchers) c_star[i] = POS_INF;
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
@@ -155,7 +156,7 @@ DataFrameCpp f_untreated(
 // counterfactual unswitched survival times and event indicators
 DataFrameCpp f_unswitched(
     const double psi,
-    const int n,
+    const size_t n,
     const std::vector<int>& id,
     const std::vector<double>& time,
     const std::vector<int>& event,
@@ -165,9 +166,9 @@ DataFrameCpp f_unswitched(
     const int recensor_type,
     const bool autoswitch) {
   
-  std::vector<int> nonswitchers;
+  std::vector<size_t> nonswitchers;
   nonswitchers.reserve(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (treat[i] == 1) {
       if (rx[i] == 1.0) nonswitchers.push_back(i);
     } else {
@@ -178,7 +179,7 @@ DataFrameCpp f_unswitched(
   double a = std::exp(psi), a1 = std::exp(-psi);
   std::vector<double> u_star(n), t_star(n);
   std::vector<int> d_star(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (treat[i] == 0) {
       u_star[i] = time[i] * ((1 - rx[i]) + rx[i] * a);
     } else {
@@ -191,7 +192,7 @@ DataFrameCpp f_unswitched(
   if (recensor_type == 1) { // recensor all patients
     std::vector<double> c_star(n);
     double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (treat[i] == 0) c_star[i] = censor_time[i] * c0;
       else c_star[i] = censor_time[i] * c1;
     }
@@ -199,32 +200,32 @@ DataFrameCpp f_unswitched(
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
   } else if (recensor_type == 2) { // recensor only switchers
     std::vector<double> c_star(n);
     double c0 = std::min(1.0, a), c1 = std::min(1.0, a1);
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (treat[i] == 0) c_star[i] = censor_time[i] * c0;
       else c_star[i] = censor_time[i] * c1;
     }
@@ -232,27 +233,27 @@ DataFrameCpp f_unswitched(
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i : nonswitchers) c_star[i] = POS_INF;
+    for (size_t i : nonswitchers) c_star[i] = POS_INF;
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
@@ -263,27 +264,27 @@ DataFrameCpp f_unswitched(
     if (autoswitch) {
       std::vector<double> rx1, rx0;
       rx1.reserve(n); rx0.reserve(n);
-      for (int i = 0; i < n; ++i) {
+      for (size_t i = 0; i < n; ++i) {
         if (treat[i] == 1) rx1.push_back(rx[i]);
         else rx0.push_back(rx[i]);
       }
       
       if (all_equal(rx1, 1.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 1) c_star[i] = POS_INF;
         }
       }
       
       if (all_equal(rx0, 0.0, 0.0)) {
-        for (int i = 0; i < n; ++i) {
+        for (size_t i = 0; i < n; ++i) {
           if (treat[i] == 0) c_star[i] = POS_INF;
         }
       }
     }
     
-    for (int i : nonswitchers) c_star[i] = POS_INF;
+    for (size_t i : nonswitchers) c_star[i] = POS_INF;
     
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       t_star[i] = std::min(u_star[i], c_star[i]);
       if (c_star[i] < u_star[i]) d_star[i] = 0;
     }
@@ -300,7 +301,7 @@ DataFrameCpp f_unswitched(
 
 double f_est_psi_rpsftm(
     const double psi,
-    const int n,
+    const size_t n,
     const std::vector<int>& id,
     const std::vector<int>& stratum,
     const std::vector<double>& time,
@@ -423,8 +424,8 @@ double f_est_psi_rpsftm(
 //' @export
 // [[Rcpp::export]]
 Rcpp::DataFrame recensor_sim_rpsftm(
-    const int nsim = 100,
-    const int n = 400,
+    const size_t nsim = 100,
+    const size_t n = 400,
     const double shape = 1.5,
     const double scale = 553.9,
     const double gamma = 0.001,
@@ -445,7 +446,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     const std::string ties = "efron",
     const double tol = 1.0e-6,
     const bool boot = true,
-    const int n_boot = 100,
+    const size_t n_boot = 100,
     const int seed = 0) {
   
   std::string str1 = "recensor_type = ";
@@ -462,7 +463,8 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   double twidth = tfmax - tfmin;
   double npergrp = static_cast<double>(n) / 2.0;
   
-  std::vector<int> id = seqcpp(1, n), stratum(n, 1);
+  std::vector<int> id(n); std::iota(id.begin(), id.end(), 1);
+  std::vector<int> stratum(n, 1);
   std::vector<int> treat(n), event(n), dropout(n), admin_censor(n);
   std::vector<int> pd(n), swtrt_latent(n), swtrt(n);
   std::vector<double> survivalTime_latent(n), survivalTime(n);
@@ -485,7 +487,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   double tcrit = boost_qt(1.0 - alpha / 2.0, n_boot - 1);
   
   // treatment indicator  
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (id[i] <= npergrp) treat[i] = 1; 
     else treat[i] = 0;
   }
@@ -538,9 +540,9 @@ Rcpp::DataFrame recensor_sim_rpsftm(
                };
   
   
-  for (int iter = 0; iter < nsim; ++iter) {
+  for (size_t iter = 0; iter < nsim; ++iter) {
     // data generation
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       // latent survival time
       survivalTime_latent[i] = weib(rng) * exp(-psi*treat[i]);
 
@@ -650,7 +652,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     double sum_admin_notreat = 0.0; // sum(event * (1 - treat))
     double sum_pd_notreat = 0.0; // sum(pd * (1 - treat))
     double sum_swtrt_notreat = 0.0; // sum(swtrt * (1 - treat))
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (treat[i] == 1) {
         sum_dropout_treat   += dropout[i];
         sum_admin_treat     += admin_censor[i];
@@ -705,27 +707,27 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     std::vector<double> timeb(n), rxb(n), censor_timeb(n);
 
     // sort data by treatment group
-    std::vector<int> idx0, idx1;
+    std::vector<size_t> idx0, idx1;
     idx0.reserve(n);
     idx1.reserve(n);
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (treat[i] == 0) {
         idx0.push_back(i);
       } else {
         idx1.push_back(i);
       }
     }  
-    int n0 = static_cast<int>(idx0.size());
-    int n1 = static_cast<int>(idx1.size());
+    size_t n0 = idx0.size();
+    size_t n1 = idx1.size();
     
     std::uniform_int_distribution<int> index_dist0(0, n0 - 1);
     std::uniform_int_distribution<int> index_dist1(0, n1 - 1);
     
-    std::vector<int> order(n);
-    for (int i = 0; i < n0; i++) {
+    std::vector<size_t> order(n);
+    for (size_t i = 0; i < n0; i++) {
       order[i] = idx0[i];
     }
-    for (int i = 0; i < n1; i++){
+    for (size_t i = 0; i < n1; i++){
       order[n0 + i] = idx1[i];
     }
     
@@ -738,10 +740,10 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     subset_in_place(censor_time, order);
     
     std::vector<double> loghrhats(n_boot);
-    for (int k = 0; k < n_boot; ++k) {
+    for (size_t k = 0; k < n_boot; ++k) {
       // sample the data with replacement by treatment group
-      for (int i = 0; i < n; ++i) {
-        int j = (treat[i] == 0) ? index_dist0(rng) : n0 + index_dist1(rng);
+      for (size_t i = 0; i < n; ++i) {
+        size_t j = (treat[i] == 0) ? index_dist0(rng) : n0 + index_dist1(rng);
         idb[i] = id[j];
         stratumb[i] = stratum[j];
         timeb[i] = time[j];
@@ -766,7 +768,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
       std::vector<double> loghrhats1;
       loghrhats1.reserve(n_boot);
       std::size_t count = 0;
-      for (int k = 0; k < n_boot; ++k) {
+      for (size_t k = 0; k < n_boot; ++k) {
         if (!std::isnan(loghrhats[k])) {
           loghrhats1.push_back(loghrhats[k]);
           count++;
@@ -791,11 +793,11 @@ Rcpp::DataFrame recensor_sim_rpsftm(
     
     std::vector<int> d_star = Sstar.get<int>("d_star");
     std::vector<int> recensored(n);
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       recensored[i] = event[i] * (1 - d_star[i]);
     }
     double sum_recens_notreat = 0.0;
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (treat[i] == 0) sum_recens_notreat += recensored[i];
     }
     p_recensored0[iter] = sum_recens_notreat / npergrp;
@@ -815,7 +817,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   mean_sd(psihat.data(), nsim, psi_est, psi_se);
   double psi_bias = psi_est - psi;
   std::vector<double> psi_diff(nsim), psi_diff_squared(nsim);
-  for (int i = 0; i < nsim; ++i) {
+  for (size_t i = 0; i < nsim; ++i) {
     psi_diff[i] = psihat[i] - psi;
     psi_diff_squared[i] = psi_diff[i] * psi_diff[i];
   }
@@ -826,7 +828,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   mean_sd(loghrhat.data(), nsim, loghr_est, loghr_se);
   double loghr_bias = loghr_est - loghr;
   std::vector<double> loghr_diff(nsim), loghr_diff_squared(nsim);
-  for (int i = 0; i < nsim; ++i) {
+  for (size_t i = 0; i < nsim; ++i) {
     loghr_diff[i] = loghrhat[i] - loghr;
     loghr_diff_squared[i] = loghr_diff[i] * loghr_diff[i];
   }
@@ -840,7 +842,7 @@ Rcpp::DataFrame recensor_sim_rpsftm(
   double hr_pctbias = 100.0 * (hr_est - hr) / hr;
   
   double hr_ci_cover_cox = 0.0, hr_ci_cover_lr = 0.0, hr_ci_cover_boot = 0.0;
-  for (int i = 0; i < nsim; ++i) {
+  for (size_t i = 0; i < nsim; ++i) {
     hr_ci_cover_cox += (hrlowercox[i] < hr && hruppercox[i] > hr) ? 1.0 : 0.0;
     hr_ci_cover_lr += (hrlowerlr[i] < hr && hrupperlr[i] > hr) ? 1.0 : 0.0;
     hr_ci_cover_boot += (hrlowerboot[i] < hr && hrupperboot[i] > hr) ? 1.0 : 0.0;

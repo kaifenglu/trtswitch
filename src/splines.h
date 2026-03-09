@@ -17,8 +17,8 @@ struct ListCpp;
 FlatMatrix splineDesigncpp(
     const std::vector<double>& knots,
     const std::vector<double>& x,
-    int ord = 4,
-    const std::vector<int>& derivs = {0});
+    size_t ord = 4,
+    const std::vector<size_t>& derivs = {0});
 
 // Compute B-spline basis.
 // - x: input vector (may contain NaNs represented by std::nan("")). 
@@ -31,9 +31,9 @@ FlatMatrix splineDesigncpp(
 //   "basis" -> FlatMatrix (m x ncol, column-major), "dimnames" -> ListCpp, etc.
 ListCpp bscpp(
     const std::vector<double>& x,
-    int df,
+    size_t df,
     const std::vector<double>& knots = {},
-    int degree = 3,
+    size_t degree = 3,
     bool intercept = false,
     const std::vector<double>& boundary_knots = {},
     bool warn_outside = true);
@@ -41,7 +41,7 @@ ListCpp bscpp(
 // Compute natural cubic spline basis.
 ListCpp nscpp(
     const std::vector<double>& x,
-    int df,
+    size_t df,
     const std::vector<double>& knots = {},
     bool intercept = false,
     const std::vector<double>& boundary_knots = {});

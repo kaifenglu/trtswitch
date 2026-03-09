@@ -24,6 +24,8 @@
 #include <unordered_map>
 #include <vector>
 
+using std::size_t;
+
 // [[Rcpp::export]]
 Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    const std::string& id,
@@ -39,7 +41,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    const std::vector<std::string>& denominator,
                    const bool logistic_switching_model,
                    const bool strata_main_effect_only,
-                   const int ns_df,
+                   const size_t ns_df,
                    const bool firth,
                    const bool flic,
                    const bool stabilized_weights,
@@ -49,19 +51,19 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    const double alpha,
                    const std::string& ties,
                    const bool boot,
-                   const int n_boot,
+                   const size_t n_boot,
                    const int seed) {
   
   DataFrameCpp data = convertRDataFrameToCpp(df);
   
-  int n = static_cast<int>(data.nrows());
-  int p = static_cast<int>(base_cov.size());
+  size_t n = data.nrows();
+  size_t p = base_cov.size();
   if (p == 1 && base_cov[0] == "") p = 0;
   
-  int p1 = static_cast<int>(numerator.size());
+  size_t p1 = numerator.size();
   if (p1 == 1 && numerator[0] == "") p1 = 0;
   
-  int p2 = static_cast<int>(denominator.size());
+  size_t p2 = denominator.size();
   if (p2 == 1 && denominator[0] == "") {
     throw std::invalid_argument("covariates for the switch model must be provided");
   }
@@ -96,11 +98,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   
   // process stratification variables
-  int p_stratum = static_cast<int>(stratum.size());
+  size_t p_stratum = stratum.size();
   bool has_stratum = false;
   std::vector<int> stratumn(n);
   DataFrameCpp u_stratum;
-  std::vector<int> d(p_stratum);
+  std::vector<size_t> d(p_stratum);
   IntMatrix stratan(n, p_stratum);
   ListCpp levels;
   if (!(p_stratum == 0 || (p_stratum == 1 && stratum[0] == ""))) {
@@ -108,12 +110,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     has_stratum = true;
     stratumn = out.get<std::vector<int>>("index");
     u_stratum = out.get<DataFrameCpp>("lookup");
-    d = out.get<std::vector<int>>("nlevels");
+    d = out.get<std::vector<size_t>>("nlevels");
     stratan = out.get<IntMatrix>("indices");
     levels = out.get_list("lookups_per_variable");
   }
   std::vector<int> stratumn_unique = unique_sorted(stratumn);
-  int nstrata = static_cast<int>(stratumn_unique.size());
+  size_t nstrata = stratumn_unique.size();
   
   // create the numeric id variable
   if (id.empty() || !data.containElementNamed(id))
@@ -143,13 +145,13 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<double> tstartn(n);
   if (data.int_cols.count(tstart)) {
     const std::vector<int>& vi = data.get<int>(tstart);
-    for (int i = 0; i < n; ++i) tstartn[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) tstartn[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(tstart)) {
     tstartn = data.get<double>(tstart);
   } else {
     throw std::invalid_argument("tstart variable must be integer or numeric");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (!std::isnan(tstartn[i]) && tstartn[i] < 0.0)
       throw std::invalid_argument("tstart must be nonnegative");
   }
@@ -159,13 +161,13 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<double> tstopn(n);
   if (data.int_cols.count(tstop)) {
     const std::vector<int>& vi = data.get<int>(tstop);
-    for (int i = 0; i < n; ++i) tstopn[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) tstopn[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(tstop)) {
     tstopn = data.get<double>(tstop);
   } else {
     throw std::invalid_argument("tstop variable must be integer or numeric");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (!std::isnan(tstartn[i]) && !std::isnan(tstopn[i]) && tstopn[i] <= tstartn[i])
       throw std::invalid_argument("tstop must be greater than tstart");
   }
@@ -177,12 +179,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<int> eventn(n);
   if (data.bool_cols.count(event)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
+    for (size_t i = 0; i < n; ++i) eventn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(event)) {
     eventn = data.get<int>(event);
   } else if (data.numeric_cols.count(event)) {
     const std::vector<double>& vd = data.get<double>(event);
-    for (int i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
+    for (size_t i = 0; i < n; ++i) eventn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("event variable must be bool, integer or numeric");
   }
@@ -203,7 +205,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     std::vector<int> treatv(n);
     if (data.bool_cols.count(treat)) {
       const std::vector<unsigned char>& treatvb = data.get<unsigned char>(treat);
-      for (int i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
+      for (size_t i = 0; i < n; ++i) treatv[i] = treatvb[i] ? 1 : 0;
     } else treatv = data.get<int>(treat);
     treatwi = unique_sorted(treatv); // obtain unique treatment values
     if (treatwi.size() != 2)
@@ -211,7 +213,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     if (std::all_of(treatwi.begin(), treatwi.end(), [](int v) {
       return v == 0 || v == 1; })) {
       treatwi = {1, 0}; // special handling for 1/0 treatment coding
-      for (int i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
+      for (size_t i = 0; i < n; ++i) treatn[i] = 2 - treatv[i];
     } else {
       treatn = matchcpp(treatv, treatwi, 1);
     }
@@ -223,7 +225,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     if (std::all_of(treatwn.begin(), treatwn.end(), [](double v) {
       return v == 0.0 || v == 1.0; })) {
       treatwn = {1.0, 0.0};
-      for (int i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
+      for (size_t i = 0; i < n; ++i) treatn[i] = 2 - static_cast<int>(treatv[i]);
     } else {
       treatn = matchcpp(treatv, treatwn, 1);
     }
@@ -237,7 +239,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     throw std::invalid_argument(
         "incorrect type for the treat variable in the input data");
   }
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     treatn[i] = 2 - treatn[i]; // convert to 1/0 coding
   }
   
@@ -248,12 +250,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<int> swtrtn(n);
   if (data.bool_cols.count(swtrt)) {
     const std::vector<unsigned char>& vb = data.get<unsigned char>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
+    for (size_t i = 0; i < n; ++i) swtrtn[i] = vb[i] ? 1 : 0;
   } else if (data.int_cols.count(swtrt)) {
     swtrtn = data.get<int>(swtrt);
   } else if (data.numeric_cols.count(swtrt)) {
     const std::vector<double>& vd = data.get<double>(swtrt);
-    for (int i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
+    for (size_t i = 0; i < n; ++i) swtrtn[i] = static_cast<int>(vd[i]);
   } else {
     throw std::invalid_argument("swtrt variable must be bool, integer or numeric");
   }
@@ -266,7 +268,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<double> swtrt_timen(n);
   if (data.int_cols.count(swtrt_time)) {
     const std::vector<int>& vi = data.get<int>(swtrt_time);
-    for (int i = 0; i < n; ++i) swtrt_timen[i] = static_cast<double>(vi[i]);
+    for (size_t i = 0; i < n; ++i) swtrt_timen[i] = static_cast<double>(vi[i]);
   } else if (data.numeric_cols.count(swtrt_time)) {
     swtrt_timen = data.get<double>(swtrt_time);
   } else {
@@ -274,7 +276,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   
   // check consistency between swtrt and swtrt_time
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (swtrtn[i] == 1 && std::isnan(swtrt_timen[i])) {
       throw std::runtime_error("swtrt_time must not be missing when swtrt=1");
     }
@@ -287,7 +289,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<std::string> covariates(p + 1);
   FlatMatrix zn(n, p);
   covariates[0] = "treated";
-  for (int j = 0; j < p; ++j) {
+  for (size_t j = 0; j < p; ++j) {
     const std::string& zj = base_cov[j];
     if (!data.containElementNamed(zj))
       throw std::invalid_argument("data must contain the variables in base_cov");
@@ -297,10 +299,10 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     double* zn_col = zn.data_ptr() + j * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
+      for (size_t i = 0; i < n; ++i) zn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
+      for (size_t i = 0; i < n; ++i) zn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
       std::memcpy(zn_col, vd.data(), n * sizeof(double));
@@ -310,11 +312,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   
   // number of columns corresponding to the strata effects
-  int q = 0;
+  size_t q = 0;
   if (has_stratum) {
     if (strata_main_effect_only) {
       q = 0;
-      for (int i = 0; i < p_stratum; ++i) q += d[i] - 1;
+      for (size_t i = 0; i < p_stratum; ++i) q += d[i] - 1;
     } else {
       q = nstrata - 1;
     }
@@ -326,58 +328,58 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   FlatMatrix z_lgs_denn(n, q + p2);
   if (has_stratum) {
     if (strata_main_effect_only) {
-      int k = 0;
-      for (int i = 0; i < p_stratum; ++i) {
+      size_t k = 0;
+      for (size_t i = 0; i < p_stratum; ++i) {
         const std::string& s = stratum[i];
-        int di = d[i] - 1;
+        size_t di = d[i] - 1;
         
         if (u_stratum.string_cols.count(s)) {
           auto u = levels.get<std::vector<std::string>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs_den[k + j] = s + sanitize(u[j]);
           }
         } else if (u_stratum.numeric_cols.count(s)) {
           auto u = levels.get<std::vector<double>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs_den[k + j] = s + std::to_string(u[j]);
           }
         } else if (u_stratum.int_cols.count(s)) {
           auto u = levels.get<std::vector<int>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs_den[k + j] = s + std::to_string(u[j]);
           }
         } else if (u_stratum.bool_cols.count(s)) {
           auto u = levels.get<std::vector<unsigned char>>(s);
-          for (int j = 0; j < di; ++j) {
+          for (size_t j = 0; j < di; ++j) {
             covariates_lgs_den[k + j] = s + std::to_string(u[j]);
           }
         }
         
-        for (int j = 0; j < di; ++j) {
+        for (size_t j = 0; j < di; ++j) {
           const int* stratan_col = stratan.data_ptr() + i * n;
           double* z_lgs_denn_col = z_lgs_denn.data_ptr() + (k + j) * n;
-          for (int r = 0; r < n; ++r) {
-            z_lgs_denn_col[r] = stratan_col[r] == j ? 1.0 : 0.0;
+          for (size_t r = 0; r < n; ++r) {
+            z_lgs_denn_col[r] = static_cast<size_t>(stratan_col[r]) == j ? 1.0 : 0.0;
           }
         }
         
         k += di;
       }
     } else {
-      for (int j = 0; j < nstrata - 1; ++j) {
+      for (size_t j = 0; j < nstrata - 1; ++j) {
         // locate the first observation in the stratum
-        int first_k = 0;
+        size_t first_k = 0;
         for (; first_k<n; ++first_k) {
-          if (stratumn[first_k] == j) break;
+          if (static_cast<size_t>(stratumn[first_k]) == j) break;
         }
         
         covariates_lgs_den[j] = "";
         
-        for (int i = 0; i < p_stratum; ++i) {
+        for (size_t i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
           
           std::vector<int> q_col = intmatrix_get_column(stratan, i);
-          int l = q_col[first_k];
+          size_t l = q_col[first_k];
           
           if (u_stratum.string_cols.count(s)) {
             auto u = levels.get<std::vector<std::string>>(s);
@@ -399,15 +401,15 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         }
         
         double* z_lgs_denn_col = z_lgs_denn.data_ptr() + j * n;
-        for (int r = 0; r < n; ++r) {
-          z_lgs_denn_col[r] = stratumn[r] == j ? 1.0 : 0.0;
+        for (size_t r = 0; r < n; ++r) {
+          z_lgs_denn_col[r] = static_cast<size_t>(stratumn[r]) == j ? 1.0 : 0.0;
         }
       }
     }
   }
   
   FlatMatrix z_cox_denn(n, p2);
-  for (int j = 0; j < p2; ++j) {
+  for (size_t j = 0; j < p2; ++j) {
     const std::string& zj = denominator[j];
     if (!data.containElementNamed(zj))
       throw std::invalid_argument("data must contain the variables in denominator");
@@ -418,11 +420,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     double* z_cox_denn_col = z_cox_denn.data_ptr() + j * n;
     if (data.bool_cols.count(zj)) {
       const std::vector<unsigned char>& vb = data.get<unsigned char>(zj);
-      for (int i = 0; i < n; ++i) 
+      for (size_t i = 0; i < n; ++i) 
         z_lgs_denn_col[i] = z_cox_denn_col[i] = vb[i] ? 1.0 : 0.0;
     } else if (data.int_cols.count(zj)) {
       const std::vector<int>& vi = data.get<int>(zj);
-      for (int i = 0; i < n; ++i) 
+      for (size_t i = 0; i < n; ++i) 
         z_lgs_denn_col[i] = z_cox_denn_col[i] = static_cast<double>(vi[i]);
     } else if (data.numeric_cols.count(zj)) {
       const std::vector<double>& vd = data.get<double>(zj);
@@ -437,20 +439,20 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     throw std::invalid_argument("ns_df must be a nonnegative integer");
   }
   
-  for (int j = 0; j < ns_df; ++j) {
+  for (size_t j = 0; j < ns_df; ++j) {
     covariates_lgs_den[q + p2 + j] = "ns" + std::to_string(j+1);
   }
   
   // covariates for the logistic regression switch model for numerator
   // including stratum, numerator, and ns_df spline terms
   std::vector<std::string> covariates_lgs_num(q + p1 + ns_df);
-  for (int j = 0; j < q; ++j) {
+  for (size_t j = 0; j < q; ++j) {
     covariates_lgs_num[j] = covariates_lgs_den[j];
   }
-  for (int j = 0; j < p1; ++j) {
+  for (size_t j = 0; j < p1; ++j) {
     covariates_lgs_num[q + j] = numerator[j];
   }
-  for (int j=0; j<ns_df; ++j) {
+  for (size_t j=0; j<ns_df; ++j) {
     covariates_lgs_num[q + p1 + j] = "ns" + std::to_string(j+1);
   }
   
@@ -472,19 +474,19 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   
   // exclude observations with missing values
   std::vector<unsigned char> sub(n,1);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (idn[i] == INT_MIN || stratumn[i] == INT_MIN || 
         std::isnan(tstartn[i]) || std::isnan(tstopn[i]) || 
         eventn[i] == INT_MIN || treatn[i] == INT_MIN || 
         swtrtn[i] == INT_MIN) {
       sub[i] = 0; continue;
     }
-    for (int j = 0; j < q + p2; ++j) {
+    for (size_t j = 0; j < q + p2; ++j) {
       if (std::isnan(z_lgs_denn(i,j))) { sub[i] = 0; break; }
     }
   }
   
-  std::vector<int> keep = which(sub);
+  std::vector<size_t> keep = which(sub);
   if (keep.empty())
     throw std::invalid_argument("no observations without missing values");
   subset_in_place(idn, keep);
@@ -498,22 +500,22 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   subset_in_place_flatmatrix(zn, keep);
   subset_in_place_flatmatrix(z_cox_denn, keep);
   subset_in_place_flatmatrix(z_lgs_denn, keep);
-  n = static_cast<int>(keep.size());
+  n = keep.size();
   
   // split at treatment switching into two observations if treatment 
   // switching occurs strictly between tstart and tstop for a subject
   std::vector<unsigned char> tosplit(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     tosplit[i] = swtrtn[i] == 1 && swtrt_timen[i] > tstartn[i] && 
       swtrt_timen[i] < tstopn[i] ? 1 : 0;
   }
   
-  int k = std::accumulate(tosplit.begin(), tosplit.end(), 0);
+  size_t k = std::accumulate(tosplit.begin(), tosplit.end(), 0);
   if (k > 0) {
-    std::vector<int> sub = which(tosplit);
-    for (int i = 0; i < k; ++i) {
+    std::vector<size_t> sub = which(tosplit);
+    for (size_t i = 0; i < k; ++i) {
       // append a new observation by changing tstart
-      int l = sub[i];
+      size_t l = sub[i];
       idn.push_back(idn[l]);
       stratumn.push_back(stratumn[l]);
       tstartn.push_back(swtrt_timen[l]);
@@ -541,8 +543,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   }
   
   // sort data by treatment group, id, and time
-  std::vector<int> order = seqcpp(0, n - 1);
-  std::sort(order.begin(), order.end(), [&](int i, int j) {
+  std::vector<size_t> order = seqcpp(0, n - 1);
+  std::sort(order.begin(), order.end(), [&](size_t i, size_t j) {
     return std::tie(treatn[i], idn[i], tstopn[i]) <
       std::tie(treatn[j], idn[j], tstopn[j]);
   });
@@ -560,33 +562,33 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   subset_in_place_flatmatrix(z_lgs_denn, order);
   
   // identify first and last observation within an id
-  std::vector<int> idx(1,0); // first observation within an id
-  for (int i = 1; i < n; ++i) {
+  std::vector<size_t> idx(1,0); // first observation within an id
+  for (size_t i = 1; i < n; ++i) {
     if (idn[i] != idn[i-1]) {
       idx.push_back(i);
     }
   }
-  int nids = static_cast<int>(idx.size());
+  size_t nids = idx.size();
   idx.push_back(n);
   
-  std::vector<int> idx1(nids); // last observation within an id
-  for (int i = 0; i < nids; ++i) {
+  std::vector<size_t> idx1(nids); // last observation within an id
+  for (size_t i = 0; i < nids; ++i) {
     idx1[i] = idx[i+1] - 1;
   }
   
   // create os_time variable
   std::vector<int> osn(n);
   std::vector<double> os_timen(n);
-  for (int i = 0; i < nids; ++i) {
-    int k = idx1[i];
+  for (size_t i = 0; i < nids; ++i) {
+    size_t k = idx1[i];
     int ev = eventn[k];
     double ts = tstopn[k];
-    int start = idx[i], end = idx[i+1];
+    size_t start = idx[i], end = idx[i+1];
     std::fill(osn.begin() + start, osn.begin() + end, ev);
     std::fill(os_timen.begin() + start, os_timen.begin() + end, ts);
   }
   
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (swtrtn[i] == 1 && swtrt_timen[i] > os_timen[i]) {
       throw std::invalid_argument("swtrt_time must be less than or equal to os_time");
     }
@@ -602,8 +604,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<double> n_total(2);
   std::vector<double> n_event(2);
   std::vector<double> n_switch(2);
-  for (int i = 0; i < nids; ++i) {
-    int g = treatn1[i];
+  for (size_t i = 0; i < nids; ++i) {
+    size_t g = treatn1[i];
     ++n_total[g];
     if (eventn1[i] == 1) ++n_event[g];
     if (swtrtn1[i] == 1) ++n_switch[g];
@@ -612,7 +614,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   // Compute percentages
   std::vector<double> pct_event(2);
   std::vector<double> pct_switch(2);
-  for (int g = 0; g < 2; g++) {
+  for (size_t g = 0; g < 2; g++) {
     pct_event[g] = 100.0 * n_event[g] / n_total[g];
     pct_switch[g] = 100.0 * n_switch[g] / n_total[g];
   }
@@ -644,20 +646,20 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                  // the total number of rows change across bootstrap samples 
                  // because bootstrap is done at the subject level and 
                  // different subjects generally have different number of rows
-                 int n = static_cast<int>(idb.size());
+                 size_t n = idb.size();
                  bool fail = false; // whether any model fails to converge
                  std::vector<double> init(1, NaN);
                  
-                 int n1;
+                 size_t n1;
                  std::vector<int> id1, stratum1, treat1;
                  std::vector<int> event1, swtrt1, cross1;
                  std::vector<double> tstart1, tstop1, os_time1, swtrt_time1;
                  FlatMatrix z1, z_cox_den1, z_lgs_den1;
                  if (!swtrt_control_only) {
                    // exclude observations after switch
-                   std::vector<int> l; 
+                   std::vector<size_t> l; 
                    l.reserve(n);
-                   for (int i = 0; i < n; ++i) {
+                   for (size_t i = 0; i < n; ++i) {
                      if (swtrtb[i] == 1 && tstartb[i] >= swtrt_timeb[i]) {
                        continue;
                      }
@@ -676,11 +678,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    z1 = subset_flatmatrix(zb, l);
                    z_cox_den1 = subset_flatmatrix(z_cox_denb, l);
                    z_lgs_den1 = subset_flatmatrix(z_lgs_denb, l);
-                   n1 = static_cast<int>(l.size());
+                   n1 = l.size();
                    
                    // set up crossover indicators
                    cross1 = std::vector<int>(n1);
-                   for (int i = 0; i < n1; ++i) {
+                   for (size_t i = 0; i < n1; ++i) {
                      if (i == n1 - 1 || id1[i] != id1[i+1]) {
                        if (swtrt1[i] == 1 && tstop1[i] >= swtrt_time1[i]) {
                          cross1[i] = 1;
@@ -689,9 +691,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    }
                  } else {
                    // for control group, exclude observations after switch
-                   std::vector<int> l;
+                   std::vector<size_t> l;
                    l.reserve(n);
-                   for (int i = 0; i < n; ++i) {
+                   for (size_t i = 0; i < n; ++i) {
                      if (treatb[i] == 1) continue;
                      if (swtrtb[i] == 1 && tstartb[i] >= swtrt_timeb[i]) {
                        continue;
@@ -711,11 +713,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    FlatMatrix z10 = subset_flatmatrix(zb, l);
                    FlatMatrix z_cox_den10 = subset_flatmatrix(z_cox_denb, l);
                    FlatMatrix z_lgs_den10 = subset_flatmatrix(z_lgs_denb, l);
-                   int n10 = static_cast<int>(l.size());
+                   size_t n10 = l.size();
                    
                    // set up crossover indicators for control
                    std::vector<int> cross10(n10);
-                   for (int i = 0; i < n10; ++i) {
+                   for (size_t i = 0; i < n10; ++i) {
                      if (i == n10 - 1 || id10[i] != id10[i+1]) {
                        if (swtrt10[i]== 1 && tstop10[i] >= swtrt_time10[i]) {
                          cross10[i] = 1;
@@ -724,7 +726,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    }
                    
                    // extract data for the active group
-                   int start = 0;
+                   size_t start = 0;
                    for (; start < n; ++start) {
                      if (treatb[start] == 1) break;
                    }
@@ -741,7 +743,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    FlatMatrix z11 = subset_flatmatrix(zb, start, n);
                    FlatMatrix z_cox_den11 = subset_flatmatrix(z_cox_denb, start, n);
                    FlatMatrix z_lgs_den11 = subset_flatmatrix(z_lgs_denb, start, n);
-                   int n11 = n - start;
+                   size_t n11 = n - start;
                    
                    // no crossover in active group
                    std::vector<int> cross11(n11);
@@ -768,7 +770,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                  if (k == -1) {
                    DataFrameCpp nulldata;
                    ListCpp nullfit;
-                   for (int h = 0; h < 2; ++h) {
+                   for (size_t h = 0; h < 2; ++h) {
                      ListPtr data_x = std::make_shared<ListCpp>();
                      ListPtr fit_x  = std::make_shared<ListCpp>();
                      data_x->push_back(nulldata, "data");
@@ -793,7 +795,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                  DataFrameCpp data_outcome;
                  
                  // # arms that include patients who switched treatment
-                 int K = swtrt_control_only ? 1 : 2;
+                 size_t K = swtrt_control_only ? 1 : 2;
                  std::vector<int> w_treated(K), w_n(K);
                  std::vector<double> w_min(K), w_Q1(K), w_median(K);
                  std::vector<double> w_mean(K), w_Q3(K), w_max(K);
@@ -804,7 +806,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    // unique event times
                    std::vector<double> cut;
                    cut.reserve(n1);
-                   for (int i = 0; i < n1; ++i) {
+                   for (size_t i = 0; i < n1; ++i) {
                      if (event1[i] == 1) cut.push_back(tstop1[i]);
                    }
                    cut = unique_sorted(cut);
@@ -813,11 +815,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    std::vector<int> id2, stratum2, event2, treat2, cross2;
                    std::vector<double> tstart2, tstop2;
                    FlatMatrix z2, z_cox_den2;
-                   int n2;
+                   size_t n2;
                    if (!swtrt_control_only) {
                      DataFrameCpp a = survsplitcpp(tstart1, tstop1, cut);
                      std::vector<int> censor = a.get<int>("censor");
-                     std::vector<int> l = a.get<int>("row");
+                     std::vector<size_t> l = a.get<size_t>("row");
                      id2 = subset(id1, l);
                      stratum2 = subset(stratum1, l);
                      tstart2 = a.get<double>("start");
@@ -827,8 +829,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      cross2 = subset(cross1, l);
                      z2 = subset_flatmatrix(z1, l);
                      z_cox_den2 = subset_flatmatrix(z_cox_den1, l);
-                     n2 = static_cast<int>(l.size());
-                     for (int i = 0; i < n2; ++i) {
+                     n2 = l.size();
+                     for (size_t i = 0; i < n2; ++i) {
                        if (censor[i] == 1) {
                          event2[i] = 0;
                          cross2[i] = 0;
@@ -836,7 +838,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      }
                    } else {
                      // extract data for the control group
-                     int mid = 0;
+                     size_t mid = 0;
                      for (; mid < n1; ++mid) {
                        if (treat1[mid] == 1) break;
                      }
@@ -853,7 +855,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      // replicate event times within each subject
                      DataFrameCpp a = survsplitcpp(tstart10, tstop10, cut);
                      std::vector<int> censor = a.get<int>("censor");
-                     std::vector<int> l = a.get<int>("row");
+                     std::vector<size_t> l = a.get<size_t>("row");
                      std::vector<int> id20 = subset(id10, l);
                      std::vector<int> stratum20 = subset(stratum10, l);
                      std::vector<double> tstart20 = a.get<double>("start");
@@ -863,8 +865,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      std::vector<int> cross20 = subset(cross10, l);
                      FlatMatrix z20 = subset_flatmatrix(z10, l);
                      FlatMatrix z_cox_den20 = subset_flatmatrix(z_cox_den10, l);
-                     int n20 = static_cast<int>(l.size());
-                     for (int i = 0; i < n20; ++i) {
+                     size_t n20 = l.size();
+                     for (size_t i = 0; i < n20; ++i) {
                        if (censor[i] == 1) {
                          event20[i] = 0;
                          cross20[i] = 0;
@@ -880,9 +882,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      std::vector<int> treat21 = subset(treat1, mid, n1);
                      std::vector<int> cross21 = subset(cross1, mid, n1);
                      FlatMatrix z21 = subset_flatmatrix(z1, mid, n1);
-                     FlatMatrix z_cox_den21 = 
-                       subset_flatmatrix(z_cox_den1, mid, n1);
-                     int n21 = n1 - mid;
+                     FlatMatrix z_cox_den21 = subset_flatmatrix(z_cox_den1, mid, n1);
+                     size_t n21 = n1 - mid;
                      
                      // combine weighted control with unweighted active data
                      id2 = concat(id20, id21);
@@ -901,13 +902,13 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    std::vector<double> w2(n2, 1.0), sw2(n2, 1.0);
                    
                    // fit the switching models by treatment group
-                   for (int h = 0; h < K; ++h) {
-                     int mid = 0;
+                   for (size_t h = 0; h < K; ++h) {
+                     size_t mid = 0;
                      for (; mid < n2; ++mid) {
                        if (treat2[mid] == 1) break;
                      }
                      
-                     int start, end;
+                     size_t start, end;
                      if (h == 0) {
                        start = 0; end = mid;
                      } else {
@@ -919,9 +920,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      std::vector<double> tstart3 = subset(tstart2, start, end);
                      std::vector<double> tstop3 = subset(tstop2, start, end);
                      std::vector<int> cross3 = subset(cross2, start, end);
-                     FlatMatrix z_cox_den3 = 
-                       subset_flatmatrix(z_cox_den2, start, end);
-                     int n3 = end - start;
+                     FlatMatrix z_cox_den3 = subset_flatmatrix(z_cox_den2, start, end);
+                     size_t n3 = end - start;
                      
                      // prepare the data for fitting the switching model
                      DataFrameCpp data1;
@@ -931,11 +931,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      data1.push_back(tstop3, "tstop");
                      data1.push_back(std::move(cross3), "cross");
                      
-                     for (int j = 0; j < p2; ++j) {
+                     for (size_t j = 0; j < p2; ++j) {
                        const std::string& zj = denominator[j];
                        std::vector<double> u = flatmatrix_get_column(z_cox_den3, j);
                        data1.push_back(std::move(u), zj);
                      }
+                     
                      
                      // fit the denominator model for crossover
                      ListCpp fit_den = phregcpp(
@@ -961,7 +962,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                        data1, {"ustratum"}, "tstart", "tstop", "cross", 
                        numerator, "", "", "uid", ties, init, 0, 1, 0, 0, 0, alpha);
                      
-                     int p10 = (p1 > 0) ? p1 : 1;
+                     size_t p10 = (p1 > 0) ? p1 : 1;
                      std::vector<double> beta_num(p10);
                      FlatMatrix vbeta_num(p10,p10);
                      if (p1 > 0) {
@@ -994,7 +995,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                        
                        if (has_stratum) {
                          std::vector<int> ustratum = data1.get<int>("ustratum");
-                         for (int i = 0; i < p_stratum; ++i) {
+                         for (size_t i = 0; i < p_stratum; ++i) {
                            const std::string& s = stratum[i];
                            if (data.bool_cols.count(s)) {
                              auto v = u_stratum.get<unsigned char>(s);
@@ -1021,9 +1022,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      }
                      
                      // unstabilized and stabilized weights
-                     int m3 = surv_den.size();
+                     size_t m3 = surv_den.size();
                      std::vector<double> w(m3), sw(m3);
-                     for (int i = 0; i < m3; ++i) {
+                     for (size_t i = 0; i < m3; ++i) {
                        if (surv_den[i] == 0.0) {
                          w[i] = NaN;
                          sw[i] = NaN;
@@ -1041,23 +1042,23 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      std::vector<double> sw3 = subset(sw, sub);
                      
                      // fill in missing weights with LOCF starting at 1
-                     std::vector<int> idx3(1, 0);
-                     for (int i = 1; i < n3; ++i) {
+                     std::vector<size_t> idx3(1, 0);
+                     for (size_t i = 1; i < n3; ++i) {
                        if (id3[i] != id3[i-1]) {
                          idx3.push_back(i);
                        }
                      }
                      
-                     int nids3 = static_cast<int>(idx3.size());
+                     size_t nids3 = idx3.size();
                      idx3.push_back(n3);
                      
-                     for (int i = 0; i < nids3; ++i) {
-                       int j1 = idx3[i], j2 = idx3[i+1];
+                     for (size_t i = 0; i < nids3; ++i) {
+                       size_t j1 = idx3[i], j2 = idx3[i+1];
                        if (std::isnan(w3[j1])) {
                          w3[j1] = 1.0;
                          sw3[j1] = 1.0;
                        }
-                       for (int j = j1 + 1; j < j2; ++j) {
+                       for (size_t j = j1 + 1; j < j2; ++j) {
                          if (std::isnan(w3[j])) {
                            w3[j] = w3[j-1];
                            sw3[j] = sw3[j-1];
@@ -1107,7 +1108,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    data_outcome.push_back(std::move(sw2), "stabilized_weight");
                    data_outcome.push_back(std::move(stratum2), "ustratum");
                    
-                   for (int j = 0; j < p; ++j) {
+                   for (size_t j = 0; j < p; ++j) {
                      const std::string& zj = covariates[j+1];
                      std::vector<double> u = flatmatrix_get_column(z2, j);
                      data_outcome.push_back(std::move(u), zj);
@@ -1116,11 +1117,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    std::vector<double> w1(n1, 1.0), sw1(n1, 1.0);
                    
                    // fit the switching models by treatment group
-                   for (int h = 0; h < K; ++h) {
-                     std::vector<int> l;
+                   for (size_t h = 0; h < K; ++h) {
+                     std::vector<size_t> l;
                      l.reserve(n1);
-                     for (int i = 0; i < n1; ++i) {
-                       if (treat1[i] != h) {
+                     for (size_t i = 0; i < n1; ++i) {
+                       if (static_cast<size_t>(treat1[i]) != h) {
                          continue; 
                        }
                        if (swtrt1[i] == 1 && tstart1[i] >= swtrt_time1[i]) {
@@ -1138,14 +1139,14 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      std::vector<double> tstop2 = subset(tstop1, l);
                      std::vector<int> cross2 = subset(cross1, l);
                      FlatMatrix z_lgs_den2 = subset_flatmatrix(z_lgs_den1, l);
-                     int n2 = static_cast<int>(l.size());
+                     size_t n2 = l.size();
                      
                      // obtain natural cubic spline knots
                      FlatMatrix s(n2, ns_df);
                      if (ns_df > 0) {
                        std::vector<double> x;
                        x.reserve(n2);
-                       for (int i = 0; i < n2; ++i) {
+                       for (size_t i = 0; i < n2; ++i) {
                          if (cross2[i] == 1) x.push_back(tstop2[i]);
                        }
                        ListCpp out = nscpp(x, ns_df);
@@ -1163,12 +1164,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      data1.push_back(std::move(tstop2), "tstop");
                      data1.push_back(cross2, "cross");
                      
-                     for (int j = 0; j < q + p2; ++j) {
+                     for (size_t j = 0; j < q + p2; ++j) {
                        const std::string& zj = covariates_lgs_den[j];
                        std::vector<double> u = flatmatrix_get_column(z_lgs_den2, j);
                        data1.push_back(std::move(u), zj);
                      }
-                     for (int j = 0; j < ns_df; ++j) {
+                     for (size_t j = 0; j < ns_df; ++j) {
                        const std::string& zj = covariates_lgs_den[q + p2 + j];
                        std::vector<double> u = flatmatrix_get_column(s, j);
                        data1.push_back(std::move(u), zj);
@@ -1203,7 +1204,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                        
                        if (has_stratum) {
                          std::vector<int> ustratum = data1.get<int>("ustratum");
-                         for (int i = 0; i < p_stratum; ++i) {
+                         for (size_t i = 0; i < p_stratum; ++i) {
                            const std::string& s = stratum[i];
                            if (data.bool_cols.count(s)) {
                              auto v = u_stratum.get<unsigned char>(s);
@@ -1231,18 +1232,18 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      
                      // convert to probability of observed response 
                      std::vector<double> o_den(n2), o_num(n2);
-                     for (int i = 0; i < n2; ++i) {
+                     for (size_t i = 0; i < n2; ++i) {
                        o_den[i] = cross2[i] == 1 ? h_den[i] : 1 - h_den[i];
                        o_num[i] = cross2[i] == 1 ? h_num[i] : 1 - h_num[i];
                      }
                      
                      // obtain cumulative products within a subject
-                     int mid = 0;
+                     size_t mid = 0;
                      for (; mid < n1; ++mid) {
                        if (treat1[mid] == 1) break;
                      }
                      
-                     int start, end;
+                     size_t start, end;
                      if (h == 0) {
                        start = 0; end = mid;
                      } else {
@@ -1252,11 +1253,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      // extract data for the treatment group
                      std::vector<int> id3 = subset(id1, start, end);
                      std::vector<int> swtrt3 = subset(swtrt1, start, end);
-                     int n3 = end - start;
+                     size_t n3 = end - start;
                      
                      // indices for each subject
-                     std::vector<int> idx3(1, 0);
-                     for (int i = 1; i < n3; ++i) {
+                     std::vector<size_t> idx3(1, 0);
+                     for (size_t i = 1; i < n3; ++i) {
                        if (id3[i] != id3[i-1]) {
                          idx3.push_back(i);
                        }
@@ -1265,30 +1266,30 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      // extract switch indicators for each subject
                      std::vector<int> swtrt3u = subset(swtrt3, idx3);
                      
-                     int nids3 = static_cast<int>(idx3.size());
+                     size_t nids3 = idx3.size();
                      idx3.push_back(n3);
                      
                      // cumulative products of the observed probabilities
                      std::vector<double> p_den(n3, 1.0), p_num(n3, 1.0);
                      
-                     int m = 0; // index for id2
-                     for (int i = 0; i < nids3; ++i) {
-                       int r = m - idx3[i] - 1;
-                       int j1 = idx3[i], j2 = idx3[i+1];
-                       for (int j = j1 + 1; j < j2; ++j) {
-                         p_den[j] = p_den[j-1] * o_den[r + j];
-                         p_num[j] = p_num[j-1] * o_num[r + j];
+                     size_t m = 0; // index for id2
+                     for (size_t i = 0; i < nids3; ++i) {
+                       size_t r = idx3[i] + 1;
+                       size_t j1 = idx3[i], j2 = idx3[i+1];
+                       for (size_t j = j1 + 1; j < j2; ++j) {
+                         p_den[j] = p_den[j-1] * o_den[j + m - r];
+                         p_num[j] = p_num[j-1] * o_num[j + m - r];
                        }
                        
-                       int ni = j2 - j1;
-                       int mi = (swtrt3u[i] == 1) ? ni : ni - 1;
+                       size_t ni = j2 - j1;
+                       size_t mi = (swtrt3u[i] == 1) ? ni : ni - 1;
                        m += mi;
                      }
                      
                      // unstabilized and stabilized weights
-                     int m3 = p_den.size();
+                     size_t m3 = p_den.size();
                      std::vector<double> w3(m3), sw3(m3);
-                     for (int i = 0; i < m3; ++i) {
+                     for (size_t i = 0; i < m3; ++i) {
                        if (p_den[i] == 0.0) {
                          w3[i] = NaN;
                          sw3[i] = NaN;
@@ -1340,7 +1341,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    data_outcome.push_back(std::move(sw1), "stabilized_weight");
                    data_outcome.push_back(std::move(stratum1), "ustratum");
                    
-                   for (int j = 0; j < p; ++j) {
+                   for (size_t j = 0; j < p; ++j) {
                      const std::string& zj = covariates[j+1];
                      std::vector<double> u = flatmatrix_get_column(z1, j);
                      data_outcome.push_back(std::move(u), zj);
@@ -1439,12 +1440,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   std::vector<int> event_out = data_outcome.get<int>("event");
   std::vector<double> n_event_out(2); 
   // note: outcome data excludes data after switch
-  for (int i = 0; i < static_cast<int>(treated.size()); ++i) {
-    int g = treated[i];
+  for (size_t i = 0; i < treated.size(); ++i) {
+    size_t g = treated[i];
     if (event_out[i] == 1) ++n_event_out[g];
   }
   std::vector<double> pct_event_out(2);
-  for (int g = 0; g < 2; g++) {
+  for (size_t g = 0; g < 2; g++) {
     pct_event_out[g] = 100.0 * n_event_out[g] / n_total[g];
   }
   event_summary.push_back(std::move(n_event_out), "event_out_n");
@@ -1509,7 +1510,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   
   if (has_stratum) {
     std::vector<int> ustratum = data_outcome.get<int>("ustratum");
-    for (int i = 0; i < p_stratum; ++i) {
+    for (size_t i = 0; i < p_stratum; ++i) {
       const std::string& s = stratum[i];
       if (data.bool_cols.count(s)) {
         auto v = u_stratum.get<unsigned char>(s);
@@ -1533,8 +1534,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
   } else { // bootstrap the entire process to construct CI for HR
     if (has_stratum) {
       // sort data by treatment group, stratum, id, and time
-      std::vector<int> order = seqcpp(0, n-1);
-      std::sort(order.begin(), order.end(), [&](int i, int j) {
+      std::vector<size_t> order = seqcpp(0, n-1);
+      std::sort(order.begin(), order.end(), [&](size_t i, size_t j) {
         return std::tie(treatn[i], stratumn[i], idn[i], tstopn[i]) <
           std::tie(treatn[j], stratumn[j], idn[j], tstopn[j]);
       });
@@ -1554,47 +1555,47 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       subset_in_place_flatmatrix(z_lgs_denn, order);
     }
     
-    std::vector<int> idx(1, 0); // first observation within an id
-    for (int i = 1; i < n; ++i) {
+    std::vector<size_t> idx(1, 0); // first observation within an id
+    for (size_t i = 1; i < n; ++i) {
       if (idn[i] != idn[i-1]) {
         idx.push_back(i);
       }
     }
     
-    int nids = static_cast<int>(idx.size());
+    size_t nids = idx.size();
     idx.push_back(n);
     
-    std::vector<int> idx1(nids); // last observation within an id
-    for (int i = 0; i < nids; ++i) {
+    std::vector<size_t> idx1(nids); // last observation within an id
+    for (size_t i = 0; i < nids; ++i) {
       idx1[i] = idx[i+1] - 1;
     }
     
     std::vector<int> treat1 = subset(treatn, idx1);
     std::vector<int> stratum1 = subset(stratumn, idx1);
     
-    std::vector<int> tsx(1, 0); // first id within each treat/stratum
-    for (int i = 1; i < nids; ++i) {
+    std::vector<size_t> tsx(1, 0); // first id within each treat/stratum
+    for (size_t i = 1; i < nids; ++i) {
       if (treat1[i] != treat1[i-1] || stratum1[i] != stratum1[i-1]) {
         tsx.push_back(i);
       }
     }
     
-    int ntss = static_cast<int>(tsx.size());
+    size_t ntss = tsx.size();
     tsx.push_back(nids); // add the end index
     
     // Before running the parallel loop: pre-generate deterministic seeds
     std::vector<uint64_t> seeds(n_boot);
     boost::random::mt19937_64 master_rng(static_cast<uint64_t>(seed));
-    for (int k = 0; k < n_boot; ++k) seeds[k] = master_rng();
+    for (size_t k = 0; k < n_boot; ++k) seeds[k] = master_rng();
     
     // We'll collect failure bootstrap data per-worker and merge via Worker::join.
     struct BootstrapWorker : public RcppParallel::Worker {
       // references to read-only inputs (no mutation)
-      const int n;
-      const int nids;
-      const int ntss;
-      const std::vector<int>& idx;
-      const std::vector<int>& tsx;
+      const size_t n;
+      const size_t nids;
+      const size_t ntss;
+      const std::vector<size_t>& idx;
+      const std::vector<size_t>& tsx;
       const std::vector<int>& idn;
       const std::vector<int>& stratumn;
       const std::vector<double>& tstartn;
@@ -1648,14 +1649,14 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       // each inner vector stores column data across failed boots
       std::vector<std::vector<double>> z_lgs_denc_local;
       
-      int index1_local = 0; // number of rows stored so far for z_lgs_denc_local
+      size_t index1_local = 0; // number of rows stored so far for z_lgs_denc_local
       
       // constructor
-      BootstrapWorker(const int n_, 
-                      const int nids_, 
-                      const int ntss_,
-                      const std::vector<int>& idx_,
-                      const std::vector<int>& tsx_,
+      BootstrapWorker(const size_t n_, 
+                      const size_t nids_, 
+                      const size_t ntss_,
+                      const std::vector<size_t>& idx_,
+                      const std::vector<size_t>& tsx_,
                       const std::vector<int>& idn_,
                       const std::vector<int>& stratumn_,
                       const std::vector<double>& tstartn_,
@@ -1682,12 +1683,12 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         fails_out(fails_out_), hrhats_out(hrhats_out_) {
         
         // heuristic reservation to reduce reallocations:
-        int ncols_lgs = z_lgs_denn.ncol;
+        size_t ncols_lgs = z_lgs_denn.ncol;
         z_lgs_denc_local.resize(ncols_lgs);
         
         // reserve some capacity per column. This is a heuristic; adjust if needed.
         std::size_t per_col_reserve = 10 * n;
-        for (int col = 0; col < ncols_lgs; ++col) 
+        for (size_t col = 0; col < ncols_lgs; ++col) 
           z_lgs_denc_local[col].reserve(per_col_reserve);
         
         // Reserve scalar buffers heuristically (reduce reallocs)
@@ -1711,8 +1712,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         std::vector<int> oidb, idb, stratumb, eventb, treatb, osb, swtrtb;
         std::vector<double> tstartb, tstopb, os_timeb, swtrt_timeb;
         std::vector<std::vector<double>> zb_cols, z_cox_denb_cols, z_lgs_denb_cols;
-        int ncols_z = zn.ncol, ncols_cox = z_cox_denn.ncol;
-        int ncols_lgs = z_lgs_denn.ncol;
+        size_t ncols_z = zn.ncol, ncols_cox = z_cox_denn.ncol;
+        size_t ncols_lgs = z_lgs_denn.ncol;
         zb_cols.resize(ncols_z); z_cox_denb_cols.resize(ncols_cox);
         z_lgs_denb_cols.resize(ncols_lgs);
         
@@ -1720,9 +1721,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
         tstartb.reserve(n); tstopb.reserve(n); eventb.reserve(n); 
         treatb.reserve(n); osb.reserve(n); os_timeb.reserve(n); 
         swtrtb.reserve(n); swtrt_timeb.reserve(n);
-        for (int col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
-        for (int col = 0; col < ncols_cox; ++col) z_cox_denb_cols[col].reserve(n);
-        for (int col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].reserve(n);
+        for (size_t col = 0; col < ncols_z; ++col) zb_cols[col].reserve(n);
+        for (size_t col = 0; col < ncols_cox; ++col) z_cox_denb_cols[col].reserve(n);
+        for (size_t col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].reserve(n);
         
         for (std::size_t k = begin; k < end; ++k) {
           // Reset per-iteration buffers so each k starts fresh.
@@ -1730,25 +1731,25 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
           oidb.clear(); idb.clear(); stratumb.clear(); tstartb.clear();
           tstopb.clear(); eventb.clear(); treatb.clear(); osb.clear();
           os_timeb.clear(); swtrtb.clear(); swtrt_timeb.clear();
-          for (int col = 0; col < ncols_z; ++col) zb_cols[col].clear();
-          for (int col = 0; col < ncols_cox; ++col) z_cox_denb_cols[col].clear();
-          for (int col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].clear();
+          for (size_t col = 0; col < ncols_z; ++col) zb_cols[col].clear();
+          for (size_t col = 0; col < ncols_cox; ++col) z_cox_denb_cols[col].clear();
+          for (size_t col = 0; col < ncols_lgs; ++col) z_lgs_denb_cols[col].clear();
           
           // deterministic RNG per-iteration
-          std::mt19937_64 rng(seeds[k]);
+          boost::random::mt19937_64 rng(seeds[k]);
           
           // sample by treatment/stratum blocks
-          for (int h = 0; h < ntss; ++h) {
-            int start = tsx[h], end = tsx[h + 1];
-            int len = end - start;
+          for (size_t h = 0; h < ntss; ++h) {
+            size_t start = tsx[h], end = tsx[h + 1];
+            size_t len = end - start;
             boost::random::uniform_int_distribution<int> index_dist(0, len - 1);
-            for (int r = start; r < end; ++r) {
-              int i = start + index_dist(rng);
+            for (size_t r = start; r < end; ++r) {
+              size_t i = start + index_dist(rng);
               int oidb1 = idn[idx[i]];     // original id
               int idb1 = oidb1 + r * nids; // unique id
               
-              int start1 = idx[i], end1 = idx[i+1]; // within-id block
-              int len1 = end1 - start1;
+              size_t start1 = idx[i], end1 = idx[i+1]; // within-id block
+              size_t len1 = end1 - start1;
               
               std::vector<int> oidn1(len1, oidb1);
               std::vector<int> idn1(len1, idb1);
@@ -1797,7 +1798,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
           
           // existing code that collects failure data when fails_out[k] is true...
           if (fails_out[k]) {
-            int l = static_cast<int>(idb.size()); 
+            size_t l = idb.size(); 
             append(boot_indexc_local, std::vector<int>(l, k+1));
             append(oidc_local, oidb);
             append(idc_local, idb);
@@ -1879,8 +1880,8 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       fail_boots_data.push_back(std::move(worker.swtrtc_local), "swtrt");
       fail_boots_data.push_back(std::move(worker.swtrt_timec_local), "swtrt_time");
       
-      int ncols_lgs = worker.z_lgs_denc_local.size();
-      for (int j = 0; j < ncols_lgs; ++j) {
+      size_t ncols_lgs = worker.z_lgs_denc_local.size();
+      for (size_t j = 0; j < ncols_lgs; ++j) {
         const std::string& zj = covariates_lgs_den[j];
         fail_boots_data.push_back(std::move(worker.z_lgs_denc_local[j]), zj);
       }
@@ -1905,7 +1906,7 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
       }
       
       if (has_stratum) {
-        for (int i = 0; i < p_stratum; ++i) {
+        for (size_t i = 0; i < p_stratum; ++i) {
           const std::string& s = stratum[i];
           if (data.bool_cols.count(s)) {
             auto v = u_stratum.get<unsigned char>(s);
@@ -1930,10 +1931,10 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     
     // obtain bootstrap confidence interval for HR
     double loghr = std::log(hrhat);
-    std::vector<int> ok;
+    std::vector<size_t> ok;
     ok.reserve(n_boot);
-    int n_ok = 0;
-    for (int k = 0; k < n_boot; ++k) {
+    size_t n_ok = 0;
+    for (size_t k = 0; k < n_boot; ++k) {
       if (!fails[k] && !std::isnan(hrhats[k])) {
         ok.push_back(k);
         ++n_ok;

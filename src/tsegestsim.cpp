@@ -163,7 +163,7 @@
 //'
 //' @export
 // [[Rcpp::export]]
-Rcpp::List tsegestsim(const int n = 500,
+Rcpp::List tsegestsim(const size_t n = 500,
                       const int allocation1 = 2,
                       const int allocation2 = 1,
                       const double pbprog = 0.5,
@@ -219,7 +219,7 @@ Rcpp::List tsegestsim(const int n = 500,
   std::vector<double> catOSloss(n, NaN), cattime(n, NaN);
   
   double b1 = allocation1, b2 = allocation2;
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     id[i] = i + 1; // 1-based ID
     
     // generate treatment indicators using stratified block randomization
@@ -247,8 +247,8 @@ Rcpp::List tsegestsim(const int n = 500,
     timePFS[i] = std::round(timeOS[i] * u);
     
     // scheduled visits are every 21 days
-    int k = static_cast<int>(std::floor(timeOS[i] / 21));
-    for (int j = 1; j <= k; ++j) {
+    size_t k = static_cast<size_t>(std::floor(timeOS[i] / 21));
+    for (size_t j = 1; j <= k; ++j) {
       if (timePFS[i] < j*21 && timeOS[i] > j*21) {
         timePFSobs[i] = j*21;
         break;
@@ -321,7 +321,7 @@ Rcpp::List tsegestsim(const int n = 500,
   // calculate HR and RMST with no switching
   std::vector<int> event(n);
   std::vector<double> time(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (timeOS[i] > admin) {
       event[i] = 0;
       time[i] = admin;
@@ -393,7 +393,7 @@ Rcpp::List tsegestsim(const int n = 500,
   std::vector<double> xoOSgainobs(n, NaN), timeOS2(n);
   std::vector<int> extra2v2(n), extra3v2(n), extra4v2(n), extra5v2(n);
   std::vector<int> extraobsv2(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     double p1, p2, p3, p4, p5, p6;
     
     // prob of switching depends on bprog for the first 2 visits after PD
@@ -847,7 +847,7 @@ Rcpp::List tsegestsim(const int n = 500,
   
   // apply censoring
   std::vector<int> died(n);
-  for (int i = 0; i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     if (timeOS2[i] <= admin && dead[i] == 1) {
       died[i] = 1;
     } else {
@@ -870,21 +870,21 @@ Rcpp::List tsegestsim(const int n = 500,
   // create panel
   std::vector<double> zero(n);
   double maxtime = *std::max_element(timeOS2.begin(), timeOS2.end());
-  int kmax = static_cast<int>(std::ceil(maxtime / 21));
+  size_t kmax = static_cast<size_t>(std::ceil(maxtime / 21));
   std::vector<double> cut(kmax);
-  for (int k = 0; k < kmax; ++k) {
+  for (size_t k = 0; k < kmax; ++k) {
     cut[k] = k * 21;
   }
   
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (progressed[i] == INT_MIN) progressed[i] = 0;
     if (catevent[i] == INT_MIN) catevent[i] = 0;
     if (xo[i] == INT_MIN) xo[i] = 0;
   }
   
   DataFrameCpp a = survsplitcpp(zero, timeOS2, cut);
-  int n2 = static_cast<int>(a.nrows());
-  std::vector<int> q2 = a.get<int>("row");
+  size_t n2 = a.nrows();
+  std::vector<size_t> q2 = a.get<size_t>("row");
   std::vector<double> tstart = a.get<double>("start");
   std::vector<double> tstop = a.get<double>("end");
   std::vector<int> censor = a.get<int>("censor");
@@ -893,7 +893,7 @@ Rcpp::List tsegestsim(const int n = 500,
   std::vector<int> trtrand2 = subset(trtrand, q2);
   std::vector<int> bprog2 = subset(bprog, q2);
   std::vector<int> died2 = subset(died, q2);
-  for (int i = 0; i < n2; ++i) if (censor[i] == 1) died2[i] = 0;
+  for (size_t i = 0; i < n2; ++i) if (censor[i] == 1) died2[i] = 0;
   
   std::vector<double> timeOS8 = subset(timeOS2, q2);
   std::vector<int> died8 = subset(died, q2);
@@ -906,15 +906,15 @@ Rcpp::List tsegestsim(const int n = 500,
   
   // make time-dependent covariates for progression, cat event, and switch
   std::vector<int> progtdc(n2), cattdc(n2), xotdc(n2);
-  for (int i = 0; i < n2; ++i) {
+  for (size_t i = 0; i < n2; ++i) {
     if (progressed2[i] == 1 && tstart[i] >= timePFSobs2[i]) progtdc[i] = 1;
     if (catevent2[i] == 1 && tstart[i] >= cattime2[i]) cattdc[i] = 1;
     if (xoo2[i] == 1 && tstart[i] >= xotime2[i]) xotdc[i] = 1;
   }
   
   // create the lagged value of cattdc
-  std::vector<int> idx(1, 0); // first observation within an id
-  for (int i = 1; i < n2; ++i) {
+  std::vector<size_t> idx(1, 0); // first observation within an id
+  for (size_t i = 1; i < n2; ++i) {
     if (id2[i] != id2[i-1]) {
       idx.push_back(i);
     }
