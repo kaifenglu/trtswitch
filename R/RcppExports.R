@@ -320,7 +320,7 @@ kmest <- function(data, stratum = "", time = "time", time2 = "", event = "event"
 #'        stratum = "stratum", treat = "treatmentGroup",
 #'        time = "timeUnderObservation", event = "event",
 #'        milestone = 12)
-#'              
+#'
 #' @export
 kmdiff <- function(data, stratum = "", treat = "treat", time = "time", time2 = "", event = "event", weight = "", milestone = 0, survDiffH0 = 0, conflev = 0.95) {
     .Call(`_trtswitch_kmdiff`, data, stratum, treat, time, time2, event, weight, milestone, survDiffH0, conflev)
@@ -330,7 +330,7 @@ kmdiff <- function(data, stratum = "", treat = "treat", time = "time", time2 = "
 #' @description Obtains the log-rank test using the Fleming-Harrington
 #' family of weights.
 #'
-#' @param data The input data frame or list of data frames that contains 
+#' @param data The input data frame or list of data frames that contains
 #' the following variables:
 #'
 #'   * \code{stratum}: The stratum.
@@ -364,7 +364,7 @@ kmdiff <- function(data, stratum = "", treat = "treat", time = "time", time2 = "
 #'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
 #' @param rho2 The second parameter of the Fleming-Harrington family of
 #'   weighted log-rank test. Defaults to 0 for conventional log-rank test.
-#'   
+#'
 #' @return A data frame with the following variables:
 #'
 #' * \code{uscore}: The numerator of the log-rank test statistic.
@@ -385,11 +385,11 @@ kmdiff <- function(data, stratum = "", treat = "treat", time = "time", time2 = "
 #'
 #' @examples
 #'
-#' lrtest(rawdata[rawdata$iterationNumber == 1, ], 
-#'        stratum = "stratum", treat = "treatmentGroup", 
-#'        time = "timeUnderObservation", event = "event", 
+#' lrtest(rawdata[rawdata$iterationNumber == 1, ],
+#'        stratum = "stratum", treat = "treatmentGroup",
+#'        time = "timeUnderObservation", event = "event",
 #'        rho1 = 0.5, rho2 = 0)
-#'              
+#'
 #' @export
 lrtest <- function(data, stratum = "", treat = "treat", time = "time", time2 = "", event = "event", weight = "", weight_readj = FALSE, rho1 = 0, rho2 = 0) {
     .Call(`_trtswitch_lrtest`, data, stratum, treat, time, time2, event, weight, weight_readj, rho1, rho2)
@@ -517,7 +517,7 @@ rmest <- function(data, stratum = "", time = "time", event = "event", milestone 
 #'
 #' @examples
 #'
-#' rmdiff(data = rawdata[rawdata$iterationNumber == 1, ], 
+#' rmdiff(data = rawdata[rawdata$iterationNumber == 1, ],
 #'        stratum = "stratum", treat = "treatmentGroup",
 #'        time = "timeUnderObservation", event = "event",
 #'        milestone = 12)

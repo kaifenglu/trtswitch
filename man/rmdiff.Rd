@@ -76,7 +76,7 @@ difference between two treatment groups.
 }
 \examples{
 
-rmdiff(data = rawdata[rawdata$iterationNumber == 1, ], 
+rmdiff(data = rawdata[rawdata$iterationNumber == 1, ],
        stratum = "stratum", treat = "treatmentGroup",
        time = "timeUnderObservation", event = "event",
        milestone = 12)

@@ -78,8 +78,7 @@
 #' @useDynLib trtswitch, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 #' @importFrom RcppParallel setThreadOptions
-#' @importFrom parallel clusterEvalQ clusterExport detectCores makeCluster 
-#' parLapply stopCluster
+#' @importFrom parallel detectCores
 #' @importFrom stats as.formula complete.cases formula model.frame 
 #' model.matrix na.omit na.pass pchisq plogis qnorm rbinom rexp 
 #' setNames terms
@@ -89,8 +88,8 @@
 #' @importFrom ggplot2 aes annotate coord_cartesian element_blank 
 #'  element_text facet_wrap geom_step geom_text geom_histogram geom_line
 #'  geom_hline geom_vline ggplot ggplot_build labs margin 
-#'  scale_x_continuous scale_y_continuous scale_y_discrete 
-#'  theme theme_bw theme_minimal
+#'  scale_linewidth_manual scale_x_continuous scale_y_continuous 
+#'  scale_y_discrete theme theme_bw theme_minimal
 #' @importFrom cowplot align_plots plot_grid
 #'
 NULL

@@ -87,7 +87,7 @@ kmdiff(data = rawdata[rawdata$iterationNumber == 1, ],
        stratum = "stratum", treat = "treatmentGroup",
        time = "timeUnderObservation", event = "event",
        milestone = 12)
-             
+
 }
 \author{
 Kaifeng Lu, \email{kaifenglu@gmail.com}

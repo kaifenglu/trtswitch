@@ -75,11 +75,11 @@ family of weights.
 }
 \examples{
 
-lrtest(rawdata[rawdata$iterationNumber == 1, ], 
-       stratum = "stratum", treat = "treatmentGroup", 
-       time = "timeUnderObservation", event = "event", 
+lrtest(rawdata[rawdata$iterationNumber == 1, ],
+       stratum = "stratum", treat = "treatmentGroup",
+       time = "timeUnderObservation", event = "event",
        rho1 = 0.5, rho2 = 0)
-             
+
 }
 \author{
 Kaifeng Lu, \email{kaifenglu@gmail.com}
