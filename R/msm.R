@@ -202,8 +202,6 @@
 #'
 #' @examples
 #'
-#' library(dplyr)
-#' 
 #' sim1 <- tssim(
 #'   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
 #'   p_X_1 = 0.3, p_X_0 = 0.3, 
