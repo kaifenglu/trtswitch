@@ -218,7 +218,6 @@ based on a t-distribution with \code{n_boot - 1} degrees of freedom.
 \examples{
 
 # Example 1: pooled logistic regression switching model
-library(dplyr)
 
 sim1 <- tssim(
   tdxo = TRUE, coxo = TRUE, allocation1 = 1, allocation2 = 1,
