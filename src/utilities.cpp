@@ -3,19 +3,19 @@
 
 #include <Rcpp.h>
 
-#include <cstddef>    // size_t
-#include <vector>     // vector
-#include <string>     // string
 #include <algorithm>  // fill, lower_bound, max_element, memmove, 
 // min_element, sort, swap, upper_bound
-#include <numeric>    // accumulate, inner_product, iota 
-#include <functional> // function
 #include <cmath>      // copysign, exp, fabs, isinf, isnan, log, pow, sqrt
+#include <cstddef>    // size_t
+#include <cstring>    // memcpy
+#include <functional> // function
 #include <limits>     // numeric_limits
+#include <memory>     // make_shared, shared_ptr
+#include <numeric>    // accumulate, inner_product, iota 
 #include <sstream>    // ostringstream
 #include <stdexcept>  // invalid_argument, runtime_error
-#include <cstring>    // memcpy
-#include <memory>     // make_shared, shared_ptr
+#include <string>     // string
+#include <vector>     // vector
 
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/distributions/logistic.hpp>

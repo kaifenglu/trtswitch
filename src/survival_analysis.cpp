@@ -7,6 +7,7 @@
 #include <cctype>    // isalnum, isalpha, tolower, toupper
 #include <climits>   // INT_MIN
 #include <cmath>     // exp, fabs, isinf, isnan, log, sqrt
+#include <cstddef>     // size_t
 #include <cstring>   // memcpy
 #include <limits>    // numeric_limits
 #include <numeric>   // iota, inner_product

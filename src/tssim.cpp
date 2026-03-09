@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <vector>
 
+using std::size_t
 
 //' @title Simulate Data for Treatment Switching
 //' @description Simulates data for studies involving treatment switching, 

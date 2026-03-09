@@ -5,6 +5,7 @@ struct FlatMatrix;
 struct DataFrameCpp;
 struct ListCpp;
 
+#include <cstddef>
 #include <string>
 #include <vector>
 

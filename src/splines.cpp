@@ -5,12 +5,14 @@
 
 #include <algorithm> // any_of, is_sorted, max_element, min_element, none_of, sort
 #include <cmath>     // isfinite, isnan, pow
+#include <cstddef>   // size_t
 #include <stdexcept> // invalid_argument
 #include <limits>    // numeric_limits
 #include <vector>    // vector
 #include <string>    // string, to_string
 #include <utility>   // move, swap
-#include <cstddef>   // size_t
+
+using std::size_t
 
 // Helper: indices of non-NaN entries
 static std::vector<size_t> indices_not_nan(const std::vector<double>& v) {

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -19,6 +20,8 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+
+using std::size_t
 
 // [[Rcpp::export]]
 Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
