@@ -25,6 +25,8 @@ struct ListCpp;
 #include <utility>     // declval
 #include <vector>      // vector
 
+using std::size_t;
+
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 inline constexpr double POS_INF = std::numeric_limits<double>::infinity();
 
