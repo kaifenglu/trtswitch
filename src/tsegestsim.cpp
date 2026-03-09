@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <vector>
 
-using std::size_t 
+using std::size_t;
 
 //' @title Simulate Survival Data for Two-Stage Estimation with  
 //' g-estimation

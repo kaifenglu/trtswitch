@@ -7,7 +7,7 @@ struct ListCpp;
 #include <cstddef>
 #include <vector>
 
-using std::size_t
+using std::size_t;
 
 // Evaluate B-spline design (or derivatives) at points x.
 // - knots: full knot vector (including boundary/internals).

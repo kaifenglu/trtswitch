@@ -12,7 +12,7 @@
 #include <string>    // string, to_string
 #include <utility>   // move, swap
 
-using std::size_t
+using std::size_t;
 
 // Helper: indices of non-NaN entries
 static std::vector<size_t> indices_not_nan(const std::vector<double>& v) {

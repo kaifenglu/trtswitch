@@ -21,7 +21,7 @@
 #include <unordered_map>
 #include <vector>
 
-using std::size_t
+using std::size_t;
 
 // [[Rcpp::export]]
 Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
