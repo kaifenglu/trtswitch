@@ -1,10 +1,6 @@
 #ifndef __DATAFRAME_LIST__
 #define __DATAFRAME_LIST__
 
-#include <Rcpp.h>
-
-#include "ska/flat_hash_map.hpp"
-
 #include <algorithm>   // fill, min
 #include <cmath>       // isnan
 #include <cstddef>     // size_t
@@ -12,6 +8,7 @@
 #include <iomanip>     // fixed, setprecision
 #include <ios>         // ios::floatfield, ios::fmtflags
 #include <iostream>    // cout, ostream
+#include <limits>      // numeric_limits
 #include <memory>      // make_shared, shared_ptr
 #include <stdexcept>   // invalid_argument, out_of_range, runtime_error
 #include <string>      // string, to_string
@@ -20,25 +17,30 @@
 #include <vector>      // vector
 #include <utility>     // move
 
+#include <Rcpp.h>
+#include "ska/flat_hash_map.hpp"
+#include "utilities.h"
+
+using std::size_t;
 
 //
 // FlatMatrix: contiguous column-major matrix representation (double)
 //
 struct FlatMatrix {
   std::vector<double> data; // column-major: element (r,c) => data[c*nrow + r]
-  int nrow = 0;
-  int ncol = 0;
+  size_t nrow = 0;
+  size_t ncol = 0;
 
   FlatMatrix() = default;
-  FlatMatrix(int nr, int nc) : data(nr * nc), nrow(nr), ncol(nc) {}
+  FlatMatrix(size_t nr, size_t nc) : data(nr * nc), nrow(nr), ncol(nc) {}
 
-  FlatMatrix(std::vector<double>&& d, int nr, int nc)
+  FlatMatrix(std::vector<double>&& d, size_t nr, size_t nc)
     : data(std::move(d)), nrow(nr), ncol(nc) {
-    if (nr * nc != static_cast<int>(data.size()))
+    if (nr * nc != data.size())
       throw std::runtime_error("FlatMatrix: data size mismatch with dimensions");
   }
 
-  inline void resize(int nr, int nc) {
+  inline void resize(size_t nr, size_t nc) {
     nrow = nr; ncol = nc;
     data.resize(nr * nc);
   }
@@ -46,17 +48,17 @@ struct FlatMatrix {
   inline void fill(double v) { std::fill(data.begin(), data.end(), v); }
   inline bool empty() const noexcept {
     return data.empty() || nrow == 0 || ncol == 0; }
-  inline std::size_t size() const noexcept { return data.size(); }
+  inline size_t size() const noexcept { return data.size(); }
 
   // column-major index helper
-  inline static int idx_col(int row, int col, int nrows) noexcept {
+  inline static size_t idx_col(size_t row, size_t col, size_t nrows) noexcept {
     return col * nrows + row;
   }
 
-  inline double& operator()(int r, int c) {
+  inline double& operator()(size_t r, size_t c) {
     return data[idx_col(r, c, nrow)];
   }
-  inline double operator()(int r, int c) const {
+  inline double operator()(size_t r, size_t c) const {
     return data[idx_col(r, c, nrow)];
   }
 
@@ -68,16 +70,16 @@ struct FlatMatrix {
 
   // Print helper: pretty-print a small view of the matrix to an ostream
   // (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10,
-                    int max_cols = 10) const {
+  inline void print(std::ostream& os = std::cout, size_t max_rows = 10,
+                    size_t max_cols = 10) const {
     os << "FlatMatrix: " << nrow << " x " << ncol << "\n";
     if (nrow == 0 || ncol == 0) return;
-    const int rows = std::min(nrow, max_rows);
-    const int cols = std::min(ncol, max_cols);
+    const size_t rows = std::min(nrow, max_rows);
+    const size_t cols = std::min(ncol, max_cols);
     os.setf(std::ios::fmtflags(0), std::ios::floatfield);
     os << std::fixed << std::setprecision(6);
-    for (int r = 0; r < rows; ++r) {
-      for (int c = 0; c < cols; ++c) {
+    for (size_t r = 0; r < rows; ++r) {
+      for (size_t c = 0; c < cols; ++c) {
         os << (*this)(r, c);
         if (c + 1 < cols) os << "\t";
       }
@@ -101,19 +103,19 @@ struct FlatMatrix {
 //
 struct IntMatrix {
   std::vector<int> data; // column-major: element (r,c) => data[c * nrow + r]
-  int nrow = 0;
-  int ncol = 0;
+  size_t nrow = 0;
+  size_t ncol = 0;
 
   IntMatrix() = default;
-  IntMatrix(int nr, int nc) : data(nr * nc), nrow(nr), ncol(nc) {}
+  IntMatrix(size_t nr, size_t nc) : data(nr * nc), nrow(nr), ncol(nc) {}
 
-  IntMatrix(std::vector<int>&& d, int nr, int nc)
+  IntMatrix(std::vector<int>&& d, size_t nr, size_t nc)
     : data(std::move(d)), nrow(nr), ncol(nc) {
-    if (nr * nc != static_cast<int>(data.size()))
+    if (nr * nc != data.size())
       throw std::runtime_error("IntMatrix: data size mismatch with dimensions");
   }
 
-  inline void resize(int nr, int nc) {
+  inline void resize(size_t nr, size_t nc) {
     nrow = nr; ncol = nc;
     data.resize(nr * nc);
   }
@@ -121,17 +123,17 @@ struct IntMatrix {
   inline void fill(int v) { std::fill(data.begin(), data.end(), v); }
   inline bool empty() const noexcept {
     return data.empty() || nrow == 0 || ncol == 0; }
-  inline std::size_t size() const noexcept { return data.size(); }
+  inline size_t size() const noexcept { return data.size(); }
 
   // column-major index helper
-  inline static int idx_col(int row, int col, int nrows) noexcept {
+  inline static size_t idx_col(size_t row, size_t col, size_t nrows) noexcept {
     return col * nrows + row;
   }
 
-  inline int& operator()(int r, int c) {
+  inline int& operator()(size_t r, size_t c) {
     return data[idx_col(r, c, nrow)];
   }
-  inline int operator()(int r, int c) const {
+  inline int operator()(size_t r, size_t c) const {
     return data[idx_col(r, c, nrow)];
   }
 
@@ -143,14 +145,14 @@ struct IntMatrix {
 
   // Print helper for IntMatrix: pretty-print a small view of the matrix to an ostream
   // (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10,
-                    int max_cols = 10) const {
+  inline void print(std::ostream& os = std::cout, size_t max_rows = 10,
+                    size_t max_cols = 10) const {
     os << "IntMatrix: " << nrow << " x " << ncol << "\n";
     if (nrow == 0 || ncol == 0) return;
-    const int rows = std::min(nrow, max_rows);
-    const int cols = std::min(ncol, max_cols);
-    for (int r = 0; r < rows; ++r) {
-      for (int c = 0; c < cols; ++c) {
+    const size_t rows = std::min(nrow, max_rows);
+    const size_t cols = std::min(ncol, max_cols);
+    for (size_t r = 0; r < rows; ++r) {
+      for (size_t c = 0; c < cols; ++c) {
         os << (*this)(r, c);
         if (c + 1 < cols) os << "\t";
       }
@@ -168,23 +170,94 @@ struct IntMatrix {
 };
 
 //
+// SztMatrix: contiguous column-major std::size_t matrix representation (std::size_t)
+//
+struct SztMatrix {
+  std::vector<size_t> data; // column-major: element (r,c) => data[c * nrow + r]
+  size_t nrow = 0;
+  size_t ncol = 0;
+  
+  SztMatrix() = default;
+  SztMatrix(size_t nr, size_t nc) : data(nr * nc), nrow(nr), ncol(nc) {}
+  
+  SztMatrix(std::vector<size_t>&& d, size_t nr, size_t nc)
+    : data(std::move(d)), nrow(nr), ncol(nc) {
+    if (nr * nc != data.size())
+      throw std::runtime_error("SztMatrix: data size mismatch with dimensions");
+  }
+  
+  inline void resize(size_t nr, size_t nc) {
+    nrow = nr; ncol = nc;
+    data.resize(nr * nc);
+  }
+  
+  inline void fill(size_t v) { std::fill(data.begin(), data.end(), v); }
+  inline bool empty() const noexcept {
+    return data.empty() || nrow == 0 || ncol == 0; }
+  inline size_t size() const noexcept { return data.size(); }
+  
+  // column-major index helper
+  inline static size_t idx_col(size_t row, size_t col, size_t nrows) noexcept {
+    return col * nrows + row;
+  }
+  
+  inline size_t& operator()(size_t r, size_t c) {
+    return data[idx_col(r, c, nrow)];
+  }
+  inline size_t operator()(size_t r, size_t c) const {
+    return data[idx_col(r, c, nrow)];
+  }
+  
+  // raw pointer accessors for parallel-friendly use
+  inline const size_t* data_ptr() const noexcept {
+    return data.empty() ? nullptr : data.data(); }
+  inline size_t* data_ptr() noexcept { return data.empty() ? nullptr : data.data(); }
+  
+  
+  // Print helper for SztMatrix: pretty-print a small view of the matrix to an ostream
+  // (default std::cout)
+  inline void print(std::ostream& os = std::cout, size_t max_rows = 10,
+                    size_t max_cols = 10) const {
+    os << "SztMatrix: " << nrow << " x " << ncol << "\n";
+    if (nrow == 0 || ncol == 0) return;
+    const size_t rows = std::min(nrow, max_rows);
+    const size_t cols = std::min(ncol, max_cols);
+    for (size_t r = 0; r < rows; ++r) {
+      for (size_t c = 0; c < cols; ++c) {
+        os << (*this)(r, c);
+        if (c + 1 < cols) os << "\t";
+      }
+      if (cols < ncol) os << "\t...";
+      os << "\n";
+    }
+    if (rows < nrow) os << "...\n";
+  }
+  
+  // ostream operator for convenience
+  friend inline std::ostream& operator<<(std::ostream& os, const SztMatrix& im) {
+    im.print(os);
+    return os;
+  }
+};
+
+//
 // BoolMatrix: contiguous column-major logical matrix representation (bool)
 //
 struct BoolMatrix {
   std::vector<unsigned char> data; // column-major: element(r,c) => data[c * nrow + r]
-  int nrow = 0;
-  int ncol = 0;
+  size_t nrow = 0;
+  size_t ncol = 0;
 
   BoolMatrix() = default;
-  BoolMatrix(int nr, int nc) : data(nr * nc), nrow(nr), ncol(nc) {}
+  BoolMatrix(size_t nr, size_t nc) : data(nr * nc), nrow(nr), ncol(nc) {}
 
-  BoolMatrix(std::vector<unsigned char>&& d, int nr, int nc)
+  BoolMatrix(std::vector<unsigned char>&& d, size_t nr, size_t nc)
     : data(std::move(d)), nrow(nr), ncol(nc) {
-    if (nr * nc != static_cast<int>(data.size()))
+    if (nr * nc != data.size())
       throw std::runtime_error("BoolMatrix: data size mismatch with dimensions");
   }
 
-  inline void resize(int nr, int nc) {
+  inline void resize(size_t nr, size_t nc) {
     nrow = nr; ncol = nc;
     data.resize(nr * nc);
   }
@@ -192,17 +265,17 @@ struct BoolMatrix {
   inline void fill(unsigned char v) { std::fill(data.begin(), data.end(), v); }
   inline bool empty() const noexcept {
     return data.empty() || nrow == 0 || ncol == 0; }
-  inline std::size_t size() const noexcept { return data.size(); }
+  inline size_t size() const noexcept { return data.size(); }
 
   // column-major index helper
-  inline static int idx_col(int row, int col, int nrows) noexcept {
+  inline static size_t idx_col(size_t row, size_t col, size_t nrows) noexcept {
     return col * nrows + row;
   }
 
-  inline unsigned char& operator()(int r, int c) {
+  inline unsigned char& operator()(size_t r, size_t c) {
     return data[idx_col(r, c, nrow)];
   }
-  inline unsigned char operator()(int r, int c) const {
+  inline unsigned char operator()(size_t r, size_t c) const {
     return data[idx_col(r, c, nrow)];
   }
 
@@ -215,14 +288,14 @@ struct BoolMatrix {
 
   // Print helper for BoolMatrix: pretty-print a small view of the matrix to an ostream
   // Values printed as 0/1. (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10,
-                    int max_cols = 10) const {
+  inline void print(std::ostream& os = std::cout, size_t max_rows = 10,
+                    size_t max_cols = 10) const {
     os << "BoolMatrix: " << nrow << " x " << ncol << "\n";
     if (nrow == 0 || ncol == 0) return;
-    const int rows = std::min(nrow, max_rows);
-    const int cols = std::min(ncol, max_cols);
-    for (int r = 0; r < rows; ++r) {
-      for (int c = 0; c < cols; ++c) {
+    const size_t rows = std::min(nrow, max_rows);
+    const size_t cols = std::min(ncol, max_cols);
+    for (size_t r = 0; r < rows; ++r) {
+      for (size_t c = 0; c < cols; ++c) {
         os << static_cast<int>((*this)(r, c)); // print 0/1
         if (c + 1 < cols) os << "\t";
       }
@@ -247,21 +320,21 @@ struct BoolMatrix {
 //
 struct FlatArray {
   std::vector<double> data;
-  int nrow = 0;
-  int ncol = 0;
-  int nslice = 0;
+  size_t nrow = 0;
+  size_t ncol = 0;
+  size_t nslice = 0;
 
   FlatArray() = default;
-  FlatArray(int nr, int nc, int ns) : data(nr * nc * ns), nrow(nr), ncol(nc),
+  FlatArray(size_t nr, size_t nc, size_t ns) : data(nr * nc * ns), nrow(nr), ncol(nc),
   nslice(ns) {}
 
-  FlatArray(std::vector<double>&& d, int nr, int nc, int ns)
+  FlatArray(std::vector<double>&& d, size_t nr, size_t nc, size_t ns)
     : data(std::move(d)), nrow(nr), ncol(nc), nslice(ns) {
-    if (nr * nc * ns != static_cast<int>(data.size()))
+    if (nr * nc * ns != data.size())
       throw std::runtime_error("FlatArray: data size mismatch with dimensions");
   }
 
-  inline void resize(int nr, int nc, int ns) {
+  inline void resize(size_t nr, size_t nc, size_t ns) {
     nrow = nr; ncol = nc; nslice = ns;
     data.resize(nr * nc * ns);
   }
@@ -269,19 +342,20 @@ struct FlatArray {
   inline void fill(double v) { std::fill(data.begin(), data.end(), v); }
   inline bool empty() const noexcept { return data.empty() || nrow == 0 ||
     ncol == 0 || nslice == 0; }
-  inline std::size_t size() const noexcept { return data.size(); }
+  inline size_t size() const noexcept { return data.size(); }
 
   // index helper: (row, col, slice)
-  inline static int idx(int row, int col, int slice, int nrows, int ncols) noexcept {
+  inline static size_t idx(size_t row, size_t col, size_t slice,
+                           size_t nrows, size_t ncols) noexcept {
     // slice outermost, then column, then row (rows contiguous)
     return slice * (nrows * ncols) + col * nrows + row;
   }
 
-  inline double& operator()(int r, int c, int s) {
+  inline double& operator()(size_t r, size_t c, size_t s) {
     return data[idx(r, c, s, nrow, ncol)];
   }
 
-  inline double operator()(int r, int c, int s) const {
+  inline double operator()(size_t r, size_t c, size_t s) const {
     return data[idx(r, c, s, nrow, ncol)];
   }
 
@@ -292,12 +366,12 @@ struct FlatArray {
     return data.empty() ? nullptr : data.data(); }
 
   // pointer to the start of slice s (returns pointer to element (0,0,s))
-  inline double* slice_ptr(int s) noexcept {
-    if (s < 0 || s >= nslice) return nullptr;
+  inline double* slice_ptr(size_t s) noexcept {
+    if (s >= nslice) return nullptr;
     return data.empty() ? nullptr : data.data() + s * (nrow * ncol);
   }
-  inline const double* slice_ptr(int s) const noexcept {
-    if (s < 0 || s >= nslice) return nullptr;
+  inline const double* slice_ptr(size_t s) const noexcept {
+    if (s >= nslice) return nullptr;
     return data.empty() ? nullptr : data.data() + s * (nrow * ncol);
   }
 };
@@ -313,34 +387,36 @@ struct DataFrameCpp {
   ska::flat_hash_map<std::string, std::vector<int>> int_cols;
   ska::flat_hash_map<std::string, std::vector<unsigned char>> bool_cols;
   ska::flat_hash_map<std::string, std::vector<std::string>> string_cols;
-
+  ska::flat_hash_map<std::string, std::vector<size_t>> size_t_cols;
+  
   DataFrameCpp() = default;
 
-  inline static int idx_col(int row, int col, int nrows) noexcept {
+  inline static size_t idx_col(size_t row, size_t col, size_t nrows) noexcept {
     return FlatMatrix::idx_col(row, col, nrows);
   }
 
-  std::size_t nrows() const {
+  size_t nrows() const {
     if (!names_.empty()) {
       const std::string& nm = names_.front();
       if (numeric_cols.count(nm)) return numeric_cols.at(nm).size();
       if (int_cols.count(nm)) return int_cols.at(nm).size();
       if (bool_cols.count(nm)) return bool_cols.at(nm).size();
       if (string_cols.count(nm)) return string_cols.at(nm).size();
+      if (size_t_cols.count(nm)) return size_t_cols.at(nm).size();
     }
     return 0;
   }
 
-  std::size_t size() const { return names_.size(); }
+  size_t size() const { return names_.size(); }
   const std::vector<std::string>& names() const { return names_; }
 
   bool containElementNamed(const std::string& name) const {
     return numeric_cols.count(name) || int_cols.count(name) ||
-      bool_cols.count(name) || string_cols.count(name);
+      bool_cols.count(name) || string_cols.count(name) || size_t_cols.count(name);
   }
 
-  void check_row_size(std::size_t size, const std::string& name) const {
-    std::size_t cur = nrows();
+  void check_row_size(size_t size, const std::string& name) const {
+    size_t cur = nrows();
     if (cur > 0 && size != cur)
       throw std::runtime_error("Column '" + name +
                                "' has inconsistent number of rows");
@@ -362,15 +438,20 @@ struct DataFrameCpp {
   void push_back(const std::vector<std::string>& col, const std::string& name);
   void push_back(std::vector<std::string>&& col, const std::string& name);
 
+  // size_t column overloads (const& + &&)
+  void push_back(const std::vector<size_t>& col, const std::string& name);
+  void push_back(std::vector<size_t>&& col, const std::string& name);
+  
   // Scalar expansions
   void push_back(double value, const std::string& name);
   void push_back(int value, const std::string& name);
   void push_back(bool value, const std::string& name);
   void push_back(const std::string& value, const std::string& name);
-
+  void push_back(size_t value, const std::string& name);
+  
   // push_back_flat accepts a column-major flattened buffer with nrows*p values
   // create p new columns named base_name, base_name.1, ..., base_name.p (if p>1)
-  void push_back_flat(const std::vector<double>& flat_col_major, int nrows,
+  void push_back_flat(const std::vector<double>& flat_col_major, size_t nrows,
                       const std::string& base_name);
 
   void push_back(const FlatMatrix& fm, const std::string& base_name);
@@ -389,12 +470,16 @@ struct DataFrameCpp {
   void push_front(const std::vector<std::string>& col, const std::string& name);
   void push_front(std::vector<std::string>&& col, const std::string& name);
 
+  void push_front(const std::vector<size_t>& col, const std::string& name);
+  void push_front(std::vector<size_t>&& col, const std::string& name);
+  
   // Scalar expansions for push_front (requested)
   void push_front(double value, const std::string& name);
   void push_front(int value, const std::string& name);
   void push_front(bool value, const std::string& name);
   void push_front(const std::string& value, const std::string& name);
-
+  void push_front(size_t value, const std::string& name);
+  
   // Erase column
   void erase(const std::string& name);
 
@@ -409,6 +494,8 @@ struct DataFrameCpp {
       if (bool_cols.count(name)) return bool_cols.at(name);
     } else if constexpr (std::is_same_v<T, std::string>) {
       if (string_cols.count(name)) return string_cols.at(name);
+    } else if constexpr (std::is_same_v<T, size_t>) {
+      if (size_t_cols.count(name)) return size_t_cols.at(name);
     }
     throw std::runtime_error("Column '" + name + "' not found or type mismatch.");
   }
@@ -423,21 +510,23 @@ struct DataFrameCpp {
       if (bool_cols.count(name)) return bool_cols.at(name);
     } else if constexpr (std::is_same_v<T, std::string>) {
       if (string_cols.count(name)) return string_cols.at(name);
+    } else if constexpr (std::is_same_v<T, size_t>) {
+      if (size_t_cols.count(name)) return size_t_cols.at(name);
     }
     throw std::runtime_error("Column '" + name + "' not found or type mismatch.");
   }
 
   // Print helper for DataFrameCpp: prints basic table view to ostream
   // (default std::cout)
-  inline void print(std::ostream& os = std::cout, int max_rows = 10,
+  inline void print(std::ostream& os = std::cout, size_t max_rows = 10,
                     bool show_col_types = false) const {
-    const std::size_t rows = nrows();
-    const std::size_t cols = size();
+    const size_t rows = nrows();
+    const size_t cols = size();
     os << "DataFrameCpp: " << rows << " rows x " << cols << " cols\n";
     if (cols == 0) return;
 
     // Print header (column names and optional types)
-    for (std::size_t c = 0; c < names_.size(); ++c) {
+    for (size_t c = 0; c < names_.size(); ++c) {
       const std::string& nm = names_[c];
       os << nm;
       if (show_col_types) {
@@ -446,6 +535,7 @@ struct DataFrameCpp {
         else if (int_cols.count(nm)) os << "int";
         else if (bool_cols.count(nm)) os << "bool";
         else if (string_cols.count(nm)) os << "string";
+        else if (size_t_cols.count(nm)) os << "size_t";
         else os << "unknown";
         os << ")";
       }
@@ -455,11 +545,10 @@ struct DataFrameCpp {
 
     if (rows == 0) return;
 
-    const int rmax = static_cast<int>(std::min<std::size_t>(
-      rows, static_cast<std::size_t>(max_rows)));
+    const size_t rmax = std::min(rows, max_rows);
 
-    for (int r = 0; r < rmax; ++r) {
-      for (std::size_t c = 0; c < names_.size(); ++c) {
+    for (size_t r = 0; r < rmax; ++r) {
+      for (size_t c = 0; c < names_.size(); ++c) {
         const std::string& nm = names_[c];
         if (numeric_cols.count(nm)) {
           const auto& col = numeric_cols.at(nm);
@@ -475,6 +564,9 @@ struct DataFrameCpp {
         } else if (string_cols.count(nm)) {
           const auto& col = string_cols.at(nm);
           os << col[r];
+        } else if (size_t_cols.count(nm)) {
+          const auto& col = size_t_cols.at(nm);
+          os << col[r];
         } else {
           os << "";
         }
@@ -482,7 +574,7 @@ struct DataFrameCpp {
       }
       os << "\n";
     }
-    if (rmax < static_cast<int>(rows)) os << "...\n";
+    if (rmax < rows) os << "...\n";
   }
 
   // ostream operator for convenience
@@ -504,13 +596,15 @@ using ListPtr = std::shared_ptr<ListCpp>;
 struct ListCpp {
   std::vector<std::string> names_; // insertion order
   ska::flat_hash_map<std::string, std::variant<
-    double, int, bool, std::string,
+    double, int, bool, std::string, size_t, 
     std::vector<double>,
     std::vector<int>,
     std::vector<unsigned char>,
     std::vector<std::string>,
+    std::vector<size_t>,
     FlatMatrix,
     IntMatrix,
+    SztMatrix,
     BoolMatrix,
     FlatArray,
     DataFrameCpp,
@@ -521,7 +615,7 @@ struct ListCpp {
 
     ListCpp() = default;
 
-    std::size_t size() const { return data.size(); }
+    size_t size() const { return data.size(); }
     std::vector<std::string> names() const { return names_; }
     bool containsElementNamed(const std::string& name) const {
       return data.count(name) > 0; }
@@ -548,6 +642,9 @@ struct ListCpp {
     void push_back(const IntMatrix& im, const std::string& name);
     void push_back(IntMatrix&& im, const std::string& name);
 
+    void push_back(const SztMatrix& sm, const std::string& name);
+    void push_back(SztMatrix&& sm, const std::string& name);
+    
     void push_back(const BoolMatrix& im, const std::string& name);
     void push_back(BoolMatrix&& im, const std::string& name);
 
@@ -587,14 +684,14 @@ struct ListCpp {
     const ListCpp& get_list(const std::string& name) const;
 };
 
-FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<int>& row_idx);
-void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<int>& row_idx);
-FlatMatrix subset_flatmatrix(const FlatMatrix& fm, int start, int end);
-void subset_in_place_flatmatrix(FlatMatrix& fm, int start, int end);
-FlatMatrix subset_flatmatrix(const FlatMatrix& fm, int row_start, int row_end,
-                             int col_start, int col_end);
-FlatArray subset_flatarray(const FlatArray& fa, const std::vector<int>& row_idx);
-void subset_in_place_flatarray(FlatArray& fa, const std::vector<int>& row_idx);
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, const std::vector<size_t>& row_idx);
+void subset_in_place_flatmatrix(FlatMatrix& fm, const std::vector<size_t>& row_idx);
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, size_t start, size_t end);
+void subset_in_place_flatmatrix(FlatMatrix& fm, size_t start, size_t end);
+FlatMatrix subset_flatmatrix(const FlatMatrix& fm, size_t row_start, size_t row_end,
+                             size_t col_start, size_t col_end);
+FlatArray subset_flatarray(const FlatArray& fa, const std::vector<size_t>& row_idx);
+void subset_in_place_flatarray(FlatArray& fa, const std::vector<size_t>& row_idx);
 
 FlatMatrix concat_flatmatrix(const FlatMatrix& fm1, const FlatMatrix& fm2);
 void append_flatmatrix(FlatMatrix& fm1, const FlatMatrix& fm2);
@@ -602,12 +699,15 @@ void append_flatmatrix(std::vector<std::vector<double>>& fm1, const FlatMatrix& 
 void append_flatmatrix(std::vector<std::vector<double>>& fm1,
                        const std::vector<std::vector<double>>& fm2);
 FlatMatrix cols_to_flatmatrix(const std::vector<std::vector<double>>& cols);
-std::vector<double> flatmatrix_get_column(const FlatMatrix& M, int col);
-std::vector<int> intmatrix_get_column(const IntMatrix& M, int col);
-std::vector<unsigned char> boolmatrix_get_column(const BoolMatrix& M, int col);
-void flatmatrix_set_column(FlatMatrix& M, int col, const std::vector<double>& src);
-void intmatrix_set_column(IntMatrix& M, int col, const std::vector<int>& src);
-void boolmatrix_set_column(BoolMatrix& M, int col, 
+std::vector<double> flatmatrix_get_column(const FlatMatrix& M, size_t col);
+DoubleView flatmatrix_get_column_view(const FlatMatrix& M, size_t col);
+std::vector<int> intmatrix_get_column(const IntMatrix& M, size_t col);
+std::vector<size_t> sztmatrix_get_column(const SztMatrix& M, size_t col);
+std::vector<unsigned char> boolmatrix_get_column(const BoolMatrix& M, size_t col);
+void flatmatrix_set_column(FlatMatrix& M, size_t col, const std::vector<double>& src);
+void intmatrix_set_column(IntMatrix& M, size_t col, const std::vector<int>& src);
+void sztmatrix_set_column(SztMatrix& M, size_t col, const std::vector<size_t>& src);
+void boolmatrix_set_column(BoolMatrix& M, size_t col,
                            const std::vector<unsigned char>& src);
 
 // ------------------- Converters between R and C++ types (declarations) ----
@@ -635,13 +735,36 @@ template <> inline SEXP wrap(const IntMatrix& im) {
   std::memcpy(INTEGER(M), im.data.data(), im.data.size() * sizeof(int));
   return M;
 }
+template <> inline SEXP wrap(const SztMatrix& sm) {
+  if (sm.nrow == 0 || sm.ncol == 0) return R_NilValue;
+  // Create an R integer matrix with same dims
+  Rcpp::IntegerMatrix M(sm.nrow, sm.ncol);
+  int* dst = INTEGER(M);
+  const size_t* src = sm.data.data();
+  const size_t N = sm.data.size();
+  static bool warned_size_t_overflow = false;
+  const size_t INTMAX = static_cast<size_t>(std::numeric_limits<int>::max());
+  for (size_t i = 0; i < N; ++i) {
+    size_t v = src[i];
+    if (v > INTMAX) {
+      dst[i] = NA_INTEGER;
+      if (!warned_size_t_overflow) {
+        Rcpp::warning("SztMatrix -> IntegerMatrix: some size_t values exceed INT_MAX and were converted to NA_integer_");
+        warned_size_t_overflow = true;
+      }
+    } else {
+      dst[i] = static_cast<int>(v);
+    }
+  }
+  return M;
+}
 template <> inline SEXP wrap(const BoolMatrix& im) {
   if (im.nrow == 0 || im.ncol == 0) return R_NilValue;
   Rcpp::LogicalMatrix M(im.nrow, im.ncol);
   int* dst = LOGICAL(M);
   const unsigned char* src = im.data.data();
   // Convert: 0->FALSE, 1->TRUE, 255->NA_LOGICAL
-  for (std::size_t i = 0; i < im.data.size(); ++i) {
+  for (size_t i = 0; i < im.data.size(); ++i) {
     if (src[i] == 255) {
       dst[i] = NA_LOGICAL;
     } else {
