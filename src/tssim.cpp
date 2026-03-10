@@ -3,6 +3,7 @@
 
 #include <Rcpp.h>
 #include <boost/random.hpp>
+#include <boost/math/distributions/gamma.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -359,7 +360,14 @@ Rcpp::List tssim(const bool tdxo = false,
   if (std::isnan(plannedTime)) 
     throw std::invalid_argument("plannedTime must be provided");
   if (plannedTime <= 0.0) throw std::invalid_argument("plannedTime must be positive");
-
+  
+  boost::math::gamma_distribution<> my_gamma(static_cast<double>(n), 1.0);
+  double q = boost::math::quantile(my_gamma, 0.9999);
+  if (plannedTime <= getAccrualDurationFromN1(q, accTime, accRate)) {
+    throw std::invalid_argument(
+        "plannedTime must ensure enrollment completion with 99.99% confidence");
+  }
+  
   // days, n, NSim checks
   if (days <= 0.0) throw std::invalid_argument("days must be positive");
   if (n <= 0) throw std::invalid_argument("n must be positive");
