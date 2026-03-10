@@ -488,26 +488,6 @@ std::vector<int> match3(const std::vector<int>& id1,
                         const std::vector<int>& id2,
                         const std::vector<double>& v2);
 
-// --------------------------- Counterfactual helpers --------------------------
-DataFrameCpp untreated(double psi,
-                       const std::vector<int>& id,
-                       const std::vector<double>& time,
-                       const std::vector<int>& event,
-                       const std::vector<int>& treat,
-                       const std::vector<double>& rx,
-                       const std::vector<double>& censor_time,
-                       bool recensor,
-                       bool autoswitch);
-
-DataFrameCpp unswitched(double psi,
-                        const std::vector<int>& id,
-                        const std::vector<double>& time,
-                        const std::vector<int>& event,
-                        const std::vector<int>& treat,
-                        const std::vector<double>& rx,
-                        const std::vector<double>& censor_time,
-                        bool recensor,
-                        bool autoswitch);
 
 
 // Misc math helpers
@@ -554,6 +534,34 @@ inline double qtpwexpcpp1(
   double dt = (v - v1) / lj;
   return piecewiseSurvivalTime[j + 1] - dt;
 }
+
+double getAccrualDurationFromN1(
+    const double nsubjects,
+    const std::vector<double>& accrualTime,
+    const std::vector<double>& accrualIntensity);
+
+
+// --------------------------- Counterfactual helpers --------------------------
+DataFrameCpp untreated(double psi,
+                       const std::vector<int>& id,
+                       const std::vector<double>& time,
+                       const std::vector<int>& event,
+                       const std::vector<int>& treat,
+                       const std::vector<double>& rx,
+                       const std::vector<double>& censor_time,
+                       bool recensor,
+                       bool autoswitch);
+
+DataFrameCpp unswitched(double psi,
+                        const std::vector<int>& id,
+                        const std::vector<double>& time,
+                        const std::vector<int>& event,
+                        const std::vector<int>& treat,
+                        const std::vector<double>& rx,
+                        const std::vector<double>& censor_time,
+                        bool recensor,
+                        bool autoswitch);
+
 
 
 // Root selection helpers

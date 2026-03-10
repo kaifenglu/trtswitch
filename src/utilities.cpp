@@ -972,6 +972,38 @@ std::vector<int> match3(const std::vector<int>& id1,
   return result;
 }
 
+
+// --------------------------- Misc helpers -----------------------------------
+
+std::string sanitize(const std::string& s) {
+  std::string out = s;
+  for (char &c : out) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && 
+        static_cast<unsigned char>(c) != '_') 
+      c = '.';
+  }
+  return out;
+}
+
+
+double getAccrualDurationFromN1(
+    const double nsubjects,
+    const std::vector<double>& accrualTime,
+    const std::vector<double>& accrualIntensity) {
+  
+  size_t J = accrualTime.size();
+  std::vector<double> p(J);
+  p[0] = 0;
+  for (size_t j = 0; j < J - 1; ++j) {
+    p[j + 1] = p[j] + accrualIntensity[j] * (accrualTime[j + 1] - accrualTime[j]);
+  }
+  
+  size_t m = findInterval1(nsubjects, p) - 1;
+  double t = accrualTime[m] + (nsubjects - p[m]) / accrualIntensity[m];
+  return t;
+}
+
+
 // -------------------------- Counterfactual helpers --------------------------
 
 DataFrameCpp untreated(double psi,
@@ -1064,18 +1096,6 @@ DataFrameCpp unswitched(double psi,
   df.push_back(std::move(d_star), "d_star");
   df.push_back(treat, "treated");
   return df;
-}
-
-// --------------------------- Misc helpers -----------------------------------
-
-std::string sanitize(const std::string& s) {
-  std::string out = s;
-  for (char &c : out) {
-    if (!std::isalnum(static_cast<unsigned char>(c)) && 
-        static_cast<unsigned char>(c) != '_') 
-      c = '.';
-  }
-  return out;
 }
 
 
