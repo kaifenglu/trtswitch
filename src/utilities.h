@@ -89,6 +89,20 @@ std::vector<size_t> seqcpp(size_t start, size_t end);
 // which: return indices of true values
 std::vector<size_t> which(const std::vector<unsigned char>& vec);
 
+inline bool none_na(const std::vector<double>& v) {
+  return !v.empty() &&
+    std::none_of(v.begin(), v.end(), [](double x){ return std::isnan(x); });
+}
+
+template<typename T>
+bool any_nonincreasing(const std::vector<T>& I) {
+  if (I.size() < 2) return false;
+  for (size_t i = 1; i < I.size(); ++i) {
+    if (I[i] <= I[i-1]) return true;
+  }
+  return false;
+}
+
 // findInterval: adapted helper (return indices following R-like convention)
 size_t findInterval1(const double x,
                      const std::vector<double>& v,

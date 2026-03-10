@@ -296,54 +296,26 @@ Rcpp::List tssim(const bool tdxo = false,
   std::vector<double> accTime = Rcpp::as<std::vector<double>>(accrualTime);
   std::vector<double> accRate = Rcpp::as<std::vector<double>>(accrualIntensity);
   
-  if (allocation1 < 1) 
-    throw std::invalid_argument("allocation1 must be a positive integer");
-  if (allocation2 < 1) 
-    throw std::invalid_argument("allocation2 must be a positive integer");
-  
-  if (p_X_1 <= 0 || p_X_1 >= 1) 
-    throw std::invalid_argument("p_X_1 must lie between 0 and 1");
-  if (p_X_0 <= 0 || p_X_0 >= 1) 
-    throw std::invalid_argument("p_X_0 must lie between 0 and 1");
+  if (allocation1 < 1 || allocation2 < 1)
+    throw std::invalid_argument("allocations must be a positive integer");
+
+  if (p_X_1 <= 0 || p_X_1 >= 1 || p_X_0 <= 0 || p_X_0 >= 1) 
+    throw std::invalid_argument("p_X must lie between 0 and 1");
   
   if (rate_T <= 0) throw std::invalid_argument("rate_T must be positive");
   if (rate_C < 0) throw std::invalid_argument("rate_C must be nonnegative");
   
-  if (accTime[0] != 0) 
+  if (accTime[0] != 0.0)
     throw std::invalid_argument("accrualTime must start with 0");
-  if (accTime.size() > 1) {
-    for (std::size_t i = 1; i < accTime.size(); ++i) {
-      double prev = accTime[i - 1];
-      double cur  = accTime[i];
-      // If either element is NaN, skip the comparison
-      if (std::isnan(prev) || std::isnan(cur)) continue;
-      if (cur <= prev) {
-        throw std::invalid_argument("accrualTime should be increasing");
-      }
-    }
-  }
+  if (any_nonincreasing(accTime))
+    throw std::invalid_argument("accrualTime should be increasing");
   
-  // Check accrualIntensity has no missing values (NaN)
-  if (std::any_of(accRate.begin(), accRate.end(),
-                  [](double x){ return std::isnan(x); })) {
+  if (!none_na(accRate))
     throw std::invalid_argument("accrualIntensity must be provided");
-  }
-  
-  // length check
-  if (accTime.size() != accRate.size()) {
-    throw std::invalid_argument(
-        "accrualTime must have the same length as accrualIntensity");
-  }
-  
-  // accrualIntensity: must be provided (no NaN) and non-negative
-  for (std::size_t i = 0; i < accRate.size(); ++i) {
-    double v = accRate[i];
-    if (std::isnan(v)) {
-      throw std::invalid_argument("accrualIntensity must be provided");
-    }
-    if (v < 0.0) {
-      throw std::invalid_argument("accrualIntensity must be non-negative");
-    }
+  if (accRate.size() != accTime.size())
+    throw std::invalid_argument("Invalid length for accrualIntensity");
+  for (double v : accRate) {
+    if (v < 0.0) throw std::invalid_argument("accrualIntensity must be non-negative");
   }
   
   // fixed follow-up checks
