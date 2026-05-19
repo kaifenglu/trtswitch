@@ -5,4 +5,8 @@
 ^\.\.Rcheck$
 ^data-raw$
 ^notes$
+^docs$
+^_pkgdown\.yml$
 ^\.github$
+^\.positai$
+^\.claude$

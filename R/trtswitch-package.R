@@ -77,7 +77,7 @@
 #'
 #' @useDynLib trtswitch, .registration = TRUE
 #' @importFrom Rcpp evalCpp
-#' @importFrom RcppParallel setThreadOptions
+#' @importFrom RcppParallel setThreadOptions RcppParallelLibs
 #' @importFrom parallel detectCores
 #' @importFrom stats as.formula complete.cases formula model.frame 
 #' model.matrix na.omit na.pass pchisq plogis qnorm rbinom rexp 

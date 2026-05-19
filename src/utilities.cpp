@@ -1,8 +1,6 @@
 #include "utilities.h"
 #include "dataframe_list.h"
 
-#include <Rcpp.h>
-
 #include <algorithm>  // fill, lower_bound, max_element, memmove, 
 // min_element, sort, swap, upper_bound
 #include <cmath>      // copysign, exp, fabs, isinf, isnan, log, pow, sqrt
@@ -10,13 +8,12 @@
 #include <cstring>    // memcpy
 #include <functional> // function
 #include <limits>     // numeric_limits
-#include <memory>     // make_shared, shared_ptr
 #include <numeric>    // accumulate, inner_product, iota 
-#include <sstream>    // ostringstream
 #include <stdexcept>  // invalid_argument, runtime_error
 #include <string>     // string
 #include <vector>     // vector
 
+#include <Rcpp.h>
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/distributions/logistic.hpp>
 #include <boost/math/distributions/extreme_value.hpp>
@@ -701,6 +698,27 @@ FlatMatrix invsympd(const FlatMatrix& matrix, size_t n, double toler) {
 }
 
 
+// invchol assumes matrix holds the representation produced by cholesky2
+FlatMatrix invchol(FlatMatrix& matrix, size_t n) {
+  // Forward substitution L * z = y
+  double* base = matrix.data_ptr();
+  FlatMatrix iv(n, n);
+  for (size_t k = 0; k < n; ++k) {
+    iv(k,k) = 1.0;
+    double* y = iv.data_ptr() + k * n;
+    for (size_t j = 0; j < n-1; ++j) {
+      double yj = y[j];
+      if (yj == 0.0) continue;
+      double* col_j = base + j * n;
+      for (size_t i = j + 1; i < n; ++i) {
+        y[i] -= yj * col_j[i];
+      }
+    }
+  }
+  return iv;
+}
+
+
 // -------------------------- Survival helpers --------------------------------
 
 DataFrameCpp survsplitcpp(const std::vector<double>& tstart,
@@ -808,11 +826,6 @@ Rcpp::DataFrame survsplit(const std::vector<double>& tstart,
 
 
 // ------------------------- QR and other helpers -----------------------------
-double sumsq(const std::vector<double>& x) {
-  double s = 0.0;
-  for (double xi : x) s += xi * xi;
-  return s;
-}
 
 // Householder vector
 // Given an n-vector x, this function computes an n-vector v with v(1) = 1

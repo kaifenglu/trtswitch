@@ -8,4 +8,6 @@ src/*.so
 src/*.dll
 inst/doc
 notes/
+docs/
 trtswitch.Rproj
+.positai

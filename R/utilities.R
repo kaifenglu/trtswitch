@@ -52,6 +52,7 @@ process_cov <- function(base_cov, df) {
 #'   if FALSE, error on duplicates
 #' @return If A was a data.frame, returns modified data.frame; if A was 
 #'   data.table returns invisible(NULL).
+#' @keywords internal
 merge_append <- function(A, B, by_vars, new_vars,
                          overwrite = TRUE, first_match = TRUE) {
   if (!requireNamespace("data.table", quietly = TRUE)) {

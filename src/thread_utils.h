@@ -1,11 +1,12 @@
-#ifndef THREAD_UTILS_H
-#define THREAD_UTILS_H
+#pragma once
 
-#include <Rcpp.h>
-#include <RcppThread.h>
 #include <mutex>
 #include <string>
 #include <vector>
+
+#include <Rcpp.h>
+#include <RcppThread.h>
+
 
 namespace thread_utils {
 
@@ -50,5 +51,3 @@ inline void drain_thread_warnings_to_R() {
 }
 
 } // namespace thread_utils
-
-#endif // THREAD_UTILS_H

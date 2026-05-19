@@ -32,3 +32,4 @@ A and B may be data.frame or data.table.
 \item If A is a data.frame a modified data.frame is returned.
 }
 }
+\keyword{internal}
