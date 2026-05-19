@@ -3,7 +3,8 @@ template:
   math-rendering: mathjax
   params:
     bootswatch: flatly
-    mathjax: https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+    mathjax: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+
 navbar:
   left:
   - text: Home
@@ -14,6 +15,6 @@ navbar:
     href: articles/index.html
   - text: News
     href: news/index.html
-url: https://kaifenglu.github.io/trtswitch/
-destination: docs
 
+url: https://kaifenglu.github.io/trtswitch
+destination: docs
