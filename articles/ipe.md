@@ -1,7 +1,6 @@
 # Iterative Parameter Estimation
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 library(ggplot2)
@@ -63,7 +62,6 @@ based on the randomized Concorde trial.
 We start by preparing the data and then apply the IPE method:
 
 ``` r
-
 data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 
 fit1 <- ipe(
@@ -76,7 +74,6 @@ The log-rank test for an ITT analysis, which ignores treatment changes,
 yields a borderline significant p-value of \\0.056\\.
 
 ``` r
-
 paste0("P-value", " (", fit1$pvalue_type, "): ", formatC(fit1$pvalue, format = "f", digits = 4))
 #> [1] "P-value (log-rank): 0.0556"
 ```
@@ -86,7 +83,6 @@ Using the IPE method with a Weibull AFT model, we estimate \\\hat{\psi}
 analysis.
 
 ``` r
-
 fit1$psi
 #> [1] -0.182931
 ```
@@ -95,7 +91,6 @@ The Kaplan-Meier plot of counterfactual survival times supports the
 estimated \\\hat{\psi}\\.
 
 ``` r
-
 ggplot(fit1$kmstar, aes(x=time, y=surv, group=treated,
                         linetype=as.factor(treated))) + 
   geom_step() + 
@@ -110,7 +105,6 @@ The estimated hazard ratio from the Cox proportional hazards model is
 aligning with the results from the RPSFTM analysis.
 
 ``` r
-
 c(fit1$hr, fit1$hr_CI)
 #> [1] 0.7657898 0.5826782 1.0064459
 ```
@@ -122,7 +116,6 @@ estimate of the causal parameter \\\psi\\. To see this, consider the
 following SHIVA data for illustration purposes only.
 
 ``` r
-
 shilong1 <- shilong %>%
   arrange(bras.f, id, tstop) %>%
   group_by(bras.f, id) %>%
@@ -140,7 +133,6 @@ Now let us apply the IPE method using the Brent’s method for root
 finding:
 
 ``` r
-
 fit2 <- ipe(
   shilong2, id = "id", time = "tstop", event = "event",
   treat = "bras.f", rx = "rx", censor_time = "dcut",
@@ -154,7 +146,6 @@ the negative of the coefficient for the treatment variable in the
 updated AFT model fit equals \\0.950\\:
 
 ``` r
-
 fit2$fit_aft$parest[, c("param", "beta", "sebeta", "z")]
 #>                    param         beta      sebeta          z
 #> 1            (Intercept)  6.934726180 0.495626813 13.9918302
@@ -173,7 +164,6 @@ code demonstrates the oscillation of \\\psi\\ values between 0.955,
 0.951, and 0.960 after additional iterations.
 
 ``` r
-
 
 f <- function(psi) {
   data1 <- shilong2 %>%
@@ -214,7 +204,6 @@ tail(data2)
 ```
 
 ``` r
-
 ggplot(data2, aes(x = index, y = psi)) + 
   geom_point() + 
   geom_line()

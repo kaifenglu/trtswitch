@@ -1,7 +1,6 @@
 # Marginal Structural Model
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 library(ggplot2)
@@ -118,7 +117,6 @@ process.
 First we prepare the data.
 
 ``` r
-
 sim1 <- tssim(
   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
   p_X_1 = 0.3, p_X_0 = 0.3, 
@@ -140,7 +138,6 @@ the three terms for the natural cubic spline with \\\nu=3\\ degrees of
 freedom for visit-specific intercepts.
 
 ``` r
-
 fit1 <- msm(
   sim1[[1]], id = "id", tstart = "tstart", 
   tstop = "tstop", event = "event", treat = "trtrand", 
@@ -154,7 +151,6 @@ The fits for the denominator and numerator switching models are as
 follows.
 
 ``` r
-
 # denominator switching model fit
 fit1$fit_switch[[1]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]
 #>         param       beta    sebeta           z
@@ -181,7 +177,6 @@ unstabilized and stablized weights for the control group are plotted
 below.
 
 ``` r
-
 # unstabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
        aes(x = unstabilized_weight)) + 
@@ -193,7 +188,6 @@ ggplot(fit1$data_outcome %>% filter(trtrand == 0),
 ![](msm_files/figure-html/weights%20example%201-1.png)
 
 ``` r
-
 
 # stabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
@@ -209,7 +203,6 @@ Now we fit a weighted outcome Cox model and compare the treatment hazard
 ratio estimate with the reported.
 
 ``` r
-
 fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
 #>     param       beta    sebeta         z
 #> 1 treated -0.5883756 0.1106249 -5.318654

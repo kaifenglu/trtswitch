@@ -1,7 +1,6 @@
 # Inverse Probability of Censoring Weights
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 library(ggplot2)
@@ -140,7 +139,6 @@ process.
 First we prepare the data.
 
 ``` r
-
 sim1 <- tssim(
   tdxo = 1, coxo = 1, allocation1 = 1, allocation2 = 1,
   p_X_1 = 0.3, p_X_0 = 0.3, 
@@ -162,7 +160,6 @@ the three terms for the natural cubic spline with \\\nu=3\\ degrees of
 freedom for visit-specific intercepts.
 
 ``` r
-
 fit1 <- ipcw(
   sim1[[1]], id = "id", tstart = "tstart", 
   tstop = "tstop", event = "event", treat = "trtrand", 
@@ -177,7 +174,6 @@ The fits for the denominator and numerator switching models for the
 control arm are as follows.
 
 ``` r
-
 # denominator switching model fit
 fit1$fit_switch[[1]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]
 #>         param       beta    sebeta           z
@@ -204,7 +200,6 @@ unstabilized and stablized weights for the control group are plotted
 below.
 
 ``` r
-
 # unstabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
        aes(x = unstabilized_weight)) + 
@@ -216,7 +211,6 @@ ggplot(fit1$data_outcome %>% filter(trtrand == 0),
 ![](ipcw_files/figure-html/weights%20example%201-1.png)
 
 ``` r
-
 
 # stabilized weights
 ggplot(fit1$data_outcome %>% filter(trtrand == 0), 
@@ -232,7 +226,6 @@ Now we fit a weighted outcome Cox model and compare the treatment hazard
 ratio estimate with the reported.
 
 ``` r
-
 fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
 #>     param       beta    sebeta         z
 #> 1 treated -0.5919728 0.1118087 -5.294515
@@ -249,7 +242,6 @@ Now we apply the IPCW method using a Cox proportional hazards model with
 time-dependent covariates as the switching model.
 
 ``` r
-
 fit2 <- ipcw(
   shilong, id = "id", tstart = "tstart", tstop = "tstop", 
   event = "event", treat = "bras.f", swtrt = "co", 
@@ -267,7 +259,6 @@ The fits for the denominator and numerator switching models for the
 control arm are as follows.
 
 ``` r
-
 # denominator switching model for the control group
 fit2$fit_switch[[1]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]
 #>                    param         beta     sebeta           z
@@ -296,7 +287,6 @@ The fits for the denominator and numerator switching models for the
 experimental arm are as follows:
 
 ``` r
-
 # denominator switching model for the experimental group
 fit2$fit_switch[[2]]$fit_den$parest[, c("param", "beta", "sebeta", "z")]
 #>                    param         beta     sebeta          z
@@ -326,7 +316,6 @@ group: the left panel displays data for the control group, while the
 right panel shows data for the experimental group.
 
 ``` r
-
 # unstabilized weights
 ggplot(fit2$data_outcome, aes(x = unstabilized_weight)) + 
   geom_histogram(fill="#77bd89", color="#1f6e34", alpha=0.8) + 
@@ -338,7 +327,6 @@ ggplot(fit2$data_outcome, aes(x = unstabilized_weight)) +
 ![](ipcw_files/figure-html/weights%20example%202-1.png)
 
 ``` r
-
 
 # stabilized weights
 ggplot(fit2$data_outcome, aes(x = stabilized_weight)) + 
@@ -354,7 +342,6 @@ Finally, we fit the weighted outcome Cox model and compare the treatment
 hazard ratio estimate with the reported.
 
 ``` r
-
 fit2$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
 #>                    param         beta     sebeta          z
 #> 1                treated  0.356390611 0.25526832  1.3961412

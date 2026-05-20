@@ -242,7 +242,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 sim1 <- tsegestsim(
   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 

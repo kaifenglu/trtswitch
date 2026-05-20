@@ -298,7 +298,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 
 # modify pd and dpd based on co and dco

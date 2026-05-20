@@ -65,7 +65,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 fit <- phregr(data = liver, time = "Time", event = "Status", 
               covariates = c("log(Bilirubin)", "log(Protime)", 
                              "log(Albumin)", "Age", "Edema"),

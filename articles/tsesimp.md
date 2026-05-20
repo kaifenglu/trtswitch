@@ -1,7 +1,6 @@
 # Simple Two-Stage Estimation
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 ```
@@ -45,7 +44,6 @@ the entire adjustment and subsequent model-fitting process.
 We start by preparing the data.
 
 ``` r
-
 # modify pd and dpd based on co and dco
 shilong <- shilong %>%
   mutate(dpd = ifelse(co & !pd, dco, dpd),
@@ -75,7 +73,6 @@ shilong3 <- shilong1 %>%
 Next we apply the simple TSE method.
 
 ``` r
-
 fit1 <- tsesimp(
   data = shilong3, id = "id", time = "tstop", event = "event",
   treat = "bras.f", censor_time = "dcut", pd = "pd",
@@ -93,7 +90,6 @@ We can examine the Weibull AFT model fits and the corresponding value of
 \\\hat{\psi}\\.
 
 ``` r
-
 # control group
 fit1$fit_aft[[1]]$fit$parest[, c("param", "beta", "sebeta", "z")]
 #>                     param         beta      sebeta          z
@@ -137,7 +133,6 @@ Now we fit the outcome Cox model and compare the treatment hazard ratio
 estimate with the reported.
 
 ``` r
-
 fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
 #>                    param          beta      sebeta           z
 #> 1                treated -0.0914777971 0.184469500 -0.49589660
@@ -156,7 +151,6 @@ Finally, to ensure the uncertainty is accurately represented, the entire
 adjustment process and subsequent survival modeling can be bootstrapped.
 
 ``` r
-
 fit2 <- tsesimp(
   data = shilong3, id = "id", time = "tstop", event = "event",
   treat = "bras.f", censor_time = "dcut", pd = "pd",

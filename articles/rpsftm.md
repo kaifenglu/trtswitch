@@ -1,7 +1,6 @@
 # Rank Preserving Structural Failure Time Models
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 library(ggplot2)
@@ -214,7 +213,6 @@ The data are stored in the `immdef` data frame. Here’s a snapshot of the
 data:
 
 ``` r
-
 head(immdef, 10)
 #>    id def imm censyrs xo    xoyrs prog   progyrs entry
 #> 1   1   0   1       3  0 0.000000    0 3.0000000     0
@@ -248,7 +246,6 @@ For the deferred treatment arm, treatment crossover was allowed.
 We begin by preparing the data and then apply the RPSFTM method:
 
 ``` r
-
 data <- immdef %>% mutate(rx = 1-xoyrs/progyrs)
 
 fit1 <- rpsftm(
@@ -260,7 +257,6 @@ The log-rank test for an ITT analysis, which ignores treatment changes,
 produces a borderline significant p-value of \\0.056\\.
 
 ``` r
-
 paste0("P-value", " (", fit1$pvalue_type, "): ", formatC(fit1$pvalue, format = "f", digits = 4))
 #> [1] "P-value (log-rank): 0.0556"
 ```
@@ -269,7 +265,6 @@ Using a root-finding algorithm, we estimate \\\hat{\psi} = -0.181\\,
 with a 95% confidence interval of \\(-0.350, 0.002)\\.
 
 ``` r
-
 c(fit1$psi, fit1$psi_CI)
 #> [1] -0.181177491 -0.349656153  0.002047545
 ```
@@ -278,7 +273,6 @@ The plot of \\Z(\psi)\\ versus \\\psi\\ shows that the estimation
 process worked well.
 
 ``` r
-
 psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
 
 ggplot(fit1$eval_z %>% 
@@ -300,7 +294,6 @@ The Kaplan-Meier plot of counterfactual survival times supports the
 estimated \\\hat{\psi}\\.
 
 ``` r
-
 ggplot(fit1$kmstar, aes(x=time, y=surv, group=treated,
                         linetype=as.factor(treated))) + 
   geom_step() + 
@@ -316,7 +309,6 @@ constructed to be consistent with the p-value from the log-rank test for
 the ITT analysis.
 
 ``` r
-
 c(fit1$hr, fit1$hr_CI)
 #> [1] 0.7610992 0.5754769 1.0065948
 ```

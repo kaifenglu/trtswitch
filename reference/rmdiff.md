@@ -114,7 +114,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 rmdiff(data = rawdata[rawdata$iterationNumber == 1, ],
        stratum = "stratum", treat = "treatmentGroup",
        time = "timeUnderObservation", event = "event",

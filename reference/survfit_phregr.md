@@ -96,7 +96,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 
 # Example 1 with right-censored data

@@ -154,7 +154,6 @@ The function performs the following steps:
 ## Examples
 
 ``` r
-
 surv_data <- preptdc(adsl, adtdc, nodup = TRUE)
 head(surv_data)
 #>       SUBJID     RANDDT       adt2 ECOG101 LDH SEX STRAT1V     STRAT2V TRT01P

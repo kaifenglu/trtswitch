@@ -85,7 +85,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 rmest(data = aml, stratum = "x",
       time = "time", event = "status", milestone = 24)
 #>   size milestone     rmst   stderr    lower    upper conflev biascorrection x

@@ -111,7 +111,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 kmest(data = aml, stratum = "x", time = "time", event = "status")
 #>    size time nrisk nevent ncensor       surv     sesurv       lower     upper
 #> 1    11    9    11      1       0 0.90909091 0.08667842 0.508080206 0.9866738

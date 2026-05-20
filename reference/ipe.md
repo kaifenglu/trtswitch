@@ -286,7 +286,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 #> 
 #> Attaching package: ‘dplyr’

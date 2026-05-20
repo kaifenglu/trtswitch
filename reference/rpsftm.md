@@ -315,7 +315,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 
 # Example 1: one-way treatment switching (control to active)

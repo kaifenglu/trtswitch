@@ -409,7 +409,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 
 sim1 <- tsegestsim(

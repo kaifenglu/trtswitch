@@ -1,7 +1,6 @@
 # Two-Stage Estimation With g-estimation
 
 ``` r
-
 library(trtswitch)
 library(dplyr, warn.conflicts = FALSE)
 library(ggplot2)
@@ -86,7 +85,6 @@ the entire adjustment and subsequent model-fitting process.
 We start by preparing the data.
 
 ``` r
-
 sim1 <- tsegestsim(
   n = 500, allocation1 = 2, allocation2 = 1, pbprog = 0.5, 
   trtlghr = -0.5, bprogsl = 0.3, shape1 = 1.8, 
@@ -101,7 +99,6 @@ sim1 <- tsegestsim(
 Next we apply the TSE method with g-estimation.
 
 ``` r
-
 data1 <- sim1$paneldata %>%
   mutate(visit7on = ifelse(progressed == 1, tstop > timePFSobs + 105, 0))
   
@@ -124,7 +121,6 @@ switching can occur at the secondary baseline and at each of the ensuing
 five scheduled visits, spaced 21 days apart.
 
 ``` r
-
 switched <- fit1$data_switch[[1]]$data %>% filter(swtrt == 1)
 table(switched$swtrt_time)
 #> 
@@ -133,7 +129,6 @@ table(switched$swtrt_time)
 ```
 
 ``` r
-
 ggplot(fit1$km_switch[[1]]$data %>% filter(nevent > 0), 
        aes(x=time, y=surv)) + 
   geom_step() + 
@@ -154,7 +149,6 @@ subject, a robust sandwich variance estimator is employed, clustering on
 the subject level for the logistic regression model.
 
 ``` r
-
 parest <- fit1$fit_logis[[1]]$fit$parest
 parest[, c("param", "beta", "sebeta", "z")]
 #>             param          beta       sebeta             z
@@ -174,13 +168,11 @@ The plot of \\Z(\psi)\\ versus \\\psi\\ shows that the estimation
 process worked well.
 
 ``` r
-
 c(fit1$psi, fit1$psi_CI)
 #> [1] -0.4113644 -0.6551811 -0.1902263
 ```
 
 ``` r
-
 psi_CI_width <- fit1$psi_CI[2] - fit1$psi_CI[1]
 
 ggplot(fit1$eval_z[[1]]$data %>% 
@@ -202,7 +194,6 @@ Now we fit the outcome Cox model and compare the treatment hazard ratio
 estimate with the reported.
 
 ``` r
-
 fit1$fit_outcome$parest[, c("param", "beta", "sebeta", "z")]
 #>     param       beta     sebeta         z
 #> 1 treated -0.6010489 0.09855810 -6.098422

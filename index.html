@@ -60,8 +60,72 @@
   </div>
 </nav><div class="container template-home">
 <div class="row">
-  <main id="main" class="col-md-9">
-Implements rank preserving structural failure time model (RPSFTM), iterative parameter estimation (IPE), inverse probability of censoring weights (IPCW), marginal structural model (MSM), simple two-stage estimation (TSEsimp), and improved two-stage estimation with g-estimation (TSEgest) methods for treatment switching in randomized clinical trials.
+  <main id="main" class="col-md-9"><div class="section level1">
+<div class="page-header">
+<img src="logo.svg" class="logo" alt=""><h1 id="trtswitch">trtswitch<a class="anchor" aria-label="anchor" href="#trtswitch"></a>
+</h1>
+</div>
+<p><code>trtswitch</code> provides methods for treatment switching adjustment in randomized clinical trials, including:</p>
+<ul>
+<li>rank preserving structural failure time model (RPSFTM)</li>
+<li>iterative parameter estimation (IPE)</li>
+<li>inverse probability of censoring weights (IPCW)</li>
+<li>marginal structural model (MSM)</li>
+<li>simple two-stage estimation (TSEsimp)</li>
+<li>improved two-stage estimation with g-estimation (TSEgest)</li>
+</ul>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>Install from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"kaifenglu/trtswitch"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="example-rpsftm">Example: RPSFTM<a class="anchor" aria-label="anchor" href="#example-rpsftm"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://kaifenglu.github.io/trtswitch/">trtswitch</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Build treatment exposure proportion used by rpsftm</span></span>
+<span><span class="co"># in the one-way switching example dataset.</span></span>
+<span><span class="va">data</span> <span class="op">&lt;-</span> <span class="va">immdef</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>rx <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">xoyrs</span> <span class="op">/</span> <span class="va">progyrs</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/rpsftm.html">rpsftm</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
+<span>  id <span class="op">=</span> <span class="st">"id"</span>,</span>
+<span>  time <span class="op">=</span> <span class="st">"progyrs"</span>,</span>
+<span>  event <span class="op">=</span> <span class="st">"prog"</span>,</span>
+<span>  treat <span class="op">=</span> <span class="st">"imm"</span>,</span>
+<span>  rx <span class="op">=</span> <span class="st">"rx"</span>,</span>
+<span>  censor_time <span class="op">=</span> <span class="st">"censyrs"</span>,</span>
+<span>  boot <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit</span></span>
+<span></span>
+<span><span class="co"># Key estimates</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">psi</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">hr</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">psi_CI</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">hr_CI</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
+</h2>
+<ul>
+<li>Website: <a href="https://kaifenglu.github.io/trtswitch/" class="uri">https://kaifenglu.github.io/trtswitch/</a>
+</li>
+<li>Function reference: <a href="https://kaifenglu.github.io/trtswitch/reference/" class="uri">https://kaifenglu.github.io/trtswitch/reference/</a>
+</li>
+<li>Issues: <a href="https://github.com/kaifenglu/trtswitch/issues" class="external-link uri">https://github.com/kaifenglu/trtswitch/issues</a>
+</li>
+</ul>
+</div>
+</div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">

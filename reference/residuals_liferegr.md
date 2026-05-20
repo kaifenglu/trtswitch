@@ -93,7 +93,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 library(dplyr)
 
 fit1 <- liferegr(

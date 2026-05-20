@@ -51,7 +51,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 survsplit(15, 60, c(10, 30, 40))
 #>   row start end censor interval
 #> 1   0    15  30      1        1

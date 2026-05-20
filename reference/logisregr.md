@@ -245,7 +245,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 (fit1 <- logisregr(
   ingots, event = "NotReady", covariates = "Heat*Soak", freq = "Freq"))
 #>     n nevents   loglik0   loglik1  lrchisq df      pvalue niter  link firth

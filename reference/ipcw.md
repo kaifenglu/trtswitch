@@ -300,7 +300,6 @@ Kaifeng Lu, <kaifenglu@gmail.com>
 ## Examples
 
 ``` r
-
 # Example 1: pooled logistic regression switching model
 
 sim1 <- tssim(
