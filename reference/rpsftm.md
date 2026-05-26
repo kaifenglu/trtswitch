@@ -194,7 +194,7 @@ rpsftm(
 - nthreads:
 
   The number of threads to use in bootstrapping (0 means the default
-  RcppParallel behavior)
+  RcppParallel behavior).
 
 ## Value
 

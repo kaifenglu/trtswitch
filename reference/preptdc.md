@@ -25,7 +25,8 @@ preptdc(
   adt = "ADT",
   aval = "AVAL",
   nodup = TRUE,
-  offset = TRUE
+  offset = TRUE,
+  nthreads = 0
 )
 ```
 
@@ -106,6 +107,11 @@ preptdc(
   Logical; if `TRUE` (default), add 1-day offset when computing analysis
   day variables (`ady`, `osdy`, etc.).
 
+- nthreads:
+
+  Integer number of threads to use for \`data.table' (0 means the
+  default data.table behavior).
+
 ## Value
 
 A data set with one row per subject and time interval, including:
@@ -154,7 +160,7 @@ The function performs the following steps:
 ## Examples
 
 ``` r
-surv_data <- preptdc(adsl, adtdc, nodup = TRUE)
+surv_data <- preptdc(adsl, adtdc, nodup = TRUE, nthreads = 1)
 head(surv_data)
 #>       SUBJID     RANDDT       adt2 ECOG101 LDH SEX STRAT1V     STRAT2V TRT01P
 #> 1 000028-240 2020-07-27 2020-07-27       1 202   F       1 Carboplatin Active
