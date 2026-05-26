@@ -85,7 +85,7 @@
 #' @param n_boot The number of bootstrap samples.
 #' @param seed The seed to reproduce the bootstrap results.
 #' @param nthreads The number of threads to use in bootstrapping (0 means 
-#'   the default RcppParallel behavior)
+#'   the default RcppParallel behavior).
 #'
 #' @details The hazard ratio and confidence interval under a no-switching 
 #' scenario are obtained as follows:
@@ -266,8 +266,10 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
   
   # Respect user-requested number of threads (best effort)
   if (nthreads > 0) {
+    old_nthreads <- RcppParallel::defaultNumThreads()
     n_physical_cores <- parallel::detectCores(logical = FALSE)
-    RcppParallel::setThreadOptions(min(nthreads, n_physical_cores))
+    RcppParallel::setThreadOptions(min(as.integer(nthreads), n_physical_cores))
+    on.exit(RcppParallel::setThreadOptions(numThreads = old_nthreads), add = TRUE)
   }
   
   # select complete cases for the relevant variables
