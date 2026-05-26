@@ -98,9 +98,9 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
   data.table::setDT(adtdc)
   
   if (nthreads > 0) {
+    old_nthreads <- data.table::getDTthreads()
     n_physical_cores <- parallel::detectCores(logical = FALSE)
     data.table::setDTthreads(min(as.integer(nthreads), n_physical_cores))
-    old_nthreads <- data.table::getDTthreads()
     on.exit(data.table::setDTthreads(old_nthreads), add = TRUE)
   }
   
