@@ -19,7 +19,8 @@ preptdc(
   adt = "ADT",
   aval = "AVAL",
   nodup = TRUE,
-  offset = TRUE
+  offset = TRUE,
+  nthreads = 0
 )
 }
 \arguments{
@@ -72,6 +73,9 @@ are retained, along with the first row per subject (baseline).}
 
 \item{offset}{Logical; if \code{TRUE} (default), add 1-day offset when
 computing analysis day variables (\code{ady}, \code{osdy}, etc.).}
+
+\item{nthreads}{Integer number of threads to use for `data.table' (0 means
+the default data.table behavior).}
 }
 \value{
 A data set with one row per subject and time interval, including:
@@ -119,7 +123,7 @@ counting-process style variables \code{tstart}, \code{tstop}, and \code{event}.
 }
 \examples{
 
-surv_data <- preptdc(adsl, adtdc, nodup = TRUE)
+surv_data <- preptdc(adsl, adtdc, nodup = TRUE, nthreads = 1)
 head(surv_data)
 
 }

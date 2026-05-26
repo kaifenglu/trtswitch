@@ -115,7 +115,7 @@ interval for hazard ratio. Defaults to \code{TRUE}.}
 \item{seed}{The seed to reproduce the bootstrap results.}
 
 \item{nthreads}{The number of threads to use in bootstrapping (0 means
-the default RcppParallel behavior)}
+the default RcppParallel behavior).}
 }
 \value{
 A list with the following components:
