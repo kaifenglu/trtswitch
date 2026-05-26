@@ -357,7 +357,7 @@ ipcw <- function(data, id = "id", stratum = "", tstart = "tstart",
     
     # reset event and tstop at time of treatment switch
     data1[condition, event] <- 0
-    data1[condition, tstop] <- data1[condition, swtrt_time]
+    data1[condition, "tstop"] <- data1[condition, swtrt_time]
     
     tem_vars <- c(swtrt, swtrt_time)
     add_vars <- c(setdiff(vnames3, varnames3), tem_vars)

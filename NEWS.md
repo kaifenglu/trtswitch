@@ -1,5 +1,7 @@
 # trtwitch 0.2.6
 * add pkgdown workflow for building and deploying the package website to GitHub Pages
+* replaced data1[condition, tstop] <- data1[condition, swtrt_time] with data1[condition, "tstop"] <- data1[condition, swtrt_time] in ipcw.R and msm.R because "tstop"" is the variable name in data_switch
+
 
 # trtswitch 0.2.5
 * replace std::mt19937 with boost::random::mt19937 for random number generation in the bootstrap procedures
