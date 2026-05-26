@@ -43,6 +43,8 @@
 #'   are retained, along with the first row per subject (baseline).
 #' @param offset Logical; if `TRUE` (default), add 1-day offset when 
 #'   computing analysis day variables (`ady`, `osdy`, etc.).
+#' @param nthreads Integer number of threads to use for `data.table' (0 means 
+#'   the default data.table behavior).
 #'
 #' @details
 #' The function performs the following steps:
@@ -81,7 +83,7 @@
 #'
 #' @examples
 #' 
-#' surv_data <- preptdc(adsl, adtdc, nodup = TRUE)
+#' surv_data <- preptdc(adsl, adtdc, nodup = TRUE, nthreads = 1)
 #' head(surv_data)
 #' 
 #' @export
@@ -89,11 +91,18 @@ preptdc <- function(adsl, adtdc, id = "SUBJID", randdt = "RANDDT",
                     trtsdt = "TRTSDT", pddt = "PDDT", xodt = "XODT", 
                     osdt = "OSDT", died = "DIED", dcutdt = "DCUTDT", 
                     paramcd = "PARAMCD", adt = "ADT", aval = "AVAL", 
-                    nodup = TRUE, offset = TRUE) {
+                    nodup = TRUE, offset = TRUE, nthreads = 0) {
   
   # convert input data into data.table
   data.table::setDT(adsl)
   data.table::setDT(adtdc)
+  
+  if (nthreads > 0) {
+    n_physical_cores <- parallel::detectCores(logical = FALSE)
+    data.table::setDTthreads(min(as.integer(nthreads), n_physical_cores))
+    old_nthreads <- data.table::getDTthreads()
+    on.exit(data.table::setDTthreads(old_nthreads), add = TRUE)
+  }
   
   # verify whether the input data have required columns
   cols <- colnames(adsl)
