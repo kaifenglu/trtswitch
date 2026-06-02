@@ -1,3 +1,18 @@
+# trtswitch 0.2.7
+* fixed a typo in tsegest.R
+* fixed a typo in the settings output of phregr
+* fixed a bug in plot.rpsftm, plot.ipe, plot.tsesimp, plot.tsegest, plot.ipcw, and plot.msm for KM plot number at risk tables
+* added a check for an empty input vector in the nscpp call in ipcw, msm, and tsegest
+* fixed a bug in bootstrap for tsegest by adding bootstrapped values for psi
+* added the missing append of oidc_local in bootstrap for tsesimp
+* fixed a typo in bootstrap mean_sd for psi for the experimental group in tsesimp
+* included only subjects with positive observable follow-up in tssim
+* returned an empty matrix if ncol == 0 in splines.cpp
+* checked signed K before converting to unsigned K in splines.cpp
+* handled an edge case when all 'x' values lie outsided boundary knots in splines.cpp
+* set the anyWarning flag to true if either lrEq0 or lrEq1 holds in splines.cpp
+* handled an edge case when a stratum does not contain both treatment groups in kmdiff
+
 # trtwitch 0.2.6
 * add pkgdown workflow for building and deploying the package website to GitHub Pages
 * replaced data1[condition, tstop] <- data1[condition, swtrt_time] with data1[condition, "tstop"] <- data1[condition, swtrt_time] in ipcw.R and msm.R because "tstop"" is the variable name in data_switch
