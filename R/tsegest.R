@@ -349,6 +349,10 @@ tsegest <- function(data, id = "id", stratum = "",
     on.exit(RcppParallel::setThreadOptions(numThreads = old_nthreads), add = TRUE)
   }
   
+  if (length(ns_df) != 1 || is.na(ns_df) || ns_df < 0 || ns_df != floor(ns_df)) {
+    stop("'ns_df' must be a nonnegative integer.")
+  }
+  
   # select complete cases for the relevant variables
   elements = unique(c(id, stratum, tstart, tstop, event, treat, 
                       censor_time, pd, swtrt))
@@ -406,7 +410,7 @@ tsegest <- function(data, id = "id", stratum = "",
       if (length(add_vars) > 0) {
         out$data_outcome <- merge_append(
           A = out$data_outcome, B = df, 
-          by_vars = id, new_vars = avars, 
+          by_vars = id, new_vars = add_vars, 
           overwrite = FALSE, first_match = FALSE)
       }
       
