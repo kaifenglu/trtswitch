@@ -141,7 +141,9 @@ FlatMatrix splineDesigncpp(
   
   size_t p = ord - 1;              // degree
   size_t ncol = nk - ord;          // number of basis functions
-  if (ncol <= 0) ncol = 0;
+  if (ncol <= 0) {
+    return FlatMatrix(nx, 0);
+  }
   
   // Check x within allowable outer range (same as before)
   double xmin_allowed = knots[p];
@@ -249,16 +251,24 @@ ListCpp bscpp(
                    (knots.size() == 1 && std::isnan(knots[0])));
   size_t K = 0; // number of inner knots
   if (mk_knots) {
-    K = df - ord + (1 - (intercept ? 1 : 0));
-    if (K < 0) {
+    int K_signed = static_cast<int>(df) - static_cast<int>(ord) +
+        (1 - (intercept ? 1 : 0));
+    if (K_signed < 0) {
       K = 0;
       thread_utils::push_thread_warning("'df' is too small");
+    } else {
+      K = static_cast<size_t>(K_signed);
     }
     std::vector<double> knots1(K);
     std::vector<double> z_no_outside;
     for (double zi : z) {
       if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
         z_no_outside.push_back(zi);
+    }
+    if (z_no_outside.empty()) {
+      thread_utils::push_thread_warning(
+        "all 'x' values lie outside boundary knots; using all data for quantile placement");
+      z_no_outside = z;
     }
     for (size_t k = 0; k < K; ++k) {
       knots1[k] = quantilecpp(z_no_outside, (k + 1.0)/(K + 1.0));
@@ -512,16 +522,23 @@ ListCpp nscpp(
                    (knots.size() == 1 && std::isnan(knots[0])));
   size_t K = 0; // number of interior knots
   if (mk_knots) {
-    K = df - 1 - (intercept ? 1 : 0);
-    if (K < 0) {
+    int K_signed = static_cast<int>(df) - 1 - (intercept ? 1 : 0);
+    if (K_signed < 0) {
       K = 0;
       thread_utils::push_thread_warning("'df' is too small");
+    } else {
+      K = static_cast<size_t>(K_signed);
     }
     std::vector<double> knots1(K);
     std::vector<double> z_no_outside;
     for (double zi : z) {
       if (!(zi < boundary_knots[0]) && !(zi > boundary_knots[1])) 
         z_no_outside.push_back(zi);
+    }
+    if (z_no_outside.empty()) {
+      thread_utils::push_thread_warning(
+        "all 'x' values lie outside boundary knots; using all data for quantile placement");
+      z_no_outside = z;
     }
     for (size_t k = 0; k < K; ++k) {
       knots1[k] = quantilecpp(z_no_outside, (k + 1.0)/(K + 1.0));
@@ -557,6 +574,7 @@ ListCpp nscpp(
         double shift = ( *std::min_element(knots2.begin(), knots2.end()) - piv ) / 8.0;
         for (size_t i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] + shift;
       }
+      anyWarning = true;
     }
     if (lrEq1) {
       double piv = boundary_knots[1];
@@ -575,6 +593,7 @@ ListCpp nscpp(
         double shift = ( piv - *std::max_element(knots2.begin(), knots2.end()) ) / 8.0;
         for (size_t i = 0; i < K; ++i) if (sub[i]) knots[i] = knots[i] - shift;
       }
+      anyWarning = true;
     }
     if (anyWarning) 
       thread_utils::push_thread_warning(
