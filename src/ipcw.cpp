@@ -22,7 +22,7 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using std::size_t;
@@ -434,10 +434,6 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
-  }
-  
-  if (ns_df < 0) {
-    throw std::invalid_argument("ns_df must be a nonnegative integer");
   }
   
   for (size_t j = 0; j < ns_df; ++j) {
@@ -902,13 +898,13 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                    // initialize weights
                    std::vector<double> w2(n2, 1.0), sw2(n2, 1.0);
                    
+                   size_t mid = 0;
+                   for (; mid < n2; ++mid) {
+                     if (treat2[mid] == 1) break;
+                   }
+                   
                    // fit the switching models by treatment group
                    for (size_t h = 0; h < K; ++h) {
-                     size_t mid = 0;
-                     for (; mid < n2; ++mid) {
-                       if (treat2[mid] == 1) break;
-                     }
-                     
                      size_t start, end;
                      if (h == 0) {
                        start = 0; end = mid;
@@ -1117,6 +1113,11 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                  } else { // logistic regression switching model
                    std::vector<double> w1(n1, 1.0), sw1(n1, 1.0);
                    
+                   size_t mid = 0;
+                   for (; mid < n1; ++mid) {
+                     if (treat1[mid] == 1) break;
+                   }
+                   
                    // fit the switching models by treatment group
                    for (size_t h = 0; h < K; ++h) {
                      std::vector<size_t> l;
@@ -1149,6 +1150,9 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                        x.reserve(n2);
                        for (size_t i = 0; i < n2; ++i) {
                          if (cross2[i] == 1) x.push_back(tstop2[i]);
+                       }
+                       if (x.empty()) {
+                         x = tstop2;
                        }
                        ListCpp out = nscpp(x, ns_df);
                        auto knots = out.get<std::vector<double>>("knots");
@@ -1239,11 +1243,6 @@ Rcpp::List ipcwcpp(const Rcpp::DataFrame df,
                      }
                      
                      // obtain cumulative products within a subject
-                     size_t mid = 0;
-                     for (; mid < n1; ++mid) {
-                       if (treat1[mid] == 1) break;
-                     }
-                     
                      size_t start, end;
                      if (h == 0) {
                        start = 0; end = mid;

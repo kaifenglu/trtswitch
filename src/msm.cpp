@@ -22,7 +22,7 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using std::size_t;
@@ -438,10 +438,6 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
     }
   }
   
-  if (ns_df < 0) {
-    throw std::invalid_argument("ns_df must be a nonnegative integer");
-  }
-  
   for (size_t j = 0; j < ns_df; ++j) {
     covariates_lgs_den[q + p2 + j] = "ns" + std::to_string(j+1);
   }
@@ -808,13 +804,18 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                  // initialize weights
                  std::vector<double> wb(n, 1.0), swb(n, 1.0);
                  
+                 size_t mid = 0;
+                 for (; mid < n1; ++mid) {
+                   if (treat1[mid] == 1) break;
+                 }
+                 
+                 size_t midb = 0;
+                 for (; midb < n; ++midb) {
+                   if (treatb[midb] == 1) break;
+                 }
+                 
                  // fit the switching models by treatment group
                  for (size_t h = 0; h < K; ++h) {
-                   size_t mid = 0;
-                   for (; mid < n1; ++mid) {
-                     if (treat1[mid] == 1) break;
-                   }
-                   
                    size_t start, end;
                    if (h == 0) {
                      start = 0; end = mid;
@@ -837,6 +838,9 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                      x.reserve(n2);
                      for (size_t i = 0; i < n2; ++i) {
                        if (cross2[i] == 1) x.push_back(tstop2[i]);
+                     }
+                     if (x.empty()) {
+                       x = tstop2;
                      }
                      ListCpp out = nscpp(x, ns_df);
                      auto knots = out.get<std::vector<double>>("knots");
@@ -936,15 +940,10 @@ Rcpp::List msmcpp(const Rcpp::DataFrame df,
                    idx2.push_back(n2);
                    
                    // extract data for the treatment arm
-                   mid = 0;
-                   for (; mid < n; ++mid) {
-                     if (treatb[mid] == 1) break;
-                   }
-                   
                    if (h == 0) {
-                     start = 0; end = mid;
+                     start = 0; end = midb;
                    } else {
-                     start = mid; end = n;
+                     start = midb; end = n;
                    }
                    
                    std::vector<int> id3 = subset(idb, start, end);
