@@ -20,7 +20,6 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 using std::size_t;
@@ -353,8 +352,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
   } else {
     throw std::invalid_argument("pd variable must be bool, integer or numeric");
   }
-  for (double val : eventn) if (val != 0 && val != 1)
-    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  for (double val : pdn) if (val != 0 && val != 1)
+    throw std::invalid_argument("pd must be 1 or 0 for each observation");
   
   // --- pd_time variable ---
   if (pd_time.empty() || !data.containElementNamed(pd_time))
@@ -618,10 +617,6 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
     } else {
       throw std::invalid_argument("covariates must be bool, integer or numeric");
     }
-  }
-  
-  if (ns_df < 0) {
-    throw std::invalid_argument("ns_df must be a nonnegative integer");
   }
   
   for (size_t j = 0; j < ns_df; ++j) {
@@ -1009,6 +1004,9 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                      x.reserve(n2);
                      for (size_t i = 0; i < n2; ++i) {
                        if (cross2[i] == 1) x.push_back(tstop2[i]);
+                     }
+                     if (x.empty()) {
+                       x = tstop2;
                      }
                      ListCpp out = nscpp(x, ns_df);
                      auto knots = out.get<std::vector<double>>("knots");
@@ -1646,6 +1644,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
         // result references (each iteration writes unique index into these)
         std::vector<unsigned char>& fails_out;
         std::vector<double>& hrhats_out;
+        std::vector<double>& psihats_out;
+        std::vector<double>& psi1hats_out;
         
         // Per-worker storage for failed-boot data (to be merged in join)
         std::vector<int> boot_indexc_local;
@@ -1694,14 +1694,17 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                         const std::vector<uint64_t>& seeds_,
                         decltype(f) f_,
                         std::vector<unsigned char>& fails_out_,
-                        std::vector<double>& hrhats_out_) :
+                        std::vector<double>& hrhats_out_,
+                        std::vector<double>& psihats_out_,
+                        std::vector<double>& psi1hats_out_) :
           n(n_), nids(nids_), ntss(ntss_), idx(idx_), tsx(tsx_), idn(idn_),
           stratumn(stratumn_), tstartn(tstartn_), tstopn(tstopn_),
           eventn(eventn_), treatn(treatn_), osn(osn_), os_timen(os_timen_),
           censor_timen(censor_timen_), pdn(pdn_), pd_timen(pd_timen_),
           swtrtn(swtrtn_), swtrt_timen(swtrt_timen_), zn(zn_),
           z_lgsn(z_lgsn_), seeds(seeds_), f(std::move(f_)),
-          fails_out(fails_out_), hrhats_out(hrhats_out_) {
+          fails_out(fails_out_), hrhats_out(hrhats_out_),
+          psihats_out(psihats_out_), psi1hats_out(psi1hats_out_) {
           
           // heuristic reservation to reduce reallocations:
           size_t ncols_lgs = z_lgsn.ncol;
@@ -1822,6 +1825,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
             // write results
             fails_out[k] = out.get<bool>("fail");
             hrhats_out[k] = out.get<double>("hrhat");
+            psihats_out[k] = out.get<double>("psihat");
+            psi1hats_out[k] = out.get<double>("psi1hat");
             
             // existing code that collects failure data when fails_out[k] is true...
             if (fails_out[k]) {
@@ -1892,7 +1897,7 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
                                 const FlatMatrix&,
                                 const FlatMatrix&, 
                                 const int)>(f),
-                                fails, hrhats
+                                fails, hrhats, psihats, psi1hats
       );
       
       // Run the parallel loop over bootstrap iterations
@@ -1968,6 +1973,8 @@ Rcpp::List tsegestcpp(const Rcpp::DataFrame& df,
       // retrieve the bootstrap results
       fails = worker.fails_out;
       hrhats = worker.hrhats_out;
+      psihats = worker.psihats_out;
+      psi1hats = worker.psi1hats_out;
       
       // obtain bootstrap confidence interval for HR
       double loghr = std::log(hrhat);
