@@ -374,6 +374,11 @@ Rcpp::List tssim(const bool tdxo = false,
       // generate accrual time
       enrollt = qtpwexpcpp1(unif(rng), accTime, accRate, enrollt, 1, 0);
       double arrivalTime = std::ceil(enrollt);
+
+      // include only subjects with positive observable follow-up
+      double fu = std::max(plannedTime - arrivalTime, 0.0);
+      if (fixedFollowup) fu = std::min(followupTime, fu);
+      if (fu <= 0.0) continue;
       
       // stratified block randomization
       // stratified block randomization
@@ -392,8 +397,6 @@ Rcpp::List tssim(const bool tdxo = false,
       if (T == 0.0) T = 1.0;
       
       // follow-up and cycles as before...
-      double fu = std::max(plannedTime - arrivalTime, 0.0);
-      if (fixedFollowup) fu = std::min(followupTime, fu);
       int followup = static_cast<int>(std::floor(fu / days));
       
       int tpoint = followup; 
