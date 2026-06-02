@@ -18,7 +18,6 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
 using std::size_t;
@@ -237,8 +236,8 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
   } else {
     throw std::invalid_argument("pd variable must be bool, integer or numeric");
   }
-  for (double val : eventn) if (val != 0 && val != 1)
-    throw std::invalid_argument("event must be 1 or 0 for each observation");
+  for (double val : pdn) if (val != 0 && val != 1)
+    throw std::invalid_argument("pd must be 1 or 0 for each observation");
   
   // --- pd_time variable ---
   if (pd_time.empty() || !data.containElementNamed(pd_time))
@@ -1236,6 +1235,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
         void join(const BootstrapWorker& other) {
           // append other's local vectors into this worker's storage
           append(boot_indexc_local, other.boot_indexc_local);
+          append(oidc_local, other.oidc_local);
           append(idc_local, other.idc_local);
           append(stratumc_local, other.stratumc_local);
           append(treatc_local, other.treatc_local);
@@ -1380,7 +1380,7 @@ Rcpp::List tsesimpcpp(const Rcpp::DataFrame& df,
       if (!swtrt_control_only) {
         std::vector<double> psi1hats1 = subset(psi1hats, ok);
         double meanpsi1, sdpsi1;
-        mean_sd(psihats1.data(), n_ok, meanpsi1, sdpsi1);
+        mean_sd(psi1hats1.data(), n_ok, meanpsi1, sdpsi1);
         psi1lower = psi1hat - tcrit * sdpsi1;
         psi1upper = psi1hat + tcrit * sdpsi1;
       }
