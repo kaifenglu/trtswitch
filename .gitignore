@@ -9,6 +9,7 @@ src/*.dll
 inst/doc
 notes/
 docs/
+.vscode/
 trtswitch.Rproj
 .positai
 docs
