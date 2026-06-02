@@ -13,7 +13,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">trtswitch</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.6</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.7</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,22 @@
       <small>Source: <a href="https://github.com/kaifenglu/trtswitch/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.7" id="trtswitch-027">trtswitch 0.2.7<a class="anchor" aria-label="anchor" href="#trtswitch-027"></a></h2>
+<ul><li>fixed a typo in tsegest.R</li>
+<li>fixed a typo in the settings output of phregr</li>
+<li>fixed a bug in plot.rpsftm, plot.ipe, plot.tsesimp, plot.tsegest, plot.ipcw, and plot.msm for KM plot number at risk tables</li>
+<li>added a check for an empty input vector in the nscpp call in ipcw, msm, and tsegest</li>
+<li>fixed a bug in bootstrap for tsegest by adding bootstrapped values for psi</li>
+<li>added the missing append of oidc_local in bootstrap for tsesimp</li>
+<li>fixed a typo in bootstrap mean_sd for psi for the experimental group in tsesimp</li>
+<li>included only subjects with positive observable follow-up in tssim</li>
+<li>returned an empty matrix if ncol == 0 in splines.cpp</li>
+<li>checked signed K before converting to unsigned K in splines.cpp</li>
+<li>handled an edge case when all ‘x’ values lie outsided boundary knots in splines.cpp</li>
+<li>set the anyWarning flag to true if either lrEq0 or lrEq1 holds in splines.cpp</li>
+<li>handled an edge case when a stratum does not contain both treatment groups in kmdiff</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.5" id="trtswitch-025">trtswitch 0.2.5<a class="anchor" aria-label="anchor" href="#trtswitch-025"></a></h2><p class="text-muted">CRAN release: 2026-03-13</p>
 <ul><li>replace std::mt19937 with boost::random::mt19937 for random number generation in the bootstrap procedures</li>
