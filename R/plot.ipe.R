@@ -133,8 +133,9 @@ plot.ipe <- function(x, time_unit = "day",
         t <- df$month[df$treated == h]
         n <- df$nrisk[df$treated == h]
         
-        idx <- findInterval(xbreaks, t) + 1
-        atrisk <- ifelse(idx <= length(n), n[idx], 0)
+        idx <- pmax(findInterval(xbreaks, t), 1L)
+        atrisk <- n[idx]
+        atrisk[xbreaks > max(t)] <- 0
         
         df1 <- data.frame(time = xbreaks, atrisk = atrisk)
         df1[[treat_var]] <- df[[treat_var]][df$treated == h][1]
