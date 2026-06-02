@@ -264,6 +264,10 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
     RcppParallel::setThreadOptions(min(as.integer(nthreads), n_physical_cores))
     on.exit(RcppParallel::setThreadOptions(numThreads = old_nthreads), add = TRUE)
   }
+
+  if (length(ns_df) != 1 || is.na(ns_df) || ns_df < 0 || ns_df != floor(ns_df)) {
+    stop("'ns_df' must be a nonnegative integer.")
+  }
   
   # select complete cases for the relevant variables
   elements = unique(c(id, stratum, tstart, tstop, event, treat, swtrt))
@@ -283,7 +287,6 @@ msm <- function(data, id = "id", stratum = "", tstart = "tstart",
   
   res2 <- process_cov(numerator, df)
   df <- res2$df
-  vnames2    <- res2$vnames
   varnames2  <- res2$varnames
   
   res3 <- process_cov(denominator, df)
