@@ -281,7 +281,7 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<std::size_t>& o
   std::size_t nv = v.size();
   for (std::size_t i = 0; i < n; ++i) {
     std::size_t index = order[i];
-    if (index < 0 || index >= nv) {
+    if (index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
     }
@@ -298,7 +298,7 @@ void subset_in_place(std::vector<T>& v, const std::vector<std::size_t>& order) {
   std::size_t nv = v.size();
   for (std::size_t i = 0; i < n; ++i) {
     std::size_t index = order[i];
-    if (index < 0 || index >= nv) {
+    if (index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
     }
@@ -315,7 +315,7 @@ std::vector<T> subset(const std::vector<T>& v, const std::vector<int>& order) {
   std::size_t nv = v.size();
   for (std::size_t i = 0; i < n; ++i) {
     std::size_t index = order[i];
-    if (index < 0 || index >= nv) {
+    if (index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
     }
@@ -332,7 +332,7 @@ void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
   std::size_t nv = v.size();
   for (std::size_t i = 0; i < n; ++i) {
     std::size_t index = order[i];
-    if (index < 0 || index >= nv) {
+    if (index >= nv) {
       throw std::out_of_range(
           "Index in 'order' is out of bounds for the source vector.");
     }
@@ -346,8 +346,6 @@ void subset_in_place(std::vector<T>& v, const std::vector<int>& order) {
 // Preconditions required by you: 0 <= start < end (and end <= v.size()).
 template <typename T>
 std::vector<T> subset(const std::vector<T>& v, std::size_t start, std::size_t end) {
-  if (start < 0) throw std::out_of_range("subset: start < 0");
-  if (end < 0) throw std::out_of_range("subset: end < 0");
   const std::size_t vsz = v.size();
   if (static_cast<std::size_t>(end) > vsz)
     throw std::out_of_range("subset: end > v.size()");
@@ -377,8 +375,6 @@ std::vector<T> subset(const std::vector<T>& v, std::size_t start, std::size_t en
 // Preconditions required by you: 0 <= start < end (and end <= v.size()).
 template <typename T>
 void subset_in_place(std::vector<T>& v, std::size_t start, std::size_t end) {
-  if (start < 0) throw std::out_of_range("subset_in_place: start < 0");
-  if (end < 0) throw std::out_of_range("subset_in_place: end < 0");
   const std::size_t vsz = v.size();
   if (static_cast<std::size_t>(end) > vsz)
     throw std::out_of_range("subset_in_place: end > v.size()");
