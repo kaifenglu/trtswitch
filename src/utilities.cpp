@@ -851,10 +851,10 @@ std::vector<double> house(const std::vector<double>& x) {
 // P = I - 2*v*t(v)/t(v)*v.
 void row_house(FlatMatrix& A, const size_t i1, const size_t i2, const size_t j1,
                const size_t j2, const std::vector<double>& v) {
-  if (i1 < 0 || i1 > i2 || i2 >= A.nrow) {
+  if (i1 > i2 || i2 >= A.nrow) {
     throw std::invalid_argument("Invalid row indices i1 and i2");
   }
-  if (j1 < 0 || j1 > j2 || j2 >= A.ncol) {
+  if (j1 > j2 || j2 >= A.ncol) {
     throw std::invalid_argument("Invalid column indices j1 and j2");
   }
   
