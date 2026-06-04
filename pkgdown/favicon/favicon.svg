@@ -1,51 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="432.00pt" height="432.00pt" viewBox="0 0 432.00 432.00"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><g class="svglite">
-<defs>
-  <style type="text/css">
-    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
-      fill: none;
-      stroke: #000000;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-miterlimit: 10.00;
-    }
-    .svglite text {
-      white-space: pre;
-    }
-    .svglite g.glyphgroup path {
-      fill: inherit;
-      stroke: none;
-    }
-  </style>
-</defs>
-<rect width="100%" height="100%" style="stroke: none; fill: #FFFFFF;"></rect>
-<defs>
-  <clipPath id="cpMC4wMHw0MzIuMDB8MC4wMHw0MzIuMDA=">
-    <rect x="0.00" y="0.00" width="432.00" height="432.00"></rect>
-  </clipPath>
-</defs>
-<g clip-path="url(#cpMC4wMHw0MzIuMDB8MC4wMHw0MzIuMDA=)">
-<rect x="0.00" y="0.00" width="432.00" height="432.00" style="stroke-width: 0.75; stroke: none; fill: #FFFFFF;"></rect>
-<polygon points="216.00,43.20 73.83,125.28 73.83,289.44 216.00,371.52 358.17,289.44 358.17,125.28 " style="stroke-width: 1.50; stroke: #0B2D36; fill: #0F3E49;"></polygon>
-<polygon points="216.00,51.84 81.32,129.60 81.32,285.12 216.00,362.88 350.68,285.12 350.68,129.60 " style="stroke-width: 0.75; fill: #FFFFFF;"></polygon>
-<text x="216.00" y="162.60" text-anchor="middle" style="font-size: 56.00px; font-weight: bold; font-family: &quot;Arial&quot;;" textLength="233.38px" lengthAdjust="spacingAndGlyphs">trtswitch</text>
-<line x1="138.24" y1="241.92" x2="155.52" y2="241.92" style="stroke-width: 4.50; stroke: #C7C9CD;"></line>
-<line x1="155.52" y1="241.92" x2="155.52" y2="198.72" style="stroke-width: 6.75; stroke: #6E94B4;"></line>
-<line x1="155.52" y1="198.72" x2="324.00" y2="198.72" style="stroke-width: 6.75; stroke: #6E94B4;"></line>
-<line x1="304.56" y1="190.94" x2="324.00" y2="198.72" style="stroke-width: 6.00; stroke: #6E94B4;"></line>
-<line x1="304.56" y1="206.50" x2="324.00" y2="198.72" style="stroke-width: 6.00; stroke: #6E94B4;"></line>
-<line x1="155.52" y1="241.92" x2="155.52" y2="285.12" style="stroke-width: 6.75; stroke: #D8842F;"></line>
-<line x1="155.52" y1="285.12" x2="324.00" y2="285.12" style="stroke-width: 6.75; stroke: #D8842F;"></line>
-<line x1="304.56" y1="277.34" x2="324.00" y2="285.12" style="stroke-width: 6.00; stroke: #D8842F;"></line>
-<line x1="304.56" y1="292.90" x2="324.00" y2="285.12" style="stroke-width: 6.00; stroke: #D8842F;"></line>
-<line x1="244.08" y1="202.18" x2="262.98" y2="243.65" style="stroke-width: 4.50; stroke: #6E94B4; stroke-dasharray: 12.00,12.00;"></line>
-<line x1="262.98" y1="243.65" x2="281.88" y2="285.12" style="stroke-width: 4.50; stroke: #D8842F; stroke-dasharray: 12.00,12.00;"></line>
-<line x1="280.86" y1="270.39" x2="281.88" y2="285.12" style="stroke-width: 4.50; stroke: #D8842F;"></line>
-<line x1="271.43" y1="274.69" x2="281.88" y2="285.12" style="stroke-width: 4.50; stroke: #D8842F;"></line>
-<circle cx="120.96" cy="241.92" r="23.76" style="stroke-width: 1.50; stroke: #A7AFB8; fill: #F5F5F5;"></circle>
-<text x="120.96" y="254.45" text-anchor="middle" style="font-size: 35.00px; font-weight: bold; font-family: &quot;Arial&quot;;" textLength="25.28px" lengthAdjust="spacingAndGlyphs">R</text>
-<circle cx="224.64" cy="198.72" r="23.76" style="stroke-width: 1.50; stroke: #A7AFB8; fill: #F5F5F5;"></circle>
-<text x="224.64" y="211.25" text-anchor="middle" style="font-size: 35.00px; font-weight: bold; font-family: &quot;Arial&quot;;" textLength="25.28px" lengthAdjust="spacingAndGlyphs">C</text>
-<circle cx="224.64" cy="285.12" r="23.76" style="stroke-width: 1.50; stroke: #A7AFB8; fill: #F5F5F5;"></circle>
-<text x="224.64" y="297.65" text-anchor="middle" style="font-size: 35.00px; font-weight: bold; font-family: &quot;Arial&quot;;" textLength="23.34px" lengthAdjust="spacingAndGlyphs">E</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="432pt" height="432pt" viewBox="0 0 432 432"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><rect width="100%" height="100%" fill="#FFFFFF"></rect><g transform="translate(-12,0)" stroke-linecap="round" stroke-linejoin="round">
+
+<!-- Hexagon -->
+<polygon points="216,43.2 73.83,125.28 73.83,289.44 216,371.52 358.17,289.44 358.17,125.28" stroke="#0B2D36" stroke-width="1.5" fill="#0F3E49"></polygon>
+<polygon points="216,51.84 81.32,129.60 81.32,285.12 216,362.88 350.68,285.12 350.68,129.60" fill="#FFFFFF"></polygon>
+
+<!-- Title -->
+<text x="216" y="162.6" text-anchor="middle" style="font-size:56px;font-weight:bold;font-family:Arial">
+  <tspan fill="#1f77b4">trt</tspan><tspan fill="#e6550d">switch</tspan>
+</text>
+
+<!-- Plot shifted left -->
+<g transform="translate(-18,0)">
+
+<!-- TOP branch (orange) -->
+<line x1="155.52" y1="241.92" x2="155.52" y2="198.72" stroke="#D8842F" stroke-width="6.75"></line>
+<line x1="155.52" y1="198.72" x2="324" y2="198.72" stroke="#D8842F" stroke-width="6.75"></line>
+<line x1="304.56" y1="190.94" x2="324" y2="198.72" stroke="#D8842F" stroke-width="6"></line>
+<line x1="304.56" y1="206.50" x2="324" y2="198.72" stroke="#D8842F" stroke-width="6"></line>
+
+<!-- BOTTOM branch (blue) -->
+<line x1="155.52" y1="241.92" x2="155.52" y2="285.12" stroke="#6E94B4" stroke-width="6.75"></line>
+<line x1="155.52" y1="285.12" x2="324" y2="285.12" stroke="#6E94B4" stroke-width="6.75"></line>
+<line x1="304.56" y1="277.34" x2="324" y2="285.12" stroke="#6E94B4" stroke-width="6"></line>
+<line x1="304.56" y1="292.90" x2="324" y2="285.12" stroke="#6E94B4" stroke-width="6"></line>
+
+<!-- Split dashed arrow (/ slope) -->
+
+<!-- Blue segment (first half) -->
+<line x1="240" y1="285.12" x2="262" y2="245" stroke="#6E94B4" stroke-width="4.5" stroke-dasharray="12,12"></line>
+
+<!-- Orange segment (second half) -->
+<line x1="262" y1="245" x2="285" y2="205" stroke="#D8842F" stroke-width="4.5" stroke-dasharray="12,12"></line>
+
+<!-- Sharp arrowhead -->
+<g stroke="#D8842F" stroke-width="4.5" stroke-linejoin="miter">
+  <line x1="285" y1="205" x2="275" y2="212"></line>
+  <line x1="285" y1="205" x2="288" y2="218"></line>
+</g>
+
 </g>
 </g></svg>
