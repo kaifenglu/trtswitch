@@ -58,15 +58,15 @@
 </g>
 <g clip-path="url(#cpMjQuMzN8OTcuMjR8NjMuNTB8MTA5Ljg5)">
 <rect x="24.33" y="63.50" width="72.91" height="46.40" style="stroke-width: 0.00; stroke: none;"></rect>
-<line x1="27.64" y1="86.70" x2="27.64" y2="67.36" style="stroke-width: 2.13; stroke: #FF0000;"></line>
-<line x1="27.64" y1="67.36" x2="93.92" y2="67.36" style="stroke-width: 2.13; stroke: #FF0000; stroke-linecap: butt;"></line>
-<polyline points="89.01,70.20 93.92,67.36 89.01,64.53 " style="stroke-width: 2.13; stroke: #FF0000; stroke-linecap: butt;"></polyline>
-<line x1="67.41" y1="86.70" x2="80.66" y2="67.36" style="stroke-width: 2.13; stroke: #FF0000; stroke-dasharray: 11.38,11.38; stroke-linecap: butt;"></line>
-<polyline points="80.23,73.02 80.66,67.36 75.55,69.81 " style="stroke-width: 2.13; stroke: #FF0000; stroke-dasharray: 11.38,11.38; stroke-linecap: butt;"></polyline>
-<line x1="27.64" y1="86.70" x2="27.64" y2="106.03" style="stroke-width: 2.13; stroke: #0000FF;"></line>
-<line x1="27.64" y1="106.03" x2="93.92" y2="106.03" style="stroke-width: 2.13; stroke: #0000FF; stroke-linecap: butt;"></line>
-<polyline points="89.01,108.86 93.92,106.03 89.01,103.19 " style="stroke-width: 2.13; stroke: #0000FF; stroke-linecap: butt;"></polyline>
-<line x1="54.15" y1="106.03" x2="67.41" y2="86.70" style="stroke-width: 2.13; stroke: #0000FF; stroke-dasharray: 11.38,11.38;"></line>
+<line x1="27.64" y1="86.70" x2="27.64" y2="68.85" style="stroke-width: 2.67; stroke: #F6AD55;"></line>
+<line x1="27.64" y1="68.85" x2="93.92" y2="68.85" style="stroke-width: 2.67; stroke: #F6AD55; stroke-linecap: butt;"></line>
+<polyline points="86.56,73.10 93.92,68.85 86.56,64.60 " style="stroke-width: 2.67; stroke: #F6AD55; stroke-linecap: butt;"></polyline>
+<line x1="67.41" y1="86.70" x2="80.66" y2="68.85" style="stroke-width: 2.67; stroke: #F6AD55; stroke-dasharray: 14.23,14.23; stroke-linecap: butt;"></line>
+<polyline points="79.69,77.30 80.66,68.85 72.86,72.23 " style="stroke-width: 2.67; stroke: #F6AD55; stroke-dasharray: 14.23,14.23; stroke-linecap: butt;"></polyline>
+<line x1="27.64" y1="86.70" x2="27.64" y2="104.54" style="stroke-width: 2.67; stroke: #7FA0B8;"></line>
+<line x1="27.64" y1="104.54" x2="93.92" y2="104.54" style="stroke-width: 2.67; stroke: #7FA0B8; stroke-linecap: butt;"></line>
+<polyline points="86.56,108.79 93.92,104.54 86.56,100.29 " style="stroke-width: 2.67; stroke: #7FA0B8; stroke-linecap: butt;"></polyline>
+<line x1="54.15" y1="104.54" x2="67.41" y2="86.70" style="stroke-width: 2.67; stroke: #7FA0B8; stroke-dasharray: 14.23,14.23;"></line>
 </g>
 <g clip-path="url(#cpMC4wMHwxMjQuNDR8MC4wMHwxNDQuMDA=)">
 </g>
