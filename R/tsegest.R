@@ -405,11 +405,14 @@ tsegest <- function(data, id = "id", stratum = "",
     df[, "tstart"] = df[, tstart]
     df[, "tstop"] = df[, tstop]
     
+    df <- df[order(df[[id]]), ]          # Sort by id
+    dfu <- df[!duplicated(df[[id]]), ]   # Keep the first row for each id
+    
     if (length(vnames) > 0) {
       add_vars <- setdiff(vnames, varnames)
       if (length(add_vars) > 0) {
         out$data_outcome <- merge_append(
-          A = out$data_outcome, B = df, 
+          A = out$data_outcome, B = dfu, 
           by_vars = id, new_vars = add_vars, 
           overwrite = FALSE, first_match = FALSE)
       }
