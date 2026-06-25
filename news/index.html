@@ -41,7 +41,8 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.2.7" id="trtswitch-027">trtswitch 0.2.7<a class="anchor" aria-label="anchor" href="#trtswitch-027"></a></h2>
-<ul><li>fixed a typo in tsegest.R</li>
+<ul><li>clarified documentation for multiple-root handling of psi estimation in rpsftm, ipe, and tsegest: grid search selects the root closest to zero for point estimates and uses minimum/maximum roots for conservative confidence bounds, while root-finding (Brent or bisection) returns one bracketed root without guaranteeing selection of the root closest to zero</li>
+<li>fixed a typo in tsegest.R</li>
 <li>fixed a typo in the settings output of phregr</li>
 <li>fixed a bug in plot.rpsftm, plot.ipe, plot.tsesimp, plot.tsegest, plot.ipcw, and plot.msm for KM plot number at risk tables</li>
 <li>added a check for an empty input vector in the nscpp call in ipcw, msm, and tsegest</li>
