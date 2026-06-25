@@ -192,6 +192,15 @@ the ITT log-rank test p-value or bootstrap. When bootstrapping,
 the interval and p-value are derived from a t-distribution
 with \code{n_boot - 1} degrees of freedom.
 }
+
+The causal parameter \eqn{\psi} is estimated by solving the fixed-point
+equation \eqn{\psi_{new}(\psi) = \psi}, where \eqn{\psi_{new}} is the
+treatment coefficient from the AFT model fitted at a given \eqn{\psi}.
+Brent's method (or bisection) is applied to the bracketed interval
+\eqn{[\psi_{lo}, \psi_{hi}]}, where \eqn{\psi_{new}(\psi) - \psi} is
+positive at \eqn{\psi_{lo}} and negative at \eqn{\psi_{hi}}. When
+multiple fixed points exist in the bracket, the algorithm converges to
+one of them without any selection preference for the root closest to zero.
 }
 \examples{
 
