@@ -1,4 +1,5 @@
 # trtswitch 0.2.7
+* clarified documentation for multiple-root handling of psi estimation in rpsftm, ipe, and tsegest: grid search selects the root closest to zero for point estimates and uses minimum/maximum roots for conservative confidence bounds, while root-finding (Brent or bisection) returns one bracketed root without guaranteeing selection of the root closest to zero
 * fixed a typo in tsegest.R
 * fixed a typo in the settings output of phregr
 * fixed a bug in plot.rpsftm, plot.ipe, plot.tsesimp, plot.tsegest, plot.ipcw, and plot.msm for KM plot number at risk tables

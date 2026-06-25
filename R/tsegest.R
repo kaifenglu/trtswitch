@@ -146,11 +146,26 @@
 #' progression, the patient is considered to have progressed at the time of 
 #' treatment switching. 
 #' 
-#' If grid search is used to estimate \eqn{\psi}, the estimated \eqn{\psi} 
-#' is the one with the smallest absolute value among those at which 
-#' the Z-statistic is zero based on linear interpolation. 
-#' If root finding is used, the estimated \eqn{\psi} is
-#' the solution to the equation where the Z-statistic is zero.
+#' If grid search is used to estimate \eqn{\psi}, roots are identified by 
+#' linear interpolation between adjacent grid points where the Z-statistic 
+#' crosses the target level. When multiple roots exist, the estimated 
+#' \eqn{\psi} is the root closest to zero (smallest absolute value). 
+#' For the confidence interval, the lower bound uses the leftmost (minimum) 
+#' root where the Z-statistic equals \eqn{z_{\alpha/2}}, and the upper bound 
+#' uses the rightmost (maximum) root where the Z-statistic equals 
+#' \eqn{-z_{\alpha/2}}, ensuring conservative interval coverage in the 
+#' presence of multiple roots.
+#' 
+#' If root finding is used, Brent's method (or bisection) is applied to a 
+#' bracketed interval \eqn{[\psi_{lo}, \psi_{hi}]}, where the Z-statistic 
+#' is positive at \eqn{\psi_{lo}} and negative at \eqn{\psi_{hi}}. When 
+#' multiple roots exist in the bracket, Brent's method converges to one root 
+#' without guaranteeing it is the root closest to zero. For the confidence 
+#' interval, the lower bound restricts the search to 
+#' \eqn{[\psi_{lo}, \hat{\psi}]} and the upper bound to 
+#' \eqn{[\hat{\psi}, \psi_{hi}]}, ensuring the bounds lie on opposite sides 
+#' of the point estimate and providing conservative coverage when multiple 
+#' roots are present.
 #'
 #' @return A list with the following components:
 #'
