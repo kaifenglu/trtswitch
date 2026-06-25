@@ -313,11 +313,25 @@ estimate the hazard ratio.</p></li>
 the ITT log-rank test p-value or bootstrap. When bootstrapping,
 the interval and p-value are derived from a t-distribution
 with <code>n_boot - 1</code> degrees of freedom.</p></li>
-</ul><p>If grid search is used to estimate \(\psi\), the estimated \(\psi\)
-is the one with the smallest absolute value among those at which
-the Z-statistic is zero based on linear interpolation.
-If root finding is used, the estimated \(\psi\) is
-the solution to the equation where the Z-statistic is zero.</p>
+</ul><p>If grid search is used to estimate \(\psi\), roots are identified by
+linear interpolation between adjacent grid points where the Z-statistic
+crosses the target level. When multiple roots exist, the estimated
+\(\psi\) is the root closest to zero (smallest absolute value).
+For the confidence interval, the lower bound uses the leftmost (minimum)
+root where the Z-statistic equals \(z_{\alpha/2}\), and the upper bound
+uses the rightmost (maximum) root where the Z-statistic equals
+\(-z_{\alpha/2}\), ensuring conservative interval coverage in the
+presence of multiple roots.</p>
+<p>If root finding is used, Brent's method (or bisection) is applied to a
+bracketed interval \([\psi_{lo}, \psi_{hi}]\), where the Z-statistic
+is positive at \(\psi_{lo}\) and negative at \(\psi_{hi}\). When
+multiple roots exist in the bracket, Brent's method converges to one root
+without guaranteeing it is the root closest to zero. For the confidence
+interval, the lower bound restricts the search to
+\([\psi_{lo}, \hat{\psi}]\) and the upper bound to
+\([\hat{\psi}, \psi_{hi}]\), ensuring the bounds lie on opposite sides
+of the point estimate and providing conservative coverage when multiple
+roots are present.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

@@ -269,6 +269,15 @@ follows:
   interval and p-value are derived from a t-distribution with
   `n_boot - 1` degrees of freedom.
 
+The causal parameter \\\psi\\ is estimated by solving the fixed-point
+equation \\\psi\_{new}(\psi) = \psi\\, where \\\psi\_{new}\\ is the
+treatment coefficient from the AFT model fitted at a given \\\psi\\.
+Brent's method (or bisection) is applied to the bracketed interval
+\\\[\psi\_{lo}, \psi\_{hi}\]\\, where \\\psi\_{new}(\psi) - \psi\\ is
+positive at \\\psi\_{lo}\\ and negative at \\\psi\_{hi}\\. When multiple
+fixed points exist in the bracket, the algorithm converges to one of
+them without any selection preference for the root closest to zero.
+
 ## References
 
 Michael Branson and John Whitehead. Estimating a treatment effect in

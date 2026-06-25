@@ -291,11 +291,26 @@ follows:
   interval and p-value are derived from a t-distribution with
   `n_boot - 1` degrees of freedom.
 
-If grid search is used to estimate \\\psi\\, the estimated \\\psi\\ is
-the one with the smallest absolute value among those at which the
-Z-statistic is zero based on linear interpolation. If root finding is
-used, the estimated \\\psi\\ is the solution to the equation where the
-Z-statistic is zero.
+If grid search is used to estimate \\\psi\\, roots are identified by
+linear interpolation between adjacent grid points where the Z-statistic
+crosses the target level. When multiple roots exist, the estimated
+\\\psi\\ is the root closest to zero (smallest absolute value). For the
+confidence interval, the lower bound uses the leftmost (minimum) root
+where the Z-statistic equals \\z\_{\alpha/2}\\, and the upper bound uses
+the rightmost (maximum) root where the Z-statistic equals
+\\-z\_{\alpha/2}\\, ensuring conservative interval coverage in the
+presence of multiple roots.
+
+If root finding is used, Brent's method (or bisection) is applied to a
+bracketed interval \\\[\psi\_{lo}, \psi\_{hi}\]\\, where the Z-statistic
+is positive at \\\psi\_{lo}\\ and negative at \\\psi\_{hi}\\. When
+multiple roots exist in the bracket, Brent's method converges to one
+root without guaranteeing it is the root closest to zero. For the
+confidence interval, the lower bound restricts the search to
+\\\[\psi\_{lo}, \hat{\psi}\]\\ and the upper bound to \\\[\hat{\psi},
+\psi\_{hi}\]\\, ensuring the bounds lie on opposite sides of the point
+estimate and providing conservative coverage when multiple roots are
+present.
 
 ## References
 
