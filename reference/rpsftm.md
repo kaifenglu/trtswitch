@@ -165,7 +165,7 @@ rpsftm(
 
 - alpha:
 
-  The significance level to calculate confidence intervals.
+  The two-sided significance level to calculate confidence intervals.
 
 - ties:
 
@@ -199,6 +199,8 @@ rpsftm(
 ## Value
 
 A list with the following components:
+
+- `call`: The matched function call.
 
 - `psi`: The estimated causal parameter.
 
@@ -341,6 +343,10 @@ fit1 <- rpsftm(
   rx = "rx", censor_time = "censyrs", boot = FALSE)
 
 fit1
+#> Call:
+#> rpsftm(data = data, id = "id", time = "progyrs", event = "prog", 
+#>     treat = "imm", rx = "rx", censor_time = "censyrs", boot = FALSE)
+#> 
 #>             n event_n event_pct switch_n switch_pct event_out_n event_out_pct
 #> Control   500     169      33.8      189       37.8         142          28.4
 #> Treatment 500     143      28.6        0        0.0         143          28.6
@@ -376,6 +382,12 @@ fit2 <- rpsftm(
   low_psi = -3, hi_psi = 3, boot = FALSE)
 
 fit2
+#> Call:
+#> rpsftm(data = shilong2, id = "id", time = "tstop", event = "event", 
+#>     treat = "bras.f", rx = "rx", censor_time = "dcut", base_cov = c("agerand", 
+#>         "sex.f", "tt_Lnum", "rmh_alea.c", "pathway.f"), low_psi = -3, 
+#>     hi_psi = 3, boot = FALSE)
+#> 
 #>             n event_n event_pct switch_n switch_pct event_out_n event_out_pct
 #> Control    93      63      67.7       68       73.1          58          62.4
 #> Treatment 100      67      67.0       25       25.0          62          62.0

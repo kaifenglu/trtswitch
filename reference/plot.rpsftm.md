@@ -1,6 +1,7 @@
 # Plot method for rpsftm objects
 
-Generate Z-plot and Kaplan-Meier (KM) plot of a rpsftm object.
+Generate a Z-plot and Kaplan-Meier (KM) plots of the counterfactual
+untreated and unswitched outcomes of a rpsftm object.
 
 ## Usage
 
@@ -35,7 +36,10 @@ plot(x, time_unit = "day", show_hr = TRUE, show_risk = TRUE, ...)
 
 ## Value
 
-A list of two ggplot2 objects, one for Z-plot and the other for KM plot.
+A list of ggplot2 objects: `p_z` for the Z-plot, `p_kmstar` for
+counterfactual untreated outcomes, and `p_km` for counterfactual
+unswitched outcomes. KM plots are omitted when their corresponding
+estimates are unavailable.
 
 ## Author
 

@@ -10,13 +10,13 @@
 Source:
 [`DESCRIPTION`](https://github.com/kaifenglu/trtswitch/blob/main/DESCRIPTION)
 
-Lu K (2026). *trtswitch: Treatment Switching*. R package version 0.2.7,
+Lu K (2026). *trtswitch: Treatment Switching*. R package version 0.2.8,
 <https://kaifenglu.github.io/trtswitch/>.
 
     @Manual{,
       title = {trtswitch: Treatment Switching},
       author = {Kaifeng Lu},
       year = {2026},
-      note = {R package version 0.2.7},
+      note = {R package version 0.2.8},
       url = {https://kaifenglu.github.io/trtswitch/},
     }

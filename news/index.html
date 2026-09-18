@@ -13,7 +13,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">trtswitch</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.7</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.8</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -40,7 +40,12 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.2.7" id="trtswitch-027">trtswitch 0.2.7<a class="anchor" aria-label="anchor" href="#trtswitch-027"></a></h2>
+<h2 class="pkg-version" data-toc-text="0.2.8" id="trtswitch-028">trtswitch 0.2.8<a class="anchor" aria-label="anchor" href="#trtswitch-028"></a></h2>
+<ul><li>added a summary method for rpsftm with analysis population, model and estimation settings, treatment effect estimates, convergence and bootstrap diagnostics, and reporting notes based on the TSD 24 recommendations</li>
+<li>added the matched function call to rpsftm output and expanded plot.rpsftm with a Kaplan-Meier plot of counterfactual untreated outcomes by randomized treatment group</li>
+</ul></div>
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.2.7" id="trtswitch-027">trtswitch 0.2.7<a class="anchor" aria-label="anchor" href="#trtswitch-027"></a></h2><p class="text-muted">CRAN release: 2026-06-25</p>
 <ul><li>clarified documentation for multiple-root handling of psi estimation in rpsftm, ipe, and tsegest: grid search selects the root closest to zero for point estimates and uses minimum/maximum roots for conservative confidence bounds, while root-finding (Brent or bisection) returns one bracketed root without guaranteeing selection of the root closest to zero</li>
 <li>fixed a typo in tsegest.R</li>
 <li>fixed a typo in the settings output of phregr</li>
@@ -314,7 +319,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

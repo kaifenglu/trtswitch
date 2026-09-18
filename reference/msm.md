@@ -171,7 +171,7 @@ msm(
 
 - alpha:
 
-  The significance level to calculate confidence intervals.
+  The two-sided significance level to calculate confidence intervals.
 
 - ties:
 

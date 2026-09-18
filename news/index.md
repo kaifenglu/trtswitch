@@ -1,6 +1,18 @@
 # Changelog
 
+## trtswitch 0.2.8
+
+- added a summary method for rpsftm with analysis population, model and
+  estimation settings, treatment effect estimates, convergence and
+  bootstrap diagnostics, and reporting notes based on the TSD 24
+  recommendations
+- added the matched function call to rpsftm output and expanded
+  plot.rpsftm with a Kaplan-Meier plot of counterfactual untreated
+  outcomes by randomized treatment group
+
 ## trtswitch 0.2.7
+
+CRAN release: 2026-06-25
 
 - clarified documentation for multiple-root handling of psi estimation
   in rpsftm, ipe, and tsegest: grid search selects the root closest to
