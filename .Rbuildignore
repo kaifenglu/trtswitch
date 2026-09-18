@@ -1,0 +1,14 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.git$
+^\.gitignore$
+^\.\.Rcheck$
+^data-raw$
+^notes$
+^docs$
+^_pkgdown\.yml$
+^pkgdown$
+^\.github$
+^\.positai$
+^\.claude$
+^\.vscode$

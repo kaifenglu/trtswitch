@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+..Rcheck/
+src/*.o
+src/*.so
+src/*.dll
+inst/doc
+notes/
+docs/
+.vscode/
+trtswitch.Rproj
+.positai
+docs
